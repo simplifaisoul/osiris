@@ -146,11 +146,12 @@ function parsePointDataCSV(csv: string): ConflictEvent[] {
 
 // Main comprehensive conflict query — fetches from GDELT DOC API (pointdata mode)
 async function fetchAllLiveConflictData(): Promise<{ events: ConflictEvent[]; eventsByRegion: Record<string, number> }> {
-  // Use fewer, broader queries with proper delays to avoid 429
+  // A single broad query keeps the whole route well under the client timeout.
+  // The previous 3-query loop spaced 6s apart (plus a 6s DOC-fallback delay)
+  // could run ~90s and time the endpoint out entirely, so the layer returned
+  // nothing. One combined GDELT query returns comparable coverage in ~10s.
   const conflictQueries = [
-    'airstrike OR missile OR shelling',
-    'military attack OR bombing OR frontline',
-    'drone strike OR war casualties',
+    'airstrike OR missile OR shelling OR bombing OR frontline OR drone strike OR war casualties',
   ];
 
   const allEvents: ConflictEvent[] = [];
@@ -208,8 +209,9 @@ async function fetchAllLiveConflictData(): Promise<{ events: ConflictEvent[]; ev
         }
       }
 
-      // Fallback: DOC API pointdata mode (CSV with lat/lng)
-      await new Promise(resolve => setTimeout(resolve, 6000)); // extra delay
+      // Fallback: DOC API pointdata mode (CSV with lat/lng). Short spacing so a
+      // single GEO miss doesn't push the route past the client timeout.
+      await new Promise(resolve => setTimeout(resolve, 1500));
       const docUrl = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodedQuery}&mode=pointdata&format=csv&timespan=72h&maxrecords=80`;
       const docRes = await stealthFetch(docUrl, { signal: AbortSignal.timeout(10000) });
       
