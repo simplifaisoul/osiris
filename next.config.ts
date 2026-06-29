@@ -1,7 +1,13 @@
 import type { NextConfig } from "next";
 
+// `output: 'standalone'` is wanted for the Docker / self-hosted deploy path
+// (see Dockerfile + docker-compose). On Vercel it is unnecessary (Vercel
+// produces its own optimized output), so we only enable it off-platform.
+// `VERCEL=1` is set automatically by Vercel at build time.
+const isVercel = !!process.env.VERCEL;
+
 const nextConfig: NextConfig = {
-  output: 'standalone',
+  ...(isVercel ? {} : { output: 'standalone' as const }),
   serverExternalPackages: ['ws'],
   transpilePackages: ['react-map-gl', 'mapbox-gl', 'maplibre-gl'],
   typescript: {

@@ -4,7 +4,17 @@ import WebSocket from 'ws';
 /**
  * OSIRIS — Maritime Intelligence
  * Real-time AIS vessel tracking via aisstream.io + Static global ports.
+ *
+ * Vercel note: the live AIS feed relies on a long-lived outbound WebSocket
+ * that populates a module-level cache. On serverless the instance is
+ * short-lived, so live positions are sparse - the route still returns the
+ * full static port set (graceful degradation). For rich live AIS, run the
+ * separate scanner/backend service (SCANNER_URL) or self-host via Docker.
  */
+
+// Vercel: allow the (fast) cache+ports response to complete before the
+// function is timed out.
+export const maxDuration = 60;
 
 const PORTS = [
   // ── Top Container Ports ──
