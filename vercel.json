@@ -1,0 +1,24 @@
+# ─────────────────────────────────────────────────────────────────────────
+#  OSIRIS — Vercel project configuration
+#
+#  Vercel auto-detects Next.js, so this file only adds the bits that need
+#  to be explicit:
+#    • buildCommand  → generate the Prisma client BEFORE next build (the
+#                      generated @prisma/client is git-ignored, so it must
+#                      be produced at build time on Vercel).
+#    • installCommand → standard npm install (postinstall also runs
+#                      `prisma generate` as a belt-and-braces fallback).
+#
+#  All secrets (DATABASE_URL, DIRECT_URL, SCANNER_*, optional data-source
+#  keys) are set in the Vercel dashboard → Project → Settings → Environment
+#  Variables, NOT in this file.
+# ─────────────────────────────────────────────────────────────────────────
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "installCommand": "npm install",
+  "buildCommand": "prisma generate && next build",
+  "github": {
+    "silent": true
+  }
+}
