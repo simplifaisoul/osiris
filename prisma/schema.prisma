@@ -1,0 +1,46 @@
+// ═══════════════════════════════════════════════════════════════════════════
+//  OSIRIS — Prisma schema (Neon Postgres)
+//
+//  This database is OPTIONAL. OSIRIS runs fully keyless/stateless by default.
+//  When DATABASE_URL is set (Neon), the app persists RECON scan history and
+//  exposes /api/db-health. When unset, DB calls no-op and the app behaves
+//  exactly as before.
+//
+//  Prisma 7 separates the two connection roles:
+//    • Runtime  → @prisma/adapter-neon over Neon's HTTP driver, using the
+//                 POOLED DATABASE_URL. Wired in src/lib/db.ts.
+//    • Migrate  → the DIRECT connection, declared in prisma.config.ts
+//                 (datasource.url). Used by `prisma db push` / `prisma migrate`.
+// ═══════════════════════════════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  RECON scan history — written (best-effort) by /api/scanner after every
+//  scan, regardless of success/failure. Queried by future audit / dashboard
+//  features. All writes are fire-and-forget so a DB hiccup never blocks a scan.
+// ─────────────────────────────────────────────────────────────────────────
+
+model ScanRecord {
+  id         String   @id @default(cuid())
+  target     String
+  scanType   String   @map("scan_type")
+  status     String // "success" | "error" | "blocked" | "ratelimited"
+  sourceIp   String?  @map("source_ip")
+  httpStatus Int?     @map("http_status")
+  result     Json?
+  error      String?
+  durationMs Int?     @map("duration_ms")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([target])
+  @@index([createdAt])
+  @@index([scanType])
+  @@map("scan_records")
+}
