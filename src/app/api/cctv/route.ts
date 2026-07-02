@@ -51,17 +51,24 @@ async function fetchTfLCameras(): Promise<any[]> {
   } catch (e) { return []; }
 }
 
-// ── US-WEST: WSDOT Washington State (~500) ──
+// ── US-WEST: WSDOT Washington State (~1,700) ──
+// Backs https://wsdot.com/Travel/Real-time/Map/ — public ArcGIS FeatureServer, no key required.
 async function fetchWSDOTCameras(): Promise<any[]> {
   try {
-    const res = await stealthFetch('https://data.wsdot.wa.gov/log/public/cameras.json', { signal: AbortSignal.timeout(12000) });
+    const url = 'https://data.wsdot.wa.gov/arcgis/rest/services/TravelInformation/TravelInfoCamerasWeather/FeatureServer/0/query'
+      + '?where=1%3D1&outFields=CameraTitle,ImageURL,CompassDirection&f=geojson&outSR=4326';
+    const res = await stealthFetch(url, { signal: AbortSignal.timeout(15000) });
     if (!res.ok) return [];
     const data = await res.json();
-    return (data || []).map((cam: any) => ({
-      id: `wsdot-${cam.CameraID}`, lat: cam.CameraLocation?.Latitude, lng: cam.CameraLocation?.Longitude,
-      name: cam.Title || 'WSDOT Camera', city: 'Washington', country: 'US',
-      feed_url: cam.ImageURL || '', source: 'WSDOT',
-    })).filter((c: any) => c.lat && c.lng && c.feed_url);
+    return (data.features || []).map((f: any) => {
+      const [lng, lat] = f.geometry?.coordinates || [];
+      const p = f.properties || {};
+      return {
+        id: `wsdot-${f.id ?? p.OBJECTID}`, lat, lng,
+        name: p.CameraTitle || 'WSDOT Camera', city: 'Washington', country: 'US',
+        feed_url: p.ImageURL || '', source: 'WSDOT',
+      };
+    }).filter((c: any) => c.lat && c.lng && c.feed_url);
   } catch (e) { return []; }
 }
 
