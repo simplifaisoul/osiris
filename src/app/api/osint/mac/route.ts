@@ -12,22 +12,22 @@ export async function GET(req: Request) {
   const cleanMac = mac.trim().toUpperCase().replace(/[^A-F0-9:-]/g, '');
 
   try {
-    const res = await fetch(`https://macvendors.co/api/${encodeURIComponent(cleanMac)}`, {
+    const res = await fetch(`https://api.maclookup.app/v2/macs/${encodeURIComponent(cleanMac)}`, {
       signal: AbortSignal.timeout(8000),
       headers: { 'Accept': 'application/json' }
     });
 
     if (!res.ok) {
-      throw new Error(`MacVendors API HTTP ${res.status}`);
+      throw new Error(`MAC Lookup API HTTP ${res.status}`);
     }
 
     const data = await res.json();
-    if (data && data.result && data.result.company) {
+    if (data && data.found) {
       return NextResponse.json({
         mac: cleanMac,
-        vendor: data.result.company,
-        address: data.result.address,
-        prefix: data.result.mac_prefix
+        vendor: data.company || 'Unknown',
+        address: data.address || '',
+        prefix: data.macPrefix || cleanMac.slice(0, 8)
       });
     } else {
       return NextResponse.json({ mac: cleanMac, vendor: 'Not Found' });
