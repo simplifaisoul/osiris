@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback, memo } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { jitteredCentroid } from '@/lib/countryCentroids';
 
 interface OsirisMapProps {
   data: any;
@@ -181,7 +182,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       createDot(map, 'dot-fire', isGhost ? phantomPurple : '#E65100', 10);
       createDot(map, 'dot-cctv', cameraColor, 10);
 
-      const sources = ['flights','military','jets','private-fl','satellites','earthquakes','gdelt','gps-jamming','day-night','cctv','fires','weather','infrastructure','maritime','maritime-choke','maritime-ships','live-news','sigint-news','conflict-zones', 'war-alerts-targets', 'war-alerts-lines', 'balloons', 'radiation', 'ip-sweep-devices', 'ip-sweep-pulse', 'ip-sweep-connections', 'scan-targets', 'sdk-entities', 'sdk-links', 'malware-nodes', 'network-mesh'];
+      const sources = ['flights','military','jets','private-fl','satellites','earthquakes','gdelt','gps-jamming','day-night','cctv','fires','weather','infrastructure','maritime','maritime-choke','maritime-ships','live-news','sigint-news','conflict-zones', 'war-alerts-targets', 'war-alerts-lines', 'balloons', 'radiation', 'ip-sweep-devices', 'ip-sweep-pulse', 'ip-sweep-connections', 'scan-targets', 'sdk-entities', 'sdk-links', 'malware-nodes', 'network-mesh', 'tsunami', 'buoys', 'ransomware-nodes', 'shodan-nodes'];
       sources.forEach(s => map.addSource(s, { type: 'geojson', data: EMPTY_FC }));
 
       // Warning icon generator (parameterized — eliminates 3x copy-paste)
@@ -241,6 +242,24 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'circle-color': '#E65100', 'circle-opacity': 0.45, 'circle-blur': 0.5,
       }});
 
+      // Tsunami — warning-red pulse ring + core
+      map.addLayer({ id: 'tsunami-glow', type: 'circle', source: 'tsunami', paint: {
+        'circle-radius': ['interpolate',['linear'],['zoom'], 1,10, 5,18, 10,28],
+        'circle-color': '#D32F2F', 'circle-opacity': 0.12, 'circle-blur': 0.6,
+      }});
+      map.addLayer({ id: 'tsunami-circles', type: 'circle', source: 'tsunami', paint: {
+        'circle-radius': ['interpolate',['linear'],['zoom'], 1,4, 5,7, 10,10],
+        'circle-color': '#D32F2F', 'circle-opacity': 0.9,
+        'circle-stroke-width': 1.5, 'circle-stroke-color': '#F9A825', 'circle-stroke-opacity': 0.8,
+      }});
+
+      // Ocean Buoys — teal maritime sensor dots
+      map.addLayer({ id: 'buoy-dots', type: 'circle', source: 'buoys', paint: {
+        'circle-radius': ['interpolate',['linear'],['zoom'], 1,2, 5,4, 10,6],
+        'circle-color': '#26A69A', 'circle-opacity': 0.85,
+        'circle-stroke-width': 1, 'circle-stroke-color': '#000000', 'circle-stroke-opacity': 0.7,
+      }});
+
       // CCTV — outer glow ring (black/white depending on theme)
       map.addLayer({ id: 'cctv-glow', type: 'circle', source: 'cctv', paint: {
         'circle-radius': ['interpolate',['linear'],['zoom'], 1,5, 5,8, 10,14, 14,20],
@@ -277,6 +296,29 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'text-field': ['get','malware'], 'text-size': 8, 'text-font': ['JetBrains Mono Bold', 'Open Sans Bold'],
         'text-offset': [0, 1.5], 'text-max-width': 10, 'text-allow-overlap': false,
       }, paint: { 'text-color': '#D32F2F', 'text-halo-color': '#111', 'text-halo-width': 1.5, 'text-opacity': 0.85 }});
+
+      // Ransomware victims (ransomware.live) — magenta threat. Country-level
+      // positions only (jittered centroid); precise victim location is unknown.
+      map.addLayer({ id: 'ransomware-glow', type: 'circle', source: 'ransomware-nodes', paint: {
+        'circle-radius': ['interpolate',['linear'],['zoom'], 1,6, 5,12, 10,20],
+        'circle-color': '#C2185B', 'circle-opacity': 0.06, 'circle-blur': 0.5,
+      }});
+      map.addLayer({ id: 'ransomware-dots', type: 'circle', source: 'ransomware-nodes', paint: {
+        'circle-radius': ['interpolate',['linear'],['zoom'], 1,2, 5,4, 10,6],
+        'circle-color': '#C2185B', 'circle-opacity': 0.9,
+        'circle-stroke-width': 1, 'circle-stroke-color': '#000000', 'circle-stroke-opacity': 0.8,
+      }});
+
+      // Shodan exposed devices (opt-in, keyed) — amber threat
+      map.addLayer({ id: 'shodan-glow', type: 'circle', source: 'shodan-nodes', paint: {
+        'circle-radius': ['interpolate',['linear'],['zoom'], 1,6, 5,12, 10,20],
+        'circle-color': '#FFB300', 'circle-opacity': 0.06, 'circle-blur': 0.5,
+      }});
+      map.addLayer({ id: 'shodan-dots', type: 'circle', source: 'shodan-nodes', paint: {
+        'circle-radius': ['interpolate',['linear'],['zoom'], 1,2, 5,4, 10,6],
+        'circle-color': '#FFB300', 'circle-opacity': 0.9,
+        'circle-stroke-width': 1, 'circle-stroke-color': '#000000', 'circle-stroke-opacity': 0.8,
+      }});
 
       // ── NETWORK INTEL MESH (SDK STYLE) ──
       map.addLayer({ id: 'network-mesh-atmo', type: 'line', source: 'network-mesh', paint: {
@@ -662,6 +704,37 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       </div>`);
     });
 
+    // ── Tsunami (NOAA NTWC) ──
+    map.on('click', 'tsunami-circles', e => {
+      if (!e.features?.length) return;
+      const p = e.features[0].properties as any;
+      const coords = (e.features[0].geometry as any).coordinates;
+      popup(coords, `<div style="${pStyle}border:1px solid rgba(211,47,47,0.4);">
+        <div style="color:#D32F2F;font-size:12px;font-weight:700;margin-bottom:4px;">🌊 ${htmlEsc(p.title||'Tsunami Information Statement')}</div>
+        <div style="font-size:9px;color:#E8E6E0;margin-bottom:8px;">${htmlEsc(p.summary||'')}</div>
+        <div style="font-size:9px;color:#5C5A54;margin-bottom:8px;">UPDATED ${htmlEsc(p.updated||'—')}</div>
+        <a href="${urlSafe(p.url)}" target="_blank" style="${linkStyle}color:#D32F2F;border:1px solid rgba(211,47,47,0.4);background:rgba(211,47,47,0.1);">📊 NOAA TSUNAMI.GOV</a>
+      </div>`);
+    });
+
+    // ── Ocean Buoys (NOAA NDBC) ──
+    map.on('click', 'buoy-dots', e => {
+      if (!e.features?.length) return;
+      const p = e.features[0].properties as any;
+      const coords = (e.features[0].geometry as any).coordinates;
+      popup(coords, `<div style="${pStyle}border:1px solid rgba(38,166,154,0.3);">
+        <div style="color:#26A69A;font-size:12px;font-weight:700;margin-bottom:6px;">⚓ BUOY ${htmlEsc(p.stationId)}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:9px;">
+          <div><span style="color:#5C5A54;">WIND</span><br/><span style="color:#E8E6E0;">${p.windSpeed ?? '—'} m/s</span></div>
+          <div><span style="color:#5C5A54;">GUST</span><br/><span style="color:#E8E6E0;">${p.gust ?? '—'} m/s</span></div>
+          <div><span style="color:#5C5A54;">WAVE HT</span><br/><span style="color:#E8E6E0;">${p.waveHeight ?? '—'} m</span></div>
+          <div><span style="color:#5C5A54;">PRESSURE</span><br/><span style="color:#E8E6E0;">${p.pressure ?? '—'} hPa</span></div>
+          <div><span style="color:#5C5A54;">AIR TEMP</span><br/><span style="color:#E8E6E0;">${p.airTemp ?? '—'}°C</span></div>
+          <div><span style="color:#5C5A54;">WATER TEMP</span><br/><span style="color:#E8E6E0;">${p.waterTemp ?? '—'}°C</span></div>
+        </div>
+      </div>`);
+    });
+
     // ── Satellites (SatNOGS powered) ──
     map.on('click', 'sat-dots', e => {
       if (!e.features?.length) return;
@@ -715,6 +788,45 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
           <a href="https://feodotracker.abuse.ch/browse/" target="_blank" style="${linkStyle}flex:1;text-align:center;color:#E8E6E0;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.05);">THREAT INTEL ↗</a>
         </div>
         <button onclick="window.openOsirisIntel({ type: 'ip', ip: '${idSafe(p.ip)}', threat_type: '${idSafe(p.malware || p.threat_type || '')}', status: '${idSafe(p.status || '')}' })" style="width:100%;margin-top:8px;padding:8px 12px;background:linear-gradient(90deg, rgba(255,23,68,0.1) 0%, rgba(255,23,68,0.2) 100%);border:1px solid rgba(255,23,68,0.6);color:#FF1744;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:bold;letter-spacing:0.15em;border-radius:4px;cursor:pointer;transition:all 0.2s;">DEEP DIVE ANALYTICS</button>
+      </div>`);
+    });
+
+    // ── Ransomware Victims (ransomware.live) ──
+    map.on('click', 'ransomware-dots', e => {
+      if (!e.features?.length) return;
+      const p = e.features[0].properties as any;
+      const coords = (e.features[0].geometry as any).coordinates;
+      popup(coords, `<div style="${pStyle}border:1px solid rgba(194,24,91,0.4);">
+        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(194,24,91,0.3);padding-bottom:6px;margin-bottom:8px;">
+          <div style="color:#C2185B;font-size:12px;font-weight:700;letter-spacing:0.1em;">[ RANSOMWARE ]</div>
+          <div style="color:#5C5A54;font-size:9px;">${htmlEsc(p.country || 'UNKNOWN')} (approx.)</div>
+        </div>
+        <div style="color:#E8E6E0;font-size:11px;font-weight:bold;margin-bottom:6px;">${htmlEsc(p.victim || 'Unknown victim')}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:9px;margin-bottom:8px;">
+          <div><span style="color:#5C5A54;">GROUP</span><br/><span style="color:#C2185B;">${htmlEsc(p.group || 'unknown')}</span></div>
+          <div><span style="color:#5C5A54;">SECTOR</span><br/><span style="color:#E8E6E0;">${htmlEsc(p.activity || '—')}</span></div>
+        </div>
+        <div style="font-size:9px;color:#5C5A54;margin-bottom:8px;">PUBLISHED ${htmlEsc(p.published||'—')}</div>
+        ${p.url ? `<a href="${urlSafe(p.url)}" target="_blank" style="${linkStyle}color:#C2185B;border:1px solid rgba(194,24,91,0.4);background:rgba(194,24,91,0.1);">THREAT INTEL ↗</a>` : ''}
+      </div>`);
+    });
+
+    // ── Shodan Exposed Devices ──
+    map.on('click', 'shodan-dots', e => {
+      if (!e.features?.length) return;
+      const p = e.features[0].properties as any;
+      const coords = (e.features[0].geometry as any).coordinates;
+      popup(coords, `<div style="${pStyle}border:1px solid rgba(255,179,0,0.4);">
+        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,179,0,0.3);padding-bottom:6px;margin-bottom:8px;">
+          <div style="color:#FFB300;font-size:12px;font-weight:700;letter-spacing:0.1em;">[ SHODAN ]</div>
+          <div style="color:#5C5A54;font-size:9px;">${htmlEsc(p.country || 'UNKNOWN')}</div>
+        </div>
+        <div style="color:#E8E6E0;font-size:11px;font-weight:bold;margin-bottom:6px;">${htmlEsc(p.product || 'Unidentified service')}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:9px;margin-bottom:8px;">
+          <div><span style="color:#5C5A54;">IP:PORT</span><br/><span style="color:#FFB300;font-family:monospace;">${htmlEsc(p.ip)}:${p.port}</span></div>
+          <div><span style="color:#5C5A54;">ORG</span><br/><span style="color:#E8E6E0;">${htmlEsc(p.org || '—')}</span></div>
+        </div>
+        <a href="https://www.shodan.io/host/${idSafe(p.ip)}" target="_blank" style="${linkStyle}color:#FFB300;border:1px solid rgba(255,179,0,0.4);background:rgba(255,179,0,0.1);">SHODAN HOST DETAILS ↗</a>
       </div>`);
     });
 
@@ -798,7 +910,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     });
 
     // ── Generic hover for clickables ──
-    ['conflict-icons','cctv-dots','eq-circles','sat-dots','fires-heat','gdelt-dots','weather-dots','infra-dots','maritime-dots','choke-dots','news-dots','sigint-news-dots','balloon-dots','rad-dots','ship-dots','sweep-device-dots','scan-targets-dots','sdk-sea','sdk-sea-glow','sdk-sea-atmo','sdk-air','sdk-air-glow','sdk-air-atmo','sdk-intel','sdk-intel-glow','sdk-intel-atmo','malware-dots'].forEach(layer => {
+    ['conflict-icons','cctv-dots','eq-circles','sat-dots','fires-heat','gdelt-dots','weather-dots','infra-dots','maritime-dots','choke-dots','news-dots','sigint-news-dots','balloon-dots','rad-dots','ship-dots','sweep-device-dots','scan-targets-dots','sdk-sea','sdk-sea-glow','sdk-sea-atmo','sdk-air','sdk-air-glow','sdk-air-atmo','sdk-intel','sdk-intel-glow','sdk-intel-atmo','malware-dots','tsunami-circles','buoy-dots','ransomware-dots','shodan-dots'].forEach(layer => {
       map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
       map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
     });
@@ -1122,6 +1234,16 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
 
   useEffect(() => {
     if (!mapReady) return;
+    setGeo('tsunami', activeLayers.tsunami && data.tsunami ? data.tsunami.map((t: any) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [t.lng, t.lat] }, properties: { title: t.title, summary: t.summary, updated: t.updated, url: t.url } })) : []);
+  }, [mapReady, data.tsunami, activeLayers.tsunami, setGeo]);
+
+  useEffect(() => {
+    if (!mapReady) return;
+    setGeo('buoys', activeLayers.buoys && data.buoys ? data.buoys.map((b: any) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [b.lng, b.lat] }, properties: { stationId: b.stationId, windSpeed: b.windSpeed, windDir: b.windDir, gust: b.gust, waveHeight: b.waveHeight, pressure: b.pressure, airTemp: b.airTemp, waterTemp: b.waterTemp } })) : []);
+  }, [mapReady, data.buoys, activeLayers.buoys, setGeo]);
+
+  useEffect(() => {
+    if (!mapReady) return;
     const sats = data.satellites || [];
     const al = activeLayers as any;
     
@@ -1158,6 +1280,27 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     if (!mapReady) return;
     setGeo('malware-nodes', activeLayers.malware && data.malware_threats ? data.malware_threats.map((t: any) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [t.lng, t.lat] }, properties: { ip: t.ip, malware: t.malware, status: t.status, threat_type: t.threat_type, country: t.country } })) : []);
   }, [mapReady, data.malware_threats, activeLayers.malware, setGeo]);
+
+  // Ransomware victims — no precise location in source data, plotted at a jittered country centroid
+  useEffect(() => {
+    if (!mapReady) return;
+    const features = activeLayers.ransomware && data.ransomware
+      ? data.ransomware
+          .map((v: any, i: number) => {
+            const pos = jitteredCentroid(i, v.country);
+            if (!pos) return null;
+            return { type: 'Feature', geometry: { type: 'Point', coordinates: [pos.lng, pos.lat] }, properties: { victim: v.victim, group: v.group, country: v.country, activity: v.activity, published: v.published, url: v.url } };
+          })
+          .filter(Boolean)
+      : [];
+    setGeo('ransomware-nodes', features);
+  }, [mapReady, data.ransomware, activeLayers.ransomware, setGeo]);
+
+  // Shodan exposed devices (opt-in, keyed — empty data when disabled, not an error)
+  useEffect(() => {
+    if (!mapReady) return;
+    setGeo('shodan-nodes', activeLayers.shodan && data.shodan_hosts ? data.shodan_hosts.map((h: any) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [h.lng, h.lat] }, properties: { ip: h.ip, port: h.port, org: h.org, product: h.product, country: h.country, city: h.city } })) : []);
+  }, [mapReady, data.shodan_hosts, activeLayers.shodan, setGeo]);
 
   // Network Mesh Generation (Nearest Neighbor Lattice)
   useEffect(() => {
@@ -1364,6 +1507,10 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     setVis(['fl-military'], activeLayers.military);
     setVis(['cctv-glow','cctv-dots','cctv-label'], activeLayers.cctv);
     setVis(['fires-heat'], activeLayers.fires);
+    setVis(['tsunami-glow','tsunami-circles'], activeLayers.tsunami);
+    setVis(['buoy-dots'], activeLayers.buoys);
+    setVis(['ransomware-glow','ransomware-dots'], activeLayers.ransomware);
+    setVis(['shodan-glow','shodan-dots'], activeLayers.shodan);
     setVis(['weather-glow','weather-dots','weather-label'], activeLayers.weather);
     setVis(['infra-glow','infra-dots','infra-label'], activeLayers.infrastructure);
     setVis(['maritime-glow','maritime-dots','maritime-label'], activeLayers.maritime);

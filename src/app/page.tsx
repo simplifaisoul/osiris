@@ -21,6 +21,7 @@ const LayerPanel = dynamic(() => import('@/components/LayerPanel'));
 const CameraViewer = dynamic(() => import('@/components/CameraViewer'));
 const OsintPanel = dynamic(() => import('@/components/OsintPanel'));
 const EntityGraphPanel = dynamic(() => import('@/components/EntityGraphPanel'));
+const SourceHealthPanel = dynamic(() => import('@/components/SourceHealthPanel'));
 const TokenPanel = dynamic(() => import('@/components/TokenPanel'));
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(false);
@@ -97,6 +98,7 @@ export default function Dashboard() {
   const [locationLabel, setLocationLabel] = useState('');
   const [regionDossier, setRegionDossier] = useState<any>(null);
   const [dossierLoading, setDossierLoading] = useState(false);
+  const [wigleNetworks, setWigleNetworks] = useState<any[] | null>(null);
   const [showSplash, setShowSplash] = useState(true);
   const [activeCamera, setActiveCamera] = useState<any>(null);
   const [spaceWeather, setSpaceWeather] = useState<any>(null);
@@ -106,9 +108,10 @@ export default function Dashboard() {
   const [showScmPanel, setShowScmPanel] = useState(true);
   const [showIntel, setShowIntel] = useState(false);
   const [showEntityGraph, setShowEntityGraph] = useState(false);
+  const [showSources, setShowSources] = useState(false);
   const [showDesktopSearch, setShowDesktopSearch] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [mobilePanel, setMobilePanel] = useState<'layers'|'markets'|'intel'|'search'|'recon'|null>(null);
+  const [mobilePanel, setMobilePanel] = useState<'layers'|'markets'|'intel'|'search'|'recon'|'sources'|null>(null);
   const [mapProjection, setMapProjection] = useState<'globe'|'mercator'>('globe');
   const [mapStyle, setMapStyle] = useState<'dark'|'satellite'>('dark');
   const [sweepData, setSweepData] = useState<any>(null);
@@ -147,6 +150,8 @@ export default function Dashboard() {
     earthquakes: true,
     fires: false,
     weather: false,
+    tsunami: false,
+    buoys: false,
     radiation: false,
     infrastructure: false,
     global_incidents: true,
@@ -159,6 +164,8 @@ export default function Dashboard() {
     sdk_naval: true,
     terrain_3d: false,
     malware: false,
+    ransomware: false,
+    shodan: false,
   });
   const [liveFeedUrl, setLiveFeedUrl] = useState<string | null>(null);
   const [liveFeedName, setLiveFeedName] = useState('');
@@ -281,11 +288,20 @@ export default function Dashboard() {
 
   // Region dossier (right-click)
   const handleRightClick = useCallback(async (coords: { lat: number; lng: number }) => {
-    setDossierLoading(true); setRegionDossier(null);
+    setDossierLoading(true); setRegionDossier(null); setWigleNetworks(null);
     try {
       const res = await fetch(`/api/region-dossier?lat=${coords.lat}&lng=${coords.lng}`);
       if (res.ok) setRegionDossier(await res.json());
     } catch (e) { console.warn('[OSIRIS] Suppressed error:', e instanceof Error ? e.message : e); } finally { setDossierLoading(false); }
+
+    // WiGLE nearby wireless networks — opt-in/keyed, silently empty without credentials
+    try {
+      const res = await fetch(`/api/wigle-networks?lat=${coords.lat}&lng=${coords.lng}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.networks?.length) setWigleNetworks(json.networks);
+      }
+    } catch (e) { console.warn('[OSIRIS] Suppressed error:', e instanceof Error ? e.message : e); }
   }, []);
   // Entity click handler (hoisted from JSX to comply with Rules of Hooks - Fixes #113)
   const handleEntityClick = useCallback((entity: any) => {
@@ -418,6 +434,16 @@ export default function Dashboard() {
       fetchEndpoint('/api/weather', d => ({ weather_events: d.events }));
       layerFetchedRef.current.add('weather');
     }
+    // Tsunami
+    if (activeLayers.tsunami && !layerFetchedRef.current.has('tsunami')) {
+      fetchEndpoint('/api/tsunami', d => ({ tsunami: d.events }));
+      layerFetchedRef.current.add('tsunami');
+    }
+    // Ocean Buoys
+    if (activeLayers.buoys && !layerFetchedRef.current.has('buoys')) {
+      fetchEndpoint('/api/buoys', d => ({ buoys: d.buoys }));
+      layerFetchedRef.current.add('buoys');
+    }
     // Infrastructure
     if (activeLayers.infrastructure && !layerFetchedRef.current.has('infrastructure')) {
       fetchEndpoint('/api/infrastructure', d => ({ infrastructure: d.infrastructure }));
@@ -450,6 +476,18 @@ export default function Dashboard() {
     if (activeLayers.malware && !layerFetchedRef.current.has('malware')) {
       fetchEndpoint('/api/malware', d => ({ malware_threats: d.threats }));
       layerFetchedRef.current.add('malware');
+    }
+
+    // Ransomware Victims (ransomware.live)
+    if (activeLayers.ransomware && !layerFetchedRef.current.has('ransomware')) {
+      fetchEndpoint('/api/ransomware', d => ({ ransomware: d.victims }));
+      layerFetchedRef.current.add('ransomware');
+    }
+
+    // Shodan Exposed Devices (opt-in, requires SHODAN_API_KEY — empty without it)
+    if (activeLayers.shodan && !layerFetchedRef.current.has('shodan')) {
+      fetchEndpoint('/api/shodan-exposed', d => ({ shodan_hosts: d.hosts }));
+      layerFetchedRef.current.add('shodan');
     }
 
 
@@ -945,13 +983,26 @@ export default function Dashboard() {
         </div>
 
         <div className="relative group">
-          <button onClick={() => { setShowEntityGraph(!showEntityGraph); setShowIntel(false); setShowMarkets(false); setShowAlerts(false); }} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${showEntityGraph ? 'bg-[#D4AF37]/20' : 'hover:bg-white/10'}`}>
+          <button onClick={() => { setShowEntityGraph(!showEntityGraph); setShowIntel(false); setShowMarkets(false); setShowAlerts(false); setShowSources(false); }} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${showEntityGraph ? 'bg-[#D4AF37]/20' : 'hover:bg-white/10'}`}>
             <Network className={`w-4 h-4 ${showEntityGraph ? 'text-[var(--gold-primary)]' : 'text-white/60'}`} />
           </button>
         </div>
 
         <div className="relative group">
-          <button onClick={() => { setShowDesktopSearch(!showDesktopSearch); setShowIntel(false); setShowMarkets(false); setShowAlerts(false); setShowEntityGraph(false); }} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${showDesktopSearch ? 'bg-[var(--gold-primary)]/20' : 'hover:bg-white/10'}`}>
+          <button onClick={() => { setShowSources(!showSources); setShowIntel(false); setShowMarkets(false); setShowAlerts(false); setShowEntityGraph(false); }} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${showSources ? 'bg-[var(--gold-primary)]/20' : 'hover:bg-white/10'}`} title="Source health">
+            <Activity className={`w-4 h-4 ${showSources ? 'text-[var(--gold-primary)]' : 'text-white/60'}`} />
+          </button>
+          <AnimatePresence>
+            {showSources && (
+              <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="absolute right-12 top-1/2 -translate-y-1/2 w-80">
+                <SourceHealthPanel />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <div className="relative group">
+          <button onClick={() => { setShowDesktopSearch(!showDesktopSearch); setShowIntel(false); setShowMarkets(false); setShowAlerts(false); setShowEntityGraph(false); setShowSources(false); }} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${showDesktopSearch ? 'bg-[var(--gold-primary)]/20' : 'hover:bg-white/10'}`}>
             <Search className={`w-4 h-4 ${showDesktopSearch ? 'text-[var(--gold-primary)]' : 'text-white/60'}`} />
           </button>
           <AnimatePresence>
@@ -1074,6 +1125,7 @@ export default function Dashboard() {
                 { id: 'markets' as const, icon: BarChart3, label: 'MARKETS' },
                 { id: 'intel' as const, icon: Newspaper, label: 'INTEL' },
                 { id: 'recon' as const, icon: Radar, label: 'RECON' },
+                { id: 'sources' as const, icon: Activity, label: 'SOURCES' },
                 { id: 'search' as const, icon: Search, label: 'SEARCH' },
               ].map(tab => (
                 <button key={tab.id} onClick={() => setMobilePanel(mobilePanel === tab.id ? null : tab.id)}
@@ -1098,7 +1150,7 @@ export default function Dashboard() {
                 <div className="px-3 pb-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="hud-text text-[9px] text-[var(--text-primary)]">
-                      {mobilePanel === 'layers' ? 'LAYERS & STATS' : mobilePanel === 'markets' ? 'MARKETS & INTEL' : mobilePanel === 'intel' ? 'INTEL FEED' : mobilePanel === 'recon' ? 'OSIRIS RECON' : 'SEARCH'}
+                      {mobilePanel === 'layers' ? 'LAYERS & STATS' : mobilePanel === 'markets' ? 'MARKETS & INTEL' : mobilePanel === 'intel' ? 'INTEL FEED' : mobilePanel === 'recon' ? 'OSIRIS RECON' : mobilePanel === 'sources' ? 'SOURCE HEALTH' : 'SEARCH'}
                     </span>
                     <button onClick={() => setMobilePanel(null)} className="text-[var(--text-muted)] p-1"><X className="w-4 h-4" /></button>
                   </div>
@@ -1132,6 +1184,7 @@ export default function Dashboard() {
                       <OsintPanel isOpen={true} onClose={() => setMobilePanel(null)} isMobile={true} onSweepVisualize={setSweepData} />
                     </div>
                   )}
+                  {mobilePanel === 'sources' && <SourceHealthPanel />}
                 </div>
               </motion.div>
             )}
@@ -1192,6 +1245,19 @@ export default function Dashboard() {
                 )}
                 {regionDossier.head_of_state && (<div><div className="hud-label mb-0.5">HEAD OF STATE</div><div className="text-xs text-[var(--gold-primary)]">{regionDossier.head_of_state.name}</div><div className="text-[8px] text-[var(--text-muted)]">{regionDossier.head_of_state.position}</div></div>)}
                 {regionDossier.wikipedia && (<div><div className="hud-label mb-1">INTELLIGENCE BRIEF</div><div className="flex gap-3">{regionDossier.wikipedia.thumbnail && <img src={regionDossier.wikipedia.thumbnail} alt="" className="w-14 h-14 rounded object-cover flex-shrink-0" />}<p className="text-[8px] text-[var(--text-secondary)] leading-relaxed">{regionDossier.wikipedia.extract}</p></div></div>)}
+                {wigleNetworks && wigleNetworks.length > 0 && (
+                  <div>
+                    <div className="hud-label mb-1">NEARBY WIRELESS NETWORKS · WIGLE</div>
+                    <div className="space-y-1 max-h-28 overflow-y-auto styled-scrollbar">
+                      {wigleNetworks.slice(0, 20).map((n: any) => (
+                        <div key={n.id} className="flex justify-between text-[8px] font-mono text-[var(--text-secondary)]">
+                          <span className="truncate">{n.ssid}</span>
+                          <span className="text-[var(--text-muted)]">{n.encryption || 'open'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

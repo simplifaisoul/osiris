@@ -43,6 +43,7 @@ const LAYER_GROUPS = [
     icon: Ship,
     layers: [
       { key: 'maritime', label: 'Maritime / Naval', dataKey: 'maritime_ships,maritime_ports,maritime_chokepoints' },
+      { key: 'buoys', label: 'Ocean Buoys', dataKey: 'buoys' },
     ],
   },
   {
@@ -76,6 +77,7 @@ const LAYER_GROUPS = [
       { key: 'earthquakes', label: 'Earthquakes', dataKey: 'earthquakes' },
       { key: 'fires', label: 'Active Fires', dataKey: 'fires' },
       { key: 'weather', label: 'Severe Weather', dataKey: 'weather_events' },
+      { key: 'tsunami', label: 'Tsunami Alerts', dataKey: 'tsunami' },
     ],
   },
   {
@@ -94,6 +96,8 @@ const LAYER_GROUPS = [
     icon: Network,
     layers: [
       { key: 'malware', label: 'Live Malware', dataKey: 'malware_threats' },
+      { key: 'ransomware', label: 'Ransomware Victims', dataKey: 'ransomware' },
+      { key: 'shodan', label: 'Shodan Exposed', dataKey: 'shodan_hosts' },
     ],
   },
   {
