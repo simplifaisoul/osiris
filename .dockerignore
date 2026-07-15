@@ -3,6 +3,7 @@ node_modules
 .next
 out
 build
+archive
 
 # Local env / secrets
 .env

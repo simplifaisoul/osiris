@@ -7,6 +7,9 @@
 # Testing
 /coverage
 
+# World-state raw archive (append-only local runtime data)
+/archive/
+
 # Next.js
 /.next/
 /out/
@@ -41,11 +44,12 @@ scanner/
 threatfox.json
 
 # Dev scripts (one-time migration helpers)
-scripts/
+/scripts/
 
 # AI agent config files
 CLAUDE.md
-AGENTS.md
+
+# The OSIRIS World-State build rules in /AGENTS.md are intentionally tracked.
 
 # Internal dev notes
 DO_NOT_PUSH.md
