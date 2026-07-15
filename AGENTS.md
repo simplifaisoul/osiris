@@ -52,6 +52,8 @@ OSIRIS remains the visual command interface. New services add durable collection
 
 9. **Hand off merge-ready pull requests.**
    - Publish pull requests as ready for review, not as drafts, unless the repository owner explicitly requests a draft.
+   - Project pull requests must target `DaveWibs/osirisP`. Treat `simplifaisoul/osiris` as a read-only upstream reference: do not push to it or open pull requests, comments, deployments or other write actions against it unless the repository owner explicitly requests that exact upstream action.
+   - Before creating or handing off a PR, verify the full base repository and base branch, not only the branch name. Check for duplicate open PRs from the same head branch across both the fork and upstream repository, and close any accidental upstream PR immediately.
    - Before handoff, inspect the PR merge state, required checks and external status checks. Resolve every in-scope blocker and confirm that GitHub reports the PR as mergeable.
    - Do not describe a PR as complete while it has an unresolved check, conflict or review requirement. If an external permission or service blocks completion, report the exact blocker and required owner action.
    - Record the validation performed and distinguish new failures from documented baseline failures.
