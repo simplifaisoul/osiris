@@ -5,14 +5,17 @@ name: osiris-worldstate
 #
 #   docker compose -f docker-compose.yml up -d
 #
-# Start this file independently. The collector will be added here only after
-# its package exists and can be built successfully.
+# Start this file independently. The collector waits for migrations before it
+# begins its first bounded USGS collection attempt.
 
 x-postgis-image: &postgis-image postgis/postgis:16-3.5@sha256:e547a8319d5b134527c6d1e0307acde1311aa57f8eb7fbf78810dafc6a6b41fe
 
 services:
   db:
     image: *postgis-image
+    # The official postgis/postgis image currently publishes amd64 only.
+    # ARM64 hosts therefore require Docker/QEMU x86_64 emulation.
+    platform: linux/amd64
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-osiris_worldstate}
@@ -35,27 +38,93 @@ services:
 
   migrate:
     image: *postgis-image
+    platform: linux/amd64
     restart: "no"
     depends_on:
       db:
         condition: service_healthy
     environment:
-      # Build the service-to-service URL from the database settings so custom
-      # local credentials cannot desynchronise the migration connection.
-      DATABASE_URL: postgresql://${POSTGRES_USER:-osiris}:${POSTGRES_PASSWORD:-osiris-local-dev}@db:5432/${POSTGRES_DB:-osiris_worldstate}
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-osiris_worldstate}
+      PGUSER: ${POSTGRES_USER:-osiris}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-osiris-local-dev}
+      PGCONNECT_TIMEOUT: ${MIGRATION_DB_CONNECT_TIMEOUT_SECONDS:-10}
+      PGOPTIONS: -c statement_timeout=${MIGRATION_DB_STATEMENT_TIMEOUT_MS:-120000} -c lock_timeout=${MIGRATION_DB_LOCK_TIMEOUT_MS:-15000}
     entrypoint:
       - bash
       - /db/scripts/migrate.sh
     volumes:
       - ./db:/db:ro
 
-  # Temporary infrastructure verification until the collector service is
-  # available. Run explicitly with `--profile tools run --rm archive-check`.
+  collector:
+    build:
+      context: ./collector
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 2m
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      archive-check:
+        condition: service_completed_successfully
+    user: "${COLLECTOR_UID:-1000}:${COLLECTOR_GID:-1000}"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-osiris_worldstate}
+      PGUSER: ${POSTGRES_USER:-osiris}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-osiris-local-dev}
+      RAW_ARCHIVE_PATH: ${RAW_ARCHIVE_PATH:-/archive}
+      USGS_EARTHQUAKE_URL: ${USGS_EARTHQUAKE_URL:-https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson}
+      COLLECT_INTERVAL_MS: ${COLLECT_INTERVAL_MS:-300000}
+      COLLECT_ON_STARTUP: ${COLLECT_ON_STARTUP:-1}
+      MAX_FETCH_ATTEMPTS: ${MAX_FETCH_ATTEMPTS:-3}
+      MAX_RESPONSE_BYTES: ${MAX_RESPONSE_BYTES:-26214400}
+      REQUEST_TIMEOUT_MS: ${REQUEST_TIMEOUT_MS:-10000}
+      RETRY_BASE_MS: ${RETRY_BASE_MS:-500}
+      STALE_RUN_AFTER_MS: ${STALE_RUN_AFTER_MS:-900000}
+      DB_CONNECTION_TIMEOUT_MS: ${DB_CONNECTION_TIMEOUT_MS:-5000}
+      DB_QUERY_TIMEOUT_MS: ${DB_QUERY_TIMEOUT_MS:-15000}
+      DB_STATEMENT_TIMEOUT_MS: ${DB_STATEMENT_TIMEOUT_MS:-15000}
+      DB_LOCK_TIMEOUT_MS: ${DB_LOCK_TIMEOUT_MS:-5000}
+      HEALTH_HOST: 0.0.0.0
+      HEALTH_PORT: 4001
+      LOG_LEVEL: ${COLLECTOR_LOG_LEVEL:-info}
+    ports:
+      - "127.0.0.1:${COLLECTOR_HEALTH_PORT:-4001}:4001"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:4001/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    volumes:
+      - type: bind
+        source: ./archive
+        target: ${RAW_ARCHIVE_PATH:-/archive}
+        bind:
+          create_host_path: false
+
+  # Fail before collector startup if the host archive is absent or is not
+  # writable by the configured non-root identity. It can also be run directly.
   archive-check:
     image: alpine:3.21.3@sha256:a8560b36e8b8210634f77d9f7f9efd7ffa463e380b75e2e74aff4511df3ef88c
-    profiles:
-      - tools
     restart: "no"
+    user: "${COLLECTOR_UID:-1000}:${COLLECTOR_GID:-1000}"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
     environment:
       RAW_ARCHIVE_PATH: ${RAW_ARCHIVE_PATH:-/archive}
     command:
@@ -72,7 +141,7 @@ services:
         source: ./archive
         target: ${RAW_ARCHIVE_PATH:-/archive}
         bind:
-          create_host_path: true
+          create_host_path: false
 
 volumes:
   worldstate-db-data:

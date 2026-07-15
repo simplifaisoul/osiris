@@ -3,10 +3,30 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MIGRATIONS_DIR="${MIGRATIONS_DIR:-${SCRIPT_DIR}/../migrations}"
+PGCONNECT_TIMEOUT="${PGCONNECT_TIMEOUT:-10}"
+PGOPTIONS="${PGOPTIONS:--c statement_timeout=120000 -c lock_timeout=15000}"
+export PGCONNECT_TIMEOUT PGOPTIONS
 
-if [[ -z "${DATABASE_URL:-}" ]]; then
-    echo "DATABASE_URL is required" >&2
+if [[ ! "${PGCONNECT_TIMEOUT}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "PGCONNECT_TIMEOUT must be a positive number of seconds" >&2
     exit 2
+fi
+
+psql_target=()
+if [[ -n "${DATABASE_URL:-}" ]]; then
+    psql_target=("${DATABASE_URL}")
+else
+    missing_pg_settings=()
+    for setting in PGHOST PGPORT PGDATABASE PGUSER PGPASSWORD; do
+        if [[ -z "${!setting:-}" ]]; then
+            missing_pg_settings+=("${setting}")
+        fi
+    done
+
+    if (( ${#missing_pg_settings[@]} > 0 )); then
+        echo "Set DATABASE_URL or all discrete PostgreSQL settings; missing: ${missing_pg_settings[*]}" >&2
+        exit 2
+    fi
 fi
 
 for command in psql sha256sum find sort awk tr cat; do
@@ -21,7 +41,7 @@ if [[ ! -d "${MIGRATIONS_DIR}" ]]; then
     exit 2
 fi
 
-psql "${DATABASE_URL}" --no-psqlrc --set=ON_ERROR_STOP=1 <<'SQL'
+psql "${psql_target[@]}" --no-psqlrc --set=ON_ERROR_STOP=1 <<'SQL'
 CREATE TABLE IF NOT EXISTS schema_migrations (
     version TEXT PRIMARY KEY,
     checksum TEXT NOT NULL CHECK (checksum ~ '^[0-9a-f]{64}$'),
@@ -44,7 +64,7 @@ for migration_file in "${migration_files[@]}"; do
     checksum="$(sha256sum "${migration_file}" | awk '{print $1}')"
     applied_checksum="$(
         printf '%s\n' "SELECT checksum FROM schema_migrations WHERE version = :'migration_version';" \
-        | psql "${DATABASE_URL}" \
+        | psql "${psql_target[@]}" \
             --no-psqlrc \
             --tuples-only \
             --no-align \
@@ -72,7 +92,7 @@ for migration_file in "${migration_files[@]}"; do
         printf '%s\n' \
             "INSERT INTO schema_migrations (version, checksum) VALUES (:'migration_version', :'migration_checksum');" \
             'COMMIT;'
-    } | psql "${DATABASE_URL}" \
+    } | psql "${psql_target[@]}" \
         --no-psqlrc \
         --set=ON_ERROR_STOP=1 \
         --set=migration_version="${version}" \

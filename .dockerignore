@@ -4,9 +4,14 @@ node_modules
 out
 build
 archive
+collector/coverage
+collector/dist
+collector/node_modules
 
 # Local env / secrets
 .env
+.env.*
+!.env.example
 .env.local
 .env*.local
 
