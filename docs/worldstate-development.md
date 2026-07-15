@@ -1,8 +1,10 @@
 # World-State development environment
 
-This guide covers the Phase 1 persistence overlay in `docker-compose.worldstate.yml`. It is intentionally separate from the existing OSIRIS stack in `docker-compose.yml`: the overlay currently provides PostGIS, a one-shot migration service and a profile-gated archive write check. It does **not** yet claim that the collector exists or that any verification command below has passed.
+This guide covers the Phase 1 persistence overlay in `docker-compose.worldstate.yml`. It is intentionally separate from the existing OSIRIS stack in `docker-compose.yml`: the overlay provides PostGIS, a one-shot migration service, the standalone USGS collector and an archive write preflight.
 
-Run commands from the repository root and record their actual output when verifying a change.
+The collector archives each complete HTTP response before parsing it, then writes current USGS observation and seismic snapshots with collection-run provenance. It does not yet change `/api/earthquakes` or either browser-side USGS consumer; OSIRIS remains live-only until the separate compatibility-route slice is complete.
+
+Run commands from the repository root and record their actual output when verifying a change. Never record or paste the fully rendered Compose configuration: it contains the database password. Use the quiet and selector commands shown below.
 
 ## Configuration
 
@@ -16,37 +18,60 @@ Relevant variables are:
 | `POSTGRES_USER` | `osiris` | Database role |
 | `POSTGRES_PASSWORD` | `osiris-local-dev` | Local-only development password |
 | `POSTGRES_PORT` | `5432` | Host loopback port mapped to container port 5432 |
-| `DATABASE_URL` | Host URL matching the defaults above | Direct host-tool URL; Compose builds its internal `db` URL from `POSTGRES_*` |
-| `RAW_ARCHIVE_PATH` | `/archive` | Archive path inside the archive check and, later, collector container |
+| `DATABASE_URL` | Host URL matching the defaults above | Optional direct host-tool URL; Compose uses discrete `PG*` settings internally |
+| `RAW_ARCHIVE_PATH` | `/archive` | Archive path inside the collector and archive-check containers |
 | `OSIRIS_BASE_URL` | `http://host.docker.internal:3000` in the environment template | Reserved for collector-to-OSIRIS integration |
+| `COLLECT_INTERVAL_MS` | `300000` | Delay after one attempt cycle completes before the next begins |
+| `COLLECT_ON_STARTUP` | `1` | Run once when the collector starts |
+| `MAX_FETCH_ATTEMPTS` | `3` | Bounded transient-attempt count; every HTTP response gets its own run/archive |
+| `MAX_RESPONSE_BYTES` | `26214400` | Maximum response body size before collection fails closed |
+| `REQUEST_TIMEOUT_MS` | `10000` | Timeout covering response headers and body |
+| `RETRY_BASE_MS` | `500` | Exponential-retry base delay before bounded jitter |
+| `STALE_RUN_AFTER_MS` | `900000` | Age after which interrupted `running` rows are recovered as failed |
+| `DB_CONNECTION_TIMEOUT_MS` | `5000` | Maximum database connection wait |
+| `DB_QUERY_TIMEOUT_MS` | `15000` | Maximum client-side wait for each database query |
+| `DB_STATEMENT_TIMEOUT_MS` | `15000` | PostgreSQL statement timeout for collector connections |
+| `DB_LOCK_TIMEOUT_MS` | `5000` | PostgreSQL lock wait timeout for collector connections |
+| `MIGRATION_DB_CONNECT_TIMEOUT_SECONDS` | `10` | One-shot migration connection timeout, in seconds |
+| `MIGRATION_DB_STATEMENT_TIMEOUT_MS` | `120000` | PostgreSQL statement timeout for migrations |
+| `MIGRATION_DB_LOCK_TIMEOUT_MS` | `15000` | PostgreSQL lock wait timeout for migrations |
+| `COLLECTOR_UID`, `COLLECTOR_GID` | `1000`, `1000` | Non-root identity used for the collector and archive probe |
+| `COLLECTOR_HEALTH_PORT` | `4001` | Loopback host port for `/health` |
 
-Do not commit `.env`. Create the host archive directory before running the tools profile:
+Do not commit `.env`. The bind mount deliberately refuses to auto-create a root-owned directory. Create and permission the host archive before starting the overlay:
 
 ```bash
-mkdir -p archive
+install -d -m 0750 archive
+sudo chown 1000:1000 archive
 ```
 
-The current archive check always bind-mounts host `./archive`; `RAW_ARCHIVE_PATH` changes its path inside the container.
+Replace `1000:1000` with the `COLLECTOR_UID` and `COLLECTOR_GID` values from `.env` when customized; Compose does not export `.env` into the current shell. Omit `sudo chown` when the directory already has the required numeric owner. The configured user must be able to write it. The archive preflight and collector use the same non-root identity. Both always bind-mount host `./archive`; `RAW_ARCHIVE_PATH` changes only the path inside their containers. A missing or unwritable directory stops startup before the collector runs. Single-quote `.env` passwords containing `$` or `#` so Compose preserves them literally.
 
 ## Start
 
 First validate the rendered Compose model:
 
 ```bash
-docker compose -f docker-compose.worldstate.yml config
+docker compose -f docker-compose.worldstate.yml config --quiet
+docker compose -f docker-compose.worldstate.yml config --services
+docker compose -f docker-compose.worldstate.yml config --volumes
 ```
 
-Start PostGIS:
+Do not use unfiltered `docker compose ... config` in logs or verification notes because its rendered environment includes credentials.
+
+Start the complete World-State overlay:
 
 ```bash
-docker compose -f docker-compose.worldstate.yml up -d db
+docker compose -f docker-compose.worldstate.yml up -d collector
 docker compose -f docker-compose.worldstate.yml ps
 ```
 
-The `db` service has a health check and publishes PostgreSQL only on `127.0.0.1`. If it does not become healthy, inspect it without resetting data:
+Compose verifies archive access, starts PostGIS, applies migrations once, then starts the non-root collector. The database and collector health endpoint publish only on `127.0.0.1`. Inspect status without resetting data:
 
 ```bash
 docker compose -f docker-compose.worldstate.yml logs db
+docker compose -f docker-compose.worldstate.yml logs collector
+curl --fail http://127.0.0.1:4001/health
 ```
 
 The existing dashboard, Nginx cache and intelligence service remain in their original Compose project and can be started independently:
@@ -79,15 +104,53 @@ DATABASE_URL=postgresql://osiris:osiris-local-dev@127.0.0.1:5432/osiris_worldsta
 
 Change that URL when `.env` overrides the defaults. Never paste production credentials into shell history or verification notes.
 
+To avoid URL-encoding a password with reserved characters, pass the standard discrete libpq variables instead:
+
+```bash
+PGHOST=127.0.0.1 PGPORT=5432 PGDATABASE=osiris_worldstate \
+PGUSER=osiris PGPASSWORD='replace-with-a-strong-password' \
+db/scripts/migrate.sh
+```
+
+## Collector commands
+
+Install the collector package from its lockfile and run its offline checks independently of the Next.js application:
+
+```bash
+npm ci --prefix collector
+npm --prefix collector test
+npm --prefix collector run lint
+npm --prefix collector run typecheck
+npm --prefix collector run build
+```
+
+Against a migrated development database, ingest the committed USGS fixture without contacting the provider:
+
+```bash
+DATABASE_URL=postgresql://osiris:osiris-local-dev@127.0.0.1:5432/osiris_worldstate \
+RAW_ARCHIVE_PATH="$(pwd)/archive" \
+npm --prefix collector run ingest:fixture -- usgs-earthquakes
+```
+
+Run that command twice to verify replay. The deterministic fixture uses the same response timestamp and bytes, so the second run verifies the existing immutable archive and does not duplicate provider events. Continuous live collection should be run through Compose; direct one-shot live collection is available with the same two environment variables through `npm --prefix collector run collect:usgs`.
+
+Live boundary tests are opt-in only:
+
+```bash
+npm --prefix collector run test:live
+```
+
+That script sets `RUN_LIVE_TESTS=1`; the default `npm --prefix collector test` suite performs no provider network calls.
+
 ## Verify
 
 Check that the host archive bind is writable from the container path:
 
 ```bash
-docker compose -f docker-compose.worldstate.yml --profile tools run --rm archive-check
+docker compose -f docker-compose.worldstate.yml run --rm archive-check
 ```
 
-This check creates and removes only a short-lived probe inside `./archive`; it does not validate raw-response compression or collector behaviour.
+This check creates and removes only a short-lived probe inside `./archive` as the configured collector UID/GID. Collector unit tests separately validate raw-response compression, hashing, atomic publication and byte-for-byte decompression.
 
 Run the clean-database migration verifier without `DATABASE_URL`:
 
@@ -95,7 +158,11 @@ Run the clean-database migration verifier without `DATABASE_URL`:
 db/scripts/verify-clean-database.sh
 ```
 
-The verifier creates a uniquely named temporary PostGIS container and disposable named volume, mounts `db/` read-only, applies migrations twice, runs SQL assertions and removes the temporary container, network and volume on exit. It never connects to the development database. `POSTGIS_IMAGE=postgis/postgis:<tag>` may be set to override its default image.
+The verifier creates a uniquely named temporary PostGIS container and disposable named volume, mounts `db/` read-only, applies migrations twice, runs SQL assertions, runs the collector's replay/update integration tests, restarts PostGIS to check persistence, and removes the temporary container, network and volume on exit. It never connects to the development database. Run `npm ci --prefix collector` first. `POSTGIS_IMAGE=postgis/postgis:<tag>` and `POSTGIS_PLATFORM=<platform>` may be set to override its pinned defaults.
+
+The [official `postgis/postgis` image](https://github.com/postgis/docker-postgis#versions) supports AMD64 only. The overlay declares `linux/amd64` explicitly: AMD64 hosts run it natively, while ARM64 hosts need [Docker/QEMU x86_64 emulation](https://docs.docker.com/build/building/multi-platform/#qemu) and should expect lower database performance. On standalone ARM64 Linux, install binfmt/QEMU support before startup; the overlay does not claim native ARM64 database support.
+
+If Docker is installed but the current user cannot access its daemon, the verifier exits during preflight before creating any resource.
 
 Then run the existing application checks so infrastructure work is compared with the recorded baseline:
 
@@ -106,9 +173,9 @@ npm run build
 npx tsc --noEmit --incremental false
 ```
 
-Expected baseline failures are documented in `docs/current-osiris-baseline.md`; record the new command output rather than describing a pre-existing failure as fixed. Collector test, lint, build and fixture-ingest commands should be added here only when the collector package and scripts exist.
+Expected baseline failures are documented in `docs/current-osiris-baseline.md`; record the new command output rather than describing a pre-existing failure as fixed.
 
-A complete Phase 1 verification record should eventually include:
+A complete Phase 1 verification record includes:
 
 - Compose configuration validation and healthy PostGIS startup from an empty volume;
 - clean and repeated migration runs;
@@ -119,7 +186,14 @@ A complete Phase 1 verification record should eventually include:
 - restart persistence; and
 - manual earthquake map checks in every supported data mode.
 
-This list is a checklist, not a statement that those checks have passed.
+The last item remains part of the later compatibility-route slice. The current collector deliberately does not change existing OSIRIS behaviour.
+
+## Current storage limitations
+
+- Databases upgraded from migrations 0001-0006 may contain collection runs that predate exact request/error provenance. Migration 0007 preserves those rows without inventing values and marks them `legacy_provenance_incomplete = true`; every new run is subject to the stronger timestamp and terminal-state constraints.
+- `raw_observations` and `seismic_events` are current provider snapshots. Older complete feed bodies remain recoverable from the immutable archive, but provider revisions are not yet indexed as separate rows.
+- Filesystem publication and database commits cannot be one atomic operation. A database outage after archive publication can leave an orphan archive; never delete it automatically. Reconciliation is a later operational feature.
+- Stale `running` rows are recovered after `STALE_RUN_AFTER_MS`; archive/database orphan reconciliation remains explicit.
 
 ## Stop or reset
 
@@ -135,7 +209,7 @@ To reset the current World-State development database to an empty volume:
 docker compose -f docker-compose.worldstate.yml down -v
 ```
 
-**Destructive:** at the current revision, `down -v` deletes the selected `osiris-worldstate` project's `worldstate-db-data` volume and all database contents in it. It does not delete the original OSIRIS project's Nginx volume, and it does not delete the bind-mounted host `./archive` directory. Confirm the rendered project and volume names with `docker compose -f docker-compose.worldstate.yml config` and `docker volume ls` before running it if other Compose project names or overrides are in use.
+**Destructive:** at the current revision, `down -v` deletes the selected `osiris-worldstate` project's `worldstate-db-data` volume and all database contents in it. It does not delete the original OSIRIS project's Nginx volume, and it does not delete the bind-mounted host `./archive` directory. Confirm the project with `docker compose ls` and inspect candidate volumes with `docker volume ls` before running it if other Compose project names or overrides are in use. Do not print the full rendered Compose model to do this.
 
 After a reset, recreate and migrate the database explicitly:
 

@@ -6,6 +6,8 @@
 
 # Testing
 /coverage
+/collector/coverage/
+/collector/dist/
 
 # World-state raw archive (append-only local runtime data)
 /archive/
@@ -27,6 +29,8 @@ yarn-debug.log*
 yarn-error.log*
 
 # Local env files
+.env.*
+!.env.example
 .env*.local
 .env
 

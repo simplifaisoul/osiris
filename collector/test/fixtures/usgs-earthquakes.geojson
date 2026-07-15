@@ -1,0 +1,91 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "generated": 1767225600000,
+    "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson",
+    "title": "Synthetic USGS M2.5+ Earthquakes, Past Day",
+    "status": 200,
+    "api": "1.14.1",
+    "count": 2,
+    "synthetic": true
+  },
+  "bbox": [-122.4194, -33.8688, -1.25, 151.2093, 37.7749, 12.5],
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "mag": 5.2,
+        "place": "42 km E of Test Harbour",
+        "time": 1767222000123,
+        "updated": 1767223800456,
+        "tz": null,
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/test-us-001",
+        "detail": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/detail/test-us-001.geojson",
+        "felt": 27,
+        "cdi": 4.3,
+        "mmi": 3.1,
+        "alert": "green",
+        "status": "reviewed",
+        "tsunami": 1,
+        "sig": 432,
+        "net": "us",
+        "code": "test001",
+        "ids": ",test-us-001,",
+        "sources": ",us,",
+        "types": ",dyfi,origin,phase-data,",
+        "nst": 88,
+        "dmin": 0.42,
+        "rms": 0.81,
+        "gap": 39,
+        "magType": "mww",
+        "type": "earthquake",
+        "title": "M 5.2 - 42 km E of Test Harbour",
+        "customProviderField": "preserve-me"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [151.2093, -33.8688, 12.5]
+      },
+      "id": "test-us-001",
+      "provider_extension": {
+        "reviewedBy": "synthetic-fixture"
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "mag": null,
+        "place": null,
+        "time": 1767218400000,
+        "updated": 1767220200000,
+        "tz": null,
+        "url": null,
+        "detail": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/detail/test-us-002.geojson",
+        "felt": null,
+        "cdi": null,
+        "mmi": null,
+        "alert": null,
+        "status": "automatic",
+        "tsunami": 0,
+        "sig": 0,
+        "net": "us",
+        "code": "test002",
+        "ids": ",test-us-002,",
+        "sources": ",us,",
+        "types": ",origin,phase-data,",
+        "nst": null,
+        "dmin": null,
+        "rms": 0.33,
+        "gap": 121,
+        "magType": null,
+        "type": null,
+        "title": "Synthetic event with nullable compatibility values"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-122.4194, 37.7749, -1.25]
+      },
+      "id": "test-us-002"
+    }
+  ]
+}
