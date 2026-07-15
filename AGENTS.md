@@ -50,6 +50,18 @@ OSIRIS remains the visual command interface. New services add durable collection
    - Each phase must build, test and preserve the current OSIRIS experience.
    - Prefer vertical slices over broad scaffolding with no working path.
 
+9. **Hand off merge-ready pull requests.**
+   - Publish pull requests as ready for review, not as drafts, unless the repository owner explicitly requests a draft.
+   - Before handoff, inspect the PR merge state, required checks and external status checks. Resolve every in-scope blocker and confirm that GitHub reports the PR as mergeable.
+   - Do not describe a PR as complete while it has an unresolved check, conflict or review requirement. If an external permission or service blocks completion, report the exact blocker and required owner action.
+   - Record the validation performed and distinguish new failures from documented baseline failures.
+
+10. **Do not use Vercel.**
+   - Do not create, connect or enable a Vercel project, deployment, preview, webhook, GitHub app or status check for this repository.
+   - Do not add Vercel configuration, Vercel-specific workflows, Vercel URLs or new `@vercel/*` dependencies unless the repository owner explicitly reverses this rule.
+   - Treat existing Vercel references as legacy: do not expand or rely on them, and remove them when they are encountered in the scope of an otherwise approved change.
+   - Prefer the repository's Docker and self-hosted deployment paths.
+
 ## Repository assumptions
 
 The upstream OSIRIS project is a Next.js/TypeScript application with MapLibre-based visualisation and internal API routes that proxy or transform external sources.
