@@ -3,9 +3,11 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${ROOT_DIR}/.env"
+ALLOW_NON_MOUNT_ROOT=0
+SELECTED_DATA_ROOT=""
 
 say() {
-  printf '%s\n' "$*"
+  printf '%s\n' "$*" >&2
 }
 
 ask() {
@@ -32,6 +34,28 @@ confirm() {
   [[ "${answer}" =~ ^[Yy]$ ]]
 }
 
+choose() {
+  local prompt="$1"
+  shift
+  local options=("$@")
+  local index
+
+  say "${prompt}"
+  for index in "${!options[@]}"; do
+    say "  $((index + 1))) ${options[$index]}"
+  done
+
+  while true; do
+    local answer
+    answer="$(ask "Select an option" "1")"
+    if [[ "${answer}" =~ ^[0-9]+$ ]] && (( answer >= 1 && answer <= ${#options[@]} )); then
+      printf '%s' "${options[$((answer - 1))]}"
+      return
+    fi
+    say "Invalid option."
+  done
+}
+
 require_command() {
   command -v "$1" >/dev/null 2>&1
 }
@@ -56,12 +80,154 @@ make_directory() {
   fi
 }
 
+run_privileged() {
+  if [[ "${EUID}" -eq 0 ]]; then
+    "$@"
+  elif require_command sudo; then
+    sudo "$@"
+  else
+    say "sudo is required for: $*"
+    exit 1
+  fi
+}
+
 random_password() {
   if require_command openssl; then
     openssl rand -base64 36 | tr -d '\n'
   else
     date +%s%N | sha256sum | awk '{print $1}'
   fi
+}
+
+mount_target_for_path() {
+  local path="$1"
+  findmnt -T "${path}" -no TARGET 2>/dev/null | head -n 1 || true
+}
+
+is_mount_root() {
+  local path="$1"
+  local target
+  target="$(mount_target_for_path "${path}")"
+  [[ -n "${target}" && "$(readlink -f "${target}")" == "$(readlink -f "${path}")" ]]
+}
+
+device_field() {
+  local device="$1"
+  local field="$2"
+  lsblk -no "${field}" "${device}" 2>/dev/null | head -n 1 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
+}
+
+show_block_devices() {
+  if ! require_command lsblk; then
+    say "lsblk is unavailable; cannot list disks automatically."
+    return 1
+  fi
+
+  say "Detected block devices:"
+  lsblk -o NAME,SIZE,FSTYPE,LABEL,UUID,MOUNTPOINTS,MODEL >&2
+}
+
+choose_existing_filesystem() {
+  show_block_devices || return 1
+
+  say ""
+  say "Enter the device path for an existing filesystem to mount."
+  say "Examples: /dev/sdb1, /dev/nvme1n1p1"
+  say "The wizard will not format or partition disks."
+  local device
+  device="$(ask "Device path" "")"
+
+  if [[ -z "${device}" || ! -b "${device}" ]]; then
+    say "Device does not exist or is not a block device: ${device}"
+    return 1
+  fi
+
+  local fstype
+  fstype="$(device_field "${device}" "FSTYPE")"
+  if [[ -z "${fstype}" ]]; then
+    say "${device} has no detected filesystem. Format/partition it outside this wizard, then rerun."
+    return 1
+  fi
+
+  printf '%s' "${device}"
+}
+
+mount_existing_filesystem() {
+  local device="$1"
+  local mount_point="$2"
+  local fstype
+  local uuid
+
+  fstype="$(device_field "${device}" "FSTYPE")"
+  uuid="$(device_field "${device}" "UUID")"
+
+  if [[ -z "${fstype}" ]]; then
+    say "${device} has no detected filesystem; refusing to continue."
+    exit 1
+  fi
+
+  if [[ -z "${uuid}" ]]; then
+    say "${device} has no UUID; mount can proceed by device path, but fstab persistence needs a UUID."
+  fi
+
+  make_directory "${mount_point}" "0750"
+
+  if ! is_mount_root "${mount_point}"; then
+    say "Mounting ${device} at ${mount_point}..."
+    if [[ -n "${uuid}" ]]; then
+      run_privileged mount "UUID=${uuid}" "${mount_point}"
+    else
+      run_privileged mount "${device}" "${mount_point}"
+    fi
+  fi
+
+  if ! is_mount_root "${mount_point}"; then
+    say "Mount failed or ${mount_point} is not a mount root."
+    exit 1
+  fi
+
+  if [[ -n "${uuid}" ]] && confirm "Add this mount to /etc/fstab for startup mounting?" "y"; then
+    local escaped_mount
+    escaped_mount="${mount_point// /\\040}"
+    if grep -qs "UUID=${uuid}[[:space:]]" /etc/fstab; then
+      say "/etc/fstab already contains UUID=${uuid}; leaving it unchanged."
+    else
+      say "Adding persistent mount entry to /etc/fstab."
+      printf 'UUID=%s %s %s defaults,nofail 0 2\n' "${uuid}" "${escaped_mount}" "${fstype}" \
+        | run_privileged tee -a /etc/fstab >/dev/null
+    fi
+  fi
+}
+
+select_data_root() {
+  local default_root="/srv/osiris-worldstate"
+  say ""
+  local mode
+  mode="$(choose "Storage setup mode:" \
+    "Use an already mounted path" \
+    "Mount an existing filesystem now" \
+    "Use local default path without a dedicated disk")"
+
+  case "${mode}" in
+    "Mount an existing filesystem now")
+      local mount_point
+      mount_point="$(ask "Mount point for OSIRIS state" "/mnt/osiris-worldstate")"
+      mount_point="${mount_point%/}"
+      local device
+      device="$(choose_existing_filesystem)"
+      mount_existing_filesystem "${device}" "${mount_point}"
+      SELECTED_DATA_ROOT="${mount_point}"
+      ;;
+    "Use local default path without a dedicated disk")
+      ALLOW_NON_MOUNT_ROOT=1
+      SELECTED_DATA_ROOT="${default_root}"
+      ;;
+    *)
+      local data_root
+      data_root="$(ask "Mounted disk/data root for OSIRIS state" "${default_root}")"
+      SELECTED_DATA_ROOT="${data_root%/}"
+      ;;
+  esac
 }
 
 write_env() {
@@ -147,7 +313,7 @@ show_disk_guidance() {
   say "  5. Enable mount at startup in the mount options."
   say ""
   say "Ubuntu Server usually has no desktop GUI. In that case mount the disk"
-  say "outside this wizard first, then give this wizard the mounted path."
+  say "outside this wizard first, or let this wizard mount an existing filesystem."
   say ""
   if require_command lsblk; then
     say "Current block devices:"
@@ -204,16 +370,19 @@ main() {
   show_disk_guidance
 
   local data_root
-  data_root="$(ask "Mounted disk/data root for OSIRIS state" "/srv/osiris-worldstate")"
-  data_root="${data_root%/}"
+  select_data_root
+  data_root="${SELECTED_DATA_ROOT}"
 
   if [[ ! -d "${data_root}" ]]; then
     confirm "Create ${data_root} now?" "y" || exit 1
     make_directory "${data_root}" "0750"
   fi
 
-  if ! findmnt -T "${data_root}" >/dev/null 2>&1; then
-    say "Warning: ${data_root} is not on a detected mounted filesystem yet."
+  if [[ "${ALLOW_NON_MOUNT_ROOT}" != "1" ]] && ! is_mount_root "${data_root}"; then
+    local current_mount
+    current_mount="$(mount_target_for_path "${data_root}")"
+    say "Warning: ${data_root} is not itself a mounted filesystem."
+    say "Current backing mount: ${current_mount:-unknown}"
     confirm "Continue using this path anyway?" "n" || exit 1
   fi
 

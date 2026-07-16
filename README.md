@@ -219,7 +219,8 @@ For Ubuntu Server installs with world-state persistence, use the setup wizard:
 npm run setup:wizard
 ```
 
-It prepares `.env`, mounted-disk database/archive paths and Compose validation.
+It prepares `.env`, can mount an existing disk filesystem for database/archive
+storage, and validates the combined Compose configuration.
 Details: [Ubuntu install wizard](docs/ubuntu-install-wizard.md).
 
 ```env

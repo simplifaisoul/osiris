@@ -12,6 +12,8 @@ npm run setup:wizard
 The wizard covers:
 
 - mounted disk path selection for PostgreSQL data and raw archives;
+- optional mounting of an existing filesystem on Ubuntu Server;
+- optional `/etc/fstab` entry creation so the selected disk mounts at boot;
 - `.env` generation with database credentials and world-state paths;
 - host directory creation and ownership preparation;
 - Docker Compose availability checks;
@@ -30,10 +32,33 @@ For a desktop-capable Ubuntu machine, use the **Disks** GUI to format and mount
 the target disk at a stable path such as `/mnt/osiris-worldstate`, with
 “mount at startup” enabled.
 
-For Ubuntu Server, mount the disk with your normal server workflow first
-(`/etc/fstab`, cloud-init, Ansible, Cockpit, or similar), then provide the
-mounted path to the wizard. The wizard intentionally does not format disks,
-because formatting is destructive and must stay explicit.
+For Ubuntu Server, you have two safe options:
+
+1. Mount the disk with your normal server workflow first (`/etc/fstab`,
+   cloud-init, Ansible, Cockpit, or similar), then provide the mounted path to
+   the wizard.
+2. Let the wizard mount an already-formatted filesystem. It lists block
+   devices with `lsblk`, asks for a device path such as `/dev/sdb1`, mounts it
+   at a stable path such as `/mnt/osiris-worldstate`, and can append a UUID
+   based `/etc/fstab` entry.
+
+The wizard intentionally does not format or partition disks, because those
+operations are destructive and must stay explicit.
+
+## Storage setup modes
+
+The wizard presents three storage modes:
+
+| Mode | Use when | Result |
+|---|---|---|
+| Already mounted path | The disk is mounted by Disks, Cockpit, cloud-init or manual server setup | The wizard validates that the path is a mount root, then prepares `postgres` and `archive` directories |
+| Mount existing filesystem now | The disk partition already has a filesystem but is not mounted yet | The wizard mounts it, can add `/etc/fstab`, then prepares OSIRIS directories |
+| Local default path | You are testing or do not have a dedicated disk yet | The wizard uses `/srv/osiris-worldstate` on the current root filesystem |
+
+If you choose a mounted-disk mode and the selected path is only backed by `/`,
+the wizard stops unless you explicitly continue. This prevents accidentally
+putting PostgreSQL data on the OS disk when you intended to use a dedicated
+volume.
 
 ## Generated storage settings
 

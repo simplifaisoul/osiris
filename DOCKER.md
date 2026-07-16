@@ -32,8 +32,8 @@ first:
 npm run setup:wizard
 ```
 
-It generates `.env`, prepares mounted-disk paths for PostgreSQL/raw archives
-and validates the combined Compose configuration. See
+It generates `.env`, can mount an existing disk filesystem for PostgreSQL/raw
+archives, and validates the combined Compose configuration. See
 [`docs/ubuntu-install-wizard.md`](docs/ubuntu-install-wizard.md).
 
 What the compose file does:
