@@ -192,6 +192,11 @@ The fire-source slice adds opt-in `nasa-firms-viirs`, `nasa-firms-modis` and
 responses and normalise them into durable fire/disaster tables while the
 existing `/api/fires` live response stays compatible.
 
+The space-weather slice adds opt-in `noaa-swpc-planetary-k-index`,
+`noaa-swpc-alerts` and `noaa-swpc-xray-flares` collectors. These preserve the
+NOAA SWPC feeds behind `/api/space-weather` and normalise them into
+`space_weather_observations`.
+
 ### Environment Variables
 
 OSIRIS works **partially without any API keys** — all core feeds use public,

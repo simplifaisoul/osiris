@@ -25,7 +25,7 @@ Relevant variables are:
 | `OSIRIS_BASE_URL` | `http://host.docker.internal:3000` in the environment template | Reserved for collector-to-OSIRIS integration |
 | `COLLECT_INTERVAL_MS` | `300000` | Delay after one attempt cycle completes before the next begins |
 | `COLLECT_ON_STARTUP` | `1` | Run once when the collector starts |
-| `COLLECTOR_SOURCE` | `usgs-earthquakes` | Active collector source for this container: `usgs-earthquakes`, `gdacs-disasters`, `nasa-firms-viirs`, `nasa-firms-modis` or `nasa-eonet-volcanoes` |
+| `COLLECTOR_SOURCE` | `usgs-earthquakes` | Active collector source for this container: `usgs-earthquakes`, `gdacs-disasters`, `nasa-firms-viirs`, `nasa-firms-modis`, `nasa-eonet-volcanoes`, `noaa-swpc-planetary-k-index`, `noaa-swpc-alerts` or `noaa-swpc-xray-flares` |
 | `MAX_FETCH_ATTEMPTS` | `3` | Bounded transient-attempt count; every HTTP response gets its own run/archive |
 | `MAX_RESPONSE_BYTES` | `26214400` | Maximum response body size before collection fails closed |
 | `REQUEST_TIMEOUT_MS` | `10000` | Timeout covering response headers and body |
@@ -45,6 +45,9 @@ Relevant variables are:
 | `FIRMS_VIIRS_URL` | Official NASA FIRMS Suomi NPP VIIRS global 24h CSV | HTTPS endpoint for the FIRMS VIIRS collector; credentials are rejected |
 | `FIRMS_MODIS_URL` | Official NASA FIRMS MODIS global 24h CSV | HTTPS endpoint for the FIRMS MODIS collector; credentials are rejected |
 | `EONET_VOLCANOES_URL` | Official NASA EONET open volcano events query | HTTPS endpoint for the EONET volcano collector; credentials are rejected |
+| `SWPC_KP_URL` | Official NOAA SWPC planetary K-index 1-minute JSON | HTTPS endpoint for the SWPC Kp collector; credentials are rejected |
+| `SWPC_ALERTS_URL` | Official NOAA SWPC alerts product JSON | HTTPS endpoint for the SWPC alerts collector; credentials are rejected |
+| `SWPC_XRAY_FLARES_URL` | Official NOAA SWPC GOES primary X-ray flares latest JSON | HTTPS endpoint for the SWPC X-ray flare collector; credentials are rejected |
 
 Do not commit `.env`. The bind mount deliberately refuses to auto-create a root-owned directory. Create and permission the host archive before starting the overlay:
 
@@ -185,6 +188,25 @@ COLLECTOR_SOURCE=nasa-eonet-volcanoes \
 DATABASE_URL=postgresql://osiris:osiris-local-dev@127.0.0.1:5432/osiris_worldstate \
 RAW_ARCHIVE_PATH="$(pwd)/archive" \
 npm --prefix collector run ingest:fixture -- nasa-eonet-volcanoes
+```
+
+NOAA SWPC space-weather capture follows the same opt-in pattern and preserves the three upstream feeds behind `/api/space-weather`: planetary Kp, SWPC alert products and latest GOES X-ray flares. Normalised rows go into `space_weather_observations`; the live OSIRIS route continues to serve the current API shape.
+
+```bash
+COLLECTOR_SOURCE=noaa-swpc-planetary-k-index \
+DATABASE_URL=postgresql://osiris:osiris-local-dev@127.0.0.1:5432/osiris_worldstate \
+RAW_ARCHIVE_PATH="$(pwd)/archive" \
+npm --prefix collector run ingest:fixture -- noaa-swpc-planetary-k-index
+
+COLLECTOR_SOURCE=noaa-swpc-alerts \
+DATABASE_URL=postgresql://osiris:osiris-local-dev@127.0.0.1:5432/osiris_worldstate \
+RAW_ARCHIVE_PATH="$(pwd)/archive" \
+npm --prefix collector run ingest:fixture -- noaa-swpc-alerts
+
+COLLECTOR_SOURCE=noaa-swpc-xray-flares \
+DATABASE_URL=postgresql://osiris:osiris-local-dev@127.0.0.1:5432/osiris_worldstate \
+RAW_ARCHIVE_PATH="$(pwd)/archive" \
+npm --prefix collector run ingest:fixture -- noaa-swpc-xray-flares
 ```
 
 Live boundary tests are opt-in only:

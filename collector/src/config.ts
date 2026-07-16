@@ -7,6 +7,7 @@ const OFFICIAL_USGS_HOST = "earthquake.usgs.gov";
 const OFFICIAL_GDACS_HOST = "www.gdacs.org";
 const OFFICIAL_FIRMS_HOST = "firms.modaps.eosdis.nasa.gov";
 const OFFICIAL_EONET_HOST = "eonet.gsfc.nasa.gov";
+const OFFICIAL_SWPC_HOST = "services.swpc.noaa.gov";
 const DEFAULT_USGS_ENDPOINT =
   "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson";
 const DEFAULT_GDACS_ENDPOINT = "https://www.gdacs.org/xml/rss.xml";
@@ -16,6 +17,12 @@ const DEFAULT_FIRMS_MODIS_ENDPOINT =
   "https://firms.modaps.eosdis.nasa.gov/data/active_fire/modis-c6.1/csv/MODIS_C6_1_Global_24h.csv";
 const DEFAULT_EONET_VOLCANOES_ENDPOINT =
   "https://eonet.gsfc.nasa.gov/api/v3/events?status=open&category=volcanoes&limit=50";
+const DEFAULT_SWPC_KP_ENDPOINT =
+  "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json";
+const DEFAULT_SWPC_ALERTS_ENDPOINT =
+  "https://services.swpc.noaa.gov/products/alerts.json";
+const DEFAULT_SWPC_XRAY_FLARES_ENDPOINT =
+  "https://services.swpc.noaa.gov/json/goes/primary/xray-flares-latest.json";
 
 const collectorSourceSchema = z.enum([
   "usgs-earthquakes",
@@ -23,6 +30,9 @@ const collectorSourceSchema = z.enum([
   "nasa-firms-viirs",
   "nasa-firms-modis",
   "nasa-eonet-volcanoes",
+  "noaa-swpc-planetary-k-index",
+  "noaa-swpc-alerts",
+  "noaa-swpc-xray-flares",
 ]);
 
 const booleanFromEnvironment = z
@@ -71,6 +81,9 @@ const environmentSchema = z.object({
   FIRMS_MODIS_URL: z.string().url().default(DEFAULT_FIRMS_MODIS_ENDPOINT),
   FIRMS_VIIRS_URL: z.string().url().default(DEFAULT_FIRMS_VIIRS_ENDPOINT),
   GDACS_RSS_URL: z.string().url().default(DEFAULT_GDACS_ENDPOINT),
+  SWPC_ALERTS_URL: z.string().url().default(DEFAULT_SWPC_ALERTS_ENDPOINT),
+  SWPC_KP_URL: z.string().url().default(DEFAULT_SWPC_KP_ENDPOINT),
+  SWPC_XRAY_FLARES_URL: z.string().url().default(DEFAULT_SWPC_XRAY_FLARES_ENDPOINT),
   USGS_EARTHQUAKE_URL: z.string().url().default(DEFAULT_USGS_ENDPOINT),
 });
 
@@ -93,6 +106,9 @@ export interface CollectorConfig {
   requestTimeoutMs: number;
   retryBaseMs: number;
   staleRunAfterMs: number;
+  swpcAlertsEndpoint: URL;
+  swpcKpEndpoint: URL;
+  swpcXrayFlaresEndpoint: URL;
   usgsEndpoint: URL;
 }
 
@@ -211,6 +227,17 @@ function validateEonetEndpoint(value: string): URL {
   return url;
 }
 
+function validateSwpcEndpoint(value: string, name: string): URL {
+  const url = new URL(value);
+  if (url.protocol !== "https:" || url.hostname !== OFFICIAL_SWPC_HOST) {
+    throw new Error(`${name} must use HTTPS on ${OFFICIAL_SWPC_HOST}`);
+  }
+  if (url.username || url.password) {
+    throw new Error(`${name} must not contain credentials`);
+  }
+  return url;
+}
+
 export function loadConfig(environment: NodeJS.ProcessEnv = process.env): CollectorConfig {
   const parsed = environmentSchema.parse(environment);
 
@@ -237,6 +264,9 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Collec
     requestTimeoutMs: parsed.REQUEST_TIMEOUT_MS,
     retryBaseMs: parsed.RETRY_BASE_MS,
     staleRunAfterMs: parsed.STALE_RUN_AFTER_MS,
+    swpcAlertsEndpoint: validateSwpcEndpoint(parsed.SWPC_ALERTS_URL, "SWPC_ALERTS_URL"),
+    swpcKpEndpoint: validateSwpcEndpoint(parsed.SWPC_KP_URL, "SWPC_KP_URL"),
+    swpcXrayFlaresEndpoint: validateSwpcEndpoint(parsed.SWPC_XRAY_FLARES_URL, "SWPC_XRAY_FLARES_URL"),
     usgsEndpoint: validateUsgsEndpoint(parsed.USGS_EARTHQUAKE_URL),
   };
 }
