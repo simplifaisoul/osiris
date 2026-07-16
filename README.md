@@ -202,6 +202,11 @@ collectors. These preserve open EONET event JSON and NWS active-alert GeoJSON,
 normalise them into `weather_events`, and keep the existing `/api/weather`
 response contract separate from the storage rollout.
 
+The threat-intel slice adds opt-in `abusech-feodo-ipblocklist`,
+`abusech-urlhaus-online` and `cisa-known-exploited-vulnerabilities` collectors.
+These preserve botnet C2, malware URL and exploited-CVE feeds into
+`threat_intel_observations`.
+
 ### Environment Variables
 
 OSIRIS works **partially without any API keys** — all core feeds use public,

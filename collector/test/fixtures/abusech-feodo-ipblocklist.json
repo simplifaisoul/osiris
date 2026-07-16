@@ -1,0 +1,14 @@
+[
+  {
+    "ip_address": "50.16.16.211",
+    "port": 443,
+    "status": "online",
+    "hostname": "ec2-50-16-16-211.compute-1.amazonaws.com",
+    "as_number": 14618,
+    "as_name": "AMAZON-AES",
+    "country": "US",
+    "first_seen": "2025-12-30 13:56:31",
+    "last_online": "2026-03-12",
+    "malware": "QakBot"
+  }
+]

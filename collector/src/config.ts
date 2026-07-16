@@ -9,6 +9,9 @@ const OFFICIAL_FIRMS_HOST = "firms.modaps.eosdis.nasa.gov";
 const OFFICIAL_EONET_HOST = "eonet.gsfc.nasa.gov";
 const OFFICIAL_NWS_HOST = "api.weather.gov";
 const OFFICIAL_SWPC_HOST = "services.swpc.noaa.gov";
+const OFFICIAL_FEODO_HOST = "feodotracker.abuse.ch";
+const OFFICIAL_URLHAUS_HOST = "urlhaus.abuse.ch";
+const OFFICIAL_CISA_HOST = "www.cisa.gov";
 const DEFAULT_USGS_ENDPOINT =
   "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson";
 const DEFAULT_GDACS_ENDPOINT = "https://www.gdacs.org/xml/rss.xml";
@@ -28,6 +31,12 @@ const DEFAULT_SWPC_ALERTS_ENDPOINT =
   "https://services.swpc.noaa.gov/products/alerts.json";
 const DEFAULT_SWPC_XRAY_FLARES_ENDPOINT =
   "https://services.swpc.noaa.gov/json/goes/primary/xray-flares-latest.json";
+const DEFAULT_FEODO_ENDPOINT =
+  "https://feodotracker.abuse.ch/downloads/ipblocklist.json";
+const DEFAULT_URLHAUS_ENDPOINT =
+  "https://urlhaus.abuse.ch/downloads/csv_online/";
+const DEFAULT_CISA_KEV_ENDPOINT =
+  "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json";
 
 const collectorSourceSchema = z.enum([
   "usgs-earthquakes",
@@ -40,6 +49,9 @@ const collectorSourceSchema = z.enum([
   "noaa-swpc-planetary-k-index",
   "noaa-swpc-alerts",
   "noaa-swpc-xray-flares",
+  "abusech-feodo-ipblocklist",
+  "abusech-urlhaus-online",
+  "cisa-known-exploited-vulnerabilities",
 ]);
 
 const booleanFromEnvironment = z
@@ -93,6 +105,9 @@ const environmentSchema = z.object({
   SWPC_ALERTS_URL: z.string().url().default(DEFAULT_SWPC_ALERTS_ENDPOINT),
   SWPC_KP_URL: z.string().url().default(DEFAULT_SWPC_KP_ENDPOINT),
   SWPC_XRAY_FLARES_URL: z.string().url().default(DEFAULT_SWPC_XRAY_FLARES_ENDPOINT),
+  FEODO_IPBLOCKLIST_URL: z.string().url().default(DEFAULT_FEODO_ENDPOINT),
+  URLHAUS_ONLINE_URL: z.string().url().default(DEFAULT_URLHAUS_ENDPOINT),
+  CISA_KEV_URL: z.string().url().default(DEFAULT_CISA_KEV_ENDPOINT),
   USGS_EARTHQUAKE_URL: z.string().url().default(DEFAULT_USGS_ENDPOINT),
 });
 
@@ -117,6 +132,9 @@ export interface CollectorConfig {
   requestTimeoutMs: number;
   retryBaseMs: number;
   staleRunAfterMs: number;
+  feodoEndpoint: URL;
+  urlhausEndpoint: URL;
+  cisaKevEndpoint: URL;
   swpcAlertsEndpoint: URL;
   swpcKpEndpoint: URL;
   swpcXrayFlaresEndpoint: URL;
@@ -260,6 +278,17 @@ function validateSwpcEndpoint(value: string, name: string): URL {
   return url;
 }
 
+function validateThreatIntelEndpoint(value: string, name: string, host: string): URL {
+  const url = new URL(value);
+  if (url.protocol !== "https:" || url.hostname !== host) {
+    throw new Error(`${name} must use HTTPS on ${host}`);
+  }
+  if (url.username || url.password) {
+    throw new Error(`${name} must not contain credentials`);
+  }
+  return url;
+}
+
 export function loadConfig(environment: NodeJS.ProcessEnv = process.env): CollectorConfig {
   const parsed = environmentSchema.parse(environment);
 
@@ -288,6 +317,21 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Collec
     requestTimeoutMs: parsed.REQUEST_TIMEOUT_MS,
     retryBaseMs: parsed.RETRY_BASE_MS,
     staleRunAfterMs: parsed.STALE_RUN_AFTER_MS,
+    feodoEndpoint: validateThreatIntelEndpoint(
+      parsed.FEODO_IPBLOCKLIST_URL,
+      "FEODO_IPBLOCKLIST_URL",
+      OFFICIAL_FEODO_HOST,
+    ),
+    urlhausEndpoint: validateThreatIntelEndpoint(
+      parsed.URLHAUS_ONLINE_URL,
+      "URLHAUS_ONLINE_URL",
+      OFFICIAL_URLHAUS_HOST,
+    ),
+    cisaKevEndpoint: validateThreatIntelEndpoint(
+      parsed.CISA_KEV_URL,
+      "CISA_KEV_URL",
+      OFFICIAL_CISA_HOST,
+    ),
     swpcAlertsEndpoint: validateSwpcEndpoint(parsed.SWPC_ALERTS_URL, "SWPC_ALERTS_URL"),
     swpcKpEndpoint: validateSwpcEndpoint(parsed.SWPC_KP_URL, "SWPC_KP_URL"),
     swpcXrayFlaresEndpoint: validateSwpcEndpoint(parsed.SWPC_XRAY_FLARES_URL, "SWPC_XRAY_FLARES_URL"),

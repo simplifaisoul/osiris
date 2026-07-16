@@ -5,6 +5,7 @@ import { Pool, type PoolClient, type PoolConfig } from 'pg';
 import type { RawResponse } from '../framework/http-fetcher.js';
 import type { NormalisedNoaaSpaceWeatherFeed } from '../normalisers/noaa-space-weather.js';
 import type { NormalisedNasaFirmsFeed } from '../normalisers/nasa-firms.js';
+import type { NormalisedThreatIntelFeed } from '../normalisers/threat-intel.js';
 import type { NormalisedUsgsFeed } from '../normalisers/usgs.js';
 import type { NormalisedWeatherFeed } from '../normalisers/weather.js';
 import { sha256Hex, type ArchiveWriteResult } from './archive-writer.js';
@@ -167,6 +168,21 @@ export interface CompleteSpaceWeatherRunResult {
 }
 
 export type CompleteWeatherRunResult = CompleteSpaceWeatherRunResult;
+
+export interface CompleteThreatIntelRunInput {
+  runId: string;
+  sourceId: string;
+  parsed: NormalisedThreatIntelFeed;
+  responseReceivedAt: Date;
+  completedAt: Date;
+  feedContentHash: string;
+  archivePath: string;
+  parserVersion: string;
+  schemaVersion: number;
+  metrics?: Record<string, unknown>;
+}
+
+export type CompleteThreatIntelRunResult = CompleteSpaceWeatherRunResult;
 
 export interface RunFailure {
   stage: string;
@@ -1327,6 +1343,169 @@ export class PostgresStore {
     return result;
   }
 
+  async completeThreatIntelRun(
+    input: CompleteThreatIntelRunInput,
+  ): Promise<CompleteThreatIntelRunResult> {
+    this.validateThreatIntelCompletionInput(input);
+
+    const client = await this.pool.connect();
+    let result: CompleteThreatIntelRunResult | undefined;
+    let completionError: unknown;
+    let destroyClient = false;
+
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [input.sourceId],
+      );
+
+      let recordsInserted = 0;
+      let recordsUpdated = 0;
+      let recordsUnchanged = 0;
+
+      for (const record of input.parsed.records) {
+        assertContentHash(record.contentHash, `record ${record.sourceIndicatorId} contentHash`);
+        const existingResult = await client.query<ExistingRawObservation>(
+          `SELECT
+             id,
+             source_updated_at,
+             metadata ->> 'indicator_content_hash' AS feature_content_hash,
+             schema_version,
+             parser_version
+           FROM raw_observations
+           WHERE source_id = $1
+             AND source_record_id = $2
+           FOR UPDATE`,
+          [input.sourceId, record.sourceIndicatorId],
+        );
+        const existing = existingResult.rows[0];
+        const decision = persistenceDecision(
+          existing,
+          record.sourceUpdatedAt,
+          record.contentHash,
+          input.schemaVersion,
+          input.parserVersion,
+          record.sourceIndicatorId,
+        );
+
+        if (decision === 'insert') {
+          recordsInserted += 1;
+        } else if (decision === 'provider_update' || decision === 'reprocess') {
+          recordsUpdated += 1;
+        } else {
+          recordsUnchanged += 1;
+        }
+
+        const rawObservationId = await this.upsertThreatIntelRawObservation(
+          client,
+          input,
+          record,
+          decision !== 'unchanged',
+        );
+        await this.upsertThreatIntelObservation(
+          client,
+          input,
+          record,
+          rawObservationId,
+          decision !== 'unchanged',
+        );
+      }
+
+      const metrics = {
+        ...(input.metrics ?? {}),
+        records_seen: input.parsed.records.length,
+        records_inserted: recordsInserted,
+        records_updated: recordsUpdated,
+        records_unchanged: recordsUnchanged,
+      };
+      const completion = await client.query(
+        `UPDATE collection_runs
+         SET completed_at = GREATEST($5, clock_timestamp()),
+             upstream_timestamp = $6,
+             status = 'succeeded',
+             record_count = $7,
+             parser_version = $8,
+             error = NULL,
+             metrics = $9::jsonb
+         WHERE id = $1
+           AND source_id = $2
+           AND status = 'running'
+           AND content_hash = $3
+           AND archive_path = $10
+           AND response_received_at = $4
+           AND http_status BETWEEN 200 AND 299
+         RETURNING id`,
+        [
+          input.runId,
+          input.sourceId,
+          input.feedContentHash,
+          input.responseReceivedAt,
+          input.completedAt,
+          input.parsed.upstreamTimestamp,
+          input.parsed.records.length,
+          input.parserVersion,
+          JSON.stringify(metrics),
+          input.archivePath,
+        ],
+      );
+      assertOneRow(completion.rowCount, 'Completing a threat intel collection run');
+
+      result = {
+        runId: input.runId,
+        sourceId: input.sourceId,
+        recordsSeen: input.parsed.records.length,
+        recordsInserted,
+        recordsUpdated,
+        recordsUnchanged,
+      };
+      await client.query('COMMIT');
+    } catch (error) {
+      completionError = error;
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackError) {
+        destroyClient = true;
+        completionError = new AggregateError(
+          [error, rollbackError],
+          'Threat intel completion and transaction rollback both failed',
+        );
+      }
+    } finally {
+      client.release(destroyClient);
+    }
+
+    if (completionError !== undefined) {
+      try {
+        await this.failRun({
+          runId: input.runId,
+          sourceId: input.sourceId,
+          completedAt: input.completedAt,
+          parserVersion: input.parserVersion,
+          error: serialisableFailure(completionError, 'database_completion'),
+          metrics: input.metrics,
+        });
+      } catch (failurePersistenceError) {
+        throw new AggregateError(
+          [completionError, failurePersistenceError],
+          'Threat intel completion failed and its failure could not be persisted',
+          { cause: failurePersistenceError },
+        );
+      }
+
+      if (completionError instanceof Error) {
+        throw completionError;
+      }
+      throw new Error('Threat intel completion failed', { cause: completionError });
+    }
+
+    if (result === undefined) {
+      throw new Error('Threat intel completion ended without a result');
+    }
+
+    return result;
+  }
+
   async failRun(input: FailRunInput): Promise<boolean> {
     assertNonEmpty(input.runId, 'runId');
     assertNonEmpty(input.sourceId, 'sourceId');
@@ -1571,6 +1750,28 @@ export class PostgresStore {
 
     if (input.parsed.sourceId !== input.sourceId) {
       throw new Error('Parsed weather feed source ID does not match the collection run source ID');
+    }
+
+    if (input.completedAt.getTime() < input.responseReceivedAt.getTime()) {
+      throw new Error('completedAt must not be earlier than responseReceivedAt');
+    }
+  }
+
+  private validateThreatIntelCompletionInput(input: CompleteThreatIntelRunInput): void {
+    assertNonEmpty(input.runId, 'runId');
+    assertNonEmpty(input.sourceId, 'sourceId');
+    assertValidDate(input.responseReceivedAt, 'responseReceivedAt');
+    assertValidDate(input.completedAt, 'completedAt');
+    assertContentHash(input.feedContentHash, 'feedContentHash');
+    assertNonEmpty(input.archivePath, 'archivePath');
+    assertNonEmpty(input.parserVersion, 'parserVersion');
+
+    if (!Number.isSafeInteger(input.schemaVersion) || input.schemaVersion <= 0) {
+      throw new Error('schemaVersion must be a positive integer');
+    }
+
+    if (input.parsed.sourceId !== input.sourceId) {
+      throw new Error('Parsed threat intel feed source ID does not match the collection run source ID');
     }
 
     if (input.completedAt.getTime() < input.responseReceivedAt.getTime()) {
@@ -2309,6 +2510,164 @@ export class PostgresStore {
         record.link,
         record.longitude,
         record.latitude,
+        rawObservationId,
+        record.evidenceClassification,
+        input.parserVersion,
+        input.completedAt,
+        JSON.stringify(record.metadata),
+        updateSnapshot,
+      ],
+    );
+  }
+
+  private async upsertThreatIntelRawObservation(
+    client: PoolClient,
+    input: CompleteThreatIntelRunInput,
+    record: NormalisedThreatIntelFeed['records'][number],
+    updateSnapshot: boolean,
+  ): Promise<string> {
+    const candidateId = randomUUID();
+    const result = await client.query<{ id: string }>(
+      `INSERT INTO raw_observations AS current (
+         id,
+         source_id,
+         collection_run_id,
+         source_record_id,
+         observed_at,
+         occurred_at,
+         source_updated_at,
+         first_seen_at,
+         last_seen_at,
+         content_hash,
+         archive_path,
+         payload,
+         schema_version,
+         parser_version,
+         evidence_classification,
+         metadata
+       ) VALUES (
+         $1, $2, $3, $4, $5, $6, $7, $5, $5, $8, $9,
+         $10::jsonb, $11, $12, $13, $14::jsonb
+       )
+       ON CONFLICT (source_id, source_record_id)
+       WHERE source_record_id IS NOT NULL
+       DO UPDATE SET
+         first_seen_at = LEAST(current.first_seen_at, EXCLUDED.first_seen_at),
+         last_seen_at = GREATEST(current.last_seen_at, EXCLUDED.last_seen_at),
+         collection_run_id = CASE WHEN $15 THEN EXCLUDED.collection_run_id ELSE current.collection_run_id END,
+         observed_at = CASE WHEN $15 THEN EXCLUDED.observed_at ELSE current.observed_at END,
+         occurred_at = CASE WHEN $15 THEN EXCLUDED.occurred_at ELSE current.occurred_at END,
+         source_updated_at = CASE WHEN $15 THEN EXCLUDED.source_updated_at ELSE current.source_updated_at END,
+         content_hash = CASE WHEN $15 THEN EXCLUDED.content_hash ELSE current.content_hash END,
+         archive_path = CASE WHEN $15 THEN EXCLUDED.archive_path ELSE current.archive_path END,
+         payload = CASE WHEN $15 THEN EXCLUDED.payload ELSE current.payload END,
+         schema_version = CASE WHEN $15 THEN EXCLUDED.schema_version ELSE current.schema_version END,
+         parser_version = CASE WHEN $15 THEN EXCLUDED.parser_version ELSE current.parser_version END,
+         evidence_classification = CASE WHEN $15 THEN EXCLUDED.evidence_classification ELSE current.evidence_classification END,
+         metadata = CASE WHEN $15 THEN EXCLUDED.metadata ELSE current.metadata END,
+         updated_at = NOW()
+       RETURNING id`,
+      [
+        candidateId,
+        input.sourceId,
+        input.runId,
+        record.sourceIndicatorId,
+        input.responseReceivedAt,
+        record.observedAt,
+        record.sourceUpdatedAt,
+        record.contentHash,
+        input.archivePath,
+        JSON.stringify(record.rawPayload),
+        input.schemaVersion,
+        input.parserVersion,
+        record.evidenceClassification,
+        JSON.stringify(record.metadata),
+        updateSnapshot,
+      ],
+    );
+    const row = result.rows[0];
+    if (row === undefined) {
+      throw new Error(`Raw observation upsert returned no ID for ${record.sourceIndicatorId}`);
+    }
+    return row.id;
+  }
+
+  private async upsertThreatIntelObservation(
+    client: PoolClient,
+    input: CompleteThreatIntelRunInput,
+    record: NormalisedThreatIntelFeed['records'][number],
+    rawObservationId: string,
+    updateSnapshot: boolean,
+  ): Promise<void> {
+    await client.query(
+      `INSERT INTO threat_intel_observations AS current (
+         id,
+         source_id,
+         source_indicator_id,
+         observed_at,
+         updated_at,
+         indicator_type,
+         indicator_value,
+         threat_kind,
+         severity,
+         status,
+         malware_family,
+         port,
+         country_code,
+         title,
+         description,
+         reference_url,
+         due_at,
+         raw_observation_id,
+         evidence_classification,
+         parser_version,
+         normalised_at,
+         metadata
+       ) VALUES (
+         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+         $11, $12, $13, $14, $15, $16, $17, $18,
+         $19, $20, $21, $22::jsonb
+       )
+       ON CONFLICT ON CONSTRAINT threat_intel_observations_source_indicator_unique
+       DO UPDATE SET
+         observed_at = EXCLUDED.observed_at,
+         updated_at = EXCLUDED.updated_at,
+         indicator_type = EXCLUDED.indicator_type,
+         indicator_value = EXCLUDED.indicator_value,
+         threat_kind = EXCLUDED.threat_kind,
+         severity = EXCLUDED.severity,
+         status = EXCLUDED.status,
+         malware_family = EXCLUDED.malware_family,
+         port = EXCLUDED.port,
+         country_code = EXCLUDED.country_code,
+         title = EXCLUDED.title,
+         description = EXCLUDED.description,
+         reference_url = EXCLUDED.reference_url,
+         due_at = EXCLUDED.due_at,
+         raw_observation_id = EXCLUDED.raw_observation_id,
+         evidence_classification = EXCLUDED.evidence_classification,
+         parser_version = EXCLUDED.parser_version,
+         normalised_at = EXCLUDED.normalised_at,
+         metadata = EXCLUDED.metadata
+       WHERE $23::boolean`,
+      [
+        randomUUID(),
+        input.sourceId,
+        record.sourceIndicatorId,
+        record.observedAt,
+        record.sourceUpdatedAt,
+        record.indicatorType,
+        record.indicatorValue,
+        record.threatKind,
+        record.severity,
+        record.status,
+        record.malwareFamily,
+        record.port,
+        record.countryCode,
+        record.title,
+        record.description,
+        record.referenceUrl,
+        record.dueAt,
         rawObservationId,
         record.evidenceClassification,
         input.parserVersion,

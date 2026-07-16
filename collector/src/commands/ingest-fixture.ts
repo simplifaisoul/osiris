@@ -14,6 +14,10 @@ import {
   WeatherCollector,
   isWeatherSourceId,
 } from "../collectors/weather-sources.js";
+import {
+  ThreatIntelCollector,
+  isThreatIntelSourceId,
+} from "../collectors/threat-intel-sources.js";
 import { UsgsEarthquakeCollector } from "../collectors/usgs-earthquakes.js";
 import { loadConfig } from "../config.js";
 import type { RawResponse } from "../framework/http-fetcher.js";
@@ -35,10 +39,13 @@ async function run(): Promise<void> {
     source !== "noaa-nws-alerts" &&
     source !== "noaa-swpc-planetary-k-index" &&
     source !== "noaa-swpc-alerts" &&
-    source !== "noaa-swpc-xray-flares"
+    source !== "noaa-swpc-xray-flares" &&
+    source !== "abusech-feodo-ipblocklist" &&
+    source !== "abusech-urlhaus-online" &&
+    source !== "cisa-known-exploited-vulnerabilities"
   ) {
     throw new Error(
-      "Usage: npm run ingest:fixture -- usgs-earthquakes|gdacs-disasters|nasa-firms-viirs|nasa-firms-modis|nasa-eonet-volcanoes|nasa-eonet-weather|noaa-nws-alerts|noaa-swpc-planetary-k-index|noaa-swpc-alerts|noaa-swpc-xray-flares",
+      "Usage: npm run ingest:fixture -- usgs-earthquakes|gdacs-disasters|nasa-firms-viirs|nasa-firms-modis|nasa-eonet-volcanoes|nasa-eonet-weather|noaa-nws-alerts|noaa-swpc-planetary-k-index|noaa-swpc-alerts|noaa-swpc-xray-flares|abusech-feodo-ipblocklist|abusech-urlhaus-online|cisa-known-exploited-vulnerabilities",
     );
   }
 
@@ -60,6 +67,12 @@ async function run(): Promise<void> {
       ? new URL("../../test/fixtures/noaa-swpc-alerts.json", import.meta.url)
       : source === "noaa-swpc-xray-flares"
       ? new URL("../../test/fixtures/noaa-swpc-xray-flares.json", import.meta.url)
+      : source === "abusech-feodo-ipblocklist"
+      ? new URL("../../test/fixtures/abusech-feodo-ipblocklist.json", import.meta.url)
+      : source === "abusech-urlhaus-online"
+      ? new URL("../../test/fixtures/abusech-urlhaus-online.csv", import.meta.url)
+      : source === "cisa-known-exploited-vulnerabilities"
+      ? new URL("../../test/fixtures/cisa-known-exploited-vulnerabilities.json", import.meta.url)
       : new URL("../../test/fixtures/nasa-firms-viirs.csv", import.meta.url);
   const fixtureBody = await readFile(fixtureUrl);
   const endpoint =
@@ -79,6 +92,12 @@ async function run(): Promise<void> {
       ? config.swpcAlertsEndpoint
       : source === "noaa-swpc-xray-flares"
       ? config.swpcXrayFlaresEndpoint
+      : source === "abusech-feodo-ipblocklist"
+      ? config.feodoEndpoint
+      : source === "abusech-urlhaus-online"
+      ? config.urlhausEndpoint
+      : source === "cisa-known-exploited-vulnerabilities"
+      ? config.cisaKevEndpoint
       : source === "nasa-firms-modis"
       ? config.firmsModisEndpoint
       : config.firmsViirsEndpoint;
@@ -92,6 +111,10 @@ async function run(): Promise<void> {
       : isWeatherSourceId(source)
       ? "application/json"
       : isNoaaSpaceWeatherSourceId(source)
+      ? "application/json"
+      : source === "abusech-urlhaus-online"
+      ? "text/csv"
+      : isThreatIntelSourceId(source)
       ? "application/json"
       : "text/csv";
   const raw: RawResponse = {
@@ -148,6 +171,12 @@ async function run(): Promise<void> {
       })
     : isNoaaSpaceWeatherSourceId(source)
     ? new NoaaSpaceWeatherCollector({
+        ...common,
+        endpoint,
+        sourceId: source,
+      })
+    : isThreatIntelSourceId(source)
+    ? new ThreatIntelCollector({
         ...common,
         endpoint,
         sourceId: source,
