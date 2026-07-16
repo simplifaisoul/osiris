@@ -97,6 +97,7 @@ DO $verification$
 DECLARE
     expected_tables TEXT[] := ARRAY[
         'collection_runs',
+        'disaster_events',
         'raw_observations',
         'seismic_events',
         'source_catalogue'
@@ -113,8 +114,8 @@ BEGIN
         END IF;
     END LOOP;
 
-    IF (SELECT COUNT(*) FROM schema_migrations) <> 8 THEN
-        RAISE EXCEPTION 'Expected 8 migration records';
+    IF (SELECT COUNT(*) FROM schema_migrations) <> 9 THEN
+        RAISE EXCEPTION 'Expected 9 migration records';
     END IF;
 
     IF EXISTS (
@@ -122,7 +123,8 @@ BEGIN
         FROM information_schema.columns
         WHERE table_schema = 'public'
           AND (
-              (table_name = 'seismic_events' AND column_name IN ('tsunami', 'evidence_classification'))
+              (table_name = 'disaster_events' AND column_name = 'evidence_classification')
+              OR (table_name = 'seismic_events' AND column_name IN ('tsunami', 'evidence_classification'))
               OR (table_name = 'raw_observations' AND column_name = 'evidence_classification')
           )
           AND column_default IS NOT NULL
@@ -503,7 +505,7 @@ for _ in $(seq 1 30); do
 done
 
 migration_count="$(run_psql --tuples-only --no-align --command='SELECT COUNT(*) FROM schema_migrations;' | tr -d '[:space:]')"
-if [[ "${migration_count}" != "8" ]]; then
+if [[ "${migration_count}" != "9" ]]; then
     echo "Migration state did not survive database restart" >&2
     exit 1
 fi

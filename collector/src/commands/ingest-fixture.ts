@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 
+import { GdacsDisasterCollector } from "../collectors/gdacs-disasters.js";
 import { UsgsEarthquakeCollector } from "../collectors/usgs-earthquakes.js";
 import { loadConfig } from "../config.js";
 import type { RawResponse } from "../framework/http-fetcher.js";
@@ -11,23 +12,27 @@ const FIXTURE_RESPONSE_RECEIVED_AT = new Date("2026-01-01T00:00:02.000Z");
 
 async function run(): Promise<void> {
   const source = process.argv[2];
-  if (source !== "usgs-earthquakes") {
-    throw new Error("Usage: npm run ingest:fixture -- usgs-earthquakes");
+  if (source !== "usgs-earthquakes" && source !== "gdacs-disasters") {
+    throw new Error("Usage: npm run ingest:fixture -- usgs-earthquakes|gdacs-disasters");
   }
 
   const config = loadConfig();
   const fixtureBody = await readFile(
-    new URL("../../test/fixtures/usgs-earthquakes.geojson", import.meta.url),
+    source === "usgs-earthquakes"
+      ? new URL("../../test/fixtures/usgs-earthquakes.geojson", import.meta.url)
+      : new URL("../../test/fixtures/gdacs-disasters.xml", import.meta.url),
   );
   const raw: RawResponse = {
-    endpoint: config.usgsEndpoint.toString(),
+    endpoint: source === "usgs-earthquakes"
+      ? config.usgsEndpoint.toString()
+      : config.gdacsEndpoint.toString(),
     requestStartedAt: new Date(FIXTURE_RESPONSE_RECEIVED_AT.getTime() - 1_000),
     responseReceivedAt: FIXTURE_RESPONSE_RECEIVED_AT,
     status: 200,
-    contentType: "application/geo+json",
+    contentType: source === "usgs-earthquakes" ? "application/geo+json" : "application/rss+xml",
     headers: {
-      "content-type": "application/geo+json",
-      "x-osiris-fixture": "usgs-earthquakes",
+      "content-type": source === "usgs-earthquakes" ? "application/geo+json" : "application/rss+xml",
+      "x-osiris-fixture": source,
     },
     body: fixtureBody,
   };
@@ -37,10 +42,9 @@ async function run(): Promise<void> {
     new Date("2026-01-01T00:00:01.000Z"),
     new Date("2026-01-01T00:00:03.000Z"),
   ];
-  const collector = new UsgsEarthquakeCollector({
+  const common = {
     archiveWriter: new ArchiveWriter(config.archiveRoot),
     clock: () => clockValues.shift() ?? new Date("2026-01-01T00:00:03.000Z"),
-    endpoint: config.usgsEndpoint,
     fetcher: {
       fetch: () => Promise.resolve(raw),
     },
@@ -49,7 +53,16 @@ async function run(): Promise<void> {
     retryBaseMs: config.retryBaseMs,
     staleRunAfterMs: config.staleRunAfterMs,
     store,
-  });
+  };
+  const collector = source === "usgs-earthquakes"
+    ? new UsgsEarthquakeCollector({
+        ...common,
+        endpoint: config.usgsEndpoint,
+      })
+    : new GdacsDisasterCollector({
+        ...common,
+        endpoint: config.gdacsEndpoint,
+      });
 
   try {
     const result = await collector.collect();

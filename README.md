@@ -182,6 +182,11 @@ database on the same internal network. See
 [docs/worldstate-development.md](docs/worldstate-development.md) for archive
 permissions, mode semantics, migrations and verification.
 
+The collector defaults to `COLLECTOR_SOURCE=usgs-earthquakes`. The first opt-in
+Phase 2 source is `gdacs-disasters`, which archives the GDACS disaster RSS feed
+and stores normalised `disaster_events` rows without changing the existing
+OSIRIS `/api/gdelt` response contract.
+
 ### Environment Variables
 
 OSIRIS works **partially without any API keys** — all core feeds use public,
