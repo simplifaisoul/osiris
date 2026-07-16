@@ -1,6 +1,11 @@
 import { readFile } from "node:fs/promises";
 
 import { GdacsDisasterCollector } from "../collectors/gdacs-disasters.js";
+import {
+  NasaEonetVolcanoCollector,
+  NasaFirmsCollector,
+  isNasaFirmsSourceId,
+} from "../collectors/nasa-fire-sources.js";
 import { UsgsEarthquakeCollector } from "../collectors/usgs-earthquakes.js";
 import { loadConfig } from "../config.js";
 import type { RawResponse } from "../framework/http-fetcher.js";
@@ -12,26 +17,54 @@ const FIXTURE_RESPONSE_RECEIVED_AT = new Date("2026-01-01T00:00:02.000Z");
 
 async function run(): Promise<void> {
   const source = process.argv[2];
-  if (source !== "usgs-earthquakes" && source !== "gdacs-disasters") {
-    throw new Error("Usage: npm run ingest:fixture -- usgs-earthquakes|gdacs-disasters");
+  if (
+    source !== "usgs-earthquakes" &&
+    source !== "gdacs-disasters" &&
+    source !== "nasa-firms-viirs" &&
+    source !== "nasa-firms-modis" &&
+    source !== "nasa-eonet-volcanoes"
+  ) {
+    throw new Error(
+      "Usage: npm run ingest:fixture -- usgs-earthquakes|gdacs-disasters|nasa-firms-viirs|nasa-firms-modis|nasa-eonet-volcanoes",
+    );
   }
 
   const config = loadConfig();
-  const fixtureBody = await readFile(
+  const fixtureUrl =
     source === "usgs-earthquakes"
       ? new URL("../../test/fixtures/usgs-earthquakes.geojson", import.meta.url)
-      : new URL("../../test/fixtures/gdacs-disasters.xml", import.meta.url),
-  );
+      : source === "gdacs-disasters"
+      ? new URL("../../test/fixtures/gdacs-disasters.xml", import.meta.url)
+      : source === "nasa-eonet-volcanoes"
+      ? new URL("../../test/fixtures/nasa-eonet-volcanoes.json", import.meta.url)
+      : new URL("../../test/fixtures/nasa-firms-viirs.csv", import.meta.url);
+  const fixtureBody = await readFile(fixtureUrl);
+  const endpoint =
+    source === "usgs-earthquakes"
+      ? config.usgsEndpoint
+      : source === "gdacs-disasters"
+      ? config.gdacsEndpoint
+      : source === "nasa-eonet-volcanoes"
+      ? config.eonetVolcanoesEndpoint
+      : source === "nasa-firms-modis"
+      ? config.firmsModisEndpoint
+      : config.firmsViirsEndpoint;
+  const contentType =
+    source === "usgs-earthquakes"
+      ? "application/geo+json"
+      : source === "gdacs-disasters"
+      ? "application/rss+xml"
+      : source === "nasa-eonet-volcanoes"
+      ? "application/json"
+      : "text/csv";
   const raw: RawResponse = {
-    endpoint: source === "usgs-earthquakes"
-      ? config.usgsEndpoint.toString()
-      : config.gdacsEndpoint.toString(),
+    endpoint: endpoint.toString(),
     requestStartedAt: new Date(FIXTURE_RESPONSE_RECEIVED_AT.getTime() - 1_000),
     responseReceivedAt: FIXTURE_RESPONSE_RECEIVED_AT,
     status: 200,
-    contentType: source === "usgs-earthquakes" ? "application/geo+json" : "application/rss+xml",
+    contentType,
     headers: {
-      "content-type": source === "usgs-earthquakes" ? "application/geo+json" : "application/rss+xml",
+      "content-type": contentType,
       "x-osiris-fixture": source,
     },
     body: fixtureBody,
@@ -58,6 +91,17 @@ async function run(): Promise<void> {
     ? new UsgsEarthquakeCollector({
         ...common,
         endpoint: config.usgsEndpoint,
+      })
+    : isNasaFirmsSourceId(source)
+    ? new NasaFirmsCollector({
+        ...common,
+        endpoint,
+        sourceId: source,
+      })
+    : source === "nasa-eonet-volcanoes"
+    ? new NasaEonetVolcanoCollector({
+        ...common,
+        endpoint,
       })
     : new GdacsDisasterCollector({
         ...common,

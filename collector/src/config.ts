@@ -5,9 +5,25 @@ import { z } from "zod";
 
 const OFFICIAL_USGS_HOST = "earthquake.usgs.gov";
 const OFFICIAL_GDACS_HOST = "www.gdacs.org";
+const OFFICIAL_FIRMS_HOST = "firms.modaps.eosdis.nasa.gov";
+const OFFICIAL_EONET_HOST = "eonet.gsfc.nasa.gov";
 const DEFAULT_USGS_ENDPOINT =
   "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson";
 const DEFAULT_GDACS_ENDPOINT = "https://www.gdacs.org/xml/rss.xml";
+const DEFAULT_FIRMS_VIIRS_ENDPOINT =
+  "https://firms.modaps.eosdis.nasa.gov/data/active_fire/suomi-npp-viirs-c2/csv/SUOMI_VIIRS_C2_Global_24h.csv";
+const DEFAULT_FIRMS_MODIS_ENDPOINT =
+  "https://firms.modaps.eosdis.nasa.gov/data/active_fire/modis-c6.1/csv/MODIS_C6_1_Global_24h.csv";
+const DEFAULT_EONET_VOLCANOES_ENDPOINT =
+  "https://eonet.gsfc.nasa.gov/api/v3/events?status=open&category=volcanoes&limit=50";
+
+const collectorSourceSchema = z.enum([
+  "usgs-earthquakes",
+  "gdacs-disasters",
+  "nasa-firms-viirs",
+  "nasa-firms-modis",
+  "nasa-eonet-volcanoes",
+]);
 
 const booleanFromEnvironment = z
   .enum(["0", "1", "false", "true"])
@@ -31,7 +47,7 @@ const environmentSchema = z.object({
     .default("1")
     .transform((value) => value === "1" || value === "true"),
   COLLECT_ONCE: booleanFromEnvironment,
-  COLLECTOR_SOURCE: z.enum(["usgs-earthquakes", "gdacs-disasters"]).default("usgs-earthquakes"),
+  COLLECTOR_SOURCE: collectorSourceSchema.default("usgs-earthquakes"),
   DATABASE_URL: optionalEnvironmentString,
   DB_CONNECTION_TIMEOUT_MS: z.coerce.number().int().min(250).max(60_000).default(5_000),
   DB_LOCK_TIMEOUT_MS: z.coerce.number().int().min(250).max(60_000).default(5_000),
@@ -51,6 +67,9 @@ const environmentSchema = z.object({
   REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(60_000).default(10_000),
   RETRY_BASE_MS: z.coerce.number().int().min(50).max(10_000).default(500),
   STALE_RUN_AFTER_MS: z.coerce.number().int().min(60_000).max(86_400_000).default(900_000),
+  EONET_VOLCANOES_URL: z.string().url().default(DEFAULT_EONET_VOLCANOES_ENDPOINT),
+  FIRMS_MODIS_URL: z.string().url().default(DEFAULT_FIRMS_MODIS_ENDPOINT),
+  FIRMS_VIIRS_URL: z.string().url().default(DEFAULT_FIRMS_VIIRS_ENDPOINT),
   GDACS_RSS_URL: z.string().url().default(DEFAULT_GDACS_ENDPOINT),
   USGS_EARTHQUAKE_URL: z.string().url().default(DEFAULT_USGS_ENDPOINT),
 });
@@ -60,8 +79,11 @@ export interface CollectorConfig {
   collectIntervalMs: number;
   collectOnStartup: boolean;
   collectOnce: boolean;
-  collectorSource: "usgs-earthquakes" | "gdacs-disasters";
+  collectorSource: z.infer<typeof collectorSourceSchema>;
   databaseConfig: PoolConfig;
+  eonetVolcanoesEndpoint: URL;
+  firmsModisEndpoint: URL;
+  firmsViirsEndpoint: URL;
   gdacsEndpoint: URL;
   healthHost: string;
   healthPort: number;
@@ -167,6 +189,28 @@ function validateGdacsEndpoint(value: string): URL {
   return url;
 }
 
+function validateFirmsEndpoint(value: string, name: string): URL {
+  const url = new URL(value);
+  if (url.protocol !== "https:" || url.hostname !== OFFICIAL_FIRMS_HOST) {
+    throw new Error(`${name} must use HTTPS on ${OFFICIAL_FIRMS_HOST}`);
+  }
+  if (url.username || url.password) {
+    throw new Error(`${name} must not contain credentials`);
+  }
+  return url;
+}
+
+function validateEonetEndpoint(value: string): URL {
+  const url = new URL(value);
+  if (url.protocol !== "https:" || url.hostname !== OFFICIAL_EONET_HOST) {
+    throw new Error(`EONET_VOLCANOES_URL must use HTTPS on ${OFFICIAL_EONET_HOST}`);
+  }
+  if (url.username || url.password) {
+    throw new Error("EONET_VOLCANOES_URL must not contain credentials");
+  }
+  return url;
+}
+
 export function loadConfig(environment: NodeJS.ProcessEnv = process.env): CollectorConfig {
   const parsed = environmentSchema.parse(environment);
 
@@ -181,6 +225,9 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Collec
     collectOnce: parsed.COLLECT_ONCE,
     collectorSource: parsed.COLLECTOR_SOURCE,
     databaseConfig: databaseConfig(parsed),
+    eonetVolcanoesEndpoint: validateEonetEndpoint(parsed.EONET_VOLCANOES_URL),
+    firmsModisEndpoint: validateFirmsEndpoint(parsed.FIRMS_MODIS_URL, "FIRMS_MODIS_URL"),
+    firmsViirsEndpoint: validateFirmsEndpoint(parsed.FIRMS_VIIRS_URL, "FIRMS_VIIRS_URL"),
     gdacsEndpoint: validateGdacsEndpoint(parsed.GDACS_RSS_URL),
     healthHost: parsed.HEALTH_HOST,
     healthPort: parsed.HEALTH_PORT,
