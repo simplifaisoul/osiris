@@ -1,0 +1,42 @@
+{
+  "title": "EONET Events",
+  "events": [
+    {
+      "id": "EONET_7001",
+      "title": "Tropical Cyclone Fixture",
+      "categories": [{ "id": "severeStorms", "title": "Severe Storms" }],
+      "sources": [{ "id": "JTWC", "url": "https://example.test/eonet/storm" }],
+      "geometry": [
+        {
+          "date": "2026-01-01T00:00:00Z",
+          "type": "Point",
+          "coordinates": [140.5, -12.25]
+        }
+      ]
+    },
+    {
+      "id": "EONET_7002",
+      "title": "Sea Ice Fixture",
+      "categories": [{ "id": "seaIce", "title": "Sea and Lake Ice" }],
+      "geometry": [
+        {
+          "date": "2026-01-01T01:00:00Z",
+          "type": "Point",
+          "coordinates": [-45.1, 61.2]
+        }
+      ]
+    },
+    {
+      "id": "EONET_SKIP_FIRE",
+      "title": "Skipped Fire Fixture",
+      "categories": [{ "id": "wildfires", "title": "Wildfires" }],
+      "geometry": [
+        {
+          "date": "2026-01-01T02:00:00Z",
+          "type": "Point",
+          "coordinates": [10, 20]
+        }
+      ]
+    }
+  ]
+}

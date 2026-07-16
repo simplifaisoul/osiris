@@ -197,11 +197,25 @@ The space-weather slice adds opt-in `noaa-swpc-planetary-k-index`,
 NOAA SWPC feeds behind `/api/space-weather` and normalise them into
 `space_weather_observations`.
 
+The weather slice adds opt-in `nasa-eonet-weather` and `noaa-nws-alerts`
+collectors. These preserve open EONET event JSON and NWS active-alert GeoJSON,
+normalise them into `weather_events`, and keep the existing `/api/weather`
+response contract separate from the storage rollout.
+
 ### Environment Variables
 
 OSIRIS works **partially without any API keys** — all core feeds use public,
 keyless sources. Copy [`.env.example`](.env.example) to `.env` and set only
 what you need:
+
+For Ubuntu Server installs with world-state persistence, use the setup wizard:
+
+```bash
+npm run setup:wizard
+```
+
+It prepares `.env`, mounted-disk database/archive paths and Compose validation.
+Details: [Ubuntu install wizard](docs/ubuntu-install-wizard.md).
 
 ```env
 # Published host port (container always listens on 3000). Default: 3000

@@ -25,6 +25,17 @@ docker compose up -d
 
 Open <http://localhost:3000>.
 
+For Ubuntu Server installs with the world-state database, run the setup wizard
+first:
+
+```bash
+npm run setup:wizard
+```
+
+It generates `.env`, prepares mounted-disk paths for PostgreSQL/raw archives
+and validates the combined Compose configuration. See
+[`docs/ubuntu-install-wizard.md`](docs/ubuntu-install-wizard.md).
+
 What the compose file does:
 
 - **`image:` + `build:`** — `image:` points at a prebuilt registry image; the

@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "setup:wizard": "bash scripts/osiris-install-wizard.sh",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:live": "RUN_LIVE_TESTS=1 vitest run"
