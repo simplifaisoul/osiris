@@ -27,7 +27,7 @@ services:
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - worldstate-db-data:/var/lib/postgresql/data
+      - ${WORLDSTATE_DB_DATA:-worldstate-db-data}:/var/lib/postgresql/data
     healthcheck:
       test:
         - CMD-SHELL
@@ -88,6 +88,8 @@ services:
       FIRMS_VIIRS_URL: ${FIRMS_VIIRS_URL:-https://firms.modaps.eosdis.nasa.gov/data/active_fire/suomi-npp-viirs-c2/csv/SUOMI_VIIRS_C2_Global_24h.csv}
       FIRMS_MODIS_URL: ${FIRMS_MODIS_URL:-https://firms.modaps.eosdis.nasa.gov/data/active_fire/modis-c6.1/csv/MODIS_C6_1_Global_24h.csv}
       EONET_VOLCANOES_URL: ${EONET_VOLCANOES_URL:-https://eonet.gsfc.nasa.gov/api/v3/events?status=open&category=volcanoes&limit=50}
+      EONET_WEATHER_URL: ${EONET_WEATHER_URL:-https://eonet.gsfc.nasa.gov/api/v3/events?status=open&limit=100}
+      NWS_ALERTS_URL: ${NWS_ALERTS_URL:-https://api.weather.gov/alerts/active?status=actual&message_type=alert}
       SWPC_KP_URL: ${SWPC_KP_URL:-https://services.swpc.noaa.gov/json/planetary_k_index_1m.json}
       SWPC_ALERTS_URL: ${SWPC_ALERTS_URL:-https://services.swpc.noaa.gov/products/alerts.json}
       SWPC_XRAY_FLARES_URL: ${SWPC_XRAY_FLARES_URL:-https://services.swpc.noaa.gov/json/goes/primary/xray-flares-latest.json}
@@ -120,7 +122,7 @@ services:
       start_period: 20s
     volumes:
       - type: bind
-        source: ./archive
+        source: ${RAW_ARCHIVE_HOST_PATH:-./archive}
         target: ${RAW_ARCHIVE_PATH:-/archive}
         bind:
           create_host_path: false
@@ -147,7 +149,7 @@ services:
         echo "Raw archive is writable: $${RAW_ARCHIVE_PATH}"
     volumes:
       - type: bind
-        source: ./archive
+        source: ${RAW_ARCHIVE_HOST_PATH:-./archive}
         target: ${RAW_ARCHIVE_PATH:-/archive}
         bind:
           create_host_path: false

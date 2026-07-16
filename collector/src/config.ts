@@ -7,6 +7,7 @@ const OFFICIAL_USGS_HOST = "earthquake.usgs.gov";
 const OFFICIAL_GDACS_HOST = "www.gdacs.org";
 const OFFICIAL_FIRMS_HOST = "firms.modaps.eosdis.nasa.gov";
 const OFFICIAL_EONET_HOST = "eonet.gsfc.nasa.gov";
+const OFFICIAL_NWS_HOST = "api.weather.gov";
 const OFFICIAL_SWPC_HOST = "services.swpc.noaa.gov";
 const DEFAULT_USGS_ENDPOINT =
   "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson";
@@ -17,6 +18,10 @@ const DEFAULT_FIRMS_MODIS_ENDPOINT =
   "https://firms.modaps.eosdis.nasa.gov/data/active_fire/modis-c6.1/csv/MODIS_C6_1_Global_24h.csv";
 const DEFAULT_EONET_VOLCANOES_ENDPOINT =
   "https://eonet.gsfc.nasa.gov/api/v3/events?status=open&category=volcanoes&limit=50";
+const DEFAULT_EONET_WEATHER_ENDPOINT =
+  "https://eonet.gsfc.nasa.gov/api/v3/events?status=open&limit=100";
+const DEFAULT_NWS_ALERTS_ENDPOINT =
+  "https://api.weather.gov/alerts/active?status=actual&message_type=alert";
 const DEFAULT_SWPC_KP_ENDPOINT =
   "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json";
 const DEFAULT_SWPC_ALERTS_ENDPOINT =
@@ -30,6 +35,8 @@ const collectorSourceSchema = z.enum([
   "nasa-firms-viirs",
   "nasa-firms-modis",
   "nasa-eonet-volcanoes",
+  "nasa-eonet-weather",
+  "noaa-nws-alerts",
   "noaa-swpc-planetary-k-index",
   "noaa-swpc-alerts",
   "noaa-swpc-xray-flares",
@@ -78,9 +85,11 @@ const environmentSchema = z.object({
   RETRY_BASE_MS: z.coerce.number().int().min(50).max(10_000).default(500),
   STALE_RUN_AFTER_MS: z.coerce.number().int().min(60_000).max(86_400_000).default(900_000),
   EONET_VOLCANOES_URL: z.string().url().default(DEFAULT_EONET_VOLCANOES_ENDPOINT),
+  EONET_WEATHER_URL: z.string().url().default(DEFAULT_EONET_WEATHER_ENDPOINT),
   FIRMS_MODIS_URL: z.string().url().default(DEFAULT_FIRMS_MODIS_ENDPOINT),
   FIRMS_VIIRS_URL: z.string().url().default(DEFAULT_FIRMS_VIIRS_ENDPOINT),
   GDACS_RSS_URL: z.string().url().default(DEFAULT_GDACS_ENDPOINT),
+  NWS_ALERTS_URL: z.string().url().default(DEFAULT_NWS_ALERTS_ENDPOINT),
   SWPC_ALERTS_URL: z.string().url().default(DEFAULT_SWPC_ALERTS_ENDPOINT),
   SWPC_KP_URL: z.string().url().default(DEFAULT_SWPC_KP_ENDPOINT),
   SWPC_XRAY_FLARES_URL: z.string().url().default(DEFAULT_SWPC_XRAY_FLARES_ENDPOINT),
@@ -95,6 +104,7 @@ export interface CollectorConfig {
   collectorSource: z.infer<typeof collectorSourceSchema>;
   databaseConfig: PoolConfig;
   eonetVolcanoesEndpoint: URL;
+  eonetWeatherEndpoint: URL;
   firmsModisEndpoint: URL;
   firmsViirsEndpoint: URL;
   gdacsEndpoint: URL;
@@ -102,6 +112,7 @@ export interface CollectorConfig {
   healthPort: number;
   logLevel: "fatal" | "error" | "warn" | "info" | "debug" | "trace" | "silent";
   maxFetchAttempts: number;
+  nwsAlertsEndpoint: URL;
   maxResponseBytes: number;
   requestTimeoutMs: number;
   retryBaseMs: number;
@@ -216,13 +227,24 @@ function validateFirmsEndpoint(value: string, name: string): URL {
   return url;
 }
 
-function validateEonetEndpoint(value: string): URL {
+function validateEonetEndpoint(value: string, name = "EONET_VOLCANOES_URL"): URL {
   const url = new URL(value);
   if (url.protocol !== "https:" || url.hostname !== OFFICIAL_EONET_HOST) {
-    throw new Error(`EONET_VOLCANOES_URL must use HTTPS on ${OFFICIAL_EONET_HOST}`);
+    throw new Error(`${name} must use HTTPS on ${OFFICIAL_EONET_HOST}`);
   }
   if (url.username || url.password) {
-    throw new Error("EONET_VOLCANOES_URL must not contain credentials");
+    throw new Error(`${name} must not contain credentials`);
+  }
+  return url;
+}
+
+function validateNwsEndpoint(value: string): URL {
+  const url = new URL(value);
+  if (url.protocol !== "https:" || url.hostname !== OFFICIAL_NWS_HOST) {
+    throw new Error(`NWS_ALERTS_URL must use HTTPS on ${OFFICIAL_NWS_HOST}`);
+  }
+  if (url.username || url.password) {
+    throw new Error("NWS_ALERTS_URL must not contain credentials");
   }
   return url;
 }
@@ -253,6 +275,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Collec
     collectorSource: parsed.COLLECTOR_SOURCE,
     databaseConfig: databaseConfig(parsed),
     eonetVolcanoesEndpoint: validateEonetEndpoint(parsed.EONET_VOLCANOES_URL),
+    eonetWeatherEndpoint: validateEonetEndpoint(parsed.EONET_WEATHER_URL, "EONET_WEATHER_URL"),
     firmsModisEndpoint: validateFirmsEndpoint(parsed.FIRMS_MODIS_URL, "FIRMS_MODIS_URL"),
     firmsViirsEndpoint: validateFirmsEndpoint(parsed.FIRMS_VIIRS_URL, "FIRMS_VIIRS_URL"),
     gdacsEndpoint: validateGdacsEndpoint(parsed.GDACS_RSS_URL),
@@ -261,6 +284,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Collec
     logLevel: parsed.LOG_LEVEL,
     maxFetchAttempts: parsed.MAX_FETCH_ATTEMPTS,
     maxResponseBytes: parsed.MAX_RESPONSE_BYTES,
+    nwsAlertsEndpoint: validateNwsEndpoint(parsed.NWS_ALERTS_URL),
     requestTimeoutMs: parsed.REQUEST_TIMEOUT_MS,
     retryBaseMs: parsed.RETRY_BASE_MS,
     staleRunAfterMs: parsed.STALE_RUN_AFTER_MS,

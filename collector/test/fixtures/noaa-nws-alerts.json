@@ -1,0 +1,41 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "id": "https://api.weather.gov/alerts/urn:oid:fixture-1",
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-100, 40], [-98, 40], [-98, 42], [-100, 42], [-100, 40]]]
+      },
+      "properties": {
+        "@id": "https://api.weather.gov/alerts/urn:oid:fixture-1",
+        "id": "urn:oid:fixture-1",
+        "headline": "Severe Thunderstorm Warning fixture",
+        "event": "Severe Thunderstorm Warning",
+        "severity": "Severe",
+        "effective": "2026-01-01T03:00:00+00:00",
+        "sent": "2026-01-01T02:55:00+00:00",
+        "expires": "2026-01-01T04:00:00+00:00",
+        "areaDesc": "Fixture County"
+      }
+    },
+    {
+      "id": "https://api.weather.gov/alerts/urn:oid:fixture-2",
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-75.5, 39.2]
+      },
+      "properties": {
+        "@id": "https://api.weather.gov/alerts/urn:oid:fixture-2",
+        "headline": "Flood Watch fixture",
+        "event": "Flood Watch",
+        "severity": "Moderate",
+        "effective": "2026-01-01T05:00:00+00:00",
+        "sent": "2026-01-01T04:45:00+00:00",
+        "areaDesc": "Second Fixture County"
+      }
+    }
+  ]
+}
