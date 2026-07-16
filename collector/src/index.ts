@@ -11,6 +11,9 @@ import {
   NasaFirmsCollector,
 } from "./collectors/nasa-fire-sources.js";
 import {
+  NoaaSpaceWeatherCollector,
+} from "./collectors/noaa-space-weather.js";
+import {
   UsgsEarthquakeCollector,
 } from "./collectors/usgs-earthquakes.js";
 import { createLogger } from "./logger.js";
@@ -56,6 +59,24 @@ async function run(): Promise<void> {
     ? new NasaEonetVolcanoCollector({
         ...commonCollectorOptions,
         endpoint: config.eonetVolcanoesEndpoint,
+      })
+    : config.collectorSource === "noaa-swpc-planetary-k-index"
+    ? new NoaaSpaceWeatherCollector({
+        ...commonCollectorOptions,
+        endpoint: config.swpcKpEndpoint,
+        sourceId: "noaa-swpc-planetary-k-index",
+      })
+    : config.collectorSource === "noaa-swpc-alerts"
+    ? new NoaaSpaceWeatherCollector({
+        ...commonCollectorOptions,
+        endpoint: config.swpcAlertsEndpoint,
+        sourceId: "noaa-swpc-alerts",
+      })
+    : config.collectorSource === "noaa-swpc-xray-flares"
+    ? new NoaaSpaceWeatherCollector({
+        ...commonCollectorOptions,
+        endpoint: config.swpcXrayFlaresEndpoint,
+        sourceId: "noaa-swpc-xray-flares",
       })
     : new UsgsEarthquakeCollector({
         ...commonCollectorOptions,

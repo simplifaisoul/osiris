@@ -6,6 +6,10 @@ import {
   NasaFirmsCollector,
   isNasaFirmsSourceId,
 } from "../collectors/nasa-fire-sources.js";
+import {
+  NoaaSpaceWeatherCollector,
+  isNoaaSpaceWeatherSourceId,
+} from "../collectors/noaa-space-weather.js";
 import { UsgsEarthquakeCollector } from "../collectors/usgs-earthquakes.js";
 import { loadConfig } from "../config.js";
 import type { RawResponse } from "../framework/http-fetcher.js";
@@ -22,10 +26,13 @@ async function run(): Promise<void> {
     source !== "gdacs-disasters" &&
     source !== "nasa-firms-viirs" &&
     source !== "nasa-firms-modis" &&
-    source !== "nasa-eonet-volcanoes"
+    source !== "nasa-eonet-volcanoes" &&
+    source !== "noaa-swpc-planetary-k-index" &&
+    source !== "noaa-swpc-alerts" &&
+    source !== "noaa-swpc-xray-flares"
   ) {
     throw new Error(
-      "Usage: npm run ingest:fixture -- usgs-earthquakes|gdacs-disasters|nasa-firms-viirs|nasa-firms-modis|nasa-eonet-volcanoes",
+      "Usage: npm run ingest:fixture -- usgs-earthquakes|gdacs-disasters|nasa-firms-viirs|nasa-firms-modis|nasa-eonet-volcanoes|noaa-swpc-planetary-k-index|noaa-swpc-alerts|noaa-swpc-xray-flares",
     );
   }
 
@@ -37,6 +44,12 @@ async function run(): Promise<void> {
       ? new URL("../../test/fixtures/gdacs-disasters.xml", import.meta.url)
       : source === "nasa-eonet-volcanoes"
       ? new URL("../../test/fixtures/nasa-eonet-volcanoes.json", import.meta.url)
+      : source === "noaa-swpc-planetary-k-index"
+      ? new URL("../../test/fixtures/noaa-swpc-kp.json", import.meta.url)
+      : source === "noaa-swpc-alerts"
+      ? new URL("../../test/fixtures/noaa-swpc-alerts.json", import.meta.url)
+      : source === "noaa-swpc-xray-flares"
+      ? new URL("../../test/fixtures/noaa-swpc-xray-flares.json", import.meta.url)
       : new URL("../../test/fixtures/nasa-firms-viirs.csv", import.meta.url);
   const fixtureBody = await readFile(fixtureUrl);
   const endpoint =
@@ -46,6 +59,12 @@ async function run(): Promise<void> {
       ? config.gdacsEndpoint
       : source === "nasa-eonet-volcanoes"
       ? config.eonetVolcanoesEndpoint
+      : source === "noaa-swpc-planetary-k-index"
+      ? config.swpcKpEndpoint
+      : source === "noaa-swpc-alerts"
+      ? config.swpcAlertsEndpoint
+      : source === "noaa-swpc-xray-flares"
+      ? config.swpcXrayFlaresEndpoint
       : source === "nasa-firms-modis"
       ? config.firmsModisEndpoint
       : config.firmsViirsEndpoint;
@@ -55,6 +74,8 @@ async function run(): Promise<void> {
       : source === "gdacs-disasters"
       ? "application/rss+xml"
       : source === "nasa-eonet-volcanoes"
+      ? "application/json"
+      : isNoaaSpaceWeatherSourceId(source)
       ? "application/json"
       : "text/csv";
   const raw: RawResponse = {
@@ -102,6 +123,12 @@ async function run(): Promise<void> {
     ? new NasaEonetVolcanoCollector({
         ...common,
         endpoint,
+      })
+    : isNoaaSpaceWeatherSourceId(source)
+    ? new NoaaSpaceWeatherCollector({
+        ...common,
+        endpoint,
+        sourceId: source,
       })
     : new GdacsDisasterCollector({
         ...common,

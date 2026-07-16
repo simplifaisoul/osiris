@@ -101,6 +101,7 @@ DECLARE
         'disaster_events',
         'raw_observations',
         'seismic_events',
+        'space_weather_observations',
         'source_catalogue'
     ];
     table_name TEXT;
@@ -115,8 +116,8 @@ BEGIN
         END IF;
     END LOOP;
 
-    IF (SELECT COUNT(*) FROM schema_migrations) <> 10 THEN
-        RAISE EXCEPTION 'Expected 10 migration records';
+    IF (SELECT COUNT(*) FROM schema_migrations) <> 11 THEN
+        RAISE EXCEPTION 'Expected 11 migration records';
     END IF;
 
     IF EXISTS (
@@ -127,6 +128,7 @@ BEGIN
               (table_name = 'active_fire_detections' AND column_name = 'evidence_classification')
               OR (table_name = 'disaster_events' AND column_name = 'evidence_classification')
               OR (table_name = 'seismic_events' AND column_name IN ('tsunami', 'evidence_classification'))
+              OR (table_name = 'space_weather_observations' AND column_name = 'evidence_classification')
               OR (table_name = 'raw_observations' AND column_name = 'evidence_classification')
           )
           AND column_default IS NOT NULL
@@ -507,7 +509,7 @@ for _ in $(seq 1 30); do
 done
 
 migration_count="$(run_psql --tuples-only --no-align --command='SELECT COUNT(*) FROM schema_migrations;' | tr -d '[:space:]')"
-if [[ "${migration_count}" != "10" ]]; then
+if [[ "${migration_count}" != "11" ]]; then
     echo "Migration state did not survive database restart" >&2
     exit 1
 fi

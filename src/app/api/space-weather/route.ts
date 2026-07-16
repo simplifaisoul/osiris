@@ -14,7 +14,7 @@ export async function GET() {
       fetch('https://services.swpc.noaa.gov/json/planetary_k_index_1m.json', {
         signal: AbortSignal.timeout(8000),
       }).then(r => r.json()),
-      fetch('https://services.swpc.noaa.gov/json/alerts.json', {
+      fetch('https://services.swpc.noaa.gov/products/alerts.json', {
         signal: AbortSignal.timeout(8000),
       }).then(r => r.json()),
       fetch('https://services.swpc.noaa.gov/json/goes/primary/xray-flares-latest.json', {
