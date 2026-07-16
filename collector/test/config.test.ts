@@ -15,6 +15,9 @@ describe("loadConfig", () => {
     expect(config.maxFetchAttempts).toBe(3);
     expect(config.maxResponseBytes).toBe(25 * 1024 * 1024);
     expect(config.usgsEndpoint.hostname).toBe("earthquake.usgs.gov");
+    expect(config.celestrakActiveTleEndpoint.hostname).toBe("celestrak.org");
+    expect(config.celestrakStarlinkTleEndpoint.hostname).toBe("celestrak.org");
+    expect(config.satnogsTleEndpoint.hostname).toBe("db.satnogs.org");
     expect(config.databaseConfig).toMatchObject({
       connectionString: requiredEnvironment.DATABASE_URL,
       connectionTimeoutMillis: 5_000,
@@ -112,6 +115,22 @@ describe("loadConfig", () => {
       loadConfig({
         ...requiredEnvironment,
         USGS_EARTHQUAKE_URL: "http://earthquake.usgs.gov/feed.geojson",
+      }),
+    ).toThrow("must use HTTPS");
+  });
+
+  it("rejects satellite endpoint overrides outside official HTTPS hosts", () => {
+    expect(() =>
+      loadConfig({
+        ...requiredEnvironment,
+        CELESTRAK_ACTIVE_TLE_URL: "https://example.test/NORAD/elements/gp.php",
+      }),
+    ).toThrow("celestrak.org");
+
+    expect(() =>
+      loadConfig({
+        ...requiredEnvironment,
+        SATNOGS_TLE_URL: "http://db.satnogs.org/api/tle/",
       }),
     ).toThrow("must use HTTPS");
   });

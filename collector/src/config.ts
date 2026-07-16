@@ -12,6 +12,8 @@ const OFFICIAL_SWPC_HOST = "services.swpc.noaa.gov";
 const OFFICIAL_FEODO_HOST = "feodotracker.abuse.ch";
 const OFFICIAL_URLHAUS_HOST = "urlhaus.abuse.ch";
 const OFFICIAL_CISA_HOST = "www.cisa.gov";
+const OFFICIAL_CELESTRAK_HOST = "celestrak.org";
+const OFFICIAL_SATNOGS_HOST = "db.satnogs.org";
 const DEFAULT_USGS_ENDPOINT =
   "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson";
 const DEFAULT_GDACS_ENDPOINT = "https://www.gdacs.org/xml/rss.xml";
@@ -37,6 +39,11 @@ const DEFAULT_URLHAUS_ENDPOINT =
   "https://urlhaus.abuse.ch/downloads/csv_online/";
 const DEFAULT_CISA_KEV_ENDPOINT =
   "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json";
+const DEFAULT_CELESTRAK_ACTIVE_TLE_ENDPOINT =
+  "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle";
+const DEFAULT_CELESTRAK_STARLINK_TLE_ENDPOINT =
+  "https://celestrak.org/NORAD/elements/supplemental/sup-gp.php?FILE=starlink&FORMAT=tle";
+const DEFAULT_SATNOGS_TLE_ENDPOINT = "https://db.satnogs.org/api/tle/?format=json";
 
 const collectorSourceSchema = z.enum([
   "usgs-earthquakes",
@@ -52,6 +59,9 @@ const collectorSourceSchema = z.enum([
   "abusech-feodo-ipblocklist",
   "abusech-urlhaus-online",
   "cisa-known-exploited-vulnerabilities",
+  "celestrak-active-tle",
+  "celestrak-starlink-supplemental-tle",
+  "satnogs-tle",
 ]);
 
 const booleanFromEnvironment = z
@@ -108,6 +118,9 @@ const environmentSchema = z.object({
   FEODO_IPBLOCKLIST_URL: z.string().url().default(DEFAULT_FEODO_ENDPOINT),
   URLHAUS_ONLINE_URL: z.string().url().default(DEFAULT_URLHAUS_ENDPOINT),
   CISA_KEV_URL: z.string().url().default(DEFAULT_CISA_KEV_ENDPOINT),
+  CELESTRAK_ACTIVE_TLE_URL: z.string().url().default(DEFAULT_CELESTRAK_ACTIVE_TLE_ENDPOINT),
+  CELESTRAK_STARLINK_TLE_URL: z.string().url().default(DEFAULT_CELESTRAK_STARLINK_TLE_ENDPOINT),
+  SATNOGS_TLE_URL: z.string().url().default(DEFAULT_SATNOGS_TLE_ENDPOINT),
   USGS_EARTHQUAKE_URL: z.string().url().default(DEFAULT_USGS_ENDPOINT),
 });
 
@@ -135,6 +148,9 @@ export interface CollectorConfig {
   feodoEndpoint: URL;
   urlhausEndpoint: URL;
   cisaKevEndpoint: URL;
+  celestrakActiveTleEndpoint: URL;
+  celestrakStarlinkTleEndpoint: URL;
+  satnogsTleEndpoint: URL;
   swpcAlertsEndpoint: URL;
   swpcKpEndpoint: URL;
   swpcXrayFlaresEndpoint: URL;
@@ -289,6 +305,17 @@ function validateThreatIntelEndpoint(value: string, name: string, host: string):
   return url;
 }
 
+function validateSatelliteEndpoint(value: string, name: string, host: string): URL {
+  const url = new URL(value);
+  if (url.protocol !== "https:" || url.hostname !== host) {
+    throw new Error(`${name} must use HTTPS on ${host}`);
+  }
+  if (url.username || url.password) {
+    throw new Error(`${name} must not contain credentials`);
+  }
+  return url;
+}
+
 export function loadConfig(environment: NodeJS.ProcessEnv = process.env): CollectorConfig {
   const parsed = environmentSchema.parse(environment);
 
@@ -331,6 +358,21 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Collec
       parsed.CISA_KEV_URL,
       "CISA_KEV_URL",
       OFFICIAL_CISA_HOST,
+    ),
+    celestrakActiveTleEndpoint: validateSatelliteEndpoint(
+      parsed.CELESTRAK_ACTIVE_TLE_URL,
+      "CELESTRAK_ACTIVE_TLE_URL",
+      OFFICIAL_CELESTRAK_HOST,
+    ),
+    celestrakStarlinkTleEndpoint: validateSatelliteEndpoint(
+      parsed.CELESTRAK_STARLINK_TLE_URL,
+      "CELESTRAK_STARLINK_TLE_URL",
+      OFFICIAL_CELESTRAK_HOST,
+    ),
+    satnogsTleEndpoint: validateSatelliteEndpoint(
+      parsed.SATNOGS_TLE_URL,
+      "SATNOGS_TLE_URL",
+      OFFICIAL_SATNOGS_HOST,
     ),
     swpcAlertsEndpoint: validateSwpcEndpoint(parsed.SWPC_ALERTS_URL, "SWPC_ALERTS_URL"),
     swpcKpEndpoint: validateSwpcEndpoint(parsed.SWPC_KP_URL, "SWPC_KP_URL"),

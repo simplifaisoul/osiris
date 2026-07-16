@@ -5,6 +5,7 @@ import { Pool, type PoolClient, type PoolConfig } from 'pg';
 import type { RawResponse } from '../framework/http-fetcher.js';
 import type { NormalisedNoaaSpaceWeatherFeed } from '../normalisers/noaa-space-weather.js';
 import type { NormalisedNasaFirmsFeed } from '../normalisers/nasa-firms.js';
+import type { NormalisedSatelliteFeed } from '../normalisers/satellites.js';
 import type { NormalisedThreatIntelFeed } from '../normalisers/threat-intel.js';
 import type { NormalisedUsgsFeed } from '../normalisers/usgs.js';
 import type { NormalisedWeatherFeed } from '../normalisers/weather.js';
@@ -183,6 +184,21 @@ export interface CompleteThreatIntelRunInput {
 }
 
 export type CompleteThreatIntelRunResult = CompleteSpaceWeatherRunResult;
+
+export interface CompleteSatelliteRunInput {
+  runId: string;
+  sourceId: string;
+  parsed: NormalisedSatelliteFeed;
+  responseReceivedAt: Date;
+  completedAt: Date;
+  feedContentHash: string;
+  archivePath: string;
+  parserVersion: string;
+  schemaVersion: number;
+  metrics?: Record<string, unknown>;
+}
+
+export type CompleteSatelliteRunResult = CompleteSpaceWeatherRunResult;
 
 export interface RunFailure {
   stage: string;
@@ -1506,6 +1522,169 @@ export class PostgresStore {
     return result;
   }
 
+  async completeSatelliteRun(
+    input: CompleteSatelliteRunInput,
+  ): Promise<CompleteSatelliteRunResult> {
+    this.validateSatelliteCompletionInput(input);
+
+    const client = await this.pool.connect();
+    let result: CompleteSatelliteRunResult | undefined;
+    let completionError: unknown;
+    let destroyClient = false;
+
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [input.sourceId],
+      );
+
+      let recordsInserted = 0;
+      let recordsUpdated = 0;
+      let recordsUnchanged = 0;
+
+      for (const record of input.parsed.records) {
+        assertContentHash(record.contentHash, `record ${record.sourceTleId} contentHash`);
+        const existingResult = await client.query<ExistingRawObservation>(
+          `SELECT
+             id,
+             source_updated_at,
+             metadata ->> 'tle_content_hash' AS feature_content_hash,
+             schema_version,
+             parser_version
+           FROM raw_observations
+           WHERE source_id = $1
+             AND source_record_id = $2
+           FOR UPDATE`,
+          [input.sourceId, record.sourceTleId],
+        );
+        const existing = existingResult.rows[0];
+        const decision = persistenceDecision(
+          existing,
+          record.sourceUpdatedAt,
+          record.contentHash,
+          input.schemaVersion,
+          input.parserVersion,
+          record.sourceTleId,
+        );
+
+        if (decision === 'insert') {
+          recordsInserted += 1;
+        } else if (decision === 'provider_update' || decision === 'reprocess') {
+          recordsUpdated += 1;
+        } else {
+          recordsUnchanged += 1;
+        }
+
+        const rawObservationId = await this.upsertSatelliteRawObservation(
+          client,
+          input,
+          record,
+          decision !== 'unchanged',
+        );
+        await this.upsertSatelliteTleObservation(
+          client,
+          input,
+          record,
+          rawObservationId,
+          decision !== 'unchanged',
+        );
+      }
+
+      const metrics = {
+        ...(input.metrics ?? {}),
+        records_seen: input.parsed.records.length,
+        records_inserted: recordsInserted,
+        records_updated: recordsUpdated,
+        records_unchanged: recordsUnchanged,
+      };
+      const completion = await client.query(
+        `UPDATE collection_runs
+         SET completed_at = GREATEST($5, clock_timestamp()),
+             upstream_timestamp = $6,
+             status = 'succeeded',
+             record_count = $7,
+             parser_version = $8,
+             error = NULL,
+             metrics = $9::jsonb
+         WHERE id = $1
+           AND source_id = $2
+           AND status = 'running'
+           AND content_hash = $3
+           AND archive_path = $10
+           AND response_received_at = $4
+           AND http_status BETWEEN 200 AND 299
+         RETURNING id`,
+        [
+          input.runId,
+          input.sourceId,
+          input.feedContentHash,
+          input.responseReceivedAt,
+          input.completedAt,
+          input.parsed.upstreamTimestamp,
+          input.parsed.records.length,
+          input.parserVersion,
+          JSON.stringify(metrics),
+          input.archivePath,
+        ],
+      );
+      assertOneRow(completion.rowCount, 'Completing a satellite collection run');
+
+      result = {
+        runId: input.runId,
+        sourceId: input.sourceId,
+        recordsSeen: input.parsed.records.length,
+        recordsInserted,
+        recordsUpdated,
+        recordsUnchanged,
+      };
+      await client.query('COMMIT');
+    } catch (error) {
+      completionError = error;
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackError) {
+        destroyClient = true;
+        completionError = new AggregateError(
+          [error, rollbackError],
+          'Satellite completion and transaction rollback both failed',
+        );
+      }
+    } finally {
+      client.release(destroyClient);
+    }
+
+    if (completionError !== undefined) {
+      try {
+        await this.failRun({
+          runId: input.runId,
+          sourceId: input.sourceId,
+          completedAt: input.completedAt,
+          parserVersion: input.parserVersion,
+          error: serialisableFailure(completionError, 'database_completion'),
+          metrics: input.metrics,
+        });
+      } catch (failurePersistenceError) {
+        throw new AggregateError(
+          [completionError, failurePersistenceError],
+          'Satellite completion failed and its failure could not be persisted',
+          { cause: failurePersistenceError },
+        );
+      }
+
+      if (completionError instanceof Error) {
+        throw completionError;
+      }
+      throw new Error('Satellite completion failed', { cause: completionError });
+    }
+
+    if (result === undefined) {
+      throw new Error('Satellite completion ended without a result');
+    }
+
+    return result;
+  }
+
   async failRun(input: FailRunInput): Promise<boolean> {
     assertNonEmpty(input.runId, 'runId');
     assertNonEmpty(input.sourceId, 'sourceId');
@@ -1772,6 +1951,28 @@ export class PostgresStore {
 
     if (input.parsed.sourceId !== input.sourceId) {
       throw new Error('Parsed threat intel feed source ID does not match the collection run source ID');
+    }
+
+    if (input.completedAt.getTime() < input.responseReceivedAt.getTime()) {
+      throw new Error('completedAt must not be earlier than responseReceivedAt');
+    }
+  }
+
+  private validateSatelliteCompletionInput(input: CompleteSatelliteRunInput): void {
+    assertNonEmpty(input.runId, 'runId');
+    assertNonEmpty(input.sourceId, 'sourceId');
+    assertValidDate(input.responseReceivedAt, 'responseReceivedAt');
+    assertValidDate(input.completedAt, 'completedAt');
+    assertContentHash(input.feedContentHash, 'feedContentHash');
+    assertNonEmpty(input.archivePath, 'archivePath');
+    assertNonEmpty(input.parserVersion, 'parserVersion');
+
+    if (!Number.isSafeInteger(input.schemaVersion) || input.schemaVersion <= 0) {
+      throw new Error('schemaVersion must be a positive integer');
+    }
+
+    if (input.parsed.sourceId !== input.sourceId) {
+      throw new Error('Parsed satellite feed source ID does not match the collection run source ID');
     }
 
     if (input.completedAt.getTime() < input.responseReceivedAt.getTime()) {
@@ -2668,6 +2869,142 @@ export class PostgresStore {
         record.description,
         record.referenceUrl,
         record.dueAt,
+        rawObservationId,
+        record.evidenceClassification,
+        input.parserVersion,
+        input.completedAt,
+        JSON.stringify(record.metadata),
+        updateSnapshot,
+      ],
+    );
+  }
+
+  private async upsertSatelliteRawObservation(
+    client: PoolClient,
+    input: CompleteSatelliteRunInput,
+    record: NormalisedSatelliteFeed['records'][number],
+    updateSnapshot: boolean,
+  ): Promise<string> {
+    const candidateId = randomUUID();
+    const result = await client.query<{ id: string }>(
+      `INSERT INTO raw_observations AS current (
+         id,
+         source_id,
+         collection_run_id,
+         source_record_id,
+         observed_at,
+         occurred_at,
+         source_updated_at,
+         first_seen_at,
+         last_seen_at,
+         content_hash,
+         archive_path,
+         payload,
+         schema_version,
+         parser_version,
+         evidence_classification,
+         metadata
+       ) VALUES (
+         $1, $2, $3, $4, $5, $6, $7, $5, $5, $8, $9,
+         $10::jsonb, $11, $12, $13, $14::jsonb
+       )
+       ON CONFLICT (source_id, source_record_id)
+       WHERE source_record_id IS NOT NULL
+       DO UPDATE SET
+         first_seen_at = LEAST(current.first_seen_at, EXCLUDED.first_seen_at),
+         last_seen_at = GREATEST(current.last_seen_at, EXCLUDED.last_seen_at),
+         collection_run_id = CASE WHEN $15 THEN EXCLUDED.collection_run_id ELSE current.collection_run_id END,
+         observed_at = CASE WHEN $15 THEN EXCLUDED.observed_at ELSE current.observed_at END,
+         occurred_at = CASE WHEN $15 THEN EXCLUDED.occurred_at ELSE current.occurred_at END,
+         source_updated_at = CASE WHEN $15 THEN EXCLUDED.source_updated_at ELSE current.source_updated_at END,
+         content_hash = CASE WHEN $15 THEN EXCLUDED.content_hash ELSE current.content_hash END,
+         archive_path = CASE WHEN $15 THEN EXCLUDED.archive_path ELSE current.archive_path END,
+         payload = CASE WHEN $15 THEN EXCLUDED.payload ELSE current.payload END,
+         schema_version = CASE WHEN $15 THEN EXCLUDED.schema_version ELSE current.schema_version END,
+         parser_version = CASE WHEN $15 THEN EXCLUDED.parser_version ELSE current.parser_version END,
+         evidence_classification = CASE WHEN $15 THEN EXCLUDED.evidence_classification ELSE current.evidence_classification END,
+         metadata = CASE WHEN $15 THEN EXCLUDED.metadata ELSE current.metadata END,
+         updated_at = NOW()
+       RETURNING id`,
+      [
+        candidateId,
+        input.sourceId,
+        input.runId,
+        record.sourceTleId,
+        input.responseReceivedAt,
+        record.observedAt,
+        record.sourceUpdatedAt,
+        record.contentHash,
+        input.archivePath,
+        JSON.stringify(record.rawPayload),
+        input.schemaVersion,
+        input.parserVersion,
+        record.evidenceClassification,
+        JSON.stringify(record.metadata),
+        updateSnapshot,
+      ],
+    );
+    const row = result.rows[0];
+    if (row === undefined) {
+      throw new Error(`Raw observation upsert returned no ID for ${record.sourceTleId}`);
+    }
+    return row.id;
+  }
+
+  private async upsertSatelliteTleObservation(
+    client: PoolClient,
+    input: CompleteSatelliteRunInput,
+    record: NormalisedSatelliteFeed['records'][number],
+    rawObservationId: string,
+    updateSnapshot: boolean,
+  ): Promise<void> {
+    await client.query(
+      `INSERT INTO satellite_tle_observations AS current (
+         id,
+         source_id,
+         source_tle_id,
+         observed_at,
+         updated_at,
+         norad_id,
+         name,
+         line1,
+         line2,
+         epoch_at,
+         raw_observation_id,
+         evidence_classification,
+         parser_version,
+         normalised_at,
+         metadata
+       ) VALUES (
+         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+         $11, $12, $13, $14, $15::jsonb
+       )
+       ON CONFLICT ON CONSTRAINT satellite_tle_observations_source_tle_unique
+       DO UPDATE SET
+         observed_at = EXCLUDED.observed_at,
+         updated_at = EXCLUDED.updated_at,
+         norad_id = EXCLUDED.norad_id,
+         name = EXCLUDED.name,
+         line1 = EXCLUDED.line1,
+         line2 = EXCLUDED.line2,
+         epoch_at = EXCLUDED.epoch_at,
+         raw_observation_id = EXCLUDED.raw_observation_id,
+         evidence_classification = EXCLUDED.evidence_classification,
+         parser_version = EXCLUDED.parser_version,
+         normalised_at = EXCLUDED.normalised_at,
+         metadata = EXCLUDED.metadata
+       WHERE $16::boolean`,
+      [
+        randomUUID(),
+        input.sourceId,
+        record.sourceTleId,
+        record.observedAt,
+        record.sourceUpdatedAt,
+        record.noradId,
+        record.name,
+        record.line1,
+        record.line2,
+        record.epochAt,
         rawObservationId,
         record.evidenceClassification,
         input.parserVersion,

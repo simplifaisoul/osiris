@@ -20,6 +20,9 @@ import {
   ThreatIntelCollector,
 } from "./collectors/threat-intel-sources.js";
 import {
+  SatelliteCollector,
+} from "./collectors/satellite-sources.js";
+import {
   UsgsEarthquakeCollector,
 } from "./collectors/usgs-earthquakes.js";
 import { createLogger } from "./logger.js";
@@ -113,6 +116,24 @@ async function run(): Promise<void> {
         ...commonCollectorOptions,
         endpoint: config.cisaKevEndpoint,
         sourceId: "cisa-known-exploited-vulnerabilities",
+      })
+    : config.collectorSource === "celestrak-active-tle"
+    ? new SatelliteCollector({
+        ...commonCollectorOptions,
+        endpoint: config.celestrakActiveTleEndpoint,
+        sourceId: "celestrak-active-tle",
+      })
+    : config.collectorSource === "celestrak-starlink-supplemental-tle"
+    ? new SatelliteCollector({
+        ...commonCollectorOptions,
+        endpoint: config.celestrakStarlinkTleEndpoint,
+        sourceId: "celestrak-starlink-supplemental-tle",
+      })
+    : config.collectorSource === "satnogs-tle"
+    ? new SatelliteCollector({
+        ...commonCollectorOptions,
+        endpoint: config.satnogsTleEndpoint,
+        sourceId: "satnogs-tle",
       })
     : new UsgsEarthquakeCollector({
         ...commonCollectorOptions,

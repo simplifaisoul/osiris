@@ -34,7 +34,7 @@ Osiris is a production-grade OSINT platform that provides situational awareness 
 | **Fires** | Active Hotspots | NASA FIRMS |
 | **News** | 24/7 Live Streams | 25+ Global Broadcasters |
 | **Weather** | Severe Events | NASA EONET |
-| **Space** | Solar Weather, Satellites | NOAA SWPC, N2YO |
+| **Space** | Solar Weather, Satellites | NOAA SWPC, CelesTrak, SatNOGS, N2YO |
 | **Cyber** | CVE Threats, Vulnerability Scanning | NVD, Custom Scanner |
 | **Conflict** | 13 Active Zones | Static OSINT Intel |
 | **Crypto** | BTC + ETH Wallet Tracing, OFAC SDN Match | blockstream.info, Blockscout, OpenSanctions |

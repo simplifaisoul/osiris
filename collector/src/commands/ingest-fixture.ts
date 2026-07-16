@@ -18,6 +18,10 @@ import {
   ThreatIntelCollector,
   isThreatIntelSourceId,
 } from "../collectors/threat-intel-sources.js";
+import {
+  SatelliteCollector,
+  isSatelliteSourceId,
+} from "../collectors/satellite-sources.js";
 import { UsgsEarthquakeCollector } from "../collectors/usgs-earthquakes.js";
 import { loadConfig } from "../config.js";
 import type { RawResponse } from "../framework/http-fetcher.js";
@@ -42,10 +46,13 @@ async function run(): Promise<void> {
     source !== "noaa-swpc-xray-flares" &&
     source !== "abusech-feodo-ipblocklist" &&
     source !== "abusech-urlhaus-online" &&
-    source !== "cisa-known-exploited-vulnerabilities"
+    source !== "cisa-known-exploited-vulnerabilities" &&
+    source !== "celestrak-active-tle" &&
+    source !== "celestrak-starlink-supplemental-tle" &&
+    source !== "satnogs-tle"
   ) {
     throw new Error(
-      "Usage: npm run ingest:fixture -- usgs-earthquakes|gdacs-disasters|nasa-firms-viirs|nasa-firms-modis|nasa-eonet-volcanoes|nasa-eonet-weather|noaa-nws-alerts|noaa-swpc-planetary-k-index|noaa-swpc-alerts|noaa-swpc-xray-flares|abusech-feodo-ipblocklist|abusech-urlhaus-online|cisa-known-exploited-vulnerabilities",
+      "Usage: npm run ingest:fixture -- usgs-earthquakes|gdacs-disasters|nasa-firms-viirs|nasa-firms-modis|nasa-eonet-volcanoes|nasa-eonet-weather|noaa-nws-alerts|noaa-swpc-planetary-k-index|noaa-swpc-alerts|noaa-swpc-xray-flares|abusech-feodo-ipblocklist|abusech-urlhaus-online|cisa-known-exploited-vulnerabilities|celestrak-active-tle|celestrak-starlink-supplemental-tle|satnogs-tle",
     );
   }
 
@@ -73,6 +80,12 @@ async function run(): Promise<void> {
       ? new URL("../../test/fixtures/abusech-urlhaus-online.csv", import.meta.url)
       : source === "cisa-known-exploited-vulnerabilities"
       ? new URL("../../test/fixtures/cisa-known-exploited-vulnerabilities.json", import.meta.url)
+      : source === "celestrak-active-tle"
+      ? new URL("../../test/fixtures/celestrak-active.tle", import.meta.url)
+      : source === "celestrak-starlink-supplemental-tle"
+      ? new URL("../../test/fixtures/celestrak-starlink.tle", import.meta.url)
+      : source === "satnogs-tle"
+      ? new URL("../../test/fixtures/satnogs-tle.json", import.meta.url)
       : new URL("../../test/fixtures/nasa-firms-viirs.csv", import.meta.url);
   const fixtureBody = await readFile(fixtureUrl);
   const endpoint =
@@ -98,6 +111,12 @@ async function run(): Promise<void> {
       ? config.urlhausEndpoint
       : source === "cisa-known-exploited-vulnerabilities"
       ? config.cisaKevEndpoint
+      : source === "celestrak-active-tle"
+      ? config.celestrakActiveTleEndpoint
+      : source === "celestrak-starlink-supplemental-tle"
+      ? config.celestrakStarlinkTleEndpoint
+      : source === "satnogs-tle"
+      ? config.satnogsTleEndpoint
       : source === "nasa-firms-modis"
       ? config.firmsModisEndpoint
       : config.firmsViirsEndpoint;
@@ -116,6 +135,10 @@ async function run(): Promise<void> {
       ? "text/csv"
       : isThreatIntelSourceId(source)
       ? "application/json"
+      : source === "satnogs-tle"
+      ? "application/json"
+      : isSatelliteSourceId(source)
+      ? "text/plain"
       : "text/csv";
   const raw: RawResponse = {
     endpoint: endpoint.toString(),
@@ -177,6 +200,12 @@ async function run(): Promise<void> {
       })
     : isThreatIntelSourceId(source)
     ? new ThreatIntelCollector({
+        ...common,
+        endpoint,
+        sourceId: source,
+      })
+    : isSatelliteSourceId(source)
+    ? new SatelliteCollector({
         ...common,
         endpoint,
         sourceId: source,
