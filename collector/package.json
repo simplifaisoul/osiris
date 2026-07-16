@@ -9,6 +9,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "collect:gdacs": "COLLECT_ONCE=1 COLLECTOR_SOURCE=gdacs-disasters tsx src/index.ts",
+    "collect:eonet:volcanoes": "COLLECT_ONCE=1 COLLECTOR_SOURCE=nasa-eonet-volcanoes tsx src/index.ts",
+    "collect:firms:modis": "COLLECT_ONCE=1 COLLECTOR_SOURCE=nasa-firms-modis tsx src/index.ts",
+    "collect:firms:viirs": "COLLECT_ONCE=1 COLLECTOR_SOURCE=nasa-firms-viirs tsx src/index.ts",
     "collect:usgs": "COLLECT_ONCE=1 COLLECTOR_SOURCE=usgs-earthquakes tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
     "ingest:fixture": "tsx src/commands/ingest-fixture.ts",

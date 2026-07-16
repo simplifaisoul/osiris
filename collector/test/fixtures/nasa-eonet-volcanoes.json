@@ -1,0 +1,26 @@
+{
+  "title": "EONET Events",
+  "events": [
+    {
+      "id": "EONET_1001",
+      "title": "Fixture Volcano, Test Island",
+      "description": "Visible ash emission fixture.",
+      "link": "https://eonet.gsfc.nasa.gov/api/v3/events/EONET_1001",
+      "closed": null,
+      "categories": [{ "id": "volcanoes", "title": "Volcanoes" }],
+      "sources": [{ "id": "EO", "url": "https://earthobservatory.nasa.gov/" }],
+      "geometry": [
+        {
+          "date": "2026-01-01T00:00:00Z",
+          "type": "Point",
+          "coordinates": [145.120, -6.090]
+        },
+        {
+          "date": "2026-01-02T03:30:00Z",
+          "type": "Point",
+          "coordinates": [145.220, -6.190]
+        }
+      ]
+    }
+  ]
+}

@@ -25,7 +25,7 @@ Relevant variables are:
 | `OSIRIS_BASE_URL` | `http://host.docker.internal:3000` in the environment template | Reserved for collector-to-OSIRIS integration |
 | `COLLECT_INTERVAL_MS` | `300000` | Delay after one attempt cycle completes before the next begins |
 | `COLLECT_ON_STARTUP` | `1` | Run once when the collector starts |
-| `COLLECTOR_SOURCE` | `usgs-earthquakes` | Active collector source for this container: `usgs-earthquakes` or `gdacs-disasters` |
+| `COLLECTOR_SOURCE` | `usgs-earthquakes` | Active collector source for this container: `usgs-earthquakes`, `gdacs-disasters`, `nasa-firms-viirs`, `nasa-firms-modis` or `nasa-eonet-volcanoes` |
 | `MAX_FETCH_ATTEMPTS` | `3` | Bounded transient-attempt count; every HTTP response gets its own run/archive |
 | `MAX_RESPONSE_BYTES` | `26214400` | Maximum response body size before collection fails closed |
 | `REQUEST_TIMEOUT_MS` | `10000` | Timeout covering response headers and body |
@@ -42,6 +42,9 @@ Relevant variables are:
 | `COLLECTOR_HEALTH_PORT` | `4001` | Loopback host port for `/health` |
 | `USGS_EARTHQUAKE_URL` | Official USGS M2.5 day GeoJSON feed | HTTPS endpoint for the USGS collector; credentials are rejected |
 | `GDACS_RSS_URL` | `https://www.gdacs.org/xml/rss.xml` | HTTPS endpoint for the GDACS disaster RSS collector; credentials are rejected |
+| `FIRMS_VIIRS_URL` | Official NASA FIRMS Suomi NPP VIIRS global 24h CSV | HTTPS endpoint for the FIRMS VIIRS collector; credentials are rejected |
+| `FIRMS_MODIS_URL` | Official NASA FIRMS MODIS global 24h CSV | HTTPS endpoint for the FIRMS MODIS collector; credentials are rejected |
+| `EONET_VOLCANOES_URL` | Official NASA EONET open volcano events query | HTTPS endpoint for the EONET volcano collector; credentials are rejected |
 
 Do not commit `.env`. The bind mount deliberately refuses to auto-create a root-owned directory. Create and permission the host archive before starting the overlay:
 
@@ -168,6 +171,20 @@ COLLECTOR_SOURCE=gdacs-disasters \
 DATABASE_URL=postgresql://osiris:osiris-local-dev@127.0.0.1:5432/osiris_worldstate \
 RAW_ARCHIVE_PATH="$(pwd)/archive" \
 npm --prefix collector run collect:gdacs
+```
+
+NASA FIRMS and EONET are captured as a slightly larger Phase 2 fire slice because the existing `/api/fires` route already combines FIRMS active-fire detections with EONET volcano events. FIRMS detections are stored in `active_fire_detections` with `observed` provenance; EONET volcanoes are stored in `disaster_events` with `reported` provenance. The OSIRIS `/api/fires` live route remains unchanged.
+
+```bash
+COLLECTOR_SOURCE=nasa-firms-viirs \
+DATABASE_URL=postgresql://osiris:osiris-local-dev@127.0.0.1:5432/osiris_worldstate \
+RAW_ARCHIVE_PATH="$(pwd)/archive" \
+npm --prefix collector run ingest:fixture -- nasa-firms-viirs
+
+COLLECTOR_SOURCE=nasa-eonet-volcanoes \
+DATABASE_URL=postgresql://osiris:osiris-local-dev@127.0.0.1:5432/osiris_worldstate \
+RAW_ARCHIVE_PATH="$(pwd)/archive" \
+npm --prefix collector run ingest:fixture -- nasa-eonet-volcanoes
 ```
 
 Live boundary tests are opt-in only:

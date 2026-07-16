@@ -7,6 +7,10 @@ import {
   GdacsDisasterCollector,
 } from "./collectors/gdacs-disasters.js";
 import {
+  NasaEonetVolcanoCollector,
+  NasaFirmsCollector,
+} from "./collectors/nasa-fire-sources.js";
+import {
   UsgsEarthquakeCollector,
 } from "./collectors/usgs-earthquakes.js";
 import { createLogger } from "./logger.js";
@@ -22,26 +26,40 @@ async function run(): Promise<void> {
     maxBodyBytes: config.maxResponseBytes,
     timeoutMs: config.requestTimeoutMs,
   });
+  const commonCollectorOptions = {
+    archiveWriter,
+    fetcher,
+    logger,
+    maxAttempts: config.maxFetchAttempts,
+    retryBaseMs: config.retryBaseMs,
+    staleRunAfterMs: config.staleRunAfterMs,
+    store,
+  };
   const collector = config.collectorSource === "gdacs-disasters"
     ? new GdacsDisasterCollector({
-        archiveWriter,
+        ...commonCollectorOptions,
         endpoint: config.gdacsEndpoint,
-        fetcher,
-        logger,
-        maxAttempts: config.maxFetchAttempts,
-        retryBaseMs: config.retryBaseMs,
-        staleRunAfterMs: config.staleRunAfterMs,
-        store,
+      })
+    : config.collectorSource === "nasa-firms-viirs"
+    ? new NasaFirmsCollector({
+        ...commonCollectorOptions,
+        endpoint: config.firmsViirsEndpoint,
+        sourceId: "nasa-firms-viirs",
+      })
+    : config.collectorSource === "nasa-firms-modis"
+    ? new NasaFirmsCollector({
+        ...commonCollectorOptions,
+        endpoint: config.firmsModisEndpoint,
+        sourceId: "nasa-firms-modis",
+      })
+    : config.collectorSource === "nasa-eonet-volcanoes"
+    ? new NasaEonetVolcanoCollector({
+        ...commonCollectorOptions,
+        endpoint: config.eonetVolcanoesEndpoint,
       })
     : new UsgsEarthquakeCollector({
-        archiveWriter,
+        ...commonCollectorOptions,
         endpoint: config.usgsEndpoint,
-        fetcher,
-        logger,
-        maxAttempts: config.maxFetchAttempts,
-        retryBaseMs: config.retryBaseMs,
-        staleRunAfterMs: config.staleRunAfterMs,
-        store,
       });
 
   if (config.collectOnce) {

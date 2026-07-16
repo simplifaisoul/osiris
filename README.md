@@ -187,6 +187,11 @@ Phase 2 source is `gdacs-disasters`, which archives the GDACS disaster RSS feed
 and stores normalised `disaster_events` rows without changing the existing
 OSIRIS `/api/gdelt` response contract.
 
+The fire-source slice adds opt-in `nasa-firms-viirs`, `nasa-firms-modis` and
+`nasa-eonet-volcanoes` collectors. These preserve complete FIRMS CSV/EONET JSON
+responses and normalise them into durable fire/disaster tables while the
+existing `/api/fires` live response stays compatible.
+
 ### Environment Variables
 
 OSIRIS works **partially without any API keys** — all core feeds use public,
