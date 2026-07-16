@@ -1,0 +1,5 @@
+# Several inherited application sources use CRLF. Treat the carriage return
+# as part of the line ending so whitespace checks still catch real trailing
+# spaces without rejecting otherwise consistent edits to those files.
+*.ts whitespace=cr-at-eol
+*.tsx whitespace=cr-at-eol

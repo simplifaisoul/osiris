@@ -113,8 +113,8 @@ BEGIN
         END IF;
     END LOOP;
 
-    IF (SELECT COUNT(*) FROM schema_migrations) <> 7 THEN
-        RAISE EXCEPTION 'Expected 7 migration records';
+    IF (SELECT COUNT(*) FROM schema_migrations) <> 8 THEN
+        RAISE EXCEPTION 'Expected 8 migration records';
     END IF;
 
     IF EXISTS (
@@ -182,6 +182,14 @@ BEGIN
 
     IF to_regclass('public.collection_runs_source_status_completed_idx') IS NULL THEN
         RAISE EXCEPTION 'Collection terminal-history index is missing';
+    END IF;
+
+    IF to_regclass('public.collection_runs_source_success_response_idx') IS NULL THEN
+        RAISE EXCEPTION 'Earthquake latest-snapshot index is missing';
+    END IF;
+
+    IF to_regclass('public.raw_observations_source_last_seen_idx') IS NULL THEN
+        RAISE EXCEPTION 'Earthquake feed-membership index is missing';
     END IF;
 
     IF NOT EXISTS (
@@ -470,6 +478,17 @@ if [[ -f "${REPOSITORY_ROOT}/collector/package.json" ]]; then
         npm --prefix "${REPOSITORY_ROOT}/collector" run test:integration
 fi
 
+if [[ ! -d "${REPOSITORY_ROOT}/node_modules" ]]; then
+    echo "Root dependencies are missing; run npm ci" >&2
+    exit 2
+fi
+
+(
+    cd "${REPOSITORY_ROOT}"
+    TEST_DATABASE_URL="postgresql://${DB_USER}:${DB_PASSWORD}@127.0.0.1:${HOST_DB_PORT}/${DB_NAME}" \
+        npm exec -- vitest run src/lib/earthquakes/database-source.test.ts
+)
+
 docker stop "${CONTAINER_NAME}" >/dev/null
 docker start "${CONTAINER_NAME}" >/dev/null
 
@@ -484,7 +503,7 @@ for _ in $(seq 1 30); do
 done
 
 migration_count="$(run_psql --tuples-only --no-align --command='SELECT COUNT(*) FROM schema_migrations;' | tr -d '[:space:]')"
-if [[ "${migration_count}" != "7" ]]; then
+if [[ "${migration_count}" != "8" ]]; then
     echo "Migration state did not survive database restart" >&2
     exit 1
 fi

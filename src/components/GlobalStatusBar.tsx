@@ -3,9 +3,12 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 
+import {
+  parseEarthquakeResponse,
+  type Earthquake,
+} from '@/lib/earthquakes/contract';
+
 interface CryptoPrice { symbol: string; price: number; }
-interface CyberThreat { id: string; name: string; vendor: string; product: string; date: string; }
-interface Earthquake { id: string; magnitude: number; place: string; time: number; depth: number; }
 
 const CryptoIcon = ({ symbol }: { symbol: string }) => {
   if (symbol === 'BTC') return (
@@ -61,27 +64,13 @@ export default function GlobalStatusBar() {
               if (data.solana?.usd) prices.push({ symbol: 'SOL', price: data.solana.usd });
               return { ok: true, json: async () => prices };
             }),
-          fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson')
-            .then(res => res.ok ? res.json() : Promise.reject('USGS error'))
-            .then(data => ({
-              ok: true,
-              json: async () => ({
-                earthquakes: (data.features || []).map((f: any) => ({
-                  id: f.id,
-                  lat: f.geometry?.coordinates?.[1] || 0,
-                  lng: f.geometry?.coordinates?.[0] || 0,
-                  depth: f.geometry?.coordinates?.[2] || 0,
-                  magnitude: f.properties?.mag,
-                  place: f.properties?.place,
-                  time: f.properties?.time,
-                  url: f.properties?.url,
-                  tsunami: f.properties?.tsunami,
-                  type: f.properties?.type,
-                  felt: f.properties?.felt,
-                  alert: f.properties?.alert,
-                }))
-              })
-            })),
+          fetch('/api/earthquakes', { cache: 'no-store' })
+            .then(res => res.ok ? res.json() : Promise.reject(new Error('Earthquake API error')))
+            .then(data => {
+              const response = parseEarthquakeResponse(data);
+              if (response === null) throw new Error('Invalid earthquake API response');
+              return { ok: true, json: async () => response };
+            }),
         ]);
 
         if (cryptoRes.status === 'fulfilled' && cryptoRes.value.ok) {
@@ -91,7 +80,7 @@ export default function GlobalStatusBar() {
           const quakeData = await quakeRes.value.json();
           // Filter to mag >= 4.0 and take top 5 most recent
           const majorQuakes = (quakeData.earthquakes || [])
-            .filter((q: Earthquake) => q.magnitude >= 4.0)
+            .filter((q: Earthquake) => q.magnitude !== null && q.magnitude >= 4.0)
             .sort((a: Earthquake, b: Earthquake) => b.time - a.time)
             .slice(0, 5);
           setQuakes(majorQuakes);
@@ -130,7 +119,7 @@ export default function GlobalStatusBar() {
           onMouseLeave={() => setHoveredQuake(null)}
         >
           <span className="text-[#FF9500] text-[10px]">🌋</span>
-          <span className="text-[#FF9500] font-bold tracking-wider">M{quake.magnitude.toFixed(1)}</span>
+          <span className="text-[#FF9500] font-bold tracking-wider">M{quake.magnitude?.toFixed(1) ?? 'N/A'}</span>
           <span className="text-[var(--text-muted)] truncate max-w-[150px]">{quake.place}</span>
         </span>
       ))}
@@ -178,7 +167,7 @@ export default function GlobalStatusBar() {
           <div className="glass-panel px-4 py-3 text-[10px] font-mono whitespace-nowrap" style={{ borderColor: '#FF950040' }}>
             <div className="flex items-center gap-2 mb-2">
               <span className="text-[12px] text-[#FF9500]">🌋</span>
-              <span className="font-bold text-[#FF9500]">Magnitude {hoveredQuake.magnitude.toFixed(1)}</span>
+              <span className="font-bold text-[#FF9500]">Magnitude {hoveredQuake.magnitude?.toFixed(1) ?? 'N/A'}</span>
               <span className="text-[var(--text-muted)] text-[9px] bg-black/40 px-1.5 py-0.5 rounded">USGS</span>
             </div>
             <div className="text-[11px] text-[var(--text-primary)] font-bold mb-2">

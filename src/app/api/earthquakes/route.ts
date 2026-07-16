@@ -1,57 +1,84 @@
 
 import { NextResponse } from 'next/server';
 
+import {
+  EarthquakeDatabaseUnavailableError,
+  loadEarthquakeRuntimeConfig,
+  loadEarthquakeSnapshot,
+  type EarthquakeSnapshot,
+} from '@/lib/earthquakes/service';
+import {
+  UsgsEarthquakeFetchError,
+  UsgsEarthquakeHttpError,
+} from '@/lib/earthquakes/live-source';
+
 /**
  * OSIRIS — Earthquake Data API
- * Fetches real-time seismic events from USGS (last 24h, M2.5+)
- * No API key required
+ * Preserves the existing last-24h M2.5+ response contract while selecting
+ * live USGS or the durable World-State snapshot on the server.
  */
+
+export const runtime = 'nodejs';
+
+const SUCCESS_CACHE_CONTROL = 'public, s-maxage=60, stale-while-revalidate=120';
+
+function responseHeaders(snapshot: EarthquakeSnapshot): Record<string, string> {
+  return {
+    'Cache-Control': SUCCESS_CACHE_CONTROL,
+    'X-OSIRIS-Earthquake-Mode': snapshot.mode,
+    'X-OSIRIS-Earthquake-Source': snapshot.source,
+    ...(snapshot.databaseResponseReceivedAt === null
+      ? {}
+      : {
+          'X-OSIRIS-Database-Response-Received':
+            snapshot.databaseResponseReceivedAt.toISOString(),
+        }),
+    ...(snapshot.databaseUpstreamTimestamp === null
+      ? {}
+      : {
+          'X-OSIRIS-Database-Upstream-Timestamp':
+            snapshot.databaseUpstreamTimestamp.toISOString(),
+        }),
+    ...(snapshot.databaseStale ? { 'X-OSIRIS-Database-Stale': 'true' } : {}),
+    ...(snapshot.fallbackReason === null
+      ? {}
+      : { 'X-OSIRIS-Earthquake-Fallback': snapshot.fallbackReason }),
+  };
+}
 
 export async function GET() {
   try {
-    const url = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson';
-    const res = await fetch(url, {
-      signal: AbortSignal.timeout(10000),
+    const snapshot = await loadEarthquakeSnapshot(loadEarthquakeRuntimeConfig(), {
+      warn: (message) => console.warn(message),
     });
-
-    if (!res.ok) {
-      return NextResponse.json({ earthquakes: [], error: 'USGS unavailable' });
+    return NextResponse.json(snapshot.response, { headers: responseHeaders(snapshot) });
+  } catch (error) {
+    if (error instanceof UsgsEarthquakeHttpError) {
+      return NextResponse.json(
+        { earthquakes: [], error: 'USGS unavailable' },
+        { headers: { 'Cache-Control': 'no-store' } },
+      );
     }
 
-    const data = await res.json();
-    const features = data.features || [];
+    if (error instanceof EarthquakeDatabaseUnavailableError) {
+      console.error('[earthquakes] Database mode unavailable:', error.message);
+      return NextResponse.json(
+        { earthquakes: [], error: 'Earthquake database unavailable' },
+        { status: 503, headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
 
-    const earthquakes = features.map((f: any) => {
-      const coords = f.geometry?.coordinates || [0, 0, 0];
-      const props = f.properties || {};
-      return {
-        id: f.id,
-        lat: coords[1],
-        lng: coords[0],
-        depth: coords[2],
-        magnitude: props.mag,
-        place: props.place,
-        time: props.time,
-        url: props.url,
-        tsunami: props.tsunami,
-        type: props.type,
-        felt: props.felt,
-        alert: props.alert,
-      };
-    });
-
-    return NextResponse.json({
-      earthquakes,
-      total: earthquakes.length,
-      timestamp: new Date().toISOString(),
-    }, {
-      headers: {
-        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
+    const message = error instanceof Error ? error.message : 'Unknown earthquake error';
+    console.error('Earthquake fetch error:', message);
+    return NextResponse.json(
+      {
+        earthquakes: [],
+        error: error instanceof UsgsEarthquakeFetchError
+          ? 'Failed to fetch earthquake data'
+          : 'Failed to load earthquake data',
       },
-    });
-  } catch (error) {
-    console.error('Earthquake fetch error:', error);
-    return NextResponse.json({ earthquakes: [], error: 'Failed to fetch earthquake data' }, { status: 500 });
+      { status: 500, headers: { 'Cache-Control': 'no-store' } },
+    );
   }
 }
 

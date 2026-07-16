@@ -4,7 +4,7 @@
 
 ### Open Source Intelligence & Reconnaissance Integrated System
 
-[![Live Demo](https://img.shields.io/badge/osirisai.live-00E5FF?style=for-the-badge&logo=vercel&logoColor=white)](https://osirislive.app)
+[![Live Demo](https://img.shields.io/badge/osirisai.live-00E5FF?style=for-the-badge)](https://osirislive.app)
 [![Support OSIRIS](https://img.shields.io/badge/Support_Project-Patreon-FF424D?style=for-the-badge&logo=patreon&logoColor=white)](https://www.patreon.com/posts/159077425)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=for-the-badge&logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org)
@@ -13,7 +13,7 @@
 
 **A real-time global intelligence dashboard that aggregates live flight tracking, CCTV networks, earthquake monitoring, conflict zone mapping, and 24/7 news feeds into a single GPU-accelerated interface.**
 
-[Live Demo](https://osirisai.live) · [Report Bug](https://github.com/simplifaisoul/osiris/issues) · [Request Feature](https://github.com/simplifaisoul/osiris/issues) · [Join Discord](https://discord.gg/umBykEpb98)
+[Live Demo](https://osirisai.live) · [Report Bug](https://github.com/DaveWibs/osirisP/issues) · [Request Feature](https://github.com/DaveWibs/osirisP/issues) · [Join Discord](https://discord.gg/umBykEpb98)
 
 </div>
 
@@ -132,8 +132,8 @@ Osiris is a production-grade OSINT platform that provides situational awareness 
 ## Quick Start
 
 ```bash
-git clone https://github.com/simplifaisoul/osiris.git
-cd osiris
+git clone https://github.com/DaveWibs/osirisP.git
+cd osirisP
 npm install
 npm run dev
 ```
@@ -143,9 +143,9 @@ Open [http://localhost:3000](http://localhost:3000)
 ### Docker / Self-Hosting
 
 ```bash
-git clone https://github.com/simplifaisoul/osiris.git
-cd osiris
-cp .env.template .env     # optional — configure keys / port
+git clone https://github.com/DaveWibs/osirisP.git
+cd osirisP
+cp .env.example .env      # optional — configure keys / port
 docker compose up -d
 ```
 
@@ -166,17 +166,37 @@ docker run -d -p 3000:3000 --env-file .env ghcr.io/aiacos/osiris:latest
 `.env` to change the published host port (e.g. `OSIRIS_PORT=3005`) without
 editing the compose file.
 
+**Persisted earthquakes** — the default `EARTHQUAKE_DATA_MODE=live` keeps the
+original keyless USGS path. To use the World-State collector and PostGIS with a
+safe live fallback, prepare `archive/`, set
+`EARTHQUAKE_DATA_MODE=database_with_live_fallback`, then start the combined
+Compose model:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.worldstate.yml \
+  up -d osiris collector
+```
+
+This keeps PostgreSQL host-bound to loopback while placing the application and
+database on the same internal network. See
+[docs/worldstate-development.md](docs/worldstate-development.md) for archive
+permissions, mode semantics, migrations and verification.
+
 ### Environment Variables
 
 OSIRIS works **partially without any API keys** — all core feeds use public,
-keyless sources. Copy [`.env.template`](.env.template) to `.env` and set only
+keyless sources. Copy [`.env.example`](.env.example) to `.env` and set only
 what you need:
 
 ```env
 # Published host port (container always listens on 3000). Default: 3000
 OSIRIS_PORT=3000
 
-# RECON scanner backend (the only vars the current code reads).
+# Earthquakes: live | database | database_with_live_fallback
+EARTHQUAKE_DATA_MODE=live
+EARTHQUAKE_DATABASE_MAX_AGE_MS=900000
+
+# Optional RECON scanner backend.
 # SCANNER_KEY must match the backend's OSIRIS_KEY — generate with: openssl rand -hex 32
 SCANNER_URL=
 SCANNER_KEY=
@@ -204,7 +224,7 @@ AIS_API_KEY=                 # aisstream.io maritime
 | Animations | Framer Motion |
 | Icons | Lucide React |
 | Styling | Custom CSS Design System |
-| Deployment | Vercel Edge Network |
+| Deployment | Docker / self-hosted |
 
 ---
 

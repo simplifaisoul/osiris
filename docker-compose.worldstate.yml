@@ -1,12 +1,13 @@
 name: osiris-worldstate
 
-# World-state persistence is intentionally separate from the existing OSIRIS
-# stack. Keep running the dashboard and its current supporting services with:
+# World-state persistence can still run separately from the existing OSIRIS
+# stack when the dashboard uses live earthquake mode:
 #
 #   docker compose -f docker-compose.yml up -d
 #
-# Start this file independently. The collector waits for migrations before it
-# begins its first bounded USGS collection attempt.
+# For a database-backed dashboard, combine both Compose files so `osiris` and
+# `db` share their default network. The collector waits for migrations before
+# it begins its first bounded USGS collection attempt.
 
 x-postgis-image: &postgis-image postgis/postgis:16-3.5@sha256:e547a8319d5b134527c6d1e0307acde1311aa57f8eb7fbf78810dafc6a6b41fe
 

@@ -29,8 +29,8 @@ export default function SharePanel({ mapView, activeLayers, mouseCoords }: Share
       .join(',');
     if (layerKeys) params.set('layers', layerKeys);
 
-    const base = typeof window !== 'undefined' ? window.location.origin : 'https://osiris.vercel.app';
-    return `${base}/?${params.toString()}`;
+    const path = `/?${params.toString()}`;
+    return typeof window === 'undefined' ? path : `${window.location.origin}${path}`;
   }, [mapView, activeLayers, mouseCoords]);
 
   const copyToClipboard = useCallback(async () => {
