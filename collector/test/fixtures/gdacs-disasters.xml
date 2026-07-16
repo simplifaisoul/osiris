@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0" xmlns:geo="http://www.w3.org/2003/01/geo/wgs84_pos#" xmlns:gdacs="http://www.gdacs.org">
+  <channel>
+    <title>GDACS Disaster Events</title>
+    <item>
+      <title><![CDATA[Green earthquake alert (Magnitude 5.9M, Depth:10km) in Test Region]]></title>
+      <link>https://www.gdacs.org/report.aspx?eventid=100001&amp;episodeid=1&amp;eventtype=EQ</link>
+      <guid isPermaLink="false">EQ-100001-1</guid>
+      <description><![CDATA[GDACS earthquake fixture description.]]></description>
+      <pubDate>Wed, 01 Jan 2026 00:10:00 GMT</pubDate>
+      <geo:lat>-12.345</geo:lat>
+      <geo:long>45.678</geo:long>
+      <gdacs:eventtype>EQ</gdacs:eventtype>
+    </item>
+    <item>
+      <title>Tropical cyclone fixture alert</title>
+      <link>https://www.gdacs.org/report.aspx?eventid=100002&amp;episodeid=4&amp;eventtype=TC</link>
+      <description>Wind and rain hazard fixture.</description>
+      <pubDate>Wed, 01 Jan 2026 01:15:00 GMT</pubDate>
+      <geo:lat>18.250</geo:lat>
+      <geo:long>-62.750</geo:long>
+      <gdacs:eventtype>TC</gdacs:eventtype>
+    </item>
+  </channel>
+</rss>

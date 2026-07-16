@@ -84,6 +84,8 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD:-osiris-local-dev}
       RAW_ARCHIVE_PATH: ${RAW_ARCHIVE_PATH:-/archive}
       USGS_EARTHQUAKE_URL: ${USGS_EARTHQUAKE_URL:-https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson}
+      GDACS_RSS_URL: ${GDACS_RSS_URL:-https://www.gdacs.org/xml/rss.xml}
+      COLLECTOR_SOURCE: ${COLLECTOR_SOURCE:-usgs-earthquakes}
       COLLECT_INTERVAL_MS: ${COLLECT_INTERVAL_MS:-300000}
       COLLECT_ON_STARTUP: ${COLLECT_ON_STARTUP:-1}
       MAX_FETCH_ATTEMPTS: ${MAX_FETCH_ATTEMPTS:-3}

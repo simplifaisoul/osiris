@@ -25,6 +25,7 @@ Relevant variables are:
 | `OSIRIS_BASE_URL` | `http://host.docker.internal:3000` in the environment template | Reserved for collector-to-OSIRIS integration |
 | `COLLECT_INTERVAL_MS` | `300000` | Delay after one attempt cycle completes before the next begins |
 | `COLLECT_ON_STARTUP` | `1` | Run once when the collector starts |
+| `COLLECTOR_SOURCE` | `usgs-earthquakes` | Active collector source for this container: `usgs-earthquakes` or `gdacs-disasters` |
 | `MAX_FETCH_ATTEMPTS` | `3` | Bounded transient-attempt count; every HTTP response gets its own run/archive |
 | `MAX_RESPONSE_BYTES` | `26214400` | Maximum response body size before collection fails closed |
 | `REQUEST_TIMEOUT_MS` | `10000` | Timeout covering response headers and body |
@@ -39,6 +40,8 @@ Relevant variables are:
 | `MIGRATION_DB_LOCK_TIMEOUT_MS` | `15000` | PostgreSQL lock wait timeout for migrations |
 | `COLLECTOR_UID`, `COLLECTOR_GID` | `1000`, `1000` | Non-root identity used for the collector and archive probe |
 | `COLLECTOR_HEALTH_PORT` | `4001` | Loopback host port for `/health` |
+| `USGS_EARTHQUAKE_URL` | Official USGS M2.5 day GeoJSON feed | HTTPS endpoint for the USGS collector; credentials are rejected |
+| `GDACS_RSS_URL` | `https://www.gdacs.org/xml/rss.xml` | HTTPS endpoint for the GDACS disaster RSS collector; credentials are rejected |
 
 Do not commit `.env`. The bind mount deliberately refuses to auto-create a root-owned directory. Create and permission the host archive before starting the overlay:
 
@@ -148,6 +151,24 @@ npm --prefix collector run ingest:fixture -- usgs-earthquakes
 ```
 
 Run that command twice to verify replay. The deterministic fixture uses the same response timestamp and bytes, so the second run verifies the existing immutable archive and does not duplicate provider events. Continuous live collection should be run through Compose; direct one-shot live collection is available with the same two environment variables through `npm --prefix collector run collect:usgs`.
+
+GDACS disaster RSS capture is the first Phase 2 source-expansion adapter. It uses the same raw-archive and `collection_runs` path, records the source in `source_catalogue`, stores normalised rows in `disaster_events`, and remains opt-in so the default collector behaviour is unchanged:
+
+```bash
+COLLECTOR_SOURCE=gdacs-disasters \
+DATABASE_URL=postgresql://osiris:osiris-local-dev@127.0.0.1:5432/osiris_worldstate \
+RAW_ARCHIVE_PATH="$(pwd)/archive" \
+npm --prefix collector run ingest:fixture -- gdacs-disasters
+```
+
+Run a one-shot live GDACS collection only when the migrated database and archive path are ready:
+
+```bash
+COLLECTOR_SOURCE=gdacs-disasters \
+DATABASE_URL=postgresql://osiris:osiris-local-dev@127.0.0.1:5432/osiris_worldstate \
+RAW_ARCHIVE_PATH="$(pwd)/archive" \
+npm --prefix collector run collect:gdacs
+```
 
 Live boundary tests are opt-in only:
 
