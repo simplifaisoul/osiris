@@ -22,6 +22,20 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - HOSTNAME=0.0.0.0
+      # These settings resolve the internal `db` service when this file is
+      # combined with docker-compose.worldstate.yml. Live mode never opens a
+      # database connection, so the original standalone stack remains valid.
+      - EARTHQUAKE_DATA_MODE=${EARTHQUAKE_DATA_MODE:-live}
+      - EARTHQUAKE_DATABASE_MAX_AGE_MS=${EARTHQUAKE_DATABASE_MAX_AGE_MS:-900000}
+      - WORLDSTATE_PGHOST=${WORLDSTATE_PGHOST:-db}
+      - WORLDSTATE_PGPORT=${WORLDSTATE_PGPORT:-5432}
+      - WORLDSTATE_PGDATABASE=${POSTGRES_DB:-osiris_worldstate}
+      - WORLDSTATE_PGUSER=${POSTGRES_USER:-osiris}
+      - WORLDSTATE_PGPASSWORD=${POSTGRES_PASSWORD:-osiris-local-dev}
+      - DB_CONNECTION_TIMEOUT_MS=${DB_CONNECTION_TIMEOUT_MS:-5000}
+      - DB_QUERY_TIMEOUT_MS=${DB_QUERY_TIMEOUT_MS:-15000}
+      - DB_STATEMENT_TIMEOUT_MS=${DB_STATEMENT_TIMEOUT_MS:-15000}
+      - DB_LOCK_TIMEOUT_MS=${DB_LOCK_TIMEOUT_MS:-5000}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped

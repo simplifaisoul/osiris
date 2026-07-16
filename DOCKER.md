@@ -14,11 +14,11 @@ app, and configuring the optional API keys.
 ## 1. Docker Compose (recommended)
 
 ```bash
-git clone https://github.com/simplifaisoul/osiris.git
-cd osiris
+git clone https://github.com/DaveWibs/osirisP.git
+cd osirisP
 
 # optional: configure keys / scanner backend
-cp .env.template .env        # then edit .env
+cp .env.example .env         # then edit .env
 
 docker compose up -d
 ```
@@ -48,6 +48,38 @@ docker compose logs -f          # follow logs
 docker compose up -d --build    # rebuild locally after pulling new code
 docker compose down             # stop & remove
 ```
+
+### Database-backed earthquake mode
+
+The standard stack defaults to `EARTHQUAKE_DATA_MODE=live` and never opens a
+database connection. The optional World-State overlay archives USGS responses,
+normalises the latest complete feed in PostGIS and exposes it through the same
+`/api/earthquakes` contract.
+
+Create the archive with the ownership described in
+[`docs/worldstate-development.md`](docs/worldstate-development.md), set the
+recommended mode in `.env`, and start both Compose files as one project:
+
+```env
+EARTHQUAKE_DATA_MODE=database_with_live_fallback
+EARTHQUAKE_DATABASE_MAX_AGE_MS=900000
+```
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.worldstate.yml \
+  up -d osiris collector
+```
+
+Combining the files lets the server-only OSIRIS route reach `db` over the
+internal Compose network. PostgreSQL remains published only on host loopback.
+Do not point a container at the template's `127.0.0.1` `DATABASE_URL`; that URL
+is for host-run development tools. The root Compose file injects discrete
+`WORLDSTATE_PG*` settings for the internal connection.
+
+`database` refuses missing, inconsistent or stale snapshots and never contacts
+USGS. `database_with_live_fallback` logs a sanitized reason and uses live USGS
+when the persisted snapshot cannot be used. A successful zero-record database
+snapshot remains a valid empty response.
 
 ### Pull the prebuilt image from GHCR
 
@@ -113,7 +145,7 @@ metadata.
 
 ## 3. API keys & data sources
 
-Copy `.env.template` to `.env` and fill in only what you need.
+Copy `.env.example` to `.env` and fill in only what you need.
 
 ### What the code actually reads today
 
@@ -139,7 +171,7 @@ them only if you extend the relevant route or hit rate limits.
 | `AIS_API_KEY` | aisstream.io maritime | Sign up at <https://aisstream.io/>, create a key on the **API Keys** page. Used over `wss://stream.aisstream.io/v0/stream`. |
 
 > Keep `.env` out of version control — it is already in `.gitignore`. Only
-> `.env.template` (no secrets) is committed.
+> `.env.example` (no secrets) is committed.
 
 ### Optional runtime overrides
 
@@ -147,6 +179,8 @@ them only if you extend the relevant route or hit rate limits.
 |----------|---------|---------|
 | `OSIRIS_TELEGRAM_CHANNELS` | Comma-separated list of public Telegram channel usernames (no `@`) to scrape for the **Telegram OSINT** map layer. Overrides the curated default set. | `osintdefender,insiderpaper,aljazeeraenglish,nexta_live,war_monitor` |
 | `OSIRIS_PORT` | Host port the compose file publishes (container itself always listens on 3000). | `3000` |
+| `EARTHQUAKE_DATA_MODE` | `live`, `database`, or freshness-aware `database_with_live_fallback`. | `live` |
+| `EARTHQUAKE_DATABASE_MAX_AGE_MS` | Maximum database response/provider timestamp age before it is stale. | `900000` |
 
 ### Keyless sources (no configuration needed)
 
