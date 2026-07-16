@@ -27,7 +27,7 @@ Relevant variables are:
 | `OSIRIS_BASE_URL` | `http://host.docker.internal:3000` in the environment template | Reserved for collector-to-OSIRIS integration |
 | `COLLECT_INTERVAL_MS` | `300000` | Delay after one attempt cycle completes before the next begins |
 | `COLLECT_ON_STARTUP` | `1` | Run once when the collector starts |
-| `COLLECTOR_SOURCE` | `usgs-earthquakes` | Active collector source for this container: `usgs-earthquakes`, `gdacs-disasters`, `nasa-firms-viirs`, `nasa-firms-modis`, `nasa-eonet-volcanoes`, `nasa-eonet-weather`, `noaa-nws-alerts`, `noaa-swpc-planetary-k-index`, `noaa-swpc-alerts` or `noaa-swpc-xray-flares` |
+| `COLLECTOR_SOURCE` | `usgs-earthquakes` | Active collector source for this container: `usgs-earthquakes`, `gdacs-disasters`, `nasa-firms-viirs`, `nasa-firms-modis`, `nasa-eonet-volcanoes`, `nasa-eonet-weather`, `noaa-nws-alerts`, `noaa-swpc-planetary-k-index`, `noaa-swpc-alerts`, `noaa-swpc-xray-flares`, `abusech-feodo-ipblocklist`, `abusech-urlhaus-online` or `cisa-known-exploited-vulnerabilities` |
 | `MAX_FETCH_ATTEMPTS` | `3` | Bounded transient-attempt count; every HTTP response gets its own run/archive |
 | `MAX_RESPONSE_BYTES` | `26214400` | Maximum response body size before collection fails closed |
 | `REQUEST_TIMEOUT_MS` | `10000` | Timeout covering response headers and body |
@@ -49,6 +49,9 @@ Relevant variables are:
 | `EONET_VOLCANOES_URL` | Official NASA EONET open volcano events query | HTTPS endpoint for the EONET volcano collector; credentials are rejected |
 | `EONET_WEATHER_URL` | Official NASA EONET open events query | HTTPS endpoint for the EONET weather collector; credentials are rejected |
 | `NWS_ALERTS_URL` | Official NOAA/NWS active alerts GeoJSON query | HTTPS endpoint for the NWS alerts collector; credentials are rejected |
+| `FEODO_IPBLOCKLIST_URL` | Official abuse.ch Feodo Tracker JSON blocklist | HTTPS endpoint for the Feodo collector; credentials are rejected |
+| `URLHAUS_ONLINE_URL` | Official abuse.ch URLhaus online CSV dump | HTTPS endpoint for the URLhaus collector; credentials are rejected |
+| `CISA_KEV_URL` | Official CISA KEV JSON catalog | HTTPS endpoint for the CISA KEV collector; credentials are rejected |
 | `SWPC_KP_URL` | Official NOAA SWPC planetary K-index 1-minute JSON | HTTPS endpoint for the SWPC Kp collector; credentials are rejected |
 | `SWPC_ALERTS_URL` | Official NOAA SWPC alerts product JSON | HTTPS endpoint for the SWPC alerts collector; credentials are rejected |
 | `SWPC_XRAY_FLARES_URL` | Official NOAA SWPC GOES primary X-ray flares latest JSON | HTTPS endpoint for the SWPC X-ray flare collector; credentials are rejected |
@@ -225,6 +228,25 @@ COLLECTOR_SOURCE=noaa-nws-alerts \
 DATABASE_URL=postgresql://osiris:osiris-local-dev@127.0.0.1:5432/osiris_worldstate \
 RAW_ARCHIVE_PATH="$(pwd)/archive" \
 npm --prefix collector run ingest:fixture -- noaa-nws-alerts
+```
+
+Threat-intel capture preserves three public feeds already used by the malware and cyber-threat surfaces: abuse.ch Feodo botnet C2 IPs, abuse.ch URLhaus online malware URLs and the CISA Known Exploited Vulnerabilities catalog. Normalised rows go into `threat_intel_observations`; raw JSON/CSV remains archived before parsing.
+
+```bash
+COLLECTOR_SOURCE=abusech-feodo-ipblocklist \
+DATABASE_URL=postgresql://osiris:osiris-local-dev@127.0.0.1:5432/osiris_worldstate \
+RAW_ARCHIVE_PATH="$(pwd)/archive" \
+npm --prefix collector run ingest:fixture -- abusech-feodo-ipblocklist
+
+COLLECTOR_SOURCE=abusech-urlhaus-online \
+DATABASE_URL=postgresql://osiris:osiris-local-dev@127.0.0.1:5432/osiris_worldstate \
+RAW_ARCHIVE_PATH="$(pwd)/archive" \
+npm --prefix collector run ingest:fixture -- abusech-urlhaus-online
+
+COLLECTOR_SOURCE=cisa-known-exploited-vulnerabilities \
+DATABASE_URL=postgresql://osiris:osiris-local-dev@127.0.0.1:5432/osiris_worldstate \
+RAW_ARCHIVE_PATH="$(pwd)/archive" \
+npm --prefix collector run ingest:fixture -- cisa-known-exploited-vulnerabilities
 ```
 
 Live boundary tests are opt-in only:

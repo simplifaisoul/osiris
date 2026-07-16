@@ -17,6 +17,9 @@ import {
   WeatherCollector,
 } from "./collectors/weather-sources.js";
 import {
+  ThreatIntelCollector,
+} from "./collectors/threat-intel-sources.js";
+import {
   UsgsEarthquakeCollector,
 } from "./collectors/usgs-earthquakes.js";
 import { createLogger } from "./logger.js";
@@ -92,6 +95,24 @@ async function run(): Promise<void> {
         ...commonCollectorOptions,
         endpoint: config.swpcXrayFlaresEndpoint,
         sourceId: "noaa-swpc-xray-flares",
+      })
+    : config.collectorSource === "abusech-feodo-ipblocklist"
+    ? new ThreatIntelCollector({
+        ...commonCollectorOptions,
+        endpoint: config.feodoEndpoint,
+        sourceId: "abusech-feodo-ipblocklist",
+      })
+    : config.collectorSource === "abusech-urlhaus-online"
+    ? new ThreatIntelCollector({
+        ...commonCollectorOptions,
+        endpoint: config.urlhausEndpoint,
+        sourceId: "abusech-urlhaus-online",
+      })
+    : config.collectorSource === "cisa-known-exploited-vulnerabilities"
+    ? new ThreatIntelCollector({
+        ...commonCollectorOptions,
+        endpoint: config.cisaKevEndpoint,
+        sourceId: "cisa-known-exploited-vulnerabilities",
       })
     : new UsgsEarthquakeCollector({
         ...commonCollectorOptions,
