@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+images:
+  - name: registry.invalid/kam/foundation-api
+    # Replace these two values with the image supplied by the platform team.
+    newName: registry.example.invalid/kam/foundation-api
+    newTag: 0.1.0

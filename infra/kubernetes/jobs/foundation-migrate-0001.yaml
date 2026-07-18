@@ -1,0 +1,38 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: foundation-migrate-0001
+  namespace: kam
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels: { app: foundation-migration }
+    spec:
+      serviceAccountName: foundation-api
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: migrate
+          image: registry.invalid/kam/foundation-api:0.1.0
+          command: ["alembic", "upgrade", "head"]
+          envFrom: [{ configMapRef: { name: kam-foundation-config } }]
+          volumeMounts:
+            - { name: database-secret, mountPath: /run/secrets, readOnly: true }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities: { drop: ["ALL"] }
+      volumes:
+        - name: database-secret
+          secret:
+            secretName: kam-foundation-secrets
+            items:
+              - { key: postgres-password, path: postgres_password, mode: 256 }

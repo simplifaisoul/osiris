@@ -236,7 +236,7 @@ export async function GET() {
     }
   }
 
-  const JAMMING_NACAP_THRESHOLD = 4;
+  const GNSS_ANOMALY_NACP_THRESHOLD = 4;
 
   fetchPromise = (async () => {
     const allRaw: any[] = [];
@@ -358,7 +358,7 @@ export async function GET() {
       const flight = classifyFlight(raw);
       if (!flight) continue;
 
-      if (typeof flight.nac_p === 'number' && flight.nac_p <= JAMMING_NACAP_THRESHOLD && !flight.grounded) {
+      if (typeof flight.nac_p === 'number' && flight.nac_p <= GNSS_ANOMALY_NACP_THRESHOLD && !flight.grounded) {
         gpsJamming.push({ lat: flight.lat, lng: flight.lng, nac_p: flight.nac_p, callsign: flight.callsign });
       }
 
@@ -375,7 +375,10 @@ export async function GET() {
       private_flights:    privateFl,
       private_jets:       jets,
       military_flights:   military,
-      gps_jamming:        aggregateJamming(gpsJamming, JAMMING_NACAP_THRESHOLD),
+      // Legacy response key is preserved for existing clients. The values are
+      // probabilistic accuracy anomalies and are never confirmation of jamming.
+      gps_jamming:        aggregateJamming(gpsJamming, GNSS_ANOMALY_NACP_THRESHOLD),
+      gnss_anomalies:     aggregateJamming(gpsJamming, GNSS_ANOMALY_NACP_THRESHOLD),
       total:              allRaw.length,
       source,
       timestamp:          new Date().toISOString(),
@@ -428,5 +431,7 @@ function aggregateJamming(points: any[], threshold: number) {
       lng: z.lng,
       severity: Math.round((1 - (z.total_nac_p / z.count) / threshold) * 100),
       count: z.count,
+      assessment: 'PROBABLE_GNSS_ACCURACY_DEGRADATION',
+      confirmed_jamming: false,
     }));
 }

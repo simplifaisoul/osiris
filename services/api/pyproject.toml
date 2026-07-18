@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "kam-foundation-api"
+version = "0.1.0"
+description = "KAM Multi-INT and SPYS foundation service"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi==0.115.12",
+  "uvicorn[standard]==0.34.2",
+  "pydantic==2.11.5",
+  "pydantic-settings==2.9.1",
+  "SQLAlchemy==2.0.41",
+  "greenlet==3.2.2",
+  "alembic==1.16.1",
+  "asyncpg==0.30.0",
+  "PyJWT[crypto]==2.10.1",
+  "cryptography==45.0.2",
+  "httpx==0.28.1",
+  "prometheus-client==0.22.1",
+  "opentelemetry-api==1.33.1",
+  "opentelemetry-sdk==1.33.1",
+  "opentelemetry-exporter-otlp-proto-grpc==1.33.1",
+  "python-multipart==0.0.20",
+]
+
+[project.optional-dependencies]
+test = [
+  "aiosqlite==0.21.0",
+  "pytest==8.3.5",
+  "pytest-asyncio==0.26.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+addopts = "-q --disable-warnings --strict-markers"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100

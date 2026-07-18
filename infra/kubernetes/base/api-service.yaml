@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: foundation-api
+  namespace: kam
+spec:
+  selector: { app: foundation-api }
+  ports: [{ name: http, port: 8000, targetPort: http }]
+

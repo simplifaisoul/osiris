@@ -131,6 +131,8 @@ Osiris is a production-grade OSINT platform that provides situational awareness 
 
 ## Quick Start
 
+For the KAM/SPYS Phase 1 foundation, air-gap profile, Institution IAM, database migration, Kubernetes, rollback, and production acceptance steps, use the [KAM / SPYS Foundation Deployment Guide](docs/deployment/KAM-DEPLOYMENT-GUIDE.md). New Kubernetes operators should start with the [Beginner Kubernetes Deployment Guide](docs/deployment/KAM-KUBERNETES-BEGINNER-GUIDE.md).
+
 ```bash
 git clone https://github.com/simplifaisoul/osiris.git
 cd osiris
@@ -145,7 +147,7 @@ Open [http://localhost:3000](http://localhost:3000)
 ```bash
 git clone https://github.com/simplifaisoul/osiris.git
 cd osiris
-cp .env.template .env     # optional — configure keys / port
+cp .env.example .env     # configure deployment profile and required secrets
 docker compose up -d
 ```
 
@@ -168,9 +170,9 @@ editing the compose file.
 
 ### Environment Variables
 
-OSIRIS works **partially without any API keys** — all core feeds use public,
-keyless sources. Copy [`.env.template`](.env.template) to `.env` and set only
-what you need:
+OSIRIS connected profile works **partially without third-party API keys**.
+SPYS air-gapped profile disables public connectors. Copy
+[`.env.example`](.env.example) to `.env` and configure the selected profile:
 
 ```env
 # Published host port (container always listens on 3000). Default: 3000

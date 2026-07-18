@@ -12,7 +12,7 @@ services:
     # Host port is configurable via OSIRIS_PORT in .env (defaults to 3000).
     ports:
       - "${OSIRIS_PORT:-3000}:3000"
-    # Optional API keys / scanner backend — copy .env.template to .env and
+    # Optional API keys / scanner backend — copy .env.example to .env and
     # fill in what you need. Missing file is ignored (keyless feeds still work).
     env_file:
       - path: .env
@@ -27,7 +27,6 @@ services:
     restart: unless-stopped
     networks:
       - default
-      - umami_default
 
   osiris-cache:
     image: nginx:alpine
@@ -56,10 +55,6 @@ services:
 
 volumes:
   nginx-cache:
-
-networks:
-  umami_default:
-    external: true
 
 # ── CasaOS app-store metadata (ignored by plain Docker Compose) ──
 x-casaos:

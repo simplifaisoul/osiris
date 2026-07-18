@@ -333,10 +333,10 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'circle-radius': 4, 'circle-color': '#D32F2F', 'circle-opacity': 0.5, 'circle-stroke-width': 1, 'circle-stroke-color': '#D32F2F', 'circle-stroke-opacity': 0.25,
       }});
 
-      // GPS Jamming — crimson
+      // Probable GNSS accuracy anomaly derived from low NAC-P observations.
       map.addLayer({ id: 'jam-fill', type: 'circle', source: 'gps-jamming', paint: { 'circle-radius': 30, 'circle-color': '#D32F2F', 'circle-opacity': 0.12, 'circle-blur': 1 }});
       map.addLayer({ id: 'jam-label', type: 'symbol', source: 'gps-jamming', layout: {
-        'text-field': ['concat','GPS JAM ',['to-string',['get','severity']],'%'], 'text-size': 10, 'text-font': ['Open Sans Bold'], 'text-allow-overlap': true,
+        'text-field': ['concat','GNSS ANOMALY ',['to-string',['get','severity']],'%'], 'text-size': 10, 'text-font': ['Open Sans Bold'], 'text-allow-overlap': true,
       }, paint: { 'text-color': '#D32F2F', 'text-halo-color': '#000', 'text-halo-width': 1 }});
 
       // Weather Events (NASA EONET) — deep violet

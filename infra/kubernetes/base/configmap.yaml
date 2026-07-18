@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kam-foundation-config
+  namespace: kam
+data:
+  ENVIRONMENT: production
+  DEPLOYMENT_PROFILE: SPYS_AIRGAP
+  AUTH_REQUIRED: "true"
+  DATABASE_URL: postgresql+asyncpg://kam_app@postgres:5432/kam
+  DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
+  REQUIRED_SCHEMA_REVISION: 0001_foundation
+  OIDC_AUDIENCE: kam-multi-int
+  OIDC_MFA_REQUIRED: "true"
+  OIDC_MFA_AMR_VALUE: mfa
+  OIDC_MFA_ACR_VALUES: ""
+  OIDC_DEVICE_CLAIM: device_id
+  DEFAULT_TIMEZONE: Europe/Istanbul
+  PUBLIC_CONNECTORS_ENABLED: "false"
+  AUDIT_RETENTION_YEARS: "5"

@@ -85,7 +85,7 @@ const LAYER_GROUPS = [
     layers: [
       { key: 'infrastructure', label: 'Nuclear Facilities', dataKey: 'infrastructure' },
       { key: 'global_incidents', label: 'Global Incidents', dataKey: 'gdelt' },
-      { key: 'gps_jamming', label: 'GPS Jamming', dataKey: 'gps_jamming' },
+      { key: 'gps_jamming', label: 'Probable GNSS Anomaly', dataKey: 'gps_jamming' },
     ],
   },
   {

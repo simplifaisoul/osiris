@@ -1,0 +1,89 @@
+services:
+  osiris:
+    environment:
+      FOUNDATION_API_URL: http://foundation-api:8000
+    depends_on:
+      foundation-api:
+        condition: service_healthy
+    networks: [default, foundation]
+
+  foundation-api:
+    build:
+      context: ../../services/api
+      dockerfile: Dockerfile
+    environment:
+      ENVIRONMENT: production
+      DEPLOYMENT_PROFILE: ${DEPLOYMENT_PROFILE:-SPYS_AIRGAP}
+      DATABASE_URL: postgresql+asyncpg://kam_app@postgres:5432/kam
+      DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
+      REQUIRED_SCHEMA_REVISION: ${REQUIRED_SCHEMA_REVISION:-0001_foundation}
+      AUTH_REQUIRED: ${AUTH_REQUIRED:-true}
+      OIDC_ISSUER: ${OIDC_ISSUER:?OIDC_ISSUER is required}
+      OIDC_JWKS_URL: ${OIDC_JWKS_URL:?OIDC_JWKS_URL is required}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-kam-multi-int}
+      OIDC_MFA_REQUIRED: ${OIDC_MFA_REQUIRED:-true}
+      OIDC_MFA_AMR_VALUE: ${OIDC_MFA_AMR_VALUE:-mfa}
+      OIDC_MFA_ACR_VALUES: ${OIDC_MFA_ACR_VALUES:-}
+      OIDC_DEVICE_CLAIM: ${OIDC_DEVICE_CLAIM:-device_id}
+      AUDIT_HMAC_KEY_FILE: /run/secrets/audit_hmac_key
+      DEFAULT_TIMEZONE: Europe/Istanbul
+      PUBLIC_CONNECTORS_ENABLED: "false"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    secrets:
+      - audit_hmac_key
+      - postgres_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1770
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+    networks: [foundation]
+
+  postgres:
+    image: postgis/postgis:16-3.5
+    environment:
+      POSTGRES_DB: kam
+      POSTGRES_USER: kam_app
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    volumes:
+      - foundation-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kam_app -d kam"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [foundation]
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.126.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ../observability/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    networks: [foundation]
+
+secrets:
+  audit_hmac_key:
+    file: ${AUDIT_HMAC_KEY_SOURCE_FILE:?Set AUDIT_HMAC_KEY_SOURCE_FILE}
+  postgres_password:
+    file: ${POSTGRES_PASSWORD_SOURCE_FILE:?Set POSTGRES_PASSWORD_SOURCE_FILE}
+
+volumes:
+  foundation-postgres:
+
+networks:
+  default:
+    # This overlay is the SPYS fail-closed profile: legacy OSIRIS routes cannot
+    # reach public feeds even if a route is called directly.
+    internal: true
+  foundation:
+    internal: true

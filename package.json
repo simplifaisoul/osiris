@@ -5,11 +5,13 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "typecheck": "tsc --noEmit --incremental false",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:live": "RUN_LIVE_TESTS=1 vitest run"
+    "test:live": "RUN_LIVE_TESTS=1 vitest run",
+    "test:foundation": "vitest run src/lib/foundation"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

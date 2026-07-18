@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: foundation-api
+  namespace: kam
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: foundation-api }
+  template:
+    metadata:
+      labels: { app: foundation-api }
+    spec:
+      serviceAccountName: foundation-api
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: api
+          image: registry.invalid/kam/foundation-api:0.1.0
+          ports: [{ name: http, containerPort: 8000 }]
+          envFrom: [{ configMapRef: { name: kam-foundation-config } }]
+          env:
+            - name: OIDC_ISSUER
+              valueFrom: { secretKeyRef: { name: kam-foundation-secrets, key: oidc-issuer } }
+            - name: OIDC_JWKS_URL
+              valueFrom: { secretKeyRef: { name: kam-foundation-secrets, key: oidc-jwks-url } }
+          volumeMounts:
+            - { name: audit-key, mountPath: /run/secrets, readOnly: true }
+          resources:
+            requests: { cpu: 200m, memory: 256Mi }
+            limits: { cpu: "1", memory: 1Gi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities: { drop: ["ALL"] }
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 15
+          readinessProbe:
+            httpGet: { path: /ready, port: http }
+            periodSeconds: 10
+      volumes:
+        - name: audit-key
+          secret:
+            secretName: kam-foundation-secrets
+            items:
+              - { key: audit-hmac-key, path: audit_hmac_key, mode: 256 }
+              - { key: postgres-password, path: postgres_password, mode: 256 }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: foundation-api
+  namespace: kam

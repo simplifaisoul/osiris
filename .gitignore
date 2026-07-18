@@ -1,11 +1,17 @@
 # Dependencies
 /node_modules
+/services/api/.venv/
 /.pnp
 .pnp.js
 .yarn/install-state.gz
 
 # Testing
 /coverage
+/services/api/.pytest_cache/
+
+# Python generated files
+**/__pycache__/
+*.py[cod]
 
 # Next.js
 /.next/
@@ -53,6 +59,9 @@ implementation_plan.md
 
 # Security - prevent accidental backup commits
 scanner_backend_backup.js
+/secrets/
+/backups/
+*.dump
 
 # Security - Prevent accidental manual leaks
 *Manual*.md

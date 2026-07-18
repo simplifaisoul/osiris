@@ -1,0 +1,9 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: foundation-api
+  namespace: kam
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: foundation-api }

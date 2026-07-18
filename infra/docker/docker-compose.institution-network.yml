@@ -1,0 +1,8 @@
+services:
+  foundation-api:
+    networks: [foundation, institution-iam]
+
+networks:
+  institution-iam:
+    external: true
+    name: ${INSTITUTION_IAM_DOCKER_NETWORK:?Set INSTITUTION_IAM_DOCKER_NETWORK}
