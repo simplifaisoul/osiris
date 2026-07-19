@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingestion
+  namespace: kam
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: ingestion }
+  template:
+    metadata:
+      labels: { app: ingestion }
+    spec:
+      serviceAccountName: ingestion
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: ingestion
+          image: registry.invalid/kam/ingestion:0.1.0
+          ports: [{ name: http, containerPort: 8000 }]
+          envFrom: [{ configMapRef: { name: kam-foundation-config } }]
+          env:
+            - name: CONNECTOR_SECRET_DIR
+              value: /run/secrets/connectors
+          volumeMounts:
+            # Connector API keys are optional: without them, the affected
+            # connectors report CONFIGURATION_REQUIRED rather than failing.
+            - { name: connector-secrets, mountPath: /run/secrets/connectors, readOnly: true }
+          resources:
+            requests: { cpu: 150m, memory: 192Mi }
+            limits: { cpu: "1", memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities: { drop: ["ALL"] }
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 15
+          readinessProbe:
+            httpGet: { path: /ready, port: http }
+            periodSeconds: 10
+      volumes:
+        - name: connector-secrets
+          secret:
+            secretName: kam-connector-keys
+            optional: true
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ingestion
+  namespace: kam
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ingestion
+  namespace: kam
+spec:
+  selector: { app: ingestion }
+  ports:
+    - { name: http, port: 8000, targetPort: http }

@@ -1,13 +1,13 @@
 # Dependencies
 /node_modules
-/services/api/.venv/
+**/.venv/
 /.pnp
 .pnp.js
 .yarn/install-state.gz
 
 # Testing
 /coverage
-/services/api/.pytest_cache/
+**/.pytest_cache/
 
 # Python generated files
 **/__pycache__/
@@ -46,8 +46,9 @@ scanner/
 # Data files
 threatfox.json
 
-# Dev scripts (one-time migration helpers)
-scripts/
+# Dev scripts (one-time migration helpers) — root-level only, so that
+# service-local scripts (services/*/scripts) remain tracked.
+/scripts/
 
 # AI agent config files
 CLAUDE.md

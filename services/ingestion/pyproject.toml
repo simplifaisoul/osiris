@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "kam-ingestion"
+version = "0.1.0"
+description = "KAM Multi-INT connector SDK and ingestion service"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi==0.115.12",
+  "uvicorn[standard]==0.34.2",
+  "pydantic==2.11.5",
+  "pydantic-settings==2.9.1",
+  "httpx==0.28.1",
+  "tenacity==9.1.2",
+  "PyYAML==6.0.2",
+  "jsonschema==4.23.0",
+  "prometheus-client==0.22.1",
+]
+
+[project.optional-dependencies]
+# Kafka and object-store transports are the remaining Phase 2 scope; the SDK
+# core is transport-agnostic (see connectors/base.py Sink protocol) so they plug
+# in without touching connector code.
+transport = [
+  "aiokafka==0.12.0",
+  "redis==6.2.0",
+]
+test = [
+  "pytest==8.3.5",
+  "pytest-asyncio==0.26.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+addopts = "-q --disable-warnings --strict-markers"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100

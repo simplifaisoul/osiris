@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kam.local/schemas/connector-manifest.schema.json",
+  "title": "KAM Connector Manifest",
+  "description": "Declarative contract every ingestion connector must satisfy (OSIRIS §5, §23). This JSON Schema is the language-neutral source of truth; the Python ConnectorManifest model and any TypeScript client must remain consistent with it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "version",
+    "domain",
+    "display_name",
+    "provider",
+    "licence_or_usage_basis",
+    "lawful_basis_reference",
+    "auth_type",
+    "base_url",
+    "rate_limit",
+    "poll_frequency_seconds",
+    "raw_retention_days",
+    "common_object_type",
+    "source_reliability",
+    "information_credibility"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_]{1,63}$",
+      "description": "Stable connector identifier (lower snake case)."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "domain": {
+      "type": "string",
+      "enum": [
+        "aviation", "maritime", "space", "gnss", "cctv", "environment",
+        "news", "telegram", "cyber", "financial", "conflict", "infrastructure"
+      ]
+    },
+    "display_name": { "type": "string", "minLength": 3, "maxLength": 120 },
+    "provider": { "type": "string", "minLength": 2, "maxLength": 120 },
+    "licence_or_usage_basis": { "type": "string", "minLength": 3, "maxLength": 1000 },
+    "lawful_basis_reference": { "type": "string", "minLength": 3, "maxLength": 500 },
+    "auth_type": {
+      "type": "string",
+      "enum": ["none", "api_key", "bearer_token", "basic", "oauth2"]
+    },
+    "required_secrets": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "default": [],
+      "description": "Secret names that must be present for the connector to be considered configured. A missing secret yields state CONFIGURATION_REQUIRED."
+    },
+    "base_url": { "type": "string", "minLength": 1, "maxLength": 2048 },
+    "rate_limit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requests", "per_seconds"],
+      "properties": {
+        "requests": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+        "per_seconds": { "type": "integer", "minimum": 1, "maximum": 86400 }
+      }
+    },
+    "poll_frequency_seconds": { "type": "integer", "minimum": 1, "maximum": 604800 },
+    "max_retries": { "type": "integer", "minimum": 0, "maximum": 20, "default": 5 },
+    "circuit_failure_threshold": { "type": "integer", "minimum": 1, "maximum": 100, "default": 5 },
+    "pagination": {
+      "type": "string",
+      "enum": ["none", "cursor", "page", "token", "time_window"],
+      "default": "none"
+    },
+    "checkpoint_strategy": {
+      "type": "string",
+      "enum": ["none", "cursor", "timestamp"],
+      "default": "none"
+    },
+    "dedup_key": {
+      "type": "string",
+      "enum": ["content_hash", "provider_id"],
+      "default": "content_hash"
+    },
+    "raw_retention_days": { "type": "integer", "minimum": 0, "maximum": 36500 },
+    "common_object_type": { "type": "string", "minLength": 1 },
+    "default_classification": {
+      "type": "string",
+      "enum": ["UNCLASSIFIED", "RESTRICTED", "CONFIDENTIAL", "SECRET", "TOP_SECRET"],
+      "default": "UNCLASSIFIED"
+    },
+    "source_reliability": { "type": "integer", "minimum": 1, "maximum": 6 },
+    "information_credibility": { "type": "integer", "minimum": 1, "maximum": 6 },
+    "geocoding_required": { "type": "boolean", "default": false },
+    "requires_public_network": { "type": "boolean", "default": true },
+    "tags": { "type": "array", "items": { "type": "string" }, "default": [] }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "auth_type": { "const": "none" } } },
+      "then": {
+        "properties": {
+          "required_secrets": { "type": "array", "maxItems": 0 }
+        }
+      },
+      "else": {
+        "properties": {
+          "required_secrets": { "type": "array", "minItems": 1 }
+        },
+        "required": ["required_secrets"]
+      }
+    }
+  ]
+}

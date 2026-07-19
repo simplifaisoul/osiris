@@ -1,0 +1,28 @@
+id: cisa_kev
+version: "1.0.0"
+domain: cyber
+display_name: CISA Known Exploited Vulnerabilities
+provider: CISA
+licence_or_usage_basis: >-
+  CISA KEV catalog is a U.S. Government public-domain work, free to use. Passive
+  read of the published catalog only; no active scanning is performed.
+lawful_basis_reference: CISA KEV Catalog (public domain)
+auth_type: none
+base_url: https://www.cisa.gov/sites/default/files/feeds
+rate_limit:
+  requests: 24
+  per_seconds: 86400
+poll_frequency_seconds: 3600
+max_retries: 5
+circuit_failure_threshold: 5
+pagination: none
+checkpoint_strategy: timestamp
+dedup_key: provider_id
+raw_retention_days: 1825
+common_object_type: Vulnerability
+default_classification: UNCLASSIFIED
+source_reliability: 1
+information_credibility: 1
+geocoding_required: false
+requires_public_network: true
+tags: [cyber, cve, kev, passive]

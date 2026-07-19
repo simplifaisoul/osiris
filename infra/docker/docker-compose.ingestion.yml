@@ -1,0 +1,37 @@
+services:
+  osiris:
+    environment:
+      INGESTION_API_URL: http://ingestion:8000
+    depends_on:
+      ingestion:
+        condition: service_healthy
+    networks: [default, foundation]
+
+  ingestion:
+    build:
+      context: ../../services/ingestion
+      dockerfile: Dockerfile
+    environment:
+      ENVIRONMENT: production
+      DEPLOYMENT_PROFILE: ${DEPLOYMENT_PROFILE:-SPYS_AIRGAP}
+      # In SPYS_AIRGAP this must stay false; the app refuses to start otherwise.
+      PUBLIC_CONNECTORS_ENABLED: ${PUBLIC_CONNECTORS_ENABLED:-false}
+      CONNECTOR_SECRET_DIR: /run/secrets/connectors
+      CONNECTOR_MAX_RETRIES: ${CONNECTOR_MAX_RETRIES:-5}
+      CONNECTOR_CIRCUIT_FAILURE_THRESHOLD: ${CONNECTOR_CIRCUIT_FAILURE_THRESHOLD:-5}
+      PROMETHEUS_METRICS_ENABLED: "true"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1770
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+    networks: [foundation]
+
+networks:
+  foundation:
+    internal: true

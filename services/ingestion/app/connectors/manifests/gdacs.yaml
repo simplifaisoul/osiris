@@ -1,0 +1,28 @@
+id: gdacs
+version: "1.0.0"
+domain: environment
+display_name: GDACS Global Disaster Alerts
+provider: GDACS (UN/EC)
+licence_or_usage_basis: >-
+  GDACS disaster alert feed published for public awareness by the Joint Research
+  Centre; used with attribution.
+lawful_basis_reference: GDACS Terms / EC-JRC public feed
+auth_type: none
+base_url: https://www.gdacs.org/xml
+rate_limit:
+  requests: 60
+  per_seconds: 3600
+poll_frequency_seconds: 900
+max_retries: 5
+circuit_failure_threshold: 5
+pagination: none
+checkpoint_strategy: timestamp
+dedup_key: content_hash
+raw_retention_days: 365
+common_object_type: Event
+default_classification: UNCLASSIFIED
+source_reliability: 2
+information_credibility: 2
+geocoding_required: false
+requires_public_network: true
+tags: [disaster, alerts, open-data]

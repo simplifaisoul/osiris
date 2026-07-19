@@ -1,0 +1,30 @@
+id: nasa_firms
+version: "1.0.0"
+domain: environment
+display_name: NASA FIRMS Active Fire Hotspots
+provider: NASA FIRMS
+licence_or_usage_basis: >-
+  NASA FIRMS active-fire data are open and free with attribution; MAP_KEY issued
+  per user for rate accounting only.
+lawful_basis_reference: NASA Open Data Policy / FIRMS Attribution
+auth_type: api_key
+required_secrets:
+  - firms_map_key
+base_url: https://firms.modaps.eosdis.nasa.gov/api
+rate_limit:
+  requests: 5000
+  per_seconds: 86400
+poll_frequency_seconds: 900
+max_retries: 5
+circuit_failure_threshold: 5
+pagination: page
+checkpoint_strategy: timestamp
+dedup_key: content_hash
+raw_retention_days: 365
+common_object_type: Event
+default_classification: UNCLASSIFIED
+source_reliability: 2
+information_credibility: 2
+geocoding_required: false
+requires_public_network: true
+tags: [fire, hotspot, disaster]

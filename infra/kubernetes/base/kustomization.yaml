@@ -7,4 +7,6 @@ resources:
   - api-service.yaml
   - api-pdb.yaml
   - api-hpa.yaml
+  - ingestion-deployment.yaml
+  - ingestion-hpa.yaml
   - network-policies.yaml

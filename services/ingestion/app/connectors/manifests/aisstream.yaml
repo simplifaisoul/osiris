@@ -1,0 +1,30 @@
+id: aisstream
+version: "1.0.0"
+domain: maritime
+display_name: AISStream Live AIS
+provider: aisstream.io
+licence_or_usage_basis: >-
+  AISStream websocket feed used under its free API terms for lawful maritime
+  situational awareness; no redistribution of raw member data.
+lawful_basis_reference: aisstream.io API Terms
+auth_type: api_key
+required_secrets:
+  - aisstream_api_key
+base_url: wss://stream.aisstream.io/v0/stream
+rate_limit:
+  requests: 1
+  per_seconds: 1
+poll_frequency_seconds: 10
+max_retries: 5
+circuit_failure_threshold: 5
+pagination: none
+checkpoint_strategy: timestamp
+dedup_key: content_hash
+raw_retention_days: 30
+common_object_type: Vessel
+default_classification: UNCLASSIFIED
+source_reliability: 3
+information_credibility: 3
+geocoding_required: false
+requires_public_network: true
+tags: [ais, maritime, live]

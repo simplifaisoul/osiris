@@ -1,0 +1,28 @@
+id: gdelt
+version: "1.0.0"
+domain: news
+display_name: GDELT Global Events & News
+provider: The GDELT Project
+licence_or_usage_basis: >-
+  GDELT open event and news metadata used under its open-access terms with
+  attribution; article full text is not redistributed.
+lawful_basis_reference: GDELT Project Open Access Terms
+auth_type: none
+base_url: https://api.gdeltproject.org/api/v2
+rate_limit:
+  requests: 60
+  per_seconds: 3600
+poll_frequency_seconds: 900
+max_retries: 5
+circuit_failure_threshold: 5
+pagination: token
+checkpoint_strategy: timestamp
+dedup_key: content_hash
+raw_retention_days: 365
+common_object_type: Event
+default_classification: UNCLASSIFIED
+source_reliability: 3
+information_credibility: 3
+geocoding_required: true
+requires_public_network: true
+tags: [news, gdelt, events]

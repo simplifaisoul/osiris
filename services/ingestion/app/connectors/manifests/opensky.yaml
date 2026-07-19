@@ -1,0 +1,31 @@
+id: opensky
+version: "1.0.0"
+domain: aviation
+display_name: OpenSky Network ADS-B
+provider: OpenSky Network
+licence_or_usage_basis: >-
+  OpenSky Network data used under its research/non-commercial terms; attribution
+  retained and redistribution limited per the provider agreement.
+lawful_basis_reference: OpenSky Network Terms of Use (research access)
+auth_type: oauth2
+required_secrets:
+  - opensky_client_id
+  - opensky_client_secret
+base_url: https://opensky-network.org/api
+rate_limit:
+  requests: 400
+  per_seconds: 86400
+poll_frequency_seconds: 30
+max_retries: 5
+circuit_failure_threshold: 5
+pagination: time_window
+checkpoint_strategy: timestamp
+dedup_key: content_hash
+raw_retention_days: 30
+common_object_type: Aircraft
+default_classification: UNCLASSIFIED
+source_reliability: 3
+information_credibility: 3
+geocoding_required: false
+requires_public_network: true
+tags: [adsb, flights, live]

@@ -39,6 +39,33 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
+  name: ingestion-allow
+  namespace: kam
+spec:
+  podSelector:
+    matchLabels: { app: ingestion }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    # Only the web app may query connector health.
+    - from:
+        - podSelector: { matchLabels: { app: osiris-web } }
+      ports: [{ protocol: TCP, port: 8000 }]
+  egress:
+    # Base profile is air-gap-safe: DNS only. The OSIRIS_CONNECTED overlay adds
+    # the specific provider and Kafka/object-store egress rules; the SPYS_AIRGAP
+    # profile keeps this default-deny egress with no public destinations.
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+          podSelector:
+            matchLabels: { k8s-app: kube-dns }
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
   name: postgres-allow-foundation
   namespace: kam
 spec:

@@ -1,0 +1,28 @@
+id: adsb_lol
+version: "1.0.0"
+domain: aviation
+display_name: adsb.lol Community ADS-B
+provider: adsb.lol
+licence_or_usage_basis: >-
+  adsb.lol open community feed used under its ODbL-style open data terms;
+  attribution retained.
+lawful_basis_reference: adsb.lol Open Data License
+auth_type: none
+base_url: https://api.adsb.lol/v2
+rate_limit:
+  requests: 1
+  per_seconds: 1
+poll_frequency_seconds: 15
+max_retries: 5
+circuit_failure_threshold: 5
+pagination: none
+checkpoint_strategy: timestamp
+dedup_key: content_hash
+raw_retention_days: 30
+common_object_type: Aircraft
+default_classification: UNCLASSIFIED
+source_reliability: 3
+information_credibility: 3
+geocoding_required: false
+requires_public_network: true
+tags: [adsb, flights, live, open-data]

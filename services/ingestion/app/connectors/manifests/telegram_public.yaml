@@ -1,0 +1,28 @@
+id: telegram_public
+version: "1.0.0"
+domain: telegram
+display_name: Telegram Public Channel Preview
+provider: t.me public preview
+licence_or_usage_basis: >-
+  Only public t.me/s channel previews are read; no private groups, no access
+  circumvention, and no authenticated API scraping. Public content only.
+lawful_basis_reference: Public web content (t.me/s preview pages)
+auth_type: none
+base_url: https://t.me/s
+rate_limit:
+  requests: 20
+  per_seconds: 60
+poll_frequency_seconds: 300
+max_retries: 5
+circuit_failure_threshold: 5
+pagination: cursor
+checkpoint_strategy: cursor
+dedup_key: content_hash
+raw_retention_days: 180
+common_object_type: Post
+default_classification: UNCLASSIFIED
+source_reliability: 4
+information_credibility: 4
+geocoding_required: true
+requires_public_network: true
+tags: [telegram, osint, public-only]

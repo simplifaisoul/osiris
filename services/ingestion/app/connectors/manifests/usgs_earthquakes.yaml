@@ -1,0 +1,28 @@
+id: usgs_earthquakes
+version: "1.0.0"
+domain: environment
+display_name: USGS Earthquakes (M2.5+)
+provider: U.S. Geological Survey
+licence_or_usage_basis: >-
+  USGS earthquake feeds are U.S. Government public-domain works, free to use with
+  attribution.
+lawful_basis_reference: USGS Public Domain / Earthquake Hazards Program
+auth_type: none
+base_url: https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary
+rate_limit:
+  requests: 60
+  per_seconds: 3600
+poll_frequency_seconds: 300
+max_retries: 5
+circuit_failure_threshold: 5
+pagination: none
+checkpoint_strategy: timestamp
+dedup_key: content_hash
+raw_retention_days: 365
+common_object_type: Event
+default_classification: UNCLASSIFIED
+source_reliability: 1
+information_credibility: 1
+geocoding_required: false
+requires_public_network: true
+tags: [earthquake, disaster, open-data]

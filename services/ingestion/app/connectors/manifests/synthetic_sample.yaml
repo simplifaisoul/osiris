@@ -1,0 +1,28 @@
+id: synthetic_sample
+version: "1.0.0"
+domain: environment
+display_name: Synthetic Sample (SENTETİK)
+provider: SYNTHETIC
+licence_or_usage_basis: >-
+  Internally generated synthetic demonstration data. Contains no real personal or
+  operational information; every record is labelled SENTETİK / SYNTHETIC.
+lawful_basis_reference: Synthetic demonstration data (no external source)
+auth_type: none
+base_url: synthetic://local
+rate_limit:
+  requests: 1000
+  per_seconds: 1
+poll_frequency_seconds: 60
+max_retries: 0
+circuit_failure_threshold: 5
+pagination: none
+checkpoint_strategy: none
+dedup_key: content_hash
+raw_retention_days: 7
+common_object_type: Observation
+default_classification: UNCLASSIFIED
+source_reliability: 6
+information_credibility: 6
+geocoding_required: false
+requires_public_network: false
+tags: [synthetic, demo, airgap-safe]

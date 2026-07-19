@@ -8,7 +8,7 @@ Bu matris, birleşik envanterdeki 60 alanın her birini kod bileşeni ve ölçü
 | ID | Source clause | Component | Acceptance test / evidence | Phase | Status |
 |---|---|---|---|---:|---|
 | F-001 | A §4 | `services/api/app/domain/models.py`, `schemas.py`, migration 0001 | Common Object happy/error schema; provenance/tenant/hash DB constraints | 1 | PARTIAL |
-| F-002 | A §5, §23 | `services/ingestion/app/connectors/*` | 60 manifest schema test; missing key => CONFIGURATION_REQUIRED | 2 | PLANNED |
+| F-002 | A §5, §23 | `services/ingestion/app/connectors/*`, `packages/contracts/schemas/connector-manifest.schema.json` | SDK core + 12 manifests + JSON-schema contract shipped and tested (36 tests); missing key => CONFIGURATION_REQUIRED verified; ≥60 catalogue + Kafka/object-store sinks remain | 2 | PARTIAL |
 | F-003 | A §6.1 | existing `src/app/api/flights/route.ts`; future aviation connector | ADS-B normalize, NOTAM/airspace contract, route anomaly tests | 2 | PARTIAL |
 | F-004 | A §6.2 | existing maritime route; future AIS connector | AIS dedup, off/identity-change, port-waiting tests | 2 | PARTIAL |
 | F-005 | A §6.3 | satellites/space-weather/Sentinel routes; future analytics | TLE freshness, SGP4/pass/SAR change acceptance | 2/5 | PARTIAL |

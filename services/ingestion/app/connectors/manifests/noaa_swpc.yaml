@@ -1,0 +1,28 @@
+id: noaa_swpc
+version: "1.0.0"
+domain: space
+display_name: NOAA Space Weather (SWPC)
+provider: NOAA SWPC
+licence_or_usage_basis: >-
+  NOAA Space Weather Prediction Center products are U.S. Government public-domain
+  works, free to use with attribution.
+lawful_basis_reference: NOAA/SWPC Public Domain
+auth_type: none
+base_url: https://services.swpc.noaa.gov
+rate_limit:
+  requests: 120
+  per_seconds: 3600
+poll_frequency_seconds: 600
+max_retries: 5
+circuit_failure_threshold: 5
+pagination: none
+checkpoint_strategy: timestamp
+dedup_key: content_hash
+raw_retention_days: 180
+common_object_type: Event
+default_classification: UNCLASSIFIED
+source_reliability: 1
+information_credibility: 1
+geocoding_required: false
+requires_public_network: true
+tags: [space-weather, solar, geomagnetic]

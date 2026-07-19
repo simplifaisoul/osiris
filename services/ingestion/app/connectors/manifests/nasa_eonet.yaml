@@ -1,0 +1,27 @@
+id: nasa_eonet
+version: "1.0.0"
+domain: environment
+display_name: NASA EONET Natural Events
+provider: NASA EONET
+licence_or_usage_basis: >-
+  NASA EONET curated natural-event feed is open and free with attribution.
+lawful_basis_reference: NASA Open Data Policy / EONET
+auth_type: none
+base_url: https://eonet.gsfc.nasa.gov/api/v3
+rate_limit:
+  requests: 100
+  per_seconds: 3600
+poll_frequency_seconds: 1800
+max_retries: 5
+circuit_failure_threshold: 5
+pagination: page
+checkpoint_strategy: cursor
+dedup_key: content_hash
+raw_retention_days: 365
+common_object_type: Event
+default_classification: UNCLASSIFIED
+source_reliability: 2
+information_credibility: 2
+geocoding_required: false
+requires_public_network: true
+tags: [disaster, environment, open-data]
