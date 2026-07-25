@@ -1,10 +1,9 @@
 name: osiris
 services:
   osiris:
-    # Pulls the prebuilt image from GitHub Container Registry. The `build:`
-    # block is kept as a fallback: `docker compose up -d` uses the registry
-    # image if present/pullable, otherwise builds locally from the Dockerfile.
-    # Run `docker compose pull` to fetch the latest published image.
+    # Builds locally from the Dockerfile so you always run the cloned code.
+    # To use the prebuilt image instead, replace the `build:` block below with
+    # `image: ghcr.io/simplifaisoul/osiris:latest`.
     build:
       context: .
       dockerfile: Dockerfile
@@ -82,10 +81,10 @@ x-casaos:
     en_us: Real-time global OSINT intelligence dashboard
   title:
     en_us: OSIRIS
-  icon: https://raw.githubusercontent.com/Aiacos/osiris/master/public/casaos-icon.png
-  thumbnail: https://raw.githubusercontent.com/Aiacos/osiris/master/public/og-image.png
+  icon: https://raw.githubusercontent.com/simplifaisoul/osiris/master/public/casaos-icon.png
+  thumbnail: https://raw.githubusercontent.com/simplifaisoul/osiris/master/public/og-image.png
   screenshot_link:
-    - https://raw.githubusercontent.com/Aiacos/osiris/master/public/og-image.png
+    - https://raw.githubusercontent.com/simplifaisoul/osiris/master/public/og-image.png
   scheme: http
   hostname: ""
   port_map: "3000"

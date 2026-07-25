@@ -158,8 +158,8 @@ CasaOS and API-key guide.
 **Prebuilt image (GHCR)** — skip the build and pull it directly:
 
 ```bash
-docker pull ghcr.io/aiacos/osiris:latest
-docker run -d -p 3000:3000 --env-file .env ghcr.io/aiacos/osiris:latest
+docker pull ghcr.io/simplifaisoul/osiris:latest
+docker run -d -p 3000:3000 --env-file .env ghcr.io/simplifaisoul/osiris:latest
 ```
 
 **Custom port** — the container always listens on `3000`; set `OSIRIS_PORT` in

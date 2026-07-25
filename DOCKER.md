@@ -27,10 +27,10 @@ Open <http://localhost:3000>.
 
 What the compose file does:
 
-- **`image:` + `build:`** — `image:` points at a prebuilt registry image; the
-  `build:` block is a fallback. `docker compose up -d` uses the registry image
-  if it's available locally or pullable, otherwise builds from the local
-  `Dockerfile`. Run `docker compose pull` to fetch the latest published image.
+- **`build:`** — compose builds the image locally from the `Dockerfile`, so
+  you always run the code you just cloned. To run the prebuilt registry image
+  instead, add `image: ghcr.io/simplifaisoul/osiris:latest` to the `osiris`
+  service and drop the `build:` block.
 - **`env_file: .env` (`required: false`)** — if a `.env` file exists its
   values are injected into the container; if it's missing, OSIRIS still starts
   with the keyless feeds.
@@ -43,7 +43,6 @@ What the compose file does:
 Common commands:
 
 ```bash
-docker compose pull             # fetch latest published image
 docker compose logs -f          # follow logs
 docker compose up -d --build    # rebuild locally after pulling new code
 docker compose down             # stop & remove
@@ -51,21 +50,18 @@ docker compose down             # stop & remove
 
 ### Pull the prebuilt image from GHCR
 
-A prebuilt multi-arch-friendly image is published to the GitHub Container
-Registry, so you can run OSIRIS without building anything:
+A prebuilt image for `linux/amd64` and `linux/arm64` is published to the GitHub
+Container Registry on every push to `master` and every `v*.*.*` tag, so you can
+run OSIRIS without building anything:
 
 ```bash
-docker pull ghcr.io/aiacos/osiris:latest      # or a pinned tag, e.g. :0.1.0
+docker pull ghcr.io/simplifaisoul/osiris:latest   # or a pinned tag, e.g. :0.1.0
 docker run -d --name osiris \
   -p 3005:3000 --env-file .env --restart unless-stopped \
-  ghcr.io/aiacos/osiris:latest
+  ghcr.io/simplifaisoul/osiris:latest
 ```
 
-> If the package is **private**, authenticate first with a GitHub token that
-> has `read:packages`:
-> `echo $TOKEN | docker login ghcr.io -u <github-user> --password-stdin`.
-> Make it public from the package's **Settings → Danger Zone → Change
-> visibility** to allow anonymous pulls.
+The package is public — no `docker login` is required to pull it.
 
 ### Plain `docker run`
 
