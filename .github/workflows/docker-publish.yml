@@ -6,6 +6,11 @@ on:
     tags: ["v*.*.*"]
   workflow_dispatch:
 
+# Two quick pushes to master must not race to overwrite the `latest` tag.
+concurrency:
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}

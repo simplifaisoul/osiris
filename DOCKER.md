@@ -102,8 +102,8 @@ metadata.
 > CasaOS stores imported compose files under `/var/lib/casaos/apps/`, so a
 > relative `build:` context may not resolve there. If importing the YAML
 > directly, either build/tag `osiris:latest` first
-> (`docker build -t osiris:latest /path/to/osiris`) or set `image:` to a
-> prebuilt registry image.
+> (`docker build -t osiris:latest /path/to/osiris`) or replace the `build:`
+> block with `image: ghcr.io/simplifaisoul/osiris:latest`.
 
 ---
 
