@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import https from 'https';
 import http from 'http';
-import { execSync } from 'child_process';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 15;
@@ -71,14 +70,22 @@ function proxyFetch(url: string, referer: string): Promise<{ status: number; con
   });
 }
 
-/** Lenient proxy using curl for servers with non-standard HTTP headers */
-function curlFetch(url: string): { status: number; contentType: string; data: Buffer } {
+/** Lenient proxy using fetch for servers with non-standard HTTP headers */
+async function lenientFetch(url: string): Promise<{ status: number; contentType: string; data: Buffer }> {
   try {
-    const data = execSync(`curl.exe -s -k -L --max-time 10 "${url}"`, {
-      maxBuffer: 2 * 1024 * 1024, // 2MB
-      timeout: 12000,
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'Accept': 'image/*,*/*',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+      },
     });
-    return { status: 200, contentType: 'image/jpeg', data };
+    clearTimeout(timeout);
+    if (!res.ok) return { status: res.status, contentType: 'application/json', data: Buffer.from('{}') };
+    const arrayBuffer = await res.arrayBuffer();
+    return { status: 200, contentType: res.headers.get('content-type') || 'image/jpeg', data: Buffer.from(arrayBuffer) };
   } catch {
     return { status: 502, contentType: 'application/json', data: Buffer.from('{}') };
   }
@@ -106,8 +113,7 @@ export async function GET(request: NextRequest) {
     let result: { status: number; contentType: string; data: Buffer };
 
     if (needsLenientParsing(target.hostname.toLowerCase())) {
-      // THB and similar servers with non-standard headers — use curl
-      result = curlFetch(target.toString());
+      result = await lenientFetch(target.toString());
     } else {
       result = await proxyFetch(target.toString(), `https://${target.hostname}/`);
     }
