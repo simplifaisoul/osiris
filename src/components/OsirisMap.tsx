@@ -189,7 +189,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       createDot(map, 'dot-fire', isGhost ? phantomPurple : '#E65100', 10);
       createDot(map, 'dot-cctv', cameraColor, 10);
 
-      const sources = ['flights','military','jets','private-fl','satellites','earthquakes','gdelt','gps-jamming','day-night','cctv','fires','weather','infrastructure','maritime','maritime-choke','maritime-ships','live-news','sigint-news','conflict-zones', 'war-alerts-targets', 'war-alerts-lines', 'balloons', 'radiation', 'ip-sweep-devices', 'ip-sweep-pulse', 'ip-sweep-connections', 'scan-targets', 'sdk-entities', 'sdk-links', 'malware-nodes', 'network-mesh', 'cyber-arcs', 'cyber-heads', 'cyber-impacts'];
+      const sources = ['flights','military','jets','private-fl','satellites','earthquakes','gdelt','gps-jamming','day-night','cctv','fires','weather','infrastructure','maritime','maritime-choke','maritime-ships','live-news','sigint-news','conflict-zones', 'war-alerts-targets', 'war-alerts-lines', 'balloons', 'radiation', 'ip-sweep-devices', 'ip-sweep-pulse', 'ip-sweep-connections', 'scan-targets', 'sdk-entities', 'sdk-links', 'malware-nodes', 'network-mesh', 'cyber-arcs', 'cyber-heads', 'cyber-impacts', 'gdelt-events', 'cf-outages', 'cf-attacks'];
       sources.forEach(s => map.addSource(s, { type: 'geojson', data: EMPTY_FC }));
 
       // Warning icon generator (parameterized — eliminates 3x copy-paste)
@@ -340,6 +340,51 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       map.addLayer({ id: 'gdelt-dots', type: 'circle', source: 'gdelt', paint: {
         'circle-radius': 4, 'circle-color': '#D32F2F', 'circle-opacity': 0.5, 'circle-stroke-width': 1, 'circle-stroke-color': '#D32F2F', 'circle-stroke-opacity': 0.25,
       }});
+
+      /* ── GDELT 2.0 Events — coloured by CAMEO QuadClass so cooperation and
+         conflict are separable at a glance, sized by article volume. ── */
+      map.addLayer({ id: 'gdelt-events-dots', type: 'circle', source: 'gdelt-events', paint: {
+        'circle-radius': ['interpolate',['linear'],['get','articles'], 1,3, 10,5, 50,8, 200,12],
+        'circle-color': ['match',['get','quad'],
+          1,'#00E676',   // verbal cooperation
+          2,'#00E5FF',   // material cooperation
+          3,'#FF9500',   // verbal conflict
+          4,'#FF3D3D',   // material conflict
+          '#9B978E'],
+        'circle-opacity': 0.75,
+        'circle-stroke-width': 1,
+        'circle-stroke-color': '#000000',
+        'circle-stroke-opacity': 0.6,
+      }});
+
+      /* ── Cloudflare Radar — internet outages (country-scoped) ── */
+      map.addLayer({ id: 'cf-outage-halo', type: 'circle', source: 'cf-outages', paint: {
+        'circle-radius': ['interpolate',['linear'],['zoom'], 1,14, 5,26, 10,40],
+        'circle-color': '#FFB300', 'circle-opacity': 0.12, 'circle-blur': 0.9,
+      }});
+      map.addLayer({ id: 'cf-outage-dots', type: 'circle', source: 'cf-outages', paint: {
+        'circle-radius': ['interpolate',['linear'],['zoom'], 1,4, 5,6, 10,9],
+        // Resolved outages read cooler than ongoing ones.
+        'circle-color': ['case',['get','ongoing'],'#FFB300','#8B7325'],
+        'circle-opacity': 0.9,
+        'circle-stroke-width': 1.5, 'circle-stroke-color': '#000000', 'circle-stroke-opacity': 0.7,
+      }});
+      map.addLayer({ id: 'cf-outage-label', type: 'symbol', source: 'cf-outages', minzoom: 3, layout: {
+        'text-field': ['get','country_name'], 'text-size': 9, 'text-font': ['JetBrains Mono Bold', 'Open Sans Bold'],
+        'text-offset': [0, 1.4], 'text-max-width': 12, 'text-allow-overlap': false,
+      }, paint: { 'text-color': '#FFB300', 'text-halo-color': '#000', 'text-halo-width': 1.5, 'text-opacity': 0.85 }});
+
+      /* ── Cloudflare Radar — layer-3 attack origin share ── */
+      map.addLayer({ id: 'cf-attack-dots', type: 'circle', source: 'cf-attacks', paint: {
+        'circle-radius': ['interpolate',['linear'],['get','share'], 0,4, 5,9, 20,16, 50,24],
+        'circle-color': '#FF3D3D', 'circle-opacity': 0.35, 'circle-blur': 0.3,
+        'circle-stroke-width': 1, 'circle-stroke-color': '#FF3D3D', 'circle-stroke-opacity': 0.7,
+      }});
+      map.addLayer({ id: 'cf-attack-label', type: 'symbol', source: 'cf-attacks', minzoom: 2, layout: {
+        'text-field': ['concat',['get','country'],' ',['to-string',['get','share']],'%'],
+        'text-size': 9, 'text-font': ['JetBrains Mono Bold', 'Open Sans Bold'],
+        'text-offset': [0, 1.6], 'text-allow-overlap': false,
+      }, paint: { 'text-color': '#FF6B6B', 'text-halo-color': '#000', 'text-halo-width': 1.5, 'text-opacity': 0.9 }});
 
       // GPS Jamming — crimson
       map.addLayer({ id: 'jam-fill', type: 'circle', source: 'gps-jamming', paint: { 'circle-radius': 30, 'circle-color': '#D32F2F', 'circle-opacity': 0.12, 'circle-blur': 1 }});
@@ -758,6 +803,85 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     });
 
 
+    // ── GDELT 2.0 Events ──
+    const QUAD_COLOR: Record<string, string> = { '1': '#00E676', '2': '#00E5FF', '3': '#FF9500', '4': '#FF3D3D' };
+    map.on('click', 'gdelt-events-dots', e => {
+      if (!e.features?.length) return;
+      const p = e.features[0].properties as any;
+      const coords = (e.features[0].geometry as any).coordinates;
+      const accent = QUAD_COLOR[String(p.quad)] ?? '#9B978E';
+      const src = urlSafe(p.url);
+      const tone = Number(p.tone);
+      popup(coords, `
+      <div style="${pStyle}border:1px solid ${accent}66;min-width:250px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <span style="width:7px;height:7px;border-radius:50%;background:${accent};box-shadow:0 0 8px ${accent};"></span>
+          <span style="color:${accent};font-size:10px;font-weight:700;letter-spacing:0.15em;">${htmlEsc(p.quad_label)}</span>
+        </div>
+        <div style="color:#E8E6E0;font-size:12px;font-weight:700;margin-bottom:8px;">${htmlEsc(p.name)}</div>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:10px;color:#9B978E;">
+          <span style="opacity:0.6;">Goldstein</span><span style="color:${Number(p.goldstein) < 0 ? '#FF3D3D' : '#00E676'};">${htmlEsc(p.goldstein)}</span>
+          <span style="opacity:0.6;">Avg tone</span><span style="color:${tone < 0 ? '#FF9500' : '#00E676'};">${htmlEsc(p.tone)}</span>
+          <span style="opacity:0.6;">Articles</span><span style="color:#E8E6E0;">${htmlEsc(p.articles)}</span>
+          <span style="opacity:0.6;">Country</span><span style="color:#E8E6E0;">${htmlEsc(p.country || '—')}</span>
+        </div>
+        <div style="margin-top:8px;font-size:9px;color:#5C5A54;">GDELT 2.0 · ${htmlEsc(String(p.date).slice(0, 16).replace('T', ' '))}Z</div>
+        ${src !== '#' ? `<a href="${src}" target="_blank" rel="noopener noreferrer" style="${linkStyle}color:${accent};border:1px solid ${accent}66;background:${accent}1a;">SOURCE ARTICLE</a>` : ''}
+      </div>`);
+    });
+
+    // ── Cloudflare Radar: internet outage ──
+    map.on('click', 'cf-outage-dots', e => {
+      if (!e.features?.length) return;
+      const p = e.features[0].properties as any;
+      const coords = (e.features[0].geometry as any).coordinates;
+      // MapLibre serialises feature properties, so booleans can arrive as strings.
+      const ongoing = p.ongoing === true || p.ongoing === 'true';
+      const accent = ongoing ? '#FFB300' : '#8B7325';
+      const src = urlSafe(p.url);
+      popup(coords, `
+      <div style="${pStyle}border:1px solid ${accent}66;min-width:250px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <span style="width:7px;height:7px;border-radius:50%;background:${accent};box-shadow:0 0 8px ${accent};"></span>
+          <span style="color:${accent};font-size:10px;font-weight:700;letter-spacing:0.15em;">
+            ${ongoing ? 'ONGOING OUTAGE' : 'RESOLVED OUTAGE'}
+          </span>
+        </div>
+        <div style="color:#E8E6E0;font-size:12px;font-weight:700;margin-bottom:8px;">${htmlEsc(p.country_name)}</div>
+        ${p.description ? `<div style="color:#9B978E;font-size:10px;line-height:1.6;margin-bottom:8px;">${htmlEsc(p.description)}</div>` : ''}
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:10px;color:#9B978E;">
+          <span style="opacity:0.6;">Cause</span><span style="color:#E8E6E0;">${htmlEsc(p.cause || 'Unspecified')}</span>
+          <span style="opacity:0.6;">Scope</span><span style="color:#E8E6E0;">${htmlEsc(p.scope || 'Nationwide')}</span>
+          <span style="opacity:0.6;">Started</span><span style="color:#E8E6E0;">${htmlEsc(String(p.start).slice(0, 16).replace('T', ' '))}</span>
+          ${p.end ? `<span style="opacity:0.6;">Ended</span><span style="color:#E8E6E0;">${htmlEsc(String(p.end).slice(0, 16).replace('T', ' '))}</span>` : ''}
+        </div>
+        <div style="margin-top:8px;font-size:9px;color:#5C5A54;">Cloudflare Radar</div>
+        ${src !== '#' ? `<a href="${src}" target="_blank" rel="noopener noreferrer" style="${linkStyle}color:${accent};border:1px solid ${accent}66;background:${accent}1a;">RADAR DETAIL</a>` : ''}
+      </div>`);
+    });
+
+    // ── Cloudflare Radar: attack origin share ──
+    map.on('click', 'cf-attack-dots', e => {
+      if (!e.features?.length) return;
+      const p = e.features[0].properties as any;
+      const coords = (e.features[0].geometry as any).coordinates;
+      popup(coords, `
+      <div style="${pStyle}border:1px solid rgba(255,61,61,0.4);min-width:230px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <span style="width:7px;height:7px;border-radius:50%;background:#FF3D3D;box-shadow:0 0 8px #FF3D3D;"></span>
+          <span style="color:#FF3D3D;font-size:10px;font-weight:700;letter-spacing:0.15em;">L3 ATTACK ORIGIN</span>
+        </div>
+        <div style="color:#E8E6E0;font-size:12px;font-weight:700;margin-bottom:8px;">${htmlEsc(p.country_name)}</div>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:10px;color:#9B978E;">
+          <span style="opacity:0.6;">Share</span><span style="color:#FF6B6B;font-weight:700;">${htmlEsc(p.share)}%</span>
+          <span style="opacity:0.6;">Code</span><span style="color:#E8E6E0;">${htmlEsc(p.country)}</span>
+        </div>
+        <div style="margin-top:8px;font-size:9px;color:#5C5A54;line-height:1.5;">
+          Share of observed layer-3 attack traffic by origin · Cloudflare Radar
+        </div>
+      </div>`);
+    });
+
     // ── GDELT Conflicts (with source article) ──
     map.on('click', 'gdelt-dots', e => {
       if (!e.features?.length) return;
@@ -865,7 +989,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     });
 
     // ── Generic hover for clickables ──
-    ['conflict-icons','cctv-dots','eq-circles','sat-dots','fires-heat','gdelt-dots','weather-dots','infra-dots','maritime-dots','choke-dots','news-dots','sigint-news-dots','balloon-dots','rad-dots','ship-dots','sweep-device-dots','scan-targets-dots','sdk-sea','sdk-sea-glow','sdk-sea-atmo','sdk-air','sdk-air-glow','sdk-air-atmo','sdk-intel','sdk-intel-glow','sdk-intel-atmo','malware-dots','cyber-heads'].forEach(layer => {
+    ['conflict-icons','cctv-dots','eq-circles','sat-dots','fires-heat','gdelt-dots','weather-dots','infra-dots','maritime-dots','choke-dots','news-dots','sigint-news-dots','balloon-dots','rad-dots','ship-dots','sweep-device-dots','scan-targets-dots','sdk-sea','sdk-sea-glow','sdk-sea-atmo','sdk-air','sdk-air-glow','sdk-air-atmo','sdk-intel','sdk-intel-glow','sdk-intel-atmo','malware-dots','cyber-heads','gdelt-events-dots','cf-outage-dots','cf-attack-dots'].forEach(layer => {
       map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
       map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
     });
@@ -1220,6 +1344,46 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     setGeo('gdelt', activeLayers.global_incidents && data.gdelt ? data.gdelt.map((e: any) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [e.lng, e.lat] }, properties: { name: e.name } })) : []);
   }, [mapReady, data.gdelt, activeLayers.global_incidents, setGeo]);
 
+  /* ── GDELT 2.0 Events ── */
+  useEffect(() => {
+    if (!mapReady) return;
+    const al = activeLayers as any;
+    setGeo('gdelt-events', al.gdelt_events && data.gdelt_events ? data.gdelt_events.map((e: any) => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [e.lng, e.lat] },
+      properties: {
+        name: e.name, country: e.country, quad: e.quad, quad_label: e.quad_label,
+        tone: e.tone, goldstein: e.goldstein, articles: e.articles, url: e.url, date: e.date,
+      },
+    })) : []);
+  }, [mapReady, data.gdelt_events, (activeLayers as any).gdelt_events, setGeo]);
+
+  /* ── Cloudflare Radar: outages ── */
+  useEffect(() => {
+    if (!mapReady) return;
+    const al = activeLayers as any;
+    setGeo('cf-outages', al.cf_outages && data.cf_outages ? data.cf_outages.map((o: any) => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [o.lng, o.lat] },
+      properties: {
+        country: o.country, country_name: o.country_name, scope: o.scope, cause: o.cause,
+        event_type: o.event_type, description: o.description, start: o.start, end: o.end,
+        ongoing: !!o.ongoing, url: o.url,
+      },
+    })) : []);
+  }, [mapReady, data.cf_outages, (activeLayers as any).cf_outages, setGeo]);
+
+  /* ── Cloudflare Radar: attack origins ── */
+  useEffect(() => {
+    if (!mapReady) return;
+    const al = activeLayers as any;
+    setGeo('cf-attacks', al.cf_attacks && data.cf_attack_origins ? data.cf_attack_origins.map((a: any) => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [a.lng, a.lat] },
+      properties: { country: a.country, country_name: a.country_name, share: a.share },
+    })) : []);
+  }, [mapReady, data.cf_attack_origins, (activeLayers as any).cf_attacks, setGeo]);
+
   // Malware Threats
   useEffect(() => {
     if (!mapReady) return;
@@ -1503,6 +1667,9 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     const anySat = activeLayers.satellites || (activeLayers as any).sat_comms || (activeLayers as any).sat_military || (activeLayers as any).sat_navigation || (activeLayers as any).sat_earth || (activeLayers as any).sat_science;
     setVis(['sat-glow','sat-dots'], anySat);
     setVis(['gdelt-dots'], activeLayers.global_incidents);
+    setVis(['gdelt-events-dots'], (activeLayers as any).gdelt_events);
+    setVis(['cf-outage-halo','cf-outage-dots','cf-outage-label'], (activeLayers as any).cf_outages);
+    setVis(['cf-attack-dots','cf-attack-label'], (activeLayers as any).cf_attacks);
 
     setVis(['malware-glow','malware-dots','malware-label'], activeLayers.malware);
     setVis(['network-mesh-atmo', 'network-mesh-glow', 'network-mesh-core'], activeLayers.internet_outages || activeLayers.malware);

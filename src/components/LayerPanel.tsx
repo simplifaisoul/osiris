@@ -15,9 +15,29 @@ interface LayerPanelProps {
   isMobile?: boolean;
   theme?: 'core' | 'ghost';
   setTheme?: (theme: 'core' | 'ghost') => void;
+  /** Server-side capabilities, e.g. { cloudflare: true }. Layers declaring a
+   *  `requires` key stay hidden until the matching capability is present. */
+  capabilities?: Record<string, boolean>;
 }
 
-const LAYER_GROUPS = [
+interface LayerDef {
+  key: string;
+  label: string;
+  dataKey: string;
+  /** Reads a bucket out of data.category_counts instead of a top-level array. */
+  catKey?: string;
+  /** Capability that must be configured server-side for this layer to appear. */
+  requires?: string;
+}
+
+interface LayerGroupDef {
+  label: string;
+  fullLabel: string;
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
+  layers: LayerDef[];
+}
+
+const LAYER_GROUPS: LayerGroupDef[] = [
   {
     label: 'SDK',
     fullLabel: 'OSIRIS SDK',
@@ -98,6 +118,16 @@ const LAYER_GROUPS = [
     ],
   },
   {
+    label: 'NETINTEL',
+    fullLabel: 'NET & EVENT INTEL',
+    icon: Radar,
+    layers: [
+      { key: 'gdelt_events', label: 'GDELT Events', dataKey: 'gdelt_events' },
+      { key: 'cf_outages', label: 'Internet Outages', dataKey: 'cf_outages', requires: 'cloudflare' },
+      { key: 'cf_attacks', label: 'Attack Origins', dataKey: 'cf_attack_origins', requires: 'cloudflare' },
+    ],
+  },
+  {
     label: 'DISPLAY',
     fullLabel: 'DISPLAY',
     icon: Sun,
@@ -139,10 +169,17 @@ function ToggleSwitch({ active, onClick }: { active: boolean; onClick: () => voi
   );
 }
 
-function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'core', setTheme }: LayerPanelProps) {
+function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'core', setTheme, capabilities = {} }: LayerPanelProps) {
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
 
   const toggle = (key: string) => setActiveLayers((prev: any) => ({ ...prev, [key]: !prev[key] }));
+
+  /* Drop layers whose backing capability is not configured, then drop any group
+     left with nothing to show. */
+  const visibleGroups = LAYER_GROUPS.map(g => ({
+    ...g,
+    layers: g.layers.filter(l => !l.requires || capabilities[l.requires]),
+  })).filter(g => g.layers.length > 0);
 
   const getCount = (dk: string, catKey?: string): number | null => {
     if (!dk) return null;
@@ -164,7 +201,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
   if (isMobile) {
     return (
       <div className="flex flex-col gap-5 py-2">
-        {LAYER_GROUPS.map((group) => (
+        {visibleGroups.map((group) => (
           <div key={group.label} className="flex flex-col gap-2">
             <div className="text-[9px] font-mono tracking-[0.2em] uppercase text-white/30 border-b border-white/[0.06] pb-1.5">
               {group.fullLabel}
@@ -228,7 +265,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
       }}
     >
       <div className="flex-1 flex flex-col items-center gap-1">
-        {LAYER_GROUPS.map((group) => {
+        {visibleGroups.map((group) => {
           const groupActive = group.layers.some(l => activeLayers[l.key]);
           const isHovered = hoveredGroup === group.label;
           const Icon = group.icon;

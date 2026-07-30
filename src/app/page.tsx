@@ -165,7 +165,12 @@ export default function Dashboard() {
     terrain_3d: false,
     malware: false,
     cyber_attacks: false,
+    gdelt_events: false,
+    cf_outages: false,
+    cf_attacks: false,
   });
+  // Server-side capability flags — gate layers that need credentials.
+  const [capabilities, setCapabilities] = useState<Record<string, boolean>>({});
   const [liveFeedUrl, setLiveFeedUrl] = useState<string | null>(null);
   const [liveFeedName, setLiveFeedName] = useState('');
   const [liveFeedEmbedAllowed, setLiveFeedEmbedAllowed] = useState(true);
@@ -191,6 +196,13 @@ export default function Dashboard() {
         return next;
       });
     }
+
+    // Probe which credential-gated feeds this deployment has configured, so the
+    // layer panel can hide toggles that could never return data.
+    fetch('/api/cloudflare-radar?probe=1')
+      .then(r => (r.ok ? r.json() : null))
+      .then(p => { if (p) setCapabilities(c => ({ ...c, cloudflare: !!p.configured })); })
+      .catch(() => { /* leave the layer hidden */ });
 
     // Delay geolocation until map is ready (after splash screen clears)
     const geoTimer = setTimeout(() => {
@@ -462,6 +474,22 @@ export default function Dashboard() {
     if ((activeLayers as any).cyber_attacks && !layerFetchedRef.current.has('cyber_attacks')) {
       fetchEndpoint('/api/cyber-attacks', d => ({ cyber_attacks: d.attacks }));
       layerFetchedRef.current.add('cyber_attacks');
+    }
+
+    // GDELT 2.0 geocoded events
+    if ((activeLayers as any).gdelt_events && !layerFetchedRef.current.has('gdelt_events')) {
+      fetchEndpoint('/api/gdelt-events?limit=600', d => ({ gdelt_events: d.events }));
+      layerFetchedRef.current.add('gdelt_events');
+    }
+
+    // Cloudflare Radar — one request backs both layers
+    const wantsRadar = (activeLayers as any).cf_outages || (activeLayers as any).cf_attacks;
+    if (wantsRadar && !layerFetchedRef.current.has('cloudflare_radar')) {
+      fetchEndpoint('/api/cloudflare-radar', d => ({
+        cf_outages: d.outages ?? [],
+        cf_attack_origins: d.attack_origins ?? [],
+      }));
+      layerFetchedRef.current.add('cloudflare_radar');
     }
 
 
@@ -942,7 +970,7 @@ export default function Dashboard() {
 
 
       {/* ── NEW SIDEBAR (Root Level) ── */}
-      {showLayers && !isMobile && <LayerPanel data={data} activeLayers={activeLayers} setActiveLayers={setActiveLayers} theme={osirisTheme} setTheme={setOsirisTheme} />}
+      {showLayers && !isMobile && <LayerPanel data={data} activeLayers={activeLayers} setActiveLayers={setActiveLayers} theme={osirisTheme} setTheme={setOsirisTheme} capabilities={capabilities} />}
 
 
 
@@ -1214,7 +1242,7 @@ export default function Dashboard() {
                           <div><div className="hud-label" style={{fontSize:'6px'}}>NUC</div><div className="hud-value text-[9px]" style={{color:'var(--accent-nuclear)'}}>{(data.infrastructure?.length||0)}</div></div>
                         </div>
                       </div>
-                      <LayerPanel data={data} activeLayers={activeLayers} setActiveLayers={setActiveLayers} isMobile={true} theme={osirisTheme} setTheme={setOsirisTheme} />
+                      <LayerPanel data={data} activeLayers={activeLayers} setActiveLayers={setActiveLayers} isMobile={true} theme={osirisTheme} setTheme={setOsirisTheme} capabilities={capabilities} />
                       <div className="mt-8">
                         <ViewPresets onNavigate={(lat, lng, zoom) => { setFlyToLocation({ lat, lng, ts: Date.now() }); setMapView(v => ({ ...v, zoom })); setMobilePanel(null); }} />
                       </div>
