@@ -1,42 +1,19 @@
 /**
  * OSIRIS — Stealth Fetch Utility
- * Generates randomized HTTP headers to distribute API requests
- * across a pool of spoofed residential IP addresses and browser fingerprints.
+ * Sends a rotating real-browser User-Agent so upstream feeds that reject the
+ * default Node/undici UA (several of the traffic-camera endpoints do) still
+ * respond. Adds a hard request timeout on top of plain fetch().
+ *
+ * This deliberately does NOT forge client-IP headers. An earlier revision sent
+ * randomised `X-Forwarded-For` / `X-Real-IP` values drawn from live residential
+ * ISP allocations to spread requests past per-IP rate limits. That was dropped:
+ * it wrote real strangers' IP addresses into third parties' access logs, it
+ * violates the terms of several of the upstream feeds, and it bought almost
+ * nothing — serious rate limiters key on the TCP source address, and the
+ * `s-maxage` CDN caching on these routes already collapses many viewers into
+ * one upstream request. If a feed does rate-limit us, raise its `s-maxage` or
+ * register a free API key (OpenSky, NASA FIRMS) instead.
  */
-
-// Residential IP ranges (common ISP subnets globally)
-const IP_POOLS = [
-  // US Comcast
-  { base: [73, 15], range: [255, 255] },
-  { base: [98, 24], range: [255, 255] },
-  { base: [174, 51], range: [255, 255] },
-  // US AT&T
-  { base: [107, 77], range: [255, 255] },
-  { base: [166, 198], range: [255, 255] },
-  // US Verizon
-  { base: [71, 172], range: [255, 255] },
-  { base: [100, 0], range: [127, 255] },
-  // UK BT
-  { base: [86, 128], range: [127, 255] },
-  { base: [81, 132], range: [63, 255] },
-  // DE Telekom
-  { base: [91, 64], range: [63, 255] },
-  { base: [80, 128], range: [63, 255] },
-  // FR Orange
-  { base: [90, 0], range: [63, 255] },
-  { base: [86, 192], range: [63, 255] },
-  // IT Telecom Italia
-  { base: [79, 0], range: [63, 255] },
-  { base: [87, 0], range: [31, 255] },
-  // BR Vivo
-  { base: [177, 0], range: [127, 255] },
-  // AU Telstra
-  { base: [101, 160], range: [31, 255] },
-  // IN Jio
-  { base: [49, 32], range: [31, 255] },
-  // CA Rogers
-  { base: [99, 224], range: [31, 255] },
-];
 
 const USER_AGENTS = [
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
@@ -55,28 +32,18 @@ function randomInt(max: number): number {
   return Math.floor(Math.random() * (max + 1));
 }
 
-function generateResidentialIP(): string {
-  const pool = IP_POOLS[randomInt(IP_POOLS.length - 1)];
-  const octet3 = pool.base[1] + randomInt(pool.range[0]);
-  const octet4 = randomInt(pool.range[1]);
-  return `${pool.base[0]}.${octet3}.${octet4 || 1}.${randomInt(254) + 1}`;
-}
-
 function randomUA(): string {
   return USER_AGENTS[randomInt(USER_AGENTS.length - 1)];
 }
 
 /**
- * Generate spoofed headers for a stealth fetch request.
+ * Generate browser-like headers for a stealth fetch request.
  * Merges with any existing headers you pass in.
  */
 export function stealthHeaders(extraHeaders?: Record<string, string>): Record<string, string> {
-  const ip = generateResidentialIP();
   return {
     'User-Agent': randomUA(),
     'Accept-Language': 'en-US,en;q=0.9',
-    'X-Forwarded-For': ip,
-    'X-Real-IP': ip,
     ...extraHeaders,
   };
 }
