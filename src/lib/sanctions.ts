@@ -243,3 +243,13 @@ export async function indexSize(): Promise<number> {
   const list = await loadList();
   return list.entries.length;
 }
+
+/**
+ * Every indexed entry, for callers that need to scan rather than look up —
+ * e.g. pulling the designated crypto wallets out of the list. Returns the
+ * cached array directly; treat it as read-only.
+ */
+export async function allEntries(): Promise<readonly SanctionEntry[]> {
+  const list = await loadList();
+  return list.entries;
+}

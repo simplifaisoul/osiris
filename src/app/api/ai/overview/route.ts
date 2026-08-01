@@ -1,7 +1,7 @@
 /**
  * ═══════════════════════════════════════════════════════════════
  *  OSIRIS — One-Click AI Overview
- *  POST /api/ai/overview   body: { mode: 'alerts' | 'markets', payload }
+ *  POST /api/ai/overview   body: { mode: 'alerts' | 'markets' | 'chain', payload }
  *
  *  Generates a punchy intelligence read-out for the Alerts or Markets
  *  panel. Uses Gemini when GEMINI_API_KEY_* is configured, otherwise
@@ -15,7 +15,7 @@ import { createGeminiClient, rotateApiKey } from '@/lib/ai-engine';
 
 export const dynamic = 'force-dynamic';
 
-type Mode = 'alerts' | 'markets';
+type Mode = 'alerts' | 'markets' | 'chain';
 
 function getEnvApiKeys(): string[] {
   const keys: string[] = [];
@@ -154,6 +154,67 @@ function digestAlerts(payload: any): Digest {
   return { summaryLine: `Global alert posture: ${level}.`, facts, highlights };
 }
 
+/**
+ * Chain-threat brief: exploits, crypto CVEs and OFAC wallet designations.
+ * Facts are stated with their figures so the heuristic path stays useful
+ * when no Gemini key is configured.
+ */
+function digestChain(payload: any): Digest {
+  const b = payload?.brief || payload || {};
+  const t = b.totals || {};
+  const exploits: any[] = Array.isArray(b.exploits) ? b.exploits : [];
+  const cves: any[] = Array.isArray(b.cves) ? b.cves : [];
+  const wallets: any[] = Array.isArray(b.sanctioned_wallets) ? b.sanctioned_wallets : [];
+
+  const facts: string[] = [];
+  const highlights: string[] = [];
+
+  const losses = num(t.exploit_losses_usd) ?? 0;
+  const usd = (n: number) =>
+    n >= 1e9 ? `$${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `$${(n / 1e6).toFixed(1)}M` : `$${Math.round(n).toLocaleString()}`;
+
+  if (exploits.length) {
+    facts.push(`${t.exploit_count ?? exploits.length} on-chain exploits in the last ${b.window_days ?? 30} days totalling ${usd(losses)} in losses.`);
+    const biggest = [...exploits].sort((a, b2) => (num(b2.amount_usd) ?? 0) - (num(a.amount_usd) ?? 0))[0];
+    if (biggest) {
+      facts.push(`Largest: ${biggest.name} on ${biggest.chain} — ${usd(num(biggest.amount_usd) ?? 0)} via ${biggest.technique}.`);
+      highlights.push(biggest.name);
+    }
+    // Which attack techniques actually dominate the window.
+    const byTech = new Map<string, number>();
+    for (const e of exploits) byTech.set(e.technique, (byTech.get(e.technique) || 0) + 1);
+    const top = [...byTech.entries()].sort((a, b2) => b2[1] - a[1])[0];
+    if (top && top[1] > 1) facts.push(`Most common technique: ${top[0]} (${top[1]} incidents).`);
+    const bridges = exploits.filter(e => e.bridge_hack).length;
+    if (bridges) facts.push(`${bridges} of these were bridge hacks.`);
+  } else {
+    facts.push('No on-chain exploits recorded in the window.');
+  }
+
+  if (cves.length) {
+    const crit = num(t.critical_cves) ?? 0;
+    facts.push(`${t.cve_count ?? cves.length} crypto-related CVEs published${crit ? `, ${crit} rated critical (CVSS ≥ 9)` : ''}.`);
+    const worst = [...cves].sort((a, b2) => (num(b2.cvss) ?? 0) - (num(a.cvss) ?? 0))[0];
+    if (worst?.cvss != null) {
+      facts.push(`Highest severity: ${worst.id} at CVSS ${worst.cvss}.`);
+      highlights.push(worst.id);
+    }
+  }
+
+  if (wallets.length) {
+    const byAsset = new Map<string, number>();
+    for (const w of wallets) byAsset.set(w.asset, (byAsset.get(w.asset) || 0) + 1);
+    const spread = [...byAsset.entries()].map(([a, n]) => `${n} ${a}`).join(', ');
+    facts.push(`${t.sanctioned_wallet_count ?? wallets.length} OFAC-designated wallets in scope (${spread}).`);
+  }
+
+  const summaryLine = exploits.length
+    ? `${usd(losses)} lost across ${t.exploit_count ?? exploits.length} on-chain incidents in the last ${b.window_days ?? 30} days.`
+    : 'Chain threat surface quiet across the selected window.';
+
+  return { summaryLine, facts, highlights };
+}
+
 /* ─────────────────────────── Renderers ─────────────────────────── */
 
 function heuristicOverview(mode: Mode, digest: Digest): string {
@@ -189,8 +250,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const mode: Mode = body.mode === 'markets' ? 'markets' : 'alerts';
-  const digest = mode === 'markets' ? digestMarkets(body.payload) : digestAlerts(body.payload);
+  const mode: Mode =
+    body.mode === 'markets' ? 'markets' : body.mode === 'chain' ? 'chain' : 'alerts';
+  const digest =
+    mode === 'markets' ? digestMarkets(body.payload)
+    : mode === 'chain' ? digestChain(body.payload)
+    : digestAlerts(body.payload);
 
   const keys = getEnvApiKeys();
   let overview: string | null = null;
