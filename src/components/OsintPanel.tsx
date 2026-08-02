@@ -9,7 +9,7 @@ import {
   ChevronDown, ChevronUp, Loader2, AlertTriangle, Server,
   Wifi, Lock, MapPin, Bug, Code, Layers, Network, Fingerprint,
   CheckCircle, XCircle, Clock, ExternalLink, Crosshair,
-  Maximize2, Minimize2, Gavel, Bitcoin, Phone, Terminal, ShieldAlert
+  Maximize2, Minimize2, Gavel, Bitcoin, Phone, Terminal, ShieldAlert, User
 } from 'lucide-react';
 import { ipToNumber, numberToIp, calculateSubnetStart, classifyDevice, assessRisk, batchFetch, ShodanInternetDBResponse, SweepDevice } from '@/lib/osint-utils';
 import ChainBrief from '@/components/ChainBrief';
@@ -32,6 +32,7 @@ const TABS = [
   { id: 'phone', label: 'PHONE INTEL', icon: Phone, placeholder: 'Phone number (e.g. +1...)', color: '#FF9500' },
   { id: 'leaks', label: 'DATA LEAKS', icon: ShieldAlert, placeholder: 'Email address', color: '#E040FB' },
   { id: 'github', label: 'GITHUB RECON', icon: Terminal, placeholder: 'GitHub username', color: '#87CEEB' },
+  { id: 'username', label: 'USERNAME', icon: User, placeholder: 'Username / handle to hunt', color: '#00E676' },
   { id: 'crypto', label: 'CHAIN INTEL', icon: Bitcoin, placeholder: 'BTC, ETH or SOL wallet address', color: '#F7931A' },
   { id: 'sweep', label: 'IP SWEEP', icon: Crosshair, placeholder: 'Enter IP address (e.g. 8.8.8.8)', color: '#FF3D3D' },
 ];
@@ -200,6 +201,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
         case 'phone': url = `/api/osint/phone?number=${encodeURIComponent(query)}`; break;
         case 'leaks': url = `https://api.xposedornot.com/v1/breach-analytics?email=${encodeURIComponent(query)}`; break;
         case 'crypto': url = `/api/osint/crypto?address=${encodeURIComponent(query)}`; break;
+        case 'username': url = `/api/osint/username?username=${encodeURIComponent(query)}`; break;
         case 'github': url = `/api/osint/github?user=${encodeURIComponent(query)}`; break;
         case 'vuln': url = `/api/scanner?target=${encodeURIComponent(query)}&type=vuln`; break;
         case 'scanner': url = `/api/scanner?target=${encodeURIComponent(query)}&type=${scanType}`; break;
@@ -253,7 +255,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
           if (data.lat && data.lng && onScanGeolocate) {
              onScanGeolocate(query, { lat: data.lat, lng: data.lng, type: 'phone', region: data.region });
           }
-        } else if (activeTab !== 'sweep' && activeTab !== 'vuln' && activeTab !== 'crypto' && activeTab !== 'mac' && activeTab !== 'bgp' && activeTab !== 'github' && activeTab !== 'leaks' && activeTab !== 'phone') {
+        } else if (activeTab !== 'sweep' && activeTab !== 'vuln' && activeTab !== 'crypto' && activeTab !== 'username' && activeTab !== 'mac' && activeTab !== 'bgp' && activeTab !== 'github' && activeTab !== 'leaks' && activeTab !== 'phone') {
           fetch(`/api/osint/ip?ip=${encodeURIComponent(query)}`)
             .then(r => r.json())
             .then(locData => {
@@ -580,6 +582,101 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
               ))}
             </div>
           )}
+        </div>
+      );
+    }
+
+    // ── USERNAME HUNT ──
+    if (activeTab === 'username') {
+      const ACCENT = '#00E676';
+      const pct = r.checked ? Math.round((r.found.length / r.checked) * 100) : 0;
+
+      return (
+        <div>
+          <SectionHeader title="USERNAME HUNT" icon={User} color={ACCENT} />
+
+          <div className="grid grid-cols-3 gap-1.5 mb-2">
+            {[
+              { label: 'FOUND', value: r.found?.length ?? 0, color: ACCENT },
+              { label: 'UNCERTAIN', value: r.inconclusive?.length ?? 0, color: '#FF9500' },
+              { label: 'CHECKED', value: r.checked ?? 0, color: '#87CEEB' },
+            ].map((c: any) => (
+              <div key={c.label} className="rounded border px-2 py-1.5" style={{ borderColor: `${c.color}33`, background: `${c.color}0d` }}>
+                <div className="text-[8px] font-mono text-[var(--text-muted)]">{c.label}</div>
+                <div className="text-[12px] font-mono font-bold" style={{ color: c.color }}>{c.value}</div>
+              </div>
+            ))}
+          </div>
+
+          <ResultRow label="Handle" value={r.username} color={ACCENT} />
+          <ResultRow label="Coverage" value={`${r.checked} of ${r.total_available} sites · ${pct}% hit rate`} />
+          <ResultRow label="Elapsed" value={r.elapsed_ms ? `${(r.elapsed_ms / 1000).toFixed(1)}s` : null} />
+
+          {r.found?.length > 0 && (
+            <>
+              <SectionHeader title={`CONFIRMED ACCOUNTS (${r.found.length})`} icon={CheckCircle} color={ACCENT} />
+              {r.found.map((f: any, i: number) => (
+                <div key={i} className="flex items-center gap-2 py-1 text-[10px] font-mono">
+                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: ACCENT }} />
+                  <span className="w-[110px] flex-shrink-0 font-bold" style={{ color: ACCENT }}>{f.site}</span>
+                  <a href={f.url} target="_blank" rel="noopener noreferrer"
+                    className="flex-1 break-all text-[var(--text-secondary)] hover:text-white hover:underline flex items-center gap-1">
+                    {f.url.replace(/^https?:\/\//, '')}
+                    <ExternalLink className="w-2.5 h-2.5 flex-shrink-0" />
+                  </a>
+                </div>
+              ))}
+            </>
+          )}
+
+          {/* Positives that a control username also triggered — shown apart so
+              they are never mistaken for real accounts. */}
+          {r.inconclusive?.length > 0 && (
+            <>
+              <SectionHeader title={`UNVERIFIABLE (${r.inconclusive.length})`} icon={AlertTriangle} color="#FF9500" />
+              <div className="text-[9px] font-mono text-[var(--text-secondary)] leading-snug mb-1">
+                These sites answered &quot;exists&quot; for a random control handle too, so a hit here is not evidence of an account.
+              </div>
+              {r.inconclusive.map((f: any, i: number) => (
+                <div key={i} className="flex items-center gap-2 py-1 text-[10px] font-mono">
+                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-[#FF9500]" />
+                  <span className="w-[110px] flex-shrink-0 text-[#FF9500]">{f.site}</span>
+                  <a href={f.url} target="_blank" rel="noopener noreferrer"
+                    className="flex-1 break-all text-[var(--text-muted)] hover:text-white hover:underline">
+                    {f.url.replace(/^https?:\/\//, '')}
+                  </a>
+                </div>
+              ))}
+            </>
+          )}
+
+          {r.errors?.length > 0 && (
+            <>
+              <SectionHeader title={`UNREACHABLE (${r.errors.length})`} icon={XCircle} color="#FF3D3D" />
+              {r.errors.slice(0, 10).map((f: any, i: number) => (
+                <div key={i} className="flex items-center gap-2 py-0.5 text-[9px] font-mono">
+                  <span className="w-[110px] flex-shrink-0 text-[#FF3D3D]">{f.site}</span>
+                  <span className="flex-1 text-[var(--text-muted)]">{f.reason}</span>
+                </div>
+              ))}
+            </>
+          )}
+
+          {r.skipped?.length > 0 && (
+            <>
+              <SectionHeader title={`NOT APPLICABLE (${r.skipped.length})`} icon={XCircle} color="#5C5A54" />
+              <div className="text-[9px] font-mono text-[var(--text-muted)] leading-snug">
+                {r.skipped.map((s: any) => s.site).join(', ')} — the handle does not meet these sites&apos; username rules.
+              </div>
+            </>
+          )}
+
+          <div className="mt-3 text-[8px] font-mono text-[var(--text-muted)] leading-relaxed">
+            {r.verified
+              ? 'Every positive re-tested against a random control handle; sites that accepted it are listed as unverifiable. Calibration catches most soft 404s but is not exhaustive — confirm before acting.'
+              : 'Calibration disabled — positives are unfiltered and include soft 404s.'}
+            <br />Source: {r.source}
+          </div>
         </div>
       );
     }
