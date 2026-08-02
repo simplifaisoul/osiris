@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 560" width="980" height="560" role="img" aria-label="OSIRIS architecture: browser client, Next.js edge routes, and external intelligence sources">
+  <title>OSIRIS architecture</title>
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F2D06B"/>
+      <stop offset="100%" stop-color="#B8912F"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#3E5C6B"/>
+    </marker>
+    <style>
+      .lbl   { font: 600 13px ui-monospace, "SF Mono", Menlo, monospace; fill: #D7D3C8; }
+      .sub   { font: 400 11px ui-monospace, "SF Mono", Menlo, monospace; fill: #7C8A93; }
+      .tier  { font: 700 11px ui-monospace, "SF Mono", Menlo, monospace; fill: #D9B24C; letter-spacing: .18em; }
+      .chip  { font: 600 11px ui-monospace, "SF Mono", Menlo, monospace; fill: #C9E7F2; }
+      .note  { font: 400 10px ui-monospace, "SF Mono", Menlo, monospace; fill: #6B7780; }
+    </style>
+  </defs>
+
+  <rect width="980" height="560" fill="#08080A"/>
+
+  <!-- ── Client tier ── -->
+  <rect x="40" y="40" width="900" height="126" rx="10" fill="#0E1418" stroke="#1E2A31"/>
+  <text class="tier" x="60" y="66">BROWSER CLIENT</text>
+  <text class="note" x="866" y="66">WebGL</text>
+
+  <rect x="60" y="80" width="200" height="66" rx="8" fill="#111A1F" stroke="#24343D"/>
+  <text class="lbl" x="76" y="106">MapLibre GL</text>
+  <text class="sub" x="76" y="126">GPU vector basemap</text>
+
+  <rect x="278" y="80" width="200" height="66" rx="8" fill="#111A1F" stroke="#24343D"/>
+  <text class="lbl" x="294" y="106">Layer panel</text>
+  <text class="sub" x="294" y="126">11 groups, on-demand</text>
+
+  <rect x="496" y="80" width="200" height="66" rx="8" fill="#111A1F" stroke="#24343D"/>
+  <text class="lbl" x="512" y="106">RECON toolkit</text>
+  <text class="sub" x="512" y="126">19 modules, 5 groups</text>
+
+  <rect x="714" y="80" width="206" height="66" rx="8" fill="#111A1F" stroke="#24343D"/>
+  <text class="lbl" x="730" y="106">HUD panels</text>
+  <text class="sub" x="730" y="126">Markets · Alerts · Graph</text>
+
+  <!-- ── Server tier ── -->
+  <rect x="40" y="212" width="900" height="140" rx="10" fill="#0E1418" stroke="#1E2A31"/>
+  <text class="tier" x="60" y="238">NEXT.JS ROUTE HANDLERS</text>
+  <text class="note" x="806" y="238">59 endpoints</text>
+
+  <g>
+    <rect x="60" y="252" width="128" height="34" rx="6" fill="#101C24" stroke="#26404E"/>
+    <text class="chip" x="74" y="274">/api/osint/*</text>
+    <rect x="200" y="252" width="128" height="34" rx="6" fill="#101C24" stroke="#26404E"/>
+    <text class="chip" x="214" y="274">/api/chain/*</text>
+    <rect x="340" y="252" width="128" height="34" rx="6" fill="#101C24" stroke="#26404E"/>
+    <text class="chip" x="354" y="274">/api/flights</text>
+    <rect x="480" y="252" width="128" height="34" rx="6" fill="#101C24" stroke="#26404E"/>
+    <text class="chip" x="494" y="274">/api/cctv</text>
+    <rect x="620" y="252" width="140" height="34" rx="6" fill="#101C24" stroke="#26404E"/>
+    <text class="chip" x="634" y="274">/api/satellites</text>
+    <rect x="772" y="252" width="148" height="34" rx="6" fill="#101C24" stroke="#26404E"/>
+    <text class="chip" x="786" y="274">/api/proxy-tiles</text>
+  </g>
+
+  <rect x="60" y="300" width="860" height="36" rx="6" fill="#0C1519" stroke="#1C2A32"/>
+  <text class="sub" x="76" y="323">Normalisation · rate limiting · SSRF guard · in-process caching · graceful degradation per source</text>
+
+  <!-- ── Source tier ── -->
+  <rect x="40" y="398" width="900" height="126" rx="10" fill="#0E1418" stroke="#1E2A31"/>
+  <text class="tier" x="60" y="424">EXTERNAL SOURCES</text>
+  <text class="note" x="812" y="424">keyless by default</text>
+
+  <text class="sub" x="60" y="452">OpenSky · USGS · NASA FIRMS · NASA EONET · NOAA SWPC · N2YO · GDACS</text>
+  <text class="sub" x="60" y="474">GDELT 2.0 · Cloudflare Radar · DefiLlama · NVD · OpenSanctions (OFAC SDN)</text>
+  <text class="sub" x="60" y="496">mempool.space · Blockscout · Solana RPC · CoinGecko · Sherlock site DB · CARTO</text>
+
+  <!-- ── Flow arrows ── -->
+  <line x1="490" y1="166" x2="490" y2="206" stroke="#3E5C6B" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <line x1="490" y1="352" x2="490" y2="392" stroke="#3E5C6B" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text class="note" x="502" y="192">fetch on layer toggle</text>
+  <text class="note" x="502" y="378">server-side only — no key ever reaches the browser</text>
+</svg>
