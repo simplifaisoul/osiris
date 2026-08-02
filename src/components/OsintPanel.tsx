@@ -14,27 +14,56 @@ import {
 import { ipToNumber, numberToIp, calculateSubnetStart, classifyDevice, assessRisk, batchFetch, ShodanInternetDBResponse, SweepDevice } from '@/lib/osint-utils';
 import ChainBrief from '@/components/ChainBrief';
 
-const TABS = [
-  { id: 'scanner', label: 'PORT SCAN', icon: Radar, placeholder: 'IP or hostname', color: '#00E5FF' },
-  { id: 'vuln', label: 'VULN SWEEP', icon: Bug, placeholder: 'IP or hostname', color: '#FF3D3D' },
+/**
+ * Tool groups. At 19 modules a flat grid forces 8px truncated labels
+ * ("SUBDOMA…", "PHONE I…"); grouping keeps every label readable and makes
+ * the toolkit scannable by what you are investigating.
+ */
+const GROUPS = [
+  { id: 'network', label: 'NETWORK & HOST', hint: 'IPs, ports, routing, hardware' },
+  { id: 'domain', label: 'DOMAIN & WEB', hint: 'DNS, certificates, site fingerprinting' },
+  { id: 'identity', label: 'IDENTITY', hint: 'People, handles, accounts' },
+  { id: 'threat', label: 'THREAT & EXPOSURE', hint: 'Reputation and breach data' },
+  { id: 'chain', label: 'BLOCKCHAIN', hint: 'Wallets and on-chain incidents' },
+] as const;
 
-  { id: 'dns', label: 'DNS', icon: Server, placeholder: 'Domain name', color: '#448AFF' },
-  { id: 'whois', label: 'WHOIS', icon: FileText, placeholder: 'Domain name', color: '#FFD700' },
-  { id: 'certs', label: 'CERTS', icon: Lock, placeholder: 'Domain name', color: '#E040FB' },
-  { id: 'threats', label: 'THREATS', icon: AlertTriangle, placeholder: 'IP, domain, or hash', color: '#FF9500' },
-  { id: 'headers', label: 'HEADERS', icon: Code, placeholder: 'URL to inspect', color: '#87CEEB' },
-  { id: 'ssl', label: 'SSL/TLS', icon: Shield, placeholder: 'Domain name', color: '#76FF03' },
-  { id: 'subdomains', label: 'SUBDOMAINS', icon: Layers, placeholder: 'Domain to enumerate', color: '#00BCD4' },
-  { id: 'tech', label: 'TECH DETECT', icon: Code, placeholder: 'URL to fingerprint', color: '#9C27B0' },
-  { id: 'shodan', label: 'SHODAN IOT', icon: Network, placeholder: 'IP address', color: '#FF3D3D' },
-  { id: 'bgp', label: 'BGP ROUTE', icon: Globe, placeholder: 'IP or ASN', color: '#00E5FF' },
-  { id: 'mac', label: 'MAC ADDR', icon: Fingerprint, placeholder: 'MAC address', color: '#FFD700' },
-  { id: 'phone', label: 'PHONE INTEL', icon: Phone, placeholder: 'Phone number (e.g. +1...)', color: '#FF9500' },
-  { id: 'leaks', label: 'DATA LEAKS', icon: ShieldAlert, placeholder: 'Email address', color: '#E040FB' },
-  { id: 'github', label: 'GITHUB RECON', icon: Terminal, placeholder: 'GitHub username', color: '#87CEEB' },
-  { id: 'username', label: 'USERNAME', icon: User, placeholder: 'Username / handle to hunt', color: '#00E676' },
-  { id: 'crypto', label: 'CHAIN INTEL', icon: Bitcoin, placeholder: 'BTC, ETH or SOL wallet address', color: '#F7931A' },
-  { id: 'sweep', label: 'IP SWEEP', icon: Crosshair, placeholder: 'Enter IP address (e.g. 8.8.8.8)', color: '#FF3D3D' },
+type GroupId = (typeof GROUPS)[number]['id'];
+
+interface ToolDef {
+  id: string;
+  label: string;
+  icon: any;
+  placeholder: string;
+  color: string;
+  group: GroupId;
+  /** Shown under the label in the expanded view. */
+  blurb: string;
+}
+
+const TABS: ToolDef[] = [
+  { id: 'scanner', label: 'PORT SCAN', icon: Radar, placeholder: 'IP or hostname', color: '#00E5FF', group: 'network', blurb: 'Open ports and running services' },
+  { id: 'vuln', label: 'VULN SWEEP', icon: Bug, placeholder: 'IP or hostname', color: '#FF3D3D', group: 'network', blurb: 'Known CVEs affecting the host' },
+  { id: 'shodan', label: 'SHODAN IOT', icon: Network, placeholder: 'IP address', color: '#FF3D3D', group: 'network', blurb: 'Internet-exposed device record' },
+  { id: 'bgp', label: 'BGP ROUTE', icon: Globe, placeholder: 'IP or ASN', color: '#00E5FF', group: 'network', blurb: 'Autonomous system and prefixes' },
+  { id: 'mac', label: 'MAC ADDR', icon: Fingerprint, placeholder: 'MAC address', color: '#FFD700', group: 'network', blurb: 'Hardware vendor lookup' },
+  { id: 'sweep', label: 'IP SWEEP', icon: Crosshair, placeholder: 'Enter IP address (e.g. 8.8.8.8)', color: '#FF3D3D', group: 'network', blurb: 'Scan an entire subnet' },
+
+  { id: 'dns', label: 'DNS', icon: Server, placeholder: 'Domain name', color: '#448AFF', group: 'domain', blurb: 'All record types' },
+  { id: 'whois', label: 'WHOIS', icon: FileText, placeholder: 'Domain name', color: '#FFD700', group: 'domain', blurb: 'Registrar and ownership' },
+  { id: 'certs', label: 'CERTS', icon: Lock, placeholder: 'Domain name', color: '#E040FB', group: 'domain', blurb: 'Certificate transparency log' },
+  { id: 'ssl', label: 'SSL/TLS', icon: Shield, placeholder: 'Domain name', color: '#76FF03', group: 'domain', blurb: 'Cipher and certificate health' },
+  { id: 'subdomains', label: 'SUBDOMAINS', icon: Layers, placeholder: 'Domain to enumerate', color: '#00BCD4', group: 'domain', blurb: 'Enumerate attack surface' },
+  { id: 'headers', label: 'HEADERS', icon: Code, placeholder: 'URL to inspect', color: '#87CEEB', group: 'domain', blurb: 'Security headers audit' },
+  { id: 'tech', label: 'TECH DETECT', icon: Code, placeholder: 'URL to fingerprint', color: '#9C27B0', group: 'domain', blurb: 'Frameworks and stack' },
+
+  { id: 'username', label: 'USERNAME', icon: User, placeholder: 'Username / handle to hunt', color: '#00E676', group: 'identity', blurb: 'Hunt a handle across platforms' },
+  { id: 'github', label: 'GITHUB RECON', icon: Terminal, placeholder: 'GitHub username', color: '#87CEEB', group: 'identity', blurb: 'Profile, repos and contacts' },
+  { id: 'phone', label: 'PHONE INTEL', icon: Phone, placeholder: 'Phone number (e.g. +1...)', color: '#FF9500', group: 'identity', blurb: 'Carrier, region and line type' },
+
+  { id: 'threats', label: 'THREATS', icon: AlertTriangle, placeholder: 'IP, domain, or hash', color: '#FF9500', group: 'threat', blurb: 'Reputation across feeds' },
+  { id: 'leaks', label: 'DATA LEAKS', icon: ShieldAlert, placeholder: 'Email address', color: '#E040FB', group: 'threat', blurb: 'Breach exposure for an address' },
+
+  { id: 'crypto', label: 'CHAIN INTEL', icon: Bitcoin, placeholder: 'BTC, ETH or SOL wallet address', color: '#F7931A', group: 'chain', blurb: 'Wallet forensics and daily brief' },
 ];
 
 interface OsintPanelProps { isOpen?: boolean; onClose?: () => void; isMobile?: boolean; onSweepVisualize?: (data: any) => void; onScanGeolocate?: (target: string, data: any) => void; }
@@ -56,6 +85,35 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
   // CHAIN INTEL carries two views: the daily brief needs no target, the wallet
   // lookup uses the shared query bar.
   const [chainView, setChainView] = useState<'brief' | 'wallet'>('brief');
+  /** Free-text filter over the toolkit — 19 modules is too many to scan. */
+  const [toolFilter, setToolFilter] = useState('');
+
+  const selectTool = useCallback((id: string) => {
+    setActiveTab(id);
+    setQuery('');
+    setResults(null);
+    setError('');
+    setSweepResult(null);
+  }, []);
+
+  // Escape leaves the expanded view — it covers the map, so there must be a
+  // way out that isn't hunting for the button.
+  useEffect(() => {
+    if (!isFullScreen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsFullScreen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isFullScreen]);
+
+  const matchesFilter = useCallback((t: ToolDef) => {
+    const q = toolFilter.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      t.label.toLowerCase().includes(q) ||
+      t.blurb.toLowerCase().includes(q) ||
+      t.id.toLowerCase().includes(q)
+    );
+  }, [toolFilter]);
   const [expandedDevice, setExpandedDevice] = useState<string | null>(null);
 
   // Fetch CVE details when a device is expanded in full-screen mode
@@ -997,9 +1055,99 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
     );
   };
 
+  /* ── Expanded-view tool rail ──────────────────────────────────
+     Fullscreen has room for the full label plus a one-line description, so
+     the toolkit becomes a readable list rather than a grid of abbreviations. */
+  const renderToolRail = () => (
+    <div className="flex flex-col h-full">
+      <div className="relative p-3 pb-2 flex-shrink-0">
+        <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)]" />
+        <input
+          value={toolFilter}
+          onChange={e => setToolFilter(e.target.value)}
+          placeholder="Filter tools…"
+          className="w-full bg-[var(--bg-primary)]/60 border border-[var(--border-primary)] rounded-lg pl-8 pr-7 py-2 text-[11px] font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)]/40 focus:outline-none"
+        />
+        {toolFilter && (
+          <button onClick={() => setToolFilter('')} className="absolute right-5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-white">
+            <XCircle className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-3 pb-3 styled-scrollbar">
+        {GROUPS.map(group => {
+          const tools = TABS.filter(t => t.group === group.id && matchesFilter(t));
+          if (!tools.length) return null;
+          return (
+            <div key={group.id} className="mb-3 last:mb-0">
+              <div className="text-[9px] font-mono tracking-[0.2em] text-[var(--text-muted)]/70 mb-1.5 pt-1">
+                {group.label}
+              </div>
+              <div className="flex flex-col gap-0.5">
+                {tools.map(tab => {
+                  const active = activeTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => selectTool(tab.id)}
+                      className="group flex items-start gap-2.5 px-2 py-1.5 rounded-lg border text-left transition-all"
+                      style={{
+                        borderColor: active ? `${tab.color}55` : 'transparent',
+                        background: active ? `${tab.color}14` : undefined,
+                      }}
+                    >
+                      <tab.icon
+                        className="w-4 h-4 mt-0.5 flex-shrink-0 transition-colors"
+                        style={{ color: active ? tab.color : 'var(--text-muted)' }}
+                      />
+                      <span className="min-w-0">
+                        <span
+                          className="block text-[11px] font-mono font-bold tracking-wider leading-tight"
+                          style={{ color: active ? tab.color : 'var(--text-secondary)' }}
+                        >
+                          {tab.label}
+                        </span>
+                        <span className="block text-[9px] font-mono text-[var(--text-muted)] leading-snug">
+                          {tab.blurb}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+        {toolFilter && !TABS.some(matchesFilter) && (
+          <div className="text-[10px] font-mono text-[var(--text-muted)] py-3 text-center">
+            No tool matches “{toolFilter}”.
+          </div>
+        )}
+      </div>
+
+      <div className="px-3 py-2 border-t border-[var(--border-secondary)] flex-shrink-0">
+        <button
+          onClick={handleSelfTrack}
+          disabled={loading}
+          className={`w-full py-2 rounded-lg border flex items-center justify-center gap-2 transition-all ${loading ? 'opacity-60 cursor-wait' : 'hover:bg-[var(--hover-accent)]'}`}
+          style={{ borderColor: 'rgba(0, 230, 118, 0.25)' }}
+        >
+          <LocateFixed className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} style={{ color: '#00E676' }} />
+          <span className="font-mono font-bold tracking-[0.1em] text-[10px]" style={{ color: '#00E676' }}>
+            {loading ? 'TRACKING…' : 'SELF TRACK'}
+          </span>
+        </button>
+      </div>
+    </div>
+  );
+
   const renderContent = () => (
     <div className="flex flex-col gap-2.5">
-      {/* Tool Grid */}
+      {/* Tool grid — omitted entirely in the expanded view, which uses the
+          rail instead. Hiding it with CSS would leave a second "Filter tools"
+          input in the DOM competing with the rail's. */}
+      {!isFullScreen && (
       <div className="flex flex-col gap-1">
         {/* Sweep & Self Track Actions */}
         <div className="grid grid-cols-2 gap-2">
@@ -1029,18 +1177,53 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
             </div>
           </button>
         </div>
-        {/* Other Tools */}
-        <div className="grid grid-cols-5 gap-1 mt-1">
-          {TABS.filter(t => t.id !== 'sweep').map(tab => (
-            <button key={tab.id} onClick={() => { setActiveTab(tab.id); setQuery(''); setResults(null); setError(''); setSweepResult(null); }}
-              className={`flex flex-col items-center gap-1 px-1 py-2 rounded-lg text-[8px] font-mono tracking-wider transition-all border ${activeTab === tab.id ? 'border-opacity-40 bg-opacity-15' : 'border-transparent hover:bg-[var(--hover-accent)]'}`}
-              style={{ borderColor: activeTab === tab.id ? tab.color : 'transparent', backgroundColor: activeTab === tab.id ? `${tab.color}15` : undefined, color: activeTab === tab.id ? tab.color : 'var(--text-muted)' }}>
-              <tab.icon className="w-3.5 h-3.5" />
-              <span className="leading-none text-center truncate w-full">{tab.label}</span>
-            </button>
-          ))}
+        {/* Toolkit — grouped so 19 modules stay scannable, and at 4 columns
+            every label fits without truncation. */}
+        <div className="mt-2">
+          <div className="relative mb-1.5">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-[var(--text-muted)]" />
+            <input
+              value={toolFilter}
+              onChange={e => setToolFilter(e.target.value)}
+              placeholder="Filter tools…"
+              className="w-full bg-[var(--bg-primary)]/60 border border-[var(--border-primary)] rounded-lg pl-7 pr-6 py-1.5 text-[9px] font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)]/40 focus:outline-none"
+            />
+            {toolFilter && (
+              <button onClick={() => setToolFilter('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-white">
+                <XCircle className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+
+          {GROUPS.map(group => {
+            const tools = TABS.filter(t => t.group === group.id && t.id !== 'sweep' && matchesFilter(t));
+            if (!tools.length) return null;
+            return (
+              <div key={group.id} className="mb-2 last:mb-0">
+                <div className="text-[8px] font-mono tracking-[0.18em] text-[var(--text-muted)]/60 mb-1">{group.label}</div>
+                <div className="grid grid-cols-4 gap-1">
+                  {tools.map(tab => (
+                    <button key={tab.id} onClick={() => selectTool(tab.id)}
+                      title={tab.blurb}
+                      className={`flex flex-col items-center gap-1 px-1 py-2 rounded-lg text-[8px] font-mono tracking-wider transition-all border ${activeTab === tab.id ? 'border-opacity-40 bg-opacity-15' : 'border-transparent hover:bg-[var(--hover-accent)]'}`}
+                      style={{ borderColor: activeTab === tab.id ? tab.color : 'transparent', backgroundColor: activeTab === tab.id ? `${tab.color}15` : undefined, color: activeTab === tab.id ? tab.color : 'var(--text-muted)' }}>
+                      <tab.icon className="w-3.5 h-3.5" />
+                      <span className="leading-tight text-center w-full">{tab.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          {toolFilter && !TABS.some(t => t.id !== 'sweep' && matchesFilter(t)) && (
+            <div className="text-[9px] font-mono text-[var(--text-muted)] py-2 text-center">
+              No tool matches “{toolFilter}”.
+            </div>
+          )}
         </div>
       </div>
+      )}
 
       {/* Input Area */}
       <div className="flex flex-col gap-1.5">
@@ -1364,21 +1547,54 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
 
   if (isFullScreen) {
     const fullScreenNode = (
-      <div className="fixed top-4 bottom-4 right-4 w-[40vw] min-w-[600px] max-w-[800px] z-[999] glass-panel bg-[#0a0a09]/95 backdrop-blur-2xl border border-[var(--cyan-primary)]/40 rounded-xl flex flex-col overflow-hidden shadow-2xl shadow-[var(--cyan-primary)]/20 transition-all duration-300">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-secondary)] bg-[#111]">
-          <div className="flex items-center gap-3">
-            <Radar className="w-5 h-5 text-[var(--cyan-primary)]" />
-            <span className="hud-text text-[16px] text-[var(--text-primary)]">OSIRIS RECON TOOLKIT</span>
-            <span className="gotham-tag gotham-tag--info" style={{ fontSize: '9px' }}>EXPANDED VIEW</span>
-            <span className="gotham-tag gotham-tag--classified" style={{ fontSize: '8px' }}>{TABS.length} MODULES</span>
+      <div className="fixed inset-4 z-[999] flex items-center justify-center">
+        {/* Click-away backdrop; Escape also exits. */}
+        <div className="absolute inset-[-1rem] bg-black/60 backdrop-blur-sm" onClick={() => setIsFullScreen(false)} />
+
+        <div className="relative w-full h-full max-w-[1500px] glass-panel bg-[#0a0a09]/97 backdrop-blur-2xl border border-[var(--cyan-primary)]/40 rounded-xl flex flex-col overflow-hidden shadow-2xl shadow-[var(--cyan-primary)]/20">
+          <div className="flex items-center justify-between px-6 py-3.5 border-b border-[var(--border-secondary)] bg-[#111] flex-shrink-0">
+            <div className="flex items-center gap-3 min-w-0">
+              <Radar className="w-5 h-5 text-[var(--cyan-primary)] flex-shrink-0" />
+              <span className="hud-text text-[16px] text-[var(--text-primary)]">OSIRIS RECON TOOLKIT</span>
+              <span className="gotham-tag gotham-tag--classified" style={{ fontSize: '8px' }}>{TABS.length} MODULES</span>
+              {currentTab && (
+                <>
+                  <span className="text-[var(--text-muted)]/40">/</span>
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <currentTab.icon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: currentTab.color }} />
+                    <span className="text-[12px] font-mono font-bold tracking-wider truncate" style={{ color: currentTab.color }}>
+                      {currentTab.label}
+                    </span>
+                  </span>
+                </>
+              )}
+            </div>
+            <button onClick={() => setIsFullScreen(false)} className="p-2 hover:bg-white/5 rounded transition-colors text-[var(--text-muted)] hover:text-white flex-shrink-0" title="Exit expanded view (Esc)">
+              <Minimize2 className="w-5 h-5" />
+            </button>
           </div>
-          <button onClick={() => setIsFullScreen(false)} className="p-2 hover:bg-white/5 rounded transition-colors text-[var(--text-muted)] hover:text-white">
-            <Minimize2 className="w-5 h-5" />
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-6 styled-scrollbar">
-          <div className="w-full full-screen-mode-content">
-             {renderContent()}
+
+          {/* Two panes: the toolkit stays visible while results use the width. */}
+          <div className="flex-1 flex min-h-0">
+            <aside className="w-[260px] flex-shrink-0 border-r border-[var(--border-secondary)] bg-[#0d0d0c]/60">
+              {renderToolRail()}
+            </aside>
+            <main className="flex-1 min-w-0 overflow-y-auto p-6 styled-scrollbar">
+              <div className="w-full full-screen-mode-content max-w-[1000px]">
+                {currentTab && (
+                  <div className="mb-4">
+                    <div className="flex items-center gap-2.5 mb-1">
+                      <currentTab.icon className="w-5 h-5" style={{ color: currentTab.color }} />
+                      <h2 className="text-[15px] font-mono font-bold tracking-widest" style={{ color: currentTab.color }}>
+                        {currentTab.label}
+                      </h2>
+                    </div>
+                    <p className="text-[10px] font-mono text-[var(--text-muted)]">{currentTab.blurb}</p>
+                  </div>
+                )}
+                {renderContent()}
+              </div>
+            </main>
           </div>
         </div>
       </div>
