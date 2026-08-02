@@ -48,7 +48,7 @@ export async function GET(req: Request) {
       all,
       includeNsfw,
       limit,
-      concurrency: all ? 30 : 20,
+      concurrency: all ? 18 : 12,
       timeoutMs: all ? 6000 : 8000,
       verify: searchParams.get('verify') !== '0',
     });

@@ -589,16 +589,17 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
     // ── USERNAME HUNT ──
     if (activeTab === 'username') {
       const ACCENT = '#00E676';
-      const pct = r.checked ? Math.round((r.found.length / r.checked) * 100) : 0;
+
 
       return (
         <div>
           <SectionHeader title="USERNAME HUNT" icon={User} color={ACCENT} />
 
-          <div className="grid grid-cols-3 gap-1.5 mb-2">
+          <div className="grid grid-cols-4 gap-1.5 mb-2">
             {[
               { label: 'FOUND', value: r.found?.length ?? 0, color: ACCENT },
-              { label: 'UNCERTAIN', value: r.inconclusive?.length ?? 0, color: '#FF9500' },
+              { label: 'UNSURE', value: r.inconclusive?.length ?? 0, color: '#FF9500' },
+              { label: 'BLOCKED', value: r.blocked?.length ?? 0, color: '#E040FB' },
               { label: 'CHECKED', value: r.checked ?? 0, color: '#87CEEB' },
             ].map((c: any) => (
               <div key={c.label} className="rounded border px-2 py-1.5" style={{ borderColor: `${c.color}33`, background: `${c.color}0d` }}>
@@ -607,9 +608,11 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
               </div>
             ))}
           </div>
-
           <ResultRow label="Handle" value={r.username} color={ACCENT} />
-          <ResultRow label="Coverage" value={`${r.checked} of ${r.total_available} sites · ${pct}% hit rate`} />
+          <ResultRow
+            label="Coverage"
+            value={`${r.checked} of ${r.total_available} sites · ${r.not_found_count ?? 0} ruled out`}
+          />
           <ResultRow label="Elapsed" value={r.elapsed_ms ? `${(r.elapsed_ms / 1000).toFixed(1)}s` : null} />
 
           {r.found?.length > 0 && (
@@ -645,6 +648,27 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
                     className="flex-1 break-all text-[var(--text-muted)] hover:text-white hover:underline">
                     {f.url.replace(/^https?:\/\//, '')}
                   </a>
+                </div>
+              ))}
+            </>
+          )}
+
+          {/* Refused the request — absence was never established here, so these
+              must not be silently folded into "not found". */}
+          {r.blocked?.length > 0 && (
+            <>
+              <SectionHeader title={`BLOCKED — NOT CHECKED (${r.blocked.length})`} icon={ShieldAlert} color="#E040FB" />
+              <div className="text-[9px] font-mono text-[var(--text-secondary)] leading-snug mb-1">
+                These sites refused the lookup, so nothing was learned either way — an account here is neither confirmed nor ruled out.
+              </div>
+              {r.blocked.map((f: any, i: number) => (
+                <div key={i} className="flex items-center gap-2 py-0.5 text-[9px] font-mono">
+                  <span className="w-[110px] flex-shrink-0 text-[#E040FB]">{f.site}</span>
+                  <a href={f.url} target="_blank" rel="noopener noreferrer"
+                    className="flex-1 break-all text-[var(--text-muted)] hover:text-white hover:underline">
+                    check manually
+                  </a>
+                  <span className="text-[var(--text-muted)]">{f.reason}</span>
                 </div>
               ))}
             </>

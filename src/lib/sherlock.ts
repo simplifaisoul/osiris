@@ -38,7 +38,33 @@ interface SiteDef {
   username_claimed?: string;
 }
 
-export type Status = 'found' | 'not_found' | 'error' | 'skipped' | 'inconclusive';
+export type Status = 'found' | 'not_found' | 'error' | 'skipped' | 'inconclusive' | 'blocked';
+
+/**
+ * Codes that mean "we were refused", not "no such account". Measured against
+ * Sherlock's own known-good handles, treating these as absence produced 8 of
+ * 12 false negatives — the single largest source of wrong answers.
+ */
+const BLOCKED_CODES = new Set([401, 403, 407, 429, 451, 503]);
+
+/** Interstitials that return 200 while showing no profile data. */
+const CHALLENGE_MARKERS = [
+  'just a moment',
+  'attention required',
+  'cf-browser-verification',
+  'enable javascript and cookies',
+  'checking your browser',
+  'access denied',
+  'unusual traffic',
+  'are you a robot',
+  'px-captcha',
+  'captcha-delivery',
+];
+
+function looksLikeChallenge(body: string): boolean {
+  const head = body.slice(0, 4000).toLowerCase();
+  return CHALLENGE_MARKERS.some(m => head.includes(m));
+}
 
 export interface SiteResult {
   site: string;
@@ -59,6 +85,8 @@ export interface UsernameScan {
   /** Sites that also claim a random control username exists, so their
    *  positive proves nothing. Reported separately rather than as hits. */
   inconclusive: SiteResult[];
+  /** Sites that refused the request. Absence was NOT established here. */
+  blocked: SiteResult[];
   not_found_count: number;
   errors: SiteResult[];
   skipped: SiteResult[];
@@ -174,12 +202,13 @@ async function checkSite(name: string, def: SiteDef, username: string, timeoutMs
     const init: RequestInit = {
       method,
       signal: AbortSignal.timeout(timeoutMs),
-      redirect: def.errorType === 'response_url' ? 'follow' : 'follow',
+      redirect: 'follow',
       headers: {
-        // Several sites serve a different body to unknown agents.
+        // A browser User-Agent only. Sending an explicit Accept header made
+        // things worse, not better — Discogs answers 403 with it and 200
+        // without, and no site was measured to need it.
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36',
-        Accept: 'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
         ...(def.headers || {}),
       },
     };
@@ -191,17 +220,53 @@ async function checkSite(name: string, def: SiteDef, username: string, timeoutMs
     const res = await fetch(requestUrl, init);
     const ms = Date.now() - started;
 
+    /* A refusal tells us nothing about the account. Checked before any
+       per-strategy logic, because a challenge body contains neither the
+       site's "missing profile" marker (which would read as a hit) nor real
+       profile data. A site's own errorCode still wins — some legitimately
+       answer 403 for an absent user. */
+    const declaredErrorCodes = asArray(def.errorCode);
+    if (BLOCKED_CODES.has(res.status) && !declaredErrorCodes.includes(res.status)) {
+      return {
+        site: name,
+        url: profileUrl,
+        status: 'blocked',
+        http_status: res.status,
+        reason: res.status === 429 ? 'rate limited by the site' : `refused with HTTP ${res.status}`,
+        ms,
+      };
+    }
+
     if (def.errorType === 'status_code') {
-      const errorCodes = asArray(def.errorCode);
-      if (errorCodes.includes(res.status)) {
+      if (declaredErrorCodes.includes(res.status)) {
         return { site: name, url: profileUrl, status: 'not_found', http_status: res.status, ms };
       }
       const found = res.status >= 200 && res.status < 300;
+
+      /* Some urlProbe endpoints upstream are simply broken — PyPi's points at
+         an admin-only include that 404s for everyone, so a real account reads
+         as absent. When a probe says "missing", give the canonical profile URL
+         one chance to disagree. Calibration re-tests any positive against a
+         control, so a soft-404 here cannot sneak through as a hit. */
+      if (!found && def.urlProbe && requestUrl !== profileUrl) {
+        try {
+          const confirm = await fetch(profileUrl, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+          if (confirm.status >= 200 && confirm.status < 300) {
+            return { site: name, url: profileUrl, status: 'found', http_status: confirm.status, ms: Date.now() - started };
+          }
+        } catch {
+          /* fall through to the probe's verdict */
+        }
+      }
+
       return { site: name, url: profileUrl, status: found ? 'found' : 'not_found', http_status: res.status, ms };
     }
 
     if (def.errorType === 'message') {
       const body = await res.text();
+      if (looksLikeChallenge(body)) {
+        return { site: name, url: profileUrl, status: 'blocked', http_status: res.status, reason: 'bot challenge served instead of a profile', ms };
+      }
       const markers = asArray(def.errorMsg);
       const missing = markers.some(m => body.includes(m));
       return { site: name, url: profileUrl, status: missing ? 'not_found' : 'found', http_status: res.status, ms };
@@ -266,7 +331,10 @@ export function isValidUsername(username: string): boolean {
 }
 
 export async function scanUsername(username: string, opts: ScanOptions = {}): Promise<UsernameScan> {
-  const { all = false, includeNsfw = false, limit, concurrency = 20, timeoutMs = 8000, verify = true } = opts;
+  // Concurrency is deliberately modest: at 20 the scan was triggering the
+  // sites' own rate limiters, and self-inflicted 429s look exactly like a
+  // missing account unless treated as blocked.
+  const { all = false, includeNsfw = false, limit, concurrency = 12, timeoutMs = 8000, verify = true } = opts;
   const started = Date.now();
 
   const db = await loadSites();
@@ -293,9 +361,14 @@ export async function scanUsername(username: string, opts: ScanOptions = {}): Pr
      can hold: any site that "finds" that one cannot be trusted for this scan.
      Only positives are re-tested, so the extra cost is small. */
   if (verify && found.length) {
-    const control = controlUsername();
-    const controlResults = await mapLimit(found, Math.min(concurrency, found.length), r =>
-      checkSite(r.site, db[r.site], control, timeoutMs)
+    /* Two independent controls, not one. With a single sample a soft-404 site
+       can slip through whenever that particular control happens to be
+       rejected — Roblox and WordPress passed for one handle while being
+       flagged for another. A site is unreliable if *either* control lands. */
+    const controls = [controlUsername(), controlUsername()];
+    const probes = controls.flatMap(c => found.map(r => ({ site: r.site, control: c })));
+    const controlResults = await mapLimit(probes, Math.min(concurrency, probes.length), p =>
+      checkSite(p.site, db[p.site], p.control, timeoutMs)
     );
     const unreliable = new Set(
       controlResults.filter(c => c.status === 'found').map(c => c.site)
@@ -320,6 +393,7 @@ export async function scanUsername(username: string, opts: ScanOptions = {}): Pr
     total_available: totalAvailable,
     found,
     inconclusive,
+    blocked: results.filter(r => r.status === 'blocked'),
     not_found_count: results.filter(r => r.status === 'not_found').length,
     errors: results.filter(r => r.status === 'error'),
     skipped: results.filter(r => r.status === 'skipped'),
