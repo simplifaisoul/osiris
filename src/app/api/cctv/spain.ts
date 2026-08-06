@@ -24,7 +24,12 @@ const YOUTUBE_LIVE: CctvCamera[] = [
 
 // ── SkylineWebcams — Live Snapshot JPGs (auto-refresh) ──
 // Source: https://www.skylinewebcams.com/es/webcam/espana.html
-// CDN pattern: cdn.skylinewebcams.com/live{ID}.jpg — updates every few seconds
+// CDN pattern: cdn.skylinewebcams.com/live{ID}.jpg
+// NOTE: this is Skyline's catalog poster, not a guaranteed live frame. Roughly
+// a third of them refresh; the rest are frozen at whatever the camera saw when
+// it was catalogued (some as far back as 2021). Only cameras whose poster was
+// observed changing keep a feed_url — the rest carry external_url alone so the
+// viewer shows an external-feed card instead of a stale still.
 const SKYLINE_SPAIN: CctvCamera[] = [
   // ─── Canarias - Tenerife ───
   { id: 'sky-es-los-cristianos', lat: 28.0517, lng: -16.7155, name: 'Playa de Los Cristianos', city: 'Tenerife', country: 'Spain', feed_url: '/api/cctv/proxy?url=https%3A%2F%2Fcdn.skylinewebcams.com%2Flive340.jpg', external_url: 'https://www.skylinewebcams.com/en/webcam/espana/canarias/santa-cruz-de-tenerife/playa-los-cristianos.html', source: 'SkylineWebcams' },
@@ -60,8 +65,8 @@ const SKYLINE_SPAIN: CctvCamera[] = [
   { id: 'sky-es-corralejo-gp', lat: 28.7350, lng: -13.8600, name: 'Grandes Playas de Corralejo', city: 'Fuerteventura', country: 'Spain', feed_url: '/api/cctv/proxy?url=https%3A%2F%2Fcdn.skylinewebcams.com%2Flive6086.jpg', external_url: 'https://www.skylinewebcams.com/en/webcam/espana/canarias/corralejo/grandes-playas-corralejo.html', source: 'SkylineWebcams' },
   { id: 'sky-es-playa-blanca', lat: 28.8600, lng: -13.8300, name: 'Yaiza - Playa Blanca', city: 'Lanzarote', country: 'Spain', feed_url: '/api/cctv/proxy?url=https%3A%2F%2Fcdn.skylinewebcams.com%2Flive6084.jpg', external_url: 'https://www.skylinewebcams.com/en/webcam/espana/canarias/las-palmas/yaiza-playa-blanca.html', source: 'SkylineWebcams' },
   // ─── Mainland - Madrid ───
-  { id: 'sky-es-sol-tiopepe', lat: 40.4170, lng: -3.7035, name: 'Puerta del Sol - Tío Pepe', city: 'Madrid', country: 'Spain', feed_url: '/api/cctv/proxy?url=https%3A%2F%2Fcdn.skylinewebcams.com%2Flive519.jpg', external_url: 'https://www.skylinewebcams.com/en/webcam/espana/comunidad-de-madrid/madrid/puerta-del-sol-tio-pepe.html', source: 'SkylineWebcams' },
-  { id: 'sky-es-sol-mayor', lat: 40.4172, lng: -3.7050, name: 'Puerta del Sol - Calle Mayor', city: 'Madrid', country: 'Spain', feed_url: '/api/cctv/proxy?url=https%3A%2F%2Fcdn.skylinewebcams.com%2Flive6111.jpg', external_url: 'https://www.skylinewebcams.com/en/webcam/espana/comunidad-de-madrid/madrid/puerta-del-sol-calle-mayor.html', source: 'SkylineWebcams' },
+  { id: 'sky-es-sol-tiopepe', lat: 40.4170, lng: -3.7035, name: 'Puerta del Sol - Tío Pepe', city: 'Madrid', country: 'Spain', external_url: 'https://www.skylinewebcams.com/en/webcam/espana/comunidad-de-madrid/madrid/puerta-del-sol-tio-pepe.html', source: 'SkylineWebcams' },
+  { id: 'sky-es-sol-mayor', lat: 40.4172, lng: -3.7050, name: 'Puerta del Sol - Calle Mayor', city: 'Madrid', country: 'Spain', external_url: 'https://www.skylinewebcams.com/en/webcam/espana/comunidad-de-madrid/madrid/puerta-del-sol-calle-mayor.html', source: 'SkylineWebcams' },
   { id: 'sky-es-callao', lat: 40.4200, lng: -3.7070, name: 'Madrid - Plaza del Callao', city: 'Madrid', country: 'Spain', feed_url: '/api/cctv/proxy?url=https%3A%2F%2Fcdn.skylinewebcams.com%2Flive566.jpg', external_url: 'https://www.skylinewebcams.com/en/webcam/espana/comunidad-de-madrid/madrid/madrid-plaza-del-callao.html', source: 'SkylineWebcams' },
   { id: 'sky-es-alcala', lat: 40.4190, lng: -3.6940, name: 'Calle de Alcalá - Cibeles', city: 'Madrid', country: 'Spain', feed_url: '/api/cctv/proxy?url=https%3A%2F%2Fcdn.skylinewebcams.com%2Flive314.jpg', external_url: 'https://www.skylinewebcams.com/en/webcam/espana/comunidad-de-madrid/madrid/calle-alcala.html', source: 'SkylineWebcams' },
   // ─── Mainland - Andalucía ───
@@ -78,7 +83,7 @@ const SKYLINE_SPAIN: CctvCamera[] = [
   // ─── Cataluña ───
   { id: 'sky-es-lloret', lat: 41.7010, lng: 2.8460, name: 'Lloret de Mar - Costa Brava', city: 'Lloret de Mar', country: 'Spain', feed_url: '/api/cctv/proxy?url=https%3A%2F%2Fcdn.skylinewebcams.com%2Flive631.jpg', external_url: 'https://www.skylinewebcams.com/en/webcam/espana/cataluna/gerona/lloret-de-mar-costa-brava.html', source: 'SkylineWebcams' },
   { id: 'sky-es-calafell', lat: 41.1970, lng: 1.5660, name: 'Calafell - Tarragona', city: 'Calafell', country: 'Spain', feed_url: '/api/cctv/proxy?url=https%3A%2F%2Fcdn.skylinewebcams.com%2Flive3822.jpg', external_url: 'https://www.skylinewebcams.com/en/webcam/espana/cataluna/tarragona/calafell.html', source: 'SkylineWebcams' },
-  { id: 'sky-es-barcelona-cat', lat: 41.3810, lng: 2.1970, name: 'Tour en Catamarán - Port Olímpic', city: 'Barcelona', country: 'Spain', feed_url: '/api/cctv/proxy?url=https%3A%2F%2Fcdn.skylinewebcams.com%2Flive3759.jpg', external_url: 'https://www.skylinewebcams.com/en/webcam/espana/cataluna/barcelona/catamaran.html', source: 'SkylineWebcams' },
+  { id: 'sky-es-barcelona-cat', lat: 41.3810, lng: 2.1970, name: 'Tour en Catamarán - Port Olímpic', city: 'Barcelona', country: 'Spain', external_url: 'https://www.skylinewebcams.com/en/webcam/espana/cataluna/barcelona/catamaran.html', source: 'SkylineWebcams' },
   // ─── Cantabria ───
   { id: 'sky-es-sardinero', lat: 43.4750, lng: -3.7870, name: 'Santander - Playa del Sardinero', city: 'Santander', country: 'Spain', feed_url: '/api/cctv/proxy?url=https%3A%2F%2Fcdn.skylinewebcams.com%2Flive728.jpg', external_url: 'https://www.skylinewebcams.com/en/webcam/espana/cantabria/santander/playa-del-sardinero.html', source: 'SkylineWebcams' },
   { id: 'sky-es-suances', lat: 43.4320, lng: -4.0420, name: 'Suances - Playa de la Concha', city: 'Suances', country: 'Spain', feed_url: '/api/cctv/proxy?url=https%3A%2F%2Fcdn.skylinewebcams.com%2Flive804.jpg', external_url: 'https://www.skylinewebcams.com/en/webcam/espana/cantabria/suances/playa-de-la-concha.html', source: 'SkylineWebcams' },

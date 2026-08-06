@@ -304,11 +304,16 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
               <div className="flex gap-4">
                 <div className="flex flex-col">
                   <span className="text-[6px] text-[var(--text-muted)] font-mono tracking-widest">FEED TYPE</span>
-                  <span className="text-[8px] text-white font-mono tracking-widest uppercase">{streamType}</span>
+                  <span className="text-[8px] text-white font-mono tracking-widest uppercase">
+                    {externalOnly ? 'EXTERNAL' : streamType}
+                  </span>
                 </div>
                 <div className="flex flex-col border-l border-white/10 pl-4">
                   <span className="text-[6px] text-[var(--text-muted)] font-mono tracking-widest">STATUS</span>
-                  <span className="text-[8px] text-[var(--alert-green)] font-mono tracking-widest">ACTIVE / RECORDING</span>
+                  {/* Nothing is being received locally for an external feed — don't claim otherwise. */}
+                  <span className={`text-[8px] font-mono tracking-widest ${externalOnly ? 'text-[var(--gold-primary)]' : 'text-[var(--alert-green)]'}`}>
+                    {externalOnly ? 'HOSTED OFF-PLATFORM' : 'ACTIVE / RECORDING'}
+                  </span>
                 </div>
               </div>
               <div className="flex gap-3">
