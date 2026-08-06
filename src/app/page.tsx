@@ -9,7 +9,6 @@ import MarketsPanel from '@/components/MarketsPanel';
 import ScmPanel from '@/components/ScmPanel';
 import SearchBar from '@/components/SearchBar';
 import DirectionsBar, { type RouteResult } from '@/components/DirectionsBar';
-import PlacePanel from '@/components/PlacePanel';
 import ScaleBar from '@/components/ScaleBar';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import SharePanel from '@/components/SharePanel';
@@ -114,9 +113,6 @@ export default function Dashboard() {
   const [activeRoute, setActiveRoute] = useState<
     (RouteResult & { from: { lat: number; lng: number }; to: { lat: number; lng: number } }) | null
   >(null);
-  const [placeTarget, setPlaceTarget] = useState<{ lat: number; lng: number } | null>(null);
-  // Bumping the key remounts DirectionsBar so it picks up a new seeded destination
-  const [routeSeed, setRouteSeed] = useState<{ label: string; lat: number; lng: number; k: number } | null>(null);
   const [showRemote, setShowRemote] = useState(false);
   const [showArcGIS, setShowArcGIS] = useState(false);
   const [arcgisLayers, setArcgisLayers] = useState<Array<{ id: string; title: string; url: string; geojson: any; color: string; visible: boolean; opacity: number }>>([]);
@@ -866,35 +862,13 @@ export default function Dashboard() {
         {showDirections && (
           <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}>
             <DirectionsBar
-              key={routeSeed?.k ?? 'fresh'}
-              initialTo={routeSeed ? { label: routeSeed.label, lat: routeSeed.lat, lng: routeSeed.lng } : null}
               onRoute={(r) => setActiveRoute(r)}
               onLocate={(lat, lng, zoom) => setFlyToLocation({ lat, lng, zoom, ts: Date.now() })}
-              onClose={() => { setShowDirections(false); setActiveRoute(null); setRouteSeed(null); }}
+              onClose={() => { setShowDirections(false); setActiveRoute(null); }}
             />
           </motion.div>
         )}
       </div>
-
-      {/* ── PLACE INTELLIGENCE (left of centre, below the directions bar) ── */}
-      {placeTarget && (
-        <motion.div
-          initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }}
-          className="absolute top-3 z-[390] w-[min(92vw,330px)] pointer-events-auto"
-          style={{ left: isMobile ? '12px' : '120px' }}
-        >
-          <PlacePanel
-            key={`${placeTarget.lat},${placeTarget.lng}`}
-            target={placeTarget}
-            onClose={() => setPlaceTarget(null)}
-            onRouteTo={(p) => {
-              setRouteSeed({ ...p, k: Date.now() });
-              setShowDirections(true);
-              setPlaceTarget(null);
-            }}
-          />
-        </motion.div>
-      )}
 
 
       {/* ── MAP VIEW CONTROLS ── */}
@@ -905,21 +879,6 @@ export default function Dashboard() {
       >
         {/* Unified Control Strip */}
         <div className="flex items-center gap-1.5 pointer-events-auto">
-          {/* What's here — place intelligence for the current map centre */}
-          <button
-            onClick={() => setPlaceTarget(mapCenter ? { lat: mapCenter.lat, lng: mapCenter.lng } : null)}
-            disabled={!mapCenter}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[9px] font-mono tracking-wider transition-all duration-200 backdrop-blur-2xl shadow-[0_4px_24px_rgba(0,0,0,0.5)] ${
-              placeTarget
-                ? 'border-[var(--border-active)] bg-[var(--gold-primary)]/15 text-[var(--gold-primary)]'
-                : 'border-[var(--border-primary)] bg-[var(--bg-panel)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-            } disabled:opacity-40`}
-            title="What's here? — identify the place at the map centre"
-          >
-            <MapPinned className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">WHAT&apos;S HERE</span>
-          </button>
-
           {/* Projection Toggle (Globe / 2D) */}
           <div className="flex items-center rounded-xl overflow-hidden border border-[var(--border-primary)] bg-[var(--bg-panel)] backdrop-blur-2xl shadow-[0_4px_24px_rgba(0,0,0,0.5)]">
             <button

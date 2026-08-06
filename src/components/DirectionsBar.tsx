@@ -38,8 +38,6 @@ interface DirectionsBarProps {
   onRoute: (route: (RouteResult & { from: Place; to: Place }) | null) => void;
   onLocate?: (lat: number, lng: number, zoom?: number) => void;
   onClose?: () => void;
-  /** Pre-filled destination; consumed as initial state (parent remounts by key). */
-  initialTo?: Place | null;
 }
 
 interface NominatimPlace {
@@ -244,11 +242,11 @@ function PlaceInput({
   );
 }
 
-export default function DirectionsBar({ onRoute, onLocate, onClose, initialTo = null }: DirectionsBarProps) {
+export default function DirectionsBar({ onRoute, onLocate, onClose }: DirectionsBarProps) {
   const [fromText, setFromText] = useState('');
-  const [toText, setToText] = useState(initialTo ? shortLabel(initialTo.label) : '');
+  const [toText, setToText] = useState('');
   const [from, setFrom] = useState<Place | null>(null);
-  const [to, setTo] = useState<Place | null>(initialTo);
+  const [to, setTo] = useState<Place | null>(null);
   const [mode, setMode] = useState<string>('auto');
   const [route, setRoute] = useState<RouteResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -331,11 +329,11 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, initialTo = 
         <div className="flex-1 min-w-0 flex flex-col divide-y divide-[var(--border-secondary)]">
           <PlaceInput
             value={fromText} onChange={setFromText} onPick={pickFrom}
-            placeholder="Choose starting point" autoFocus={!initialTo}
+            placeholder="Choose starting point" autoFocus
           />
           <PlaceInput
             value={toText} onChange={setToText} onPick={pickTo}
-            placeholder="Choose destination" autoFocus={Boolean(initialTo)}
+            placeholder="Choose destination"
           />
         </div>
 
