@@ -24,6 +24,7 @@ import { fetchHongKongCameras } from './hongkong';
 import { fetchUtahCameras } from './utah';
 import { fetchIcelandCameras } from './iceland';
 import { fetchTaiwanCameras } from './taiwan';
+import { fetchAsiaLiveCameras } from './asia-live';
 
 /**
  * OSIRIS — Worldwide CCTV Camera API v2
@@ -441,6 +442,7 @@ const REGION_FETCHERS: Record<string, () => Promise<any[]>> = {
   'utah': fetchUtahCameras,
   'iceland': fetchIcelandCameras,
   'taiwan': fetchTaiwanCameras,
+  'asia-live': fetchAsiaLiveCameras,
 };
 
 // Determine which regions to fetch based on viewport bounds
@@ -508,6 +510,9 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
 
   // Taiwan
   if (lat > 21.9 && lat < 25.3 && lng > 119.5 && lng < 122.1) regions.push('taiwan');
+
+  // Asia live webcams — spans West Asia (Turkey / Levant / Gulf) through Japan and Indonesia
+  if (lat > -11 && lat < 46 && lng > 25 && lng < 155) regions.push('asia-live');
 
   // Asia (includes Middle East, SE Asia, overriding parts of china but that's ok they can both load)
   if ((lat > -10 && lat < 60 && lng > 60 && lng < 150)) regions.push('asia');
