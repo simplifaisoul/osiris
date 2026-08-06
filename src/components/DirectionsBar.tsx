@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   X, Car, Footprints, Bike, ArrowUpDown, MapPin, Flag, Route,
   CornerUpRight, CornerUpLeft, ArrowUp, RotateCw, Merge, Search,
+  LocateFixed, Building2, Landmark, Globe2, Signpost, Home,
 } from 'lucide-react';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -28,22 +29,30 @@ export interface RouteResult {
   steps: RouteStep[];
 }
 
+interface GeoHit {
+  name: string;
+  context: string;
+  lat: number;
+  lng: number;
+  kind: string;
+}
+
 interface Place {
   label: string;
   lat: number;
   lng: number;
+  /** Secondary line, e.g. "Avenue Anatole France, Paris, France". */
+  context?: string;
+  /** poi | address | street | city | region | country | coordinate | current */
+  kind?: string;
 }
 
 interface DirectionsBarProps {
   onRoute: (route: (RouteResult & { from: Place; to: Place }) | null) => void;
   onLocate?: (lat: number, lng: number, zoom?: number) => void;
   onClose?: () => void;
-}
-
-interface NominatimPlace {
-  display_name: string;
-  lat: string;
-  lon: string;
+  /** Current map centre — biases search toward what the operator is looking at. */
+  center?: { lat: number; lng: number } | null;
 }
 
 const MODES = [
@@ -78,19 +87,6 @@ export function viaRoad(steps: RouteStep[]): string | null {
   return best?.road ?? null;
 }
 
-/** A "lat, lng" label must never be split on its comma like an address. */
-export function isCoordLabel(label: string): boolean {
-  return /^-?\d+\.?\d*,\s*-?\d+\.?\d*$/.test(label.trim());
-}
-
-/** Shorten a Nominatim display_name to something readable in a narrow field. */
-export function shortLabel(displayName: string): string {
-  if (isCoordLabel(displayName)) return displayName.trim();
-  const parts = displayName.split(',').map((p) => p.trim()).filter(Boolean);
-  if (parts.length <= 2) return parts.join(', ');
-  return `${parts[0]}, ${parts[1]}`;
-}
-
 function StepIcon({ type }: { type: string }) {
   // Turns carry the actual navigational signal, so they get the accent colour;
   // start/finish are green/flagged; filler moves stay muted.
@@ -104,21 +100,40 @@ function StepIcon({ type }: { type: string }) {
   return <ArrowUp className={`${cls} text-[var(--text-muted)]`} />;
 }
 
+/** Icon for a search hit, so the list is scannable by type. */
+function KindIcon({ kind }: { kind?: string }) {
+  const cls = 'w-3 h-3 flex-shrink-0 mt-0.5';
+  if (kind === 'coordinate') return <MapPin className={`${cls} text-[var(--cyan-primary)]`} />;
+  if (kind === 'current') return <LocateFixed className={`${cls} text-[var(--alert-green)]`} />;
+  if (kind === 'country') return <Globe2 className={`${cls} text-[var(--gold-primary)]`} />;
+  if (kind === 'region' || kind === 'city') return <Landmark className={`${cls} text-[#FF9500]`} />;
+  if (kind === 'street') return <Signpost className={`${cls} text-[var(--text-secondary)]`} />;
+  if (kind === 'address') return <Home className={`${cls} text-[var(--text-secondary)]`} />;
+  if (kind === 'poi') return <Building2 className={`${cls} text-[var(--cyan-primary)]`} />;
+  return <Search className={`${cls} text-[var(--text-muted)]`} />;
+}
+
 /** Origin / destination field with Nominatim autocomplete. */
 function PlaceInput({
-  value, onChange, onPick, placeholder, autoFocus,
+  value, onChange, onPick, placeholder, autoFocus, biasLat, biasLng, onLocate, locating,
 }: {
   value: string;
   onChange: (v: string) => void;
   onPick: (p: Place) => void;
   placeholder: string;
   autoFocus?: boolean;
+  biasLat?: number;
+  biasLng?: number;
+  /** Present only on the origin field — fills it with the operator's position. */
+  onLocate?: () => void;
+  locating?: boolean;
 }) {
   const [results, setResults] = useState<Place[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [idx, setIdx] = useState(-1);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abort = useRef<AbortController | null>(null);
   const box = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -139,7 +154,7 @@ function PlaceInput({
       const lat = parseFloat(coord[1]);
       const lng = parseFloat(coord[2]);
       if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-        setResults([{ label: `${lat.toFixed(5)}, ${lng.toFixed(5)}`, lat, lng }]);
+        setResults([{ label: `${lat.toFixed(5)}, ${lng.toFixed(5)}`, lat, lng, kind: 'coordinate', context: 'Coordinates' }]);
         setOpen(true);
         return;
       }
@@ -148,24 +163,35 @@ function PlaceInput({
     if (q.trim().length < 2) { setResults([]); setOpen(false); return; }
 
     timer.current = setTimeout(async () => {
+      // Abandon any in-flight lookup so a slow earlier keystroke can never
+      // overwrite the results for what the user has actually typed.
+      abort.current?.abort();
+      const ctrl = new AbortController();
+      abort.current = ctrl;
+
       setLoading(true);
       try {
+        const bias = biasLat !== undefined && biasLng !== undefined
+          ? `&lat=${biasLat}&lng=${biasLng}` : '';
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6`,
-          { headers: { 'Accept-Language': 'en' } },
+          `/api/geosearch?q=${encodeURIComponent(q)}${bias}`,
+          { signal: ctrl.signal },
         );
-        const data: NominatimPlace[] = await res.json();
-        setResults(data.map((r) => ({
-          label: r.display_name, lat: parseFloat(r.lat), lng: parseFloat(r.lon),
+        const data: { results?: GeoHit[] } = await res.json();
+        if (ctrl.signal.aborted) return;
+        setResults((data.results || []).map((r) => ({
+          label: r.name, context: r.context, lat: r.lat, lng: r.lng, kind: r.kind,
         })));
         setOpen(true);
-      } catch { setResults([]); }
-      setLoading(false);
-    }, 320);
-  }, [onChange]);
+      } catch {
+        if (!ctrl.signal.aborted) setResults([]);
+      }
+      if (!ctrl.signal.aborted) setLoading(false);
+    }, 280);
+  }, [onChange, biasLat, biasLng]);
 
   const choose = (p: Place) => {
-    onChange(shortLabel(p.label));
+    onChange(p.label);
     onPick(p);
     setOpen(false);
     setResults([]);
@@ -198,7 +224,21 @@ function PlaceInput({
       />
 
       {loading && (
-        <span className="absolute right-0 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full border border-[var(--gold-primary)] border-t-transparent animate-spin" />
+        <span className="absolute right-6 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full border border-[var(--gold-primary)] border-t-transparent animate-spin" />
+      )}
+
+      {onLocate && (
+        <button
+          type="button"
+          onClick={onLocate}
+          disabled={locating}
+          title="Use my location"
+          aria-label="Use my location"
+          className="absolute right-0 top-1/2 -translate-y-1/2 p-1 rounded text-[var(--text-muted)]
+                     hover:text-[var(--alert-green)] hover:bg-[rgba(0,230,118,0.08)] transition-colors disabled:opacity-50"
+        >
+          <LocateFixed className={`w-3.5 h-3.5 ${locating ? 'animate-pulse text-[var(--alert-green)]' : ''}`} />
+        </button>
       )}
 
       {open && results.length > 0 && (
@@ -207,42 +247,33 @@ function PlaceInput({
                      border border-[var(--border-primary)] bg-[var(--bg-panel-solid)] max-h-[220px] overflow-y-auto styled-scrollbar"
           style={{ boxShadow: '0 16px 40px rgba(0,0,0,0.7)' }}
         >
-          {results.map((r, i) => {
-            const coord = isCoordLabel(r.label);
-            const parts = coord ? [r.label] : r.label.split(',').map((p) => p.trim());
-            return (
-              <button
-                key={i}
-                onClick={() => choose(r)}
-                onMouseEnter={() => setIdx(i)}
-                className={`w-full text-left px-2.5 py-2 flex items-start gap-2 transition-colors ${
-                  i === idx ? 'bg-[rgba(var(--gold-rgb),0.10)]' : 'hover:bg-[rgba(255,255,255,0.03)]'
-                }`}
-              >
-                {coord
-                  ? <MapPin className="w-3 h-3 text-[var(--cyan-primary)] flex-shrink-0 mt-0.5" />
-                  : <Search className="w-3 h-3 text-[var(--text-muted)] flex-shrink-0 mt-0.5" />}
-                <span className="min-w-0">
-                  <span className="block text-[10px] text-[var(--text-primary)] truncate tabular-nums">{parts[0]}</span>
-                  {parts.length > 1 && (
-                    <span className="block text-[9px] text-[var(--text-muted)] truncate">
-                      {parts.slice(1, 4).join(', ')}
-                    </span>
-                  )}
-                  {coord && (
-                    <span className="block text-[9px] text-[var(--text-muted)]">Coordinates</span>
-                  )}
+          {results.map((r, i) => (
+            <button
+              key={i}
+              onClick={() => choose(r)}
+              onMouseEnter={() => setIdx(i)}
+              className={`w-full text-left px-2.5 py-2 flex items-start gap-2 transition-colors ${
+                i === idx ? 'bg-[rgba(var(--gold-rgb),0.10)]' : 'hover:bg-[rgba(255,255,255,0.03)]'
+              }`}
+            >
+              <KindIcon kind={r.kind} />
+              <span className="min-w-0">
+                <span className={`block text-[10px] text-[var(--text-primary)] truncate ${r.kind === 'coordinate' ? 'tabular-nums' : ''}`}>
+                  {r.label}
                 </span>
-              </button>
-            );
-          })}
+                {r.context && (
+                  <span className="block text-[9px] text-[var(--text-muted)] truncate">{r.context}</span>
+                )}
+              </span>
+            </button>
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-export default function DirectionsBar({ onRoute, onLocate, onClose }: DirectionsBarProps) {
+export default function DirectionsBar({ onRoute, onLocate, onClose, center = null }: DirectionsBarProps) {
   const [fromText, setFromText] = useState('');
   const [toText, setToText] = useState('');
   const [from, setFrom] = useState<Place | null>(null);
@@ -252,6 +283,8 @@ export default function DirectionsBar({ onRoute, onLocate, onClose }: Directions
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeStep, setActiveStep] = useState<number | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [locateError, setLocateError] = useState<string | null>(null);
 
   const runRoute = useCallback(async (a: Place, b: Place, m: string) => {
     setLoading(true);
@@ -275,6 +308,56 @@ export default function DirectionsBar({ onRoute, onLocate, onClose }: Directions
     }
     setLoading(false);
   }, [onRoute]);
+
+  /**
+   * Fill the origin with wherever the operator is.
+   *
+   * Tries the browser first (precise, but needs permission and a secure
+   * context), then falls back to OSIRIS's existing IP geolocation, which needs
+   * neither — so this still does something useful when permission is denied.
+   */
+  const useMyLocation = useCallback(async () => {
+    setLocating(true);
+    setLocateError(null);
+
+    const apply = (lat: number, lng: number, label: string) => {
+      const place: Place = { label, lat, lng, kind: 'current' };
+      setFromText(label);
+      setFrom(place);
+      onLocate?.(lat, lng, 14);
+      if (to) runRoute(place, to, mode);
+    };
+
+    const browser = await new Promise<GeolocationPosition | null>((resolve) => {
+      if (typeof navigator === 'undefined' || !navigator.geolocation) return resolve(null);
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve(pos),
+        () => resolve(null),
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
+      );
+    });
+
+    if (browser) {
+      const { latitude, longitude } = browser.coords;
+      apply(latitude, longitude, 'My location');
+      setLocating(false);
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/geo');
+      const d = await res.json();
+      if (d?.lat && d?.lon) {
+        apply(d.lat, d.lon, d.city ? `Near ${d.city}` : 'Approximate location');
+        setLocateError('Approximate — from network location');
+      } else {
+        setLocateError('Could not determine your location');
+      }
+    } catch {
+      setLocateError('Could not determine your location');
+    }
+    setLocating(false);
+  }, [to, mode, runRoute, onLocate]);
 
   const pickFrom = (p: Place) => { setFrom(p); if (to) runRoute(p, to, mode); };
   const pickTo = (p: Place) => { setTo(p); if (from) runRoute(from, p, mode); };
@@ -330,10 +413,13 @@ export default function DirectionsBar({ onRoute, onLocate, onClose }: Directions
           <PlaceInput
             value={fromText} onChange={setFromText} onPick={pickFrom}
             placeholder="Choose starting point" autoFocus
+            biasLat={center?.lat} biasLng={center?.lng}
+            onLocate={useMyLocation} locating={locating}
           />
           <PlaceInput
             value={toText} onChange={setToText} onPick={pickTo}
             placeholder="Choose destination"
+            biasLat={center?.lat} biasLng={center?.lng}
           />
         </div>
 
@@ -391,6 +477,10 @@ export default function DirectionsBar({ onRoute, onLocate, onClose }: Directions
               ))}
             </div>
           </div>
+        )}
+
+        {!loading && !error && locateError && (
+          <p className="px-3 pt-2 text-[9px] text-[var(--gold-primary)]">{locateError}</p>
         )}
 
         {!loading && error && (

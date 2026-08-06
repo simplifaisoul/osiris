@@ -862,6 +862,7 @@ export default function Dashboard() {
         {showDirections && (
           <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}>
             <DirectionsBar
+              center={mapCenter ? { lat: mapCenter.lat, lng: mapCenter.lng } : null}
               onRoute={(r) => setActiveRoute(r)}
               onLocate={(lat, lng, zoom) => setFlyToLocation({ lat, lng, zoom, ts: Date.now() })}
               onClose={() => { setShowDirections(false); setActiveRoute(null); }}

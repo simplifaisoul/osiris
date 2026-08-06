@@ -3,8 +3,6 @@ import {
   formatDistance,
   formatDuration,
   viaRoad,
-  shortLabel,
-  isCoordLabel,
   type RouteStep,
 } from './DirectionsBar';
 
@@ -54,26 +52,5 @@ describe('viaRoad', () => {
     expect(viaRoad([step('Keep left to take the walkway.', 900)])).toBeNull();
     expect(viaRoad([step('Turn right.', 24), step('You have arrived.', 0)])).toBeNull();
     expect(viaRoad([])).toBeNull();
-  });
-});
-
-describe('isCoordLabel / shortLabel', () => {
-  it('recognises a lat,lng label', () => {
-    expect(isCoordLabel('52.51630, 13.37770')).toBe(true);
-    expect(isCoordLabel('-33.86, 151.21')).toBe(true);
-    expect(isCoordLabel('Pariser Platz, Berlin')).toBe(false);
-  });
-
-  // Regression: splitting a coordinate on its comma rendered it as two lines
-  // ("52.51630" over "13.37770"), which read as a mangled address.
-  it('never splits a coordinate label', () => {
-    expect(shortLabel('52.51630, 13.37770')).toBe('52.51630, 13.37770');
-  });
-
-  it('trims a long display_name to its two leading parts', () => {
-    expect(shortLabel('Brandenburger Tor, 1, Pariser Platz, Mitte, Berlin, 10117, Germany'))
-      .toBe('Brandenburger Tor, 1');
-    expect(shortLabel('Alexanderplatz, Berlin')).toBe('Alexanderplatz, Berlin');
-    expect(shortLabel('Berlin')).toBe('Berlin');
   });
 });
