@@ -1,5 +1,6 @@
 import type { CctvCamera } from './types';
 import { stealthFetch } from '@/lib/stealthFetch';
+import { cachedSource } from '@/lib/sourceCache';
 
 /**
  * OSIRIS — Hong Kong CCTV Cameras (Transport Department)
@@ -68,17 +69,14 @@ export function parseTdXml(xml: string): CctvCamera[] {
   return cams;
 }
 
+/** Throws on failure so the cache can fall back to the last good index. */
 async function fetchTdCameras(): Promise<CctvCamera[]> {
-  try {
-    const res = await stealthFetch(LOCATIONS_XML, {
-      signal: AbortSignal.timeout(15000),
-      headers: { Accept: 'application/xml,text/xml' },
-    });
-    if (!res.ok) return [];
-    return parseTdXml(await res.text());
-  } catch {
-    return [];
-  }
+  const res = await stealthFetch(LOCATIONS_XML, {
+    signal: AbortSignal.timeout(15000),
+    headers: { Accept: 'application/xml,text/xml' },
+  });
+  if (!res.ok) throw new Error(`data.gov.hk HTTP ${res.status}`);
+  return parseTdXml(await res.text());
 }
 
 /** Minimal static set used only when the data.gov.hk index is unavailable. */
@@ -95,13 +93,14 @@ const CURATED_FALLBACK = [
   { id: 'BC106', lat: 22.3078, lng: 114.1717, name: 'Nathan Rd - Tsim Sha Tsui', area: 'Tsim Sha Tsui' },
 ];
 
-export async function fetchHongKongCameras(): Promise<CctvCamera[]> {
-  const td = await fetchTdCameras();
-  if (td.length > 0) {
-    console.log(`[OSIRIS] Hong Kong cameras — TD index: ${td.length}`);
-    return td;
-  }
+/** Cached TD index — on upstream failure this keeps serving the last good list. */
+const cachedTdCameras = cachedSource('hongkong', fetchTdCameras);
 
+export async function fetchHongKongCameras(): Promise<CctvCamera[]> {
+  const td = await cachedTdCameras();
+  if (td.length > 0) return td;
+
+  // Only reached when the index is down *and* nothing was ever cached.
   console.warn('[OSIRIS] Hong Kong TD index unavailable — using curated fallback');
   return CURATED_FALLBACK.map((cam) => ({
     id: `hk-${cam.id}`,
