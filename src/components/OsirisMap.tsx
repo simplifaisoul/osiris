@@ -23,6 +23,12 @@ interface OsirisMapProps {
   drawingMode?: boolean;
   onDrawComplete?: (coords: number[][]) => void;
   onMapCenter?: (coords: { lat: number; lng: number; bounds?: { west: number; south: number; east: number; north: number } }) => void;
+  /** Active turn-by-turn route drawn as a line with origin/destination pins. */
+  route?: {
+    geometry: { type: 'LineString'; coordinates: [number, number][] };
+    from: { lat: number; lng: number };
+    to: { lat: number; lng: number };
+  } | null;
 }
 
 function computeSolarTerminator(): [number, number][] {
@@ -47,7 +53,7 @@ function computeSolarTerminator(): [number, number][] {
 
 const EMPTY_FC = { type: 'FeatureCollection' as const, features: [] };
 
-function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, flyToLocation, projection = 'globe', mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', drawnPolygons = [], arcgisLayers = [], drawingMode = false, onDrawComplete, onMapCenter }: OsirisMapProps) {
+function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, flyToLocation, projection = 'globe', mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', drawnPolygons = [], arcgisLayers = [], drawingMode = false, onDrawComplete, onMapCenter, route = null }: OsirisMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
@@ -2207,6 +2213,96 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       }
     });
   }, [mapReady, drawnPolygons]);
+
+  // ── DIRECTIONS ROUTE ──
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    const map = mapRef.current;
+
+    const SRC = 'directions-route';
+    const SRC_ENDS = 'directions-endpoints';
+    const IDS = ['directions-line-casing', 'directions-line', 'directions-endpoint-halo', 'directions-endpoint'];
+
+    const teardown = () => {
+      IDS.forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
+      if (map.getSource(SRC)) map.removeSource(SRC);
+      if (map.getSource(SRC_ENDS)) map.removeSource(SRC_ENDS);
+    };
+
+    if (!route?.geometry?.coordinates?.length) {
+      teardown();
+      return;
+    }
+
+    const lineFC = {
+      type: 'FeatureCollection' as const,
+      features: [{ type: 'Feature' as const, properties: {}, geometry: route.geometry }],
+    };
+    const endsFC = {
+      type: 'FeatureCollection' as const,
+      features: [
+        { type: 'Feature' as const, properties: { kind: 'origin' }, geometry: { type: 'Point' as const, coordinates: [route.from.lng, route.from.lat] } },
+        { type: 'Feature' as const, properties: { kind: 'destination' }, geometry: { type: 'Point' as const, coordinates: [route.to.lng, route.to.lat] } },
+      ],
+    };
+
+    if (!map.getSource(SRC)) map.addSource(SRC, { type: 'geojson', data: lineFC as any });
+    else (map.getSource(SRC) as maplibregl.GeoJSONSource).setData(lineFC as any);
+
+    if (!map.getSource(SRC_ENDS)) map.addSource(SRC_ENDS, { type: 'geojson', data: endsFC as any });
+    else (map.getSource(SRC_ENDS) as maplibregl.GeoJSONSource).setData(endsFC as any);
+
+    if (!map.getLayer('directions-line-casing')) {
+      map.addLayer({
+        id: 'directions-line-casing', type: 'line', source: SRC,
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': '#001014', 'line-width': ['interpolate', ['linear'], ['zoom'], 5, 5, 14, 11], 'line-opacity': 0.9 },
+      });
+    }
+    if (!map.getLayer('directions-line')) {
+      map.addLayer({
+        id: 'directions-line', type: 'line', source: SRC,
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': '#00E5FF',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 5, 2.5, 14, 6],
+          'line-opacity': 0.95,
+        },
+      });
+    }
+    if (!map.getLayer('directions-endpoint-halo')) {
+      map.addLayer({
+        id: 'directions-endpoint-halo', type: 'circle', source: SRC_ENDS,
+        paint: {
+          'circle-radius': 9,
+          'circle-color': ['match', ['get', 'kind'], 'origin', '#00FF88', '#FF3B30'],
+          'circle-opacity': 0.18,
+        },
+      });
+    }
+    if (!map.getLayer('directions-endpoint')) {
+      map.addLayer({
+        id: 'directions-endpoint', type: 'circle', source: SRC_ENDS,
+        paint: {
+          'circle-radius': 5,
+          'circle-color': ['match', ['get', 'kind'], 'origin', '#00FF88', '#FF3B30'],
+          'circle-stroke-width': 1.5,
+          'circle-stroke-color': '#001014',
+        },
+      });
+    }
+
+    // Frame the whole route
+    const coords = route.geometry.coordinates;
+    let [west, south, east, north] = [coords[0][0], coords[0][1], coords[0][0], coords[0][1]];
+    for (const [lng, lat] of coords) {
+      if (lng < west) west = lng;
+      if (lng > east) east = lng;
+      if (lat < south) south = lat;
+      if (lat > north) north = lat;
+    }
+    map.fitBounds([[west, south], [east, north]], { padding: 90, duration: 900, maxZoom: 15 });
+  }, [mapReady, route]);
 
   // ── ARCGIS LAYERS ──
   useEffect(() => {

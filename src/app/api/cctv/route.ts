@@ -25,6 +25,14 @@ import { fetchUtahCameras } from './utah';
 import { fetchIcelandCameras } from './iceland';
 import { fetchTaiwanCameras } from './taiwan';
 import { fetchAsiaLiveCameras } from './asia-live';
+import { fetchNewZealandCameras } from './newzealand';
+import { fetchOregonCameras } from './oregon';
+import { fetchMichiganCameras } from './michigan';
+import {
+  fetchLatamLiveCameras,
+  fetchAfricaLiveCameras,
+  fetchEuropeLiveCameras,
+} from './world-live';
 
 /**
  * OSIRIS — Worldwide CCTV Camera API v2
@@ -443,6 +451,12 @@ const REGION_FETCHERS: Record<string, () => Promise<any[]>> = {
   'iceland': fetchIcelandCameras,
   'taiwan': fetchTaiwanCameras,
   'asia-live': fetchAsiaLiveCameras,
+  'newzealand': fetchNewZealandCameras,
+  'oregon': fetchOregonCameras,
+  'michigan': fetchMichiganCameras,
+  'latam-live': fetchLatamLiveCameras,
+  'africa-live': fetchAfricaLiveCameras,
+  'europe-live': fetchEuropeLiveCameras,
 };
 
 // Determine which regions to fetch based on viewport bounds
@@ -456,8 +470,12 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   if (lat > 24 && lat < 49 && lng > -125 && lng < -100) regions.push('us-west');
   // Utah (UDOT) — explicit, since us-west only covers WA + CA
   if (lat > 36.9 && lat < 42.1 && lng > -114.2 && lng < -108.9) regions.push('utah');
+  // Oregon (ODOT) — explicit, since us-west only covers WA + CA
+  if (lat > 41.9 && lat < 46.3 && lng > -124.6 && lng < -116.4) regions.push('oregon');
   // US-Central
   if (lat > 24 && lat < 49 && lng > -105 && lng < -80) regions.push('us-central');
+  // Michigan (MDOT) — explicit, since us-central only covers Illinois
+  if (lat > 41.6 && lat < 48.3 && lng > -90.5 && lng < -82.1) regions.push('michigan');
   // Canada
   if (lat > 42 && lat < 70 && lng > -141 && lng < -52) regions.push('canada');
   // Europe
@@ -518,6 +536,16 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   if ((lat > -10 && lat < 60 && lng > 60 && lng < 150)) regions.push('asia');
   // Australia explicitly
   if (lat > -45 && lat < -10 && lng > 110 && lng < 155) regions.push('asia');
+  // New Zealand (NZTA)
+  if (lat > -47.5 && lat < -34 && lng > 166 && lng < 179) regions.push('newzealand');
+
+  // Live webcams for regions with no traffic-authority feed of their own
+  // Latin America + Caribbean (incl. Bermuda at 32.3N)
+  if (lat > -56 && lat < 33 && lng > -119 && lng < -34) regions.push('latam-live');
+  // Africa (Cape Verde in the west through Seychelles in the east)
+  if (lat > -35 && lat < 36 && lng > -26 && lng < 57) regions.push('africa-live');
+  // European gaps (Azores in the west through northern Norway)
+  if (lat > 35 && lat < 72 && lng > -32 && lng < 32) regions.push('europe-live');
 
   return regions.length > 0 ? regions : ['uk', 'us-east']; // Default fallback
 }
