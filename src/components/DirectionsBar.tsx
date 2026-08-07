@@ -5,6 +5,7 @@ import {
   X, Car, Footprints, Bike, ArrowUpDown, MapPin, Flag, Route,
   CornerUpRight, CornerUpLeft, ArrowUp, RotateCw, Merge, Search,
   LocateFixed, Building2, Landmark, Globe2, Signpost, Home, Crosshair, Clock,
+  Plus, Trash2, SlidersHorizontal, Mountain, Navigation,
 } from 'lucide-react';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -29,6 +30,12 @@ export interface RouteResult {
   steps: RouteStep[];
   /** All options the engine offered, best first. Present on the API response. */
   routes?: RouteResult[];
+  hasHighway?: boolean;
+  hasToll?: boolean;
+  hasFerry?: boolean;
+  elevation?: Array<{ distance: number; height: number }>;
+  ascent?: number;
+  descent?: number;
 }
 
 export interface LiveLocation {
@@ -83,6 +90,77 @@ const MODES = [
 export function formatDistance(m: number): string {
   if (m < 1000) return `${Math.round(m)} m`;
   return `${(m / 1000).toFixed(m < 10000 ? 1 : 0)} km`;
+}
+
+/** Metres between two WGS84 points. */
+export function haversine(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const R = 6371000;
+  const p = Math.PI / 180;
+  const dLat = (bLat - aLat) * p;
+  const dLng = (bLng - aLng) * p;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(aLat * p) * Math.cos(bLat * p) * Math.sin(dLng / 2) ** 2;
+  return Math.round(2 * R * Math.asin(Math.sqrt(h)));
+}
+
+/** Index of the route vertex closest to a point. */
+function nearestVertex(coords: [number, number][], lat: number, lng: number): number {
+  let best = 0;
+  let bestD = Infinity;
+  for (let i = 0; i < coords.length; i++) {
+    const d = (coords[i][1] - lat) ** 2 + (coords[i][0] - lng) ** 2;
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  return best;
+}
+
+/**
+ * The maneuver the operator is heading into.
+ *
+ * Nearest-maneuver is the wrong rule: 160 m past a depart point, the closest
+ * maneuver is still the one behind you. Progress along the route decides it —
+ * project the position onto the route line, then take the first maneuver that
+ * lies further along than that.
+ */
+export function nextManeuver(
+  steps: RouteStep[],
+  coords: [number, number][],
+  lat: number,
+  lng: number,
+): { step: RouteStep; index: number; distance: number } | null {
+  if (!steps.length) return null;
+  if (!coords.length) return { step: steps[0], index: 0, distance: haversine(lat, lng, steps[0].location[1], steps[0].location[0]) };
+
+  const here = nearestVertex(coords, lat, lng);
+  for (let i = 0; i < steps.length; i++) {
+    const at = nearestVertex(coords, steps[i].location[1], steps[i].location[0]);
+    if (at > here) {
+      return { step: steps[i], index: i, distance: haversine(lat, lng, steps[i].location[1], steps[i].location[0]) };
+    }
+  }
+  // Past the last maneuver — the destination is what remains.
+  const last = steps.length - 1;
+  return { step: steps[last], index: last, distance: haversine(lat, lng, steps[last].location[1], steps[last].location[0]) };
+}
+
+/** Build an SVG path for the elevation profile, normalised into a viewbox. */
+export function elevationPath(
+  points: Array<{ distance: number; height: number }>,
+  width: number,
+  height: number,
+): string {
+  if (points.length < 2) return '';
+  const maxD = points[points.length - 1].distance || 1;
+  const hs = points.map((p) => p.height);
+  const lo = Math.min(...hs);
+  const hi = Math.max(...hs);
+  const span = hi - lo || 1;
+  return points
+    .map((p, i) => {
+      const x = (p.distance / maxD) * width;
+      const y = height - ((p.height - lo) / span) * height;
+      return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
 }
 
 /** Wall-clock arrival time for a trip of `seconds` starting now. */
@@ -353,14 +431,29 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
   const [follow, setFollow] = useState(false);
   const [routes, setRoutes] = useState<RouteResult[]>([]);
   const [chosen, setChosen] = useState(0);
+  const [vias, setVias] = useState<Array<{ place: Place | null; text: string }>>([]);
+  const [avoid, setAvoid] = useState({ tolls: false, highways: false, ferries: false });
+  const [showOptions, setShowOptions] = useState(false);
   const watchId = useRef<number | null>(null);
 
-  const runRoute = useCallback(async (a: Place, b: Place, m: string) => {
+  const runRoute = useCallback(async (
+    a: Place,
+    b: Place,
+    m: string,
+    stops: Place[] = [],
+    av: { tolls: boolean; highways: boolean; ferries: boolean } = { tolls: false, highways: false, ferries: false },
+  ) => {
     setLoading(true);
     setError(null);
     setActiveStep(null);
     try {
-      const res = await fetch(`/api/directions?from=${a.lat},${a.lng}&to=${b.lat},${b.lng}&mode=${m}`);
+      const viaParam = stops.length
+        ? `&via=${stops.map((p) => `${p.lat},${p.lng}`).join('|')}` : '';
+      const avoidList = Object.entries(av).filter(([, on]) => on).map(([k]) => k);
+      const avoidParam = avoidList.length ? `&avoid=${avoidList.join(',')}` : '';
+      const res = await fetch(
+        `/api/directions?from=${a.lat},${a.lng}&to=${b.lat},${b.lng}&mode=${m}${viaParam}${avoidParam}`,
+      );
       const data = await res.json();
       if (!res.ok || data.error) {
         setRoute(null);
@@ -382,6 +475,12 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
     }
     setLoading(false);
   }, [onRoute]);
+
+  /** Current intermediate stops that actually resolved to a place. */
+  const stops = useCallback(
+    () => vias.map((v) => v.place).filter((p): p is Place => p !== null),
+    [vias],
+  );
 
   /** Continuous position updates — the moving dot, not a one-shot fix. */
   const toggleTracking = useCallback(() => {
@@ -443,7 +542,7 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
       setFromText(label);
       setFrom(place);
       onLocate?.(lat, lng, 14);
-      if (to) runRoute(place, to, mode);
+      if (to) runRoute(place, to, mode, stops(), avoid);
     };
 
     const browser = await new Promise<GeolocationPosition | null>((resolve) => {
@@ -475,20 +574,50 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
       setLocateError('Could not determine your location');
     }
     setLocating(false);
-  }, [to, mode, runRoute, onLocate]);
+  }, [to, mode, runRoute, onLocate, stops, avoid]);
 
-  const pickFrom = (p: Place) => { setFrom(p); if (to) runRoute(p, to, mode); };
-  const pickTo = (p: Place) => { setTo(p); if (from) runRoute(from, p, mode); };
-  const pickMode = (m: string) => { setMode(m); if (from && to) runRoute(from, to, m); };
+  const pickFrom = (p: Place) => { setFrom(p); if (to) runRoute(p, to, mode, stops(), avoid); };
+  const pickTo = (p: Place) => { setTo(p); if (from) runRoute(from, p, mode, stops(), avoid); };
+  const pickMode = (m: string) => { setMode(m); if (from && to) runRoute(from, to, m, stops(), avoid); };
+
+  const pickVia = (i: number, p: Place) => {
+    const next = vias.map((v, j) => (j === i ? { place: p, text: p.label } : v));
+    setVias(next);
+    const all = next.map((v) => v.place).filter((x): x is Place => x !== null);
+    if (from && to) runRoute(from, to, mode, all, avoid);
+  };
+
+  const removeVia = (i: number) => {
+    const next = vias.filter((_, j) => j !== i);
+    setVias(next);
+    const all = next.map((v) => v.place).filter((x): x is Place => x !== null);
+    if (from && to) runRoute(from, to, mode, all, avoid);
+  };
+
+  const toggleAvoid = (key: 'tolls' | 'highways' | 'ferries') => {
+    const next = { ...avoid, [key]: !avoid[key] };
+    setAvoid(next);
+    if (from && to) runRoute(from, to, mode, stops(), next);
+  };
 
   const swap = () => {
     setFrom(to); setTo(from);
     setFromText(toText); setToText(fromText);
-    if (from && to) runRoute(to, from, mode);
+    // Reverse the intermediate stops too, or the trip back visits them backwards.
+    const reversed = [...vias].reverse();
+    setVias(reversed);
+    if (from && to) {
+      runRoute(to, from, mode, reversed.map((v) => v.place).filter((x): x is Place => x !== null), avoid);
+    }
   };
 
   const via = route ? viaRoad(route.steps) : null;
   const ready = Boolean(from && to);
+  // While tracking, the useful thing is the turn you are approaching, not the
+  // whole list — recomputed from each position update.
+  const guidance = live && route
+    ? nextManeuver(route.steps, route.geometry.coordinates, live.lat, live.lng)
+    : null;
 
   return (
     <div
@@ -552,6 +681,12 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
             style={{ boxShadow: '0 0 8px rgba(0,230,118,0.6)' }}
           />
           <span className="flex-1 w-px my-1 bg-[repeating-linear-gradient(to_bottom,var(--text-muted)_0_2px,transparent_2px_5px)]" />
+          {vias.map((_, i) => (
+            <span key={i} className="contents">
+              <span className="w-1.5 h-1.5 bg-[var(--cyan-primary)] flex-shrink-0 rotate-45" />
+              <span className="flex-1 w-px my-1 bg-[repeating-linear-gradient(to_bottom,var(--text-muted)_0_2px,transparent_2px_5px)]" />
+            </span>
+          ))}
           <MapPin className="w-3 h-3 text-[var(--alert-red)] flex-shrink-0" />
         </div>
 
@@ -562,6 +697,24 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
             biasLat={center?.lat} biasLng={center?.lng}
             onLocate={useMyLocation} locating={locating} liveFix={live}
           />
+          {vias.map((v, i) => (
+            <div key={i} className="flex items-center gap-1">
+              <PlaceInput
+                value={v.text}
+                onChange={(t) => setVias((prev) => prev.map((x, j) => (j === i ? { ...x, text: t } : x)))}
+                onPick={(p) => pickVia(i, p)}
+                placeholder={`Stop ${i + 1}`}
+                biasLat={center?.lat} biasLng={center?.lng} liveFix={live}
+              />
+              <button
+                onClick={() => removeVia(i)}
+                aria-label={`Remove stop ${i + 1}`}
+                className="p-1 text-[var(--text-muted)] hover:text-[var(--alert-red)] transition-colors flex-shrink-0"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
           <PlaceInput
             value={toText} onChange={setToText} onPick={pickTo}
             placeholder="Choose destination"
@@ -580,11 +733,11 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
       </div>
 
       {/* ── travel mode ── */}
-      <div className="px-3 pb-2.5">
+      <div className="px-3 pb-2.5 flex items-center gap-1.5">
         <div
           role="tablist"
           aria-label="Travel mode"
-          className="flex p-0.5 rounded-lg border border-[var(--border-secondary)] bg-[rgba(0,0,0,0.35)]"
+          className="flex-1 flex p-0.5 rounded-lg border border-[var(--border-secondary)] bg-[rgba(0,0,0,0.35)]"
         >
           {MODES.map(({ id, label, Icon }) => {
             const on = mode === id;
@@ -606,7 +759,49 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
             );
           })}
         </div>
+
+        <button
+          onClick={() => setVias((v) => [...v, { place: null, text: '' }])}
+          title="Add a stop"
+          aria-label="Add a stop"
+          className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--cyan-primary)]
+                     hover:bg-[rgba(var(--cyan-rgb),0.08)] transition-colors flex-shrink-0"
+        >
+          <Plus className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={() => setShowOptions((o) => !o)}
+          aria-pressed={showOptions}
+          title="Route options"
+          aria-label="Route options"
+          className={`p-1.5 rounded-md transition-colors flex-shrink-0 ${
+            showOptions || avoid.tolls || avoid.highways || avoid.ferries
+              ? 'text-[var(--gold-primary)] bg-[rgba(var(--gold-rgb),0.1)]'
+              : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+          }`}
+        >
+          <SlidersHorizontal className="w-3.5 h-3.5" />
+        </button>
       </div>
+
+      {showOptions && (
+        <div className="px-3 pb-2.5 flex gap-1.5">
+          {(['tolls', 'highways', 'ferries'] as const).map((k) => (
+            <button
+              key={k}
+              onClick={() => toggleAvoid(k)}
+              aria-pressed={avoid[k]}
+              className={`flex-1 py-1.5 rounded-md border text-[9px] capitalize transition-all ${
+                avoid[k]
+                  ? 'border-[var(--border-active)] bg-[rgba(var(--gold-rgb),0.12)] text-[var(--gold-primary)]'
+                  : 'border-[var(--border-secondary)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+              }`}
+            >
+              Avoid {k}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* ── result region ── */}
       <div className="min-h-0 flex-1 overflow-y-auto styled-scrollbar border-t border-[var(--border-secondary)]">
@@ -648,6 +843,24 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
 
         {!loading && route && (
           <>
+            {guidance && (
+              <div className="px-3 py-2.5 border-b border-[var(--border-secondary)] bg-[rgba(66,133,244,0.07)]">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <Navigation className="w-2.5 h-2.5 text-[#4285F4]" />
+                  <span className="text-[8px] uppercase tracking-[0.15em] text-[#4285F4]">Next turn</span>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <span className="mt-0.5 flex-shrink-0"><StepIcon type={guidance.step.type} /></span>
+                  <span className="flex-1 min-w-0 text-[11px] text-[var(--text-primary)] leading-snug">
+                    {guidance.step.instruction}
+                  </span>
+                  <span className="text-[13px] text-[var(--gold-primary)] tabular-nums flex-shrink-0">
+                    {formatDistance(guidance.distance)}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* summary */}
             <div className="px-3 py-2.5 border-b border-[var(--border-secondary)]">
               <div className="flex items-baseline justify-between gap-3">
@@ -669,6 +882,38 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
                   </div>
                 </div>
               </div>
+
+              {(route.hasToll || route.hasHighway || route.hasFerry) && (
+                <div className="flex gap-1.5 mt-2">
+                  {route.hasToll && <span className="px-1.5 py-0.5 rounded text-[8px] uppercase tracking-wider border border-[var(--border-secondary)] text-[var(--alert-orange)]">Toll</span>}
+                  {route.hasHighway && <span className="px-1.5 py-0.5 rounded text-[8px] uppercase tracking-wider border border-[var(--border-secondary)] text-[var(--text-muted)]">Motorway</span>}
+                  {route.hasFerry && <span className="px-1.5 py-0.5 rounded text-[8px] uppercase tracking-wider border border-[var(--border-secondary)] text-[var(--cyan-primary)]">Ferry</span>}
+                </div>
+              )}
+
+              {route.elevation && route.elevation.length > 1 && (
+                <div className="mt-2.5">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="flex items-center gap-1 text-[8px] uppercase tracking-[0.15em] text-[var(--text-muted)]">
+                      <Mountain className="w-2.5 h-2.5" /> Elevation
+                    </span>
+                    <span className="text-[9px] text-[var(--text-secondary)] tabular-nums">
+                      ↑{route.ascent ?? 0} m · ↓{route.descent ?? 0} m
+                    </span>
+                  </div>
+                  <svg viewBox="0 0 300 40" className="w-full h-10" preserveAspectRatio="none" aria-hidden="true">
+                    <path
+                      d={`${elevationPath(route.elevation, 300, 38)} L300,40 L0,40 Z`}
+                      fill="rgba(0,229,255,0.12)"
+                    />
+                    <path
+                      d={elevationPath(route.elevation, 300, 38)}
+                      fill="none" stroke="var(--cyan-primary)" strokeWidth="1.2"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  </svg>
+                </div>
+              )}
 
               {routes.length > 1 && (
                 <div className="flex gap-1 mt-2.5" role="tablist" aria-label="Route options">

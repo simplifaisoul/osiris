@@ -4,6 +4,7 @@ import {
   valhallaManeuverKind,
   normalizeValhalla,
   normalizeValhallaAll,
+  buildCostingOptions,
   osrmInstruction,
   normalizeOsrm,
   type ValhallaResponse,
@@ -176,5 +177,20 @@ describe('normalizeValhallaAll', () => {
 
   it('returns nothing when there is no usable trip', () => {
     expect(normalizeValhallaAll({}, 'auto')).toEqual([]);
+  });
+});
+
+describe('buildCostingOptions', () => {
+  it('turns avoid flags into the engine 0..1 preferences', () => {
+    expect(buildCostingOptions('auto', { tolls: true, highways: true }))
+      .toEqual({ auto: { use_tolls: 0, use_highways: 0 } });
+  });
+
+  it('keys the options by the travel mode', () => {
+    expect(buildCostingOptions('bicycle', { ferries: true })).toEqual({ bicycle: { use_ferry: 0 } });
+  });
+
+  it('sends nothing when nothing is avoided', () => {
+    expect(buildCostingOptions('auto', {})).toEqual({});
   });
 });
