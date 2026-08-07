@@ -34,8 +34,14 @@ interface ValhallaLeg {
   shape?: string;
   maneuvers?: ValhallaManeuver[];
 }
+interface ValhallaTrip {
+  legs?: ValhallaLeg[];
+  summary?: { length?: number; time?: number };
+}
 export interface ValhallaResponse {
-  trip?: { legs?: ValhallaLeg[]; summary?: { length?: number; time?: number } };
+  trip?: ValhallaTrip;
+  /** Populated when `alternates` is requested and the network offers a choice. */
+  alternates?: Array<{ trip?: ValhallaTrip }>;
 }
 
 export interface OsrmStep {
@@ -120,7 +126,22 @@ export function valhallaManeuverKind(type: number): string {
 }
 
 export function normalizeValhalla(json: ValhallaResponse, mode: TravelMode): DirectionsResult | null {
-  const trip = json?.trip;
+  return normalizeValhallaTrip(json?.trip, mode);
+}
+
+/** Primary route plus any alternates the engine offered, best first. */
+export function normalizeValhallaAll(json: ValhallaResponse, mode: TravelMode): DirectionsResult[] {
+  const out: DirectionsResult[] = [];
+  const primary = normalizeValhallaTrip(json?.trip, mode);
+  if (primary) out.push(primary);
+  for (const alt of json?.alternates || []) {
+    const r = normalizeValhallaTrip(alt?.trip, mode);
+    if (r) out.push(r);
+  }
+  return out;
+}
+
+function normalizeValhallaTrip(trip: ValhallaTrip | undefined, mode: TravelMode): DirectionsResult | null {
   if (!trip || !Array.isArray(trip.legs) || trip.legs.length === 0) return null;
 
   const coordinates: [number, number][] = [];
@@ -231,29 +252,33 @@ async function tryValhalla(
   from: { lat: number; lng: number },
   to: { lat: number; lng: number },
   mode: TravelMode,
-): Promise<DirectionsResult | null> {
+): Promise<DirectionsResult[]> {
   const body = {
     locations: [
       { lat: from.lat, lon: from.lng },
       { lat: to.lat, lon: to.lng },
     ],
     costing: mode,
+    // Give the operator a choice the way a consumer mapping app does; the
+    // engine only returns these when the network genuinely offers one.
+    alternates: 2,
     directions_options: { units: 'kilometers' },
   };
   const url = `${VALHALLA}?json=${encodeURIComponent(JSON.stringify(body))}`;
-  return normalizeValhalla(await httpJson<ValhallaResponse>(url), mode);
+  return normalizeValhallaAll(await httpJson<ValhallaResponse>(url), mode);
 }
 
 async function tryOsrm(
   from: { lat: number; lng: number },
   to: { lat: number; lng: number },
   mode: TravelMode,
-): Promise<DirectionsResult | null> {
+): Promise<DirectionsResult[]> {
   // The public OSRM demo only carries the driving profile.
   const url =
     `${OSRM}/driving/${from.lng},${from.lat};${to.lng},${to.lat}` +
     `?steps=true&overview=full&geometries=geojson`;
-  return normalizeOsrm(await httpJson<OsrmResponse>(url), mode);
+  const r = normalizeOsrm(await httpJson<OsrmResponse>(url), mode);
+  return r ? [r] : [];
 }
 
 export async function GET(request: Request) {
@@ -274,34 +299,36 @@ export async function GET(request: Request) {
     // The public Valhalla demo intermittently refuses bursts, so give it one
     // retry before falling back — otherwise walking/cycling (which OSRM's demo
     // cannot serve) would fail on an entirely recoverable blip.
-    let result: DirectionsResult | null = null;
-    for (let attempt = 0; attempt < 2 && !result; attempt++) {
+    let routes: DirectionsResult[] = [];
+    for (let attempt = 0; attempt < 2 && routes.length === 0; attempt++) {
       if (attempt > 0) await new Promise((r) => setTimeout(r, 400));
       try {
-        result = await tryValhalla(from, to, mode);
+        routes = await tryValhalla(from, to, mode);
       } catch {
-        result = null;
+        routes = [];
       }
     }
 
     // OSRM has no walking/cycling profile on the demo server, so only fall back
     // for driving — a car route served for a walking request would be wrong.
-    if (!result && mode === 'auto') {
+    if (routes.length === 0 && mode === 'auto') {
       try {
-        result = await tryOsrm(from, to, mode);
+        routes = await tryOsrm(from, to, mode);
       } catch {
-        result = null;
+        routes = [];
       }
     }
 
-    if (!result) {
+    if (routes.length === 0) {
       return NextResponse.json(
         { error: 'No route found between those points' },
         { status: 502 },
       );
     }
 
-    return NextResponse.json(result, {
+    // `routes` is the full set, best first; the top-level fields mirror routes[0]
+    // so anything reading a single route still works.
+    return NextResponse.json({ ...routes[0], routes }, {
       headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' },
     });
   } catch (error) {

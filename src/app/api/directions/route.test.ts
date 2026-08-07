@@ -3,6 +3,7 @@ import {
   decodePolyline,
   valhallaManeuverKind,
   normalizeValhalla,
+  normalizeValhallaAll,
   osrmInstruction,
   normalizeOsrm,
   type ValhallaResponse,
@@ -155,5 +156,25 @@ describe('normalizeOsrm', () => {
   it('returns null without geometry', () => {
     expect(normalizeOsrm({}, 'auto')).toBeNull();
     expect(normalizeOsrm({ routes: [{ geometry: { coordinates: [] } }] }, 'auto')).toBeNull();
+  });
+});
+
+describe('normalizeValhallaAll', () => {
+  it('returns the primary route followed by each alternate', () => {
+    const withAlts = {
+      ...valhallaTrip,
+      alternates: [{ trip: valhallaTrip.trip }, { trip: valhallaTrip.trip }],
+    };
+    const all = normalizeValhallaAll(withAlts, 'auto');
+    expect(all).toHaveLength(3);
+    expect(all[0].steps).toHaveLength(3);
+  });
+
+  it('returns just the primary when the engine offers no alternative', () => {
+    expect(normalizeValhallaAll(valhallaTrip, 'auto')).toHaveLength(1);
+  });
+
+  it('returns nothing when there is no usable trip', () => {
+    expect(normalizeValhallaAll({}, 'auto')).toEqual([]);
   });
 });

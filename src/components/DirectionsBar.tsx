@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   X, Car, Footprints, Bike, ArrowUpDown, MapPin, Flag, Route,
   CornerUpRight, CornerUpLeft, ArrowUp, RotateCw, Merge, Search,
-  LocateFixed, Building2, Landmark, Globe2, Signpost, Home,
+  LocateFixed, Building2, Landmark, Globe2, Signpost, Home, Crosshair, Clock,
 } from 'lucide-react';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -27,6 +27,15 @@ export interface RouteResult {
   duration: number;
   geometry: { type: 'LineString'; coordinates: [number, number][] };
   steps: RouteStep[];
+  /** All options the engine offered, best first. Present on the API response. */
+  routes?: RouteResult[];
+}
+
+export interface LiveLocation {
+  lat: number;
+  lng: number;
+  accuracy?: number;
+  heading?: number | null;
 }
 
 interface GeoHit {
@@ -48,11 +57,21 @@ interface Place {
 }
 
 interface DirectionsBarProps {
-  onRoute: (route: (RouteResult & { from: Place; to: Place }) | null) => void;
+  onRoute: (route: (RouteResult & {
+    from: Place;
+    to: Place;
+    alternates?: Array<{ type: 'LineString'; coordinates: [number, number][] }>;
+    activeSegment?: [number, number][] | null;
+  }) | null) => void;
   onLocate?: (lat: number, lng: number, zoom?: number) => void;
   onClose?: () => void;
   /** Current map centre — biases search toward what the operator is looking at. */
   center?: { lat: number; lng: number } | null;
+  /** Live position, when tracking is on, so the map can draw the dot. */
+  onLiveLocation?: (loc: LiveLocation | null) => void;
+  /** Selected step segment, for highlighting the leg on the map. */
+  onActiveSegment?: (seg: [number, number][] | null) => void;
+  onFollowChange?: (follow: boolean) => void;
 }
 
 const MODES = [
@@ -64,6 +83,35 @@ const MODES = [
 export function formatDistance(m: number): string {
   if (m < 1000) return `${Math.round(m)} m`;
   return `${(m / 1000).toFixed(m < 10000 ? 1 : 0)} km`;
+}
+
+/** Wall-clock arrival time for a trip of `seconds` starting now. */
+export function arrivalTime(seconds: number, now: Date = new Date()): string {
+  const at = new Date(now.getTime() + seconds * 1000);
+  return at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+/**
+ * Slice the route geometry between two step positions, so selecting a step can
+ * highlight the leg it covers rather than just dropping a pin on its start.
+ */
+export function segmentBetween(
+  coords: [number, number][],
+  from: [number, number],
+  to?: [number, number],
+): [number, number][] {
+  const nearest = (t: [number, number]) => {
+    let best = 0;
+    let bestD = Infinity;
+    for (let i = 0; i < coords.length; i++) {
+      const d = (coords[i][0] - t[0]) ** 2 + (coords[i][1] - t[1]) ** 2;
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    return best;
+  };
+  const a = nearest(from);
+  const b = to ? nearest(to) : coords.length - 1;
+  return coords.slice(Math.min(a, b), Math.max(a, b) + 1);
 }
 
 export function formatDuration(s: number): string {
@@ -115,7 +163,7 @@ function KindIcon({ kind }: { kind?: string }) {
 
 /** Origin / destination field with Nominatim autocomplete. */
 function PlaceInput({
-  value, onChange, onPick, placeholder, autoFocus, biasLat, biasLng, onLocate, locating,
+  value, onChange, onPick, placeholder, autoFocus, biasLat, biasLng, onLocate, locating, liveFix,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -127,6 +175,8 @@ function PlaceInput({
   /** Present only on the origin field — fills it with the operator's position. */
   onLocate?: () => void;
   locating?: boolean;
+  /** When a live fix exists, both fields offer it as the first choice. */
+  liveFix?: { lat: number; lng: number } | null;
 }) {
   const [results, setResults] = useState<Place[]>([]);
   const [loading, setLoading] = useState(false);
@@ -203,7 +253,7 @@ function PlaceInput({
         value={value}
         autoFocus={autoFocus}
         onChange={(e) => search(e.target.value)}
-        onFocus={() => results.length && setOpen(true)}
+        onFocus={() => (results.length || liveFix) && setOpen(true)}
         onKeyDown={(e) => {
           if (e.key === 'ArrowDown') { e.preventDefault(); setIdx((i) => Math.min(i + 1, results.length - 1)); }
           if (e.key === 'ArrowUp') { e.preventDefault(); setIdx((i) => Math.max(i - 1, 0)); }
@@ -241,12 +291,25 @@ function PlaceInput({
         </button>
       )}
 
-      {open && results.length > 0 && (
+      {open && (results.length > 0 || liveFix) && (
         <div
           className="absolute top-full left-0 right-0 mt-1 z-[10000] rounded-lg overflow-hidden
-                     border border-[var(--border-primary)] bg-[var(--bg-panel-solid)] max-h-[220px] overflow-y-auto styled-scrollbar"
+                     border border-[var(--border-primary)] bg-[var(--bg-panel-solid)] max-h-[240px] overflow-y-auto styled-scrollbar"
           style={{ boxShadow: '0 16px 40px rgba(0,0,0,0.7)' }}
         >
+          {liveFix && (
+            <button
+              onClick={() => choose({ label: 'Your location', lat: liveFix.lat, lng: liveFix.lng, kind: 'current', context: 'Live position' })}
+              className="w-full text-left px-2.5 py-2 flex items-start gap-2 transition-colors
+                         border-b border-[var(--border-secondary)] hover:bg-[rgba(0,230,118,0.08)]"
+            >
+              <KindIcon kind="current" />
+              <span className="min-w-0">
+                <span className="block text-[10px] text-[var(--alert-green)]">Your location</span>
+                <span className="block text-[9px] text-[var(--text-muted)]">Live position</span>
+              </span>
+            </button>
+          )}
           {results.map((r, i) => (
             <button
               key={i}
@@ -273,7 +336,7 @@ function PlaceInput({
   );
 }
 
-export default function DirectionsBar({ onRoute, onLocate, onClose, center = null }: DirectionsBarProps) {
+export default function DirectionsBar({ onRoute, onLocate, onClose, center = null, onLiveLocation, onActiveSegment, onFollowChange }: DirectionsBarProps) {
   const [fromText, setFromText] = useState('');
   const [toText, setToText] = useState('');
   const [from, setFrom] = useState<Place | null>(null);
@@ -285,6 +348,12 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
   const [activeStep, setActiveStep] = useState<number | null>(null);
   const [locating, setLocating] = useState(false);
   const [locateError, setLocateError] = useState<string | null>(null);
+  const [live, setLive] = useState<LiveLocation | null>(null);
+  const [tracking, setTracking] = useState(false);
+  const [follow, setFollow] = useState(false);
+  const [routes, setRoutes] = useState<RouteResult[]>([]);
+  const [chosen, setChosen] = useState(0);
+  const watchId = useRef<number | null>(null);
 
   const runRoute = useCallback(async (a: Place, b: Place, m: string) => {
     setLoading(true);
@@ -295,19 +364,68 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
       const data = await res.json();
       if (!res.ok || data.error) {
         setRoute(null);
+        setRoutes([]);
         onRoute(null);
         setError(data.error || 'No route found');
       } else {
-        setRoute(data);
-        onRoute({ ...data, from: a, to: b });
+        const all: RouteResult[] = data.routes?.length ? data.routes : [data];
+        setRoutes(all);
+        setChosen(0);
+        setRoute(all[0]);
+        onRoute({ ...all[0], from: a, to: b, alternates: all.slice(1).map((r) => r.geometry) });
       }
     } catch {
       setRoute(null);
+      setRoutes([]);
       onRoute(null);
       setError('Routing service unreachable');
     }
     setLoading(false);
   }, [onRoute]);
+
+  /** Continuous position updates — the moving dot, not a one-shot fix. */
+  const toggleTracking = useCallback(() => {
+    if (tracking) {
+      if (watchId.current !== null) navigator.geolocation.clearWatch(watchId.current);
+      watchId.current = null;
+      setTracking(false);
+      setFollow(false);
+      onFollowChange?.(false);
+      setLive(null);
+      onLiveLocation?.(null);
+      return;
+    }
+
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setLocateError('This browser has no geolocation');
+      return;
+    }
+
+    setLocateError(null);
+    watchId.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const loc: LiveLocation = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+          heading: pos.coords.heading,
+        };
+        setLive(loc);
+        onLiveLocation?.(loc);
+        setTracking(true);
+      },
+      () => {
+        setLocateError('Location permission denied — needs HTTPS or localhost');
+        setTracking(false);
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 },
+    );
+    setTracking(true);
+  }, [tracking, onLiveLocation, onFollowChange]);
+
+  useEffect(() => () => {
+    if (watchId.current !== null) navigator.geolocation.clearWatch(watchId.current);
+  }, []);
 
   /**
    * Fill the origin with wherever the operator is.
@@ -386,6 +504,34 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
             {route.steps.length} steps
           </span>
         )}
+
+        <button
+          onClick={toggleTracking}
+          aria-pressed={tracking}
+          title={tracking ? 'Stop live tracking' : 'Track my location live'}
+          className={`p-1 rounded transition-colors ${
+            tracking
+              ? 'text-[#4285F4] bg-[rgba(66,133,244,0.14)]'
+              : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+          }`}
+        >
+          <Crosshair className={`w-3.5 h-3.5 ${tracking ? 'animate-pulse' : ''}`} />
+        </button>
+
+        {tracking && (
+          <button
+            onClick={() => { const n = !follow; setFollow(n); onFollowChange?.(n); }}
+            aria-pressed={follow}
+            title={follow ? 'Stop following' : 'Keep the map centred on me'}
+            className={`p-1 rounded transition-colors ${
+              follow
+                ? 'text-[var(--gold-primary)] bg-[rgba(var(--gold-rgb),0.14)]'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+            }`}
+          >
+            <LocateFixed className="w-3.5 h-3.5" />
+          </button>
+        )}
         {onClose && (
           <button
             onClick={onClose}
@@ -414,12 +560,12 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
             value={fromText} onChange={setFromText} onPick={pickFrom}
             placeholder="Choose starting point" autoFocus
             biasLat={center?.lat} biasLng={center?.lng}
-            onLocate={useMyLocation} locating={locating}
+            onLocate={useMyLocation} locating={locating} liveFix={live}
           />
           <PlaceInput
             value={toText} onChange={setToText} onPick={pickTo}
             placeholder="Choose destination"
-            biasLat={center?.lat} biasLng={center?.lng}
+            biasLat={center?.lat} biasLng={center?.lng} liveFix={live}
           />
         </div>
 
@@ -503,18 +649,64 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
         {!loading && route && (
           <>
             {/* summary */}
-            <div className="px-3 py-2.5 flex items-baseline justify-between gap-3 border-b border-[var(--border-secondary)]">
-              <div className="min-w-0">
-                <div className="text-[17px] leading-none text-[var(--gold-primary)] tabular-nums">
-                  {formatDuration(route.duration)}
+            <div className="px-3 py-2.5 border-b border-[var(--border-secondary)]">
+              <div className="flex items-baseline justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[17px] leading-none text-[var(--gold-primary)] tabular-nums">
+                    {formatDuration(route.duration)}
+                  </div>
+                  {via && (
+                    <div className="text-[9px] text-[var(--text-muted)] truncate mt-1">via {via}</div>
+                  )}
                 </div>
-                {via && (
-                  <div className="text-[9px] text-[var(--text-muted)] truncate mt-1">via {via}</div>
-                )}
+                <div className="text-right flex-shrink-0">
+                  <div className="text-[11px] text-[var(--text-secondary)] tabular-nums">
+                    {formatDistance(route.distance)}
+                  </div>
+                  <div className="flex items-center gap-1 justify-end text-[9px] text-[var(--text-muted)] tabular-nums mt-1">
+                    <Clock className="w-2.5 h-2.5" />
+                    {arrivalTime(route.duration)}
+                  </div>
+                </div>
               </div>
-              <div className="text-[11px] text-[var(--text-secondary)] tabular-nums flex-shrink-0">
-                {formatDistance(route.distance)}
-              </div>
+
+              {routes.length > 1 && (
+                <div className="flex gap-1 mt-2.5" role="tablist" aria-label="Route options">
+                  {routes.map((r, i) => {
+                    const on = i === chosen;
+                    const slower = Math.round((r.duration - routes[0].duration) / 60);
+                    return (
+                      <button
+                        key={i}
+                        role="tab"
+                        aria-selected={on}
+                        onClick={() => {
+                          setChosen(i);
+                          setRoute(r);
+                          setActiveStep(null);
+                          onActiveSegment?.(null);
+                          if (from && to) {
+                            onRoute({
+                              ...r, from, to,
+                              alternates: routes.filter((_, j) => j !== i).map((x) => x.geometry),
+                            });
+                          }
+                        }}
+                        className={`flex-1 px-2 py-1.5 rounded-md border text-[9px] transition-all ${
+                          on
+                            ? 'border-[var(--border-active)] bg-[rgba(var(--gold-rgb),0.12)] text-[var(--gold-primary)]'
+                            : 'border-[var(--border-secondary)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                        }`}
+                      >
+                        <span className="block tabular-nums">{formatDuration(r.duration)}</span>
+                        <span className="block text-[8px] opacity-70 tabular-nums">
+                          {i === 0 ? 'Fastest' : slower > 0 ? `+${slower} min` : formatDistance(r.distance)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* steps */}
@@ -522,7 +714,13 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
               {route.steps.map((s, i) => (
                 <li key={i}>
                   <button
-                    onClick={() => { setActiveStep(i); onLocate?.(s.location[1], s.location[0], 17); }}
+                    onClick={() => {
+                      setActiveStep(i);
+                      onLocate?.(s.location[1], s.location[0], 17);
+                      onActiveSegment?.(
+                        segmentBetween(route.geometry.coordinates, s.location, route.steps[i + 1]?.location),
+                      );
+                    }}
                     className={`w-full text-left px-3 py-2 flex items-start gap-2.5 border-l-2 transition-colors ${
                       activeStep === i
                         ? 'border-[var(--gold-primary)] bg-[rgba(var(--gold-rgb),0.07)]'

@@ -8,7 +8,7 @@ import IntelFeed from '@/components/IntelFeed';
 import MarketsPanel from '@/components/MarketsPanel';
 import ScmPanel from '@/components/ScmPanel';
 import SearchBar from '@/components/SearchBar';
-import DirectionsBar, { type RouteResult } from '@/components/DirectionsBar';
+import DirectionsBar, { type RouteResult, type LiveLocation } from '@/components/DirectionsBar';
 import ScaleBar from '@/components/ScaleBar';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import SharePanel from '@/components/SharePanel';
@@ -111,8 +111,15 @@ export default function Dashboard() {
   const [showDesktopSearch, setShowDesktopSearch] = useState(false);
   const [showDirections, setShowDirections] = useState(false);
   const [activeRoute, setActiveRoute] = useState<
-    (RouteResult & { from: { lat: number; lng: number }; to: { lat: number; lng: number } }) | null
+    (RouteResult & {
+      from: { lat: number; lng: number };
+      to: { lat: number; lng: number };
+      alternates?: Array<{ type: 'LineString'; coordinates: [number, number][] }>;
+      activeSegment?: [number, number][] | null;
+    }) | null
   >(null);
+  const [liveLocation, setLiveLocation] = useState<LiveLocation | null>(null);
+  const [followUser, setFollowUser] = useState(false);
   const [showRemote, setShowRemote] = useState(false);
   const [showArcGIS, setShowArcGIS] = useState(false);
   const [arcgisLayers, setArcgisLayers] = useState<Array<{ id: string; title: string; url: string; geojson: any; color: string; visible: boolean; opacity: number }>>([]);
@@ -851,6 +858,8 @@ export default function Dashboard() {
           arcgisLayers={arcgisLayers.filter(l => l.visible).map(l => ({ id: l.id, title: l.title, geojson: l.geojson, color: l.color, opacity: l.opacity }))}
           onMapCenter={setMapCenter}
           route={activeRoute}
+          userLocation={liveLocation}
+          followUser={followUser}
         />
       </ErrorBoundary>
 
@@ -864,6 +873,9 @@ export default function Dashboard() {
             <DirectionsBar
               center={mapCenter ? { lat: mapCenter.lat, lng: mapCenter.lng } : null}
               onRoute={(r) => setActiveRoute(r)}
+              onLiveLocation={setLiveLocation}
+              onFollowChange={setFollowUser}
+              onActiveSegment={(seg) => setActiveRoute((r) => (r ? { ...r, activeSegment: seg } : r))}
               onLocate={(lat, lng, zoom) => setFlyToLocation({ lat, lng, zoom, ts: Date.now() })}
               onClose={() => { setShowDirections(false); setActiveRoute(null); }}
             />
