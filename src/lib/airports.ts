@@ -525,4 +525,30 @@ export function getAllAirports(): Airport[] {
   return Object.values(AIRPORTS_BY_ICAO);
 }
 
+/**
+ * The airport closest to a position, or null if none is within `maxKm`.
+ *
+ * Used to name the airport a flown leg actually started from. Schedule data is
+ * keyed by callsign and routinely returns a different leg of the aircraft's
+ * day, so the departure is read back off the track instead of trusted.
+ */
+export function nearestAirport(lat: number, lng: number, maxKm = 25): Airport | null {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  let best: Airport | null = null;
+  let bestKm = maxKm;
+  // A degree of longitude shrinks toward the poles; without this an airport
+  // 25 km away at 60°N measures as 12 km and the wrong one wins.
+  const lngScale = Math.cos((lat * Math.PI) / 180);
+  for (const ap of Object.values(AIRPORTS_BY_ICAO)) {
+    const dy = (ap.lat - lat) * 111.32;
+    const dx = (ap.lng - lng) * 111.32 * lngScale;
+    const d = Math.hypot(dx, dy);
+    if (d < bestKm) {
+      bestKm = d;
+      best = ap;
+    }
+  }
+  return best;
+}
+
 export { AIRPORTS_BY_ICAO, AIRPORTS_BY_IATA };
