@@ -41,6 +41,8 @@ interface OsirisMapProps {
   navigating?: boolean;
   /** Flown tracks for watched aircraft, keyed by icao24. */
   aircraftTracks?: Record<string, [number, number][]>;
+  /** Scheduled airports for watched aircraft, keyed by icao24. */
+  aircraftAirports?: Record<string, Array<{ icao: string; iata?: string; city?: string; lat: number; lng: number }>>;
 }
 
 function computeSolarTerminator(): [number, number][] {
@@ -65,7 +67,7 @@ function computeSolarTerminator(): [number, number][] {
 
 const EMPTY_FC = { type: 'FeatureCollection' as const, features: [] };
 
-function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, flyToLocation, projection = 'globe', mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', drawnPolygons = [], arcgisLayers = [], drawingMode = false, onDrawComplete, onMapCenter, route = null, userLocation = null, followUser = false, navigating = false, aircraftTracks = {} }: OsirisMapProps) {
+function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, flyToLocation, projection = 'globe', mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', drawnPolygons = [], arcgisLayers = [], drawingMode = false, onDrawComplete, onMapCenter, route = null, userLocation = null, followUser = false, navigating = false, aircraftTracks = {}, aircraftAirports = {} }: OsirisMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
@@ -2355,6 +2357,71 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       });
     }
   }, [mapReady, aircraftTracks]);
+
+  // ── AIRPORTS FOR WATCHED AIRCRAFT ──
+  // A bare track is hard to read: it shows where the aircraft went without
+  // saying between what. Pinning the scheduled endpoints gives the line ends.
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    const map = mapRef.current;
+    const SRC = 'watched-airports';
+    const IDS = ['watched-airport-glow', 'watched-airport-dot', 'watched-airport-label'];
+
+    // The same airport can serve several watched aircraft — draw it once.
+    const seen = new Set<string>();
+    const features = Object.values(aircraftAirports).flat()
+      .filter((a) => {
+        if (!a || seen.has(a.icao)) return false;
+        seen.add(a.icao);
+        return true;
+      })
+      .map((a) => ({
+        type: 'Feature' as const,
+        properties: { label: a.iata || a.icao, city: a.city || '' },
+        geometry: { type: 'Point' as const, coordinates: [a.lng, a.lat] },
+      }));
+
+    if (features.length === 0) {
+      IDS.forEach((id) => { if (map.getLayer(id)) map.removeLayer(id); });
+      if (map.getSource(SRC)) map.removeSource(SRC);
+      return;
+    }
+
+    const fc = { type: 'FeatureCollection' as const, features };
+    if (!map.getSource(SRC)) map.addSource(SRC, { type: 'geojson', data: fc as never });
+    else (map.getSource(SRC) as maplibregl.GeoJSONSource).setData(fc as never);
+
+    if (!map.getLayer('watched-airport-glow')) {
+      map.addLayer({
+        id: 'watched-airport-glow', type: 'circle', source: SRC,
+        paint: { 'circle-radius': 13, 'circle-color': '#FFB300', 'circle-opacity': 0.16, 'circle-blur': 0.8 },
+      });
+    }
+    if (!map.getLayer('watched-airport-dot')) {
+      map.addLayer({
+        id: 'watched-airport-dot', type: 'circle', source: SRC,
+        paint: {
+          'circle-radius': 5,
+          'circle-color': '#FFFFFF',
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#FFB300',
+        },
+      });
+    }
+    if (!map.getLayer('watched-airport-label')) {
+      map.addLayer({
+        id: 'watched-airport-label', type: 'symbol', source: SRC,
+        layout: {
+          'text-field': ['get', 'label'],
+          'text-size': 11,
+          'text-font': ['Open Sans Bold'],
+          'text-offset': [0, 1.6],
+          'text-allow-overlap': true,
+        },
+        paint: { 'text-color': '#FFB300', 'text-halo-color': '#0C0E1A', 'text-halo-width': 1.5 },
+      });
+    }
+  }, [mapReady, aircraftAirports]);
 
   // ── ARCGIS LAYERS ──
   useEffect(() => {

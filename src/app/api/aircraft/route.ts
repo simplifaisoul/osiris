@@ -53,6 +53,47 @@ interface TraceFile {
 }
 
 /**
+ * Keep only the leg the aircraft is currently flying.
+ *
+ * A full trace covers 24 hours, which for an airliner is five or six separate
+ * flights strung end to end — drawn as one polyline it reads as random lines
+ * criss-crossing the country. Ground reports delimit the legs, so walk back
+ * from the newest point: skip time parked, take the airborne run, and stop at
+ * the previous stint on the ground.
+ */
+export function currentLeg(
+  rows: Array<Array<number | string | null>>,
+  /** Ground samples in a row before it counts as a real stop, not a blip. */
+  minGroundRun = 4,
+): Array<Array<number | string | null>> {
+  if (rows.length === 0) return rows;
+  const isGround = (r: Array<number | string | null>) => r?.[3] === 'ground';
+
+  let i = rows.length - 1;
+  while (i >= 0 && isGround(rows[i])) i--;   // currently parked? rewind to the flight
+  if (i < 0) return rows.slice(-2);          // never left the ground in this window
+  const end = i;
+
+  // Scanning backwards, remember where each ground run *ends* (its newest
+  // sample) — the leg resumes there, not at the point the run was confirmed.
+  let run = 0;
+  let runNewest = -1;
+  let start = 0;
+  while (i >= 0) {
+    if (isGround(rows[i])) {
+      if (run === 0) runNewest = i;
+      if (++run >= minGroundRun) { start = runNewest + 1; break; }
+    } else {
+      run = 0;
+    }
+    i--;
+  }
+  const leg = rows.slice(start, end + 1);
+  // A trace with no ground reports at all is one continuous leg.
+  return leg.length > 1 ? leg : rows;
+}
+
+/**
  * Thin a track to at most `max` points, always keeping the first and last so
  * the path still starts and ends where the aircraft did. A 5,000-point trace
  * is ~120 KB and renders no better than a few hundred at map scale.
@@ -66,11 +107,17 @@ export function downsample<T>(points: T[], max: number): T[] {
 }
 
 /** Pull identity and the flown path out of a readsb trace file. */
-export function parseTrace(json: TraceFile, maxPoints = 700): Omit<AircraftDetail, 'operator' | 'source'> {
+export function parseTrace(
+  json: TraceFile,
+  maxPoints = 700,
+  /** Draw only the flight in progress; the full history is rarely meaningful. */
+  legOnly = true,
+): Omit<AircraftDetail, 'operator' | 'source'> {
   const track: [number, number][] = [];
   const altitudes: (number | null)[] = [];
 
-  for (const row of json?.trace || []) {
+  const rows = legOnly ? currentLeg(json?.trace || []) : (json?.trace || []);
+  for (const row of rows) {
     const lat = row?.[1];
     const lng = row?.[2];
     if (typeof lat !== 'number' || typeof lng !== 'number') continue;
@@ -118,13 +165,15 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const icao24 = (searchParams.get('icao24') || '').trim().toLowerCase();
     const full = searchParams.get('detail') !== 'recent';
+    // ?legs=all draws the whole 24h history instead of just this flight.
+    const legOnly = searchParams.get('legs') !== 'all';
 
     if (!/^[0-9a-f]{6}$/.test(icao24)) {
       return NextResponse.json({ error: 'icao24 must be a 6-character hex address' }, { status: 400 });
     }
 
     const detail = await cachedSource<AircraftDetail>(
-      `aircraft:${icao24}:${full ? 'full' : 'recent'}`,
+      `aircraft:${icao24}:${full ? 'full' : 'recent'}:${legOnly ? 'leg' : 'all'}`,
       async () => {
         const [trace, db] = await Promise.all([
           optional(fetchTrace(icao24, full)),
@@ -132,7 +181,7 @@ export async function GET(request: Request) {
         ]);
 
         const ac = db?.response?.aircraft;
-        const parsed = trace ? parseTrace(trace) : null;
+        const parsed = trace ? parseTrace(trace, 700, legOnly) : null;
 
         // Neither source knew this airframe.
         if (!parsed && !ac) return [];

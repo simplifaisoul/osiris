@@ -10,7 +10,7 @@ import ScmPanel from '@/components/ScmPanel';
 import SearchBar from '@/components/SearchBar';
 import DirectionsBar, { type RouteResult, type LiveLocation } from '@/components/DirectionsBar';
 import NavigationView from '@/components/NavigationView';
-import FlightWatchPanel, { type WatchedFlight, type FlightTelemetry, type AircraftDetail } from '@/components/FlightWatchPanel';
+import FlightWatchPanel, { type WatchedFlight, type FlightTelemetry, type AircraftDetail, type Airport } from '@/components/FlightWatchPanel';
 import type { NavProgress } from '@/lib/navigation';
 import ScaleBar from '@/components/ScaleBar';
 import ErrorBoundary from '@/components/ErrorBoundary';
@@ -129,6 +129,7 @@ export default function Dashboard() {
   const [navProgress, setNavProgress] = useState<NavProgress | null>(null);
   const [watchedFlights, setWatchedFlights] = useState<WatchedFlight[]>([]);
   const [aircraftTracks, setAircraftTracks] = useState<Record<string, [number, number][]>>({});
+  const [aircraftAirports, setAircraftAirports] = useState<Record<string, Airport[]>>({});
 
   // The popup lives in raw map HTML, so it hands aircraft over through a global.
   useEffect(() => {
@@ -146,11 +147,20 @@ export default function Dashboard() {
       delete next[icao24];
       return next;
     });
+    setAircraftAirports((prev) => {
+      const next = { ...prev };
+      delete next[icao24];
+      return next;
+    });
   }, []);
 
   const handleAircraftDetail = useCallback((icao24: string, detail: AircraftDetail | null) => {
     setAircraftTracks((prev) =>
       detail?.track?.length ? { ...prev, [icao24]: detail.track } : prev);
+
+    const ports = [detail?.origin, detail?.destination]
+      .filter((a): a is Airport => Boolean(a && Number.isFinite(a.lat) && Number.isFinite(a.lng)));
+    setAircraftAirports((prev) => (ports.length ? { ...prev, [icao24]: ports } : prev));
   }, []);
 
   // Telemetry for watched aircraft, refreshed from whatever the feed last gave us.
@@ -940,6 +950,7 @@ export default function Dashboard() {
           followUser={followUser}
           navigating={Boolean(navSession)}
           aircraftTracks={aircraftTracks}
+          aircraftAirports={aircraftAirports}
         />
       </ErrorBoundary>
 

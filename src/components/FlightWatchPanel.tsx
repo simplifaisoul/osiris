@@ -25,6 +25,14 @@ export interface FlightTelemetry {
   squawk?: string;
 }
 
+export interface Airport {
+  icao: string;
+  iata?: string;
+  city?: string;
+  lat: number;
+  lng: number;
+}
+
 export interface AircraftDetail {
   icao24: string;
   registration: string | null;
@@ -33,6 +41,9 @@ export interface AircraftDetail {
   operator: string | null;
   track: [number, number][];
   points: number;
+  /** Scheduled endpoints, so the map can pin the airports it flies between. */
+  origin?: Airport | null;
+  destination?: Airport | null;
 }
 
 interface FlightWatchPanelProps {
@@ -68,21 +79,35 @@ function Row({ flight, telem, onRemove, onLocate, onDetail }: {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/aircraft?icao24=${flight.icao24}`)
-      .then(async (r) => {
-        const d = r.ok ? await r.json() : null;
-        if (cancelled) return;
-        setDetail(d && !d.error ? d : null);
-        setLoading(false);
-        onDetail(flight.icao24, d && !d.error ? d : null);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setLoading(false);
-        onDetail(flight.icao24, null);
-      });
+    const cs = (flight.callsign || '').replace(/\s+/g, '');
+
+    // Airframe and scheduled route come from different places: the trace files
+    // know what the aircraft is and where it has been, the route lookup knows
+    // which airports it is booked between.
+    Promise.all([
+      fetch(`/api/aircraft?icao24=${flight.icao24}`)
+        .then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      cs
+        ? fetch(`/api/flight-route?callsign=${encodeURIComponent(cs)}&icao24=${flight.icao24}`)
+            .then((r) => (r.ok ? r.json() : null)).catch(() => null)
+        : Promise.resolve(null),
+    ]).then(([ac, route]) => {
+      if (cancelled) return;
+      const base = ac && !ac.error ? (ac as AircraftDetail) : null;
+      const merged: AircraftDetail | null = base
+        ? {
+            ...base,
+            origin: route?.found ? route.origin : null,
+            destination: route?.found ? route.destination : null,
+          }
+        : null;
+      setDetail(merged);
+      setLoading(false);
+      onDetail(flight.icao24, merged);
+    });
+
     return () => { cancelled = true; };
-  }, [flight.icao24, onDetail]);
+  }, [flight.icao24, flight.callsign, onDetail]);
 
   return (
     <div className="glass-panel overflow-hidden" style={{ boxShadow: '0 12px 32px rgba(0,0,0,0.6)' }}>
@@ -152,9 +177,21 @@ function Row({ flight, telem, onRemove, onLocate, onDetail }: {
           </div>
         </div>
 
+        {detail?.origin && detail?.destination && (
+          <div className="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-[var(--border-secondary)]">
+            <span className="text-[10px] text-[var(--text-primary)] tabular-nums">
+              {detail.origin.iata || detail.origin.icao}
+            </span>
+            <span className="text-[9px] text-[var(--text-muted)]">&rarr;</span>
+            <span className="text-[10px] text-[var(--text-primary)] tabular-nums">
+              {detail.destination.iata || detail.destination.icao}
+            </span>
+          </div>
+        )}
+
         {detail && detail.points > 0 && (
           <div className="mt-1.5 text-[8px] text-[var(--text-muted)] tabular-nums">
-            {detail.points} flown track points
+            {detail.points} points this leg
           </div>
         )}
         {!telem && (
