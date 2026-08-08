@@ -10,6 +10,7 @@ import ScmPanel from '@/components/ScmPanel';
 import SearchBar from '@/components/SearchBar';
 import DirectionsBar, { type RouteResult, type LiveLocation } from '@/components/DirectionsBar';
 import NavigationView from '@/components/NavigationView';
+import FlightWatchPanel, { type WatchedFlight, type FlightTelemetry, type AircraftDetail } from '@/components/FlightWatchPanel';
 import type { NavProgress } from '@/lib/navigation';
 import ScaleBar from '@/components/ScaleBar';
 import ErrorBoundary from '@/components/ErrorBoundary';
@@ -126,6 +127,54 @@ export default function Dashboard() {
     { route: RouteResult; label: string; key: number } | null
   >(null);
   const [navProgress, setNavProgress] = useState<NavProgress | null>(null);
+  const [watchedFlights, setWatchedFlights] = useState<WatchedFlight[]>([]);
+  const [aircraftTracks, setAircraftTracks] = useState<Record<string, [number, number][]>>({});
+
+  // The popup lives in raw map HTML, so it hands aircraft over through a global.
+  useEffect(() => {
+    (window as unknown as { osirisWatchFlight?: (f: WatchedFlight) => void }).osirisWatchFlight = (f) => {
+      if (!f?.icao24) return;
+      setWatchedFlights((prev) =>
+        prev.some((w) => w.icao24 === f.icao24) ? prev : [...prev, f].slice(-6));
+    };
+  }, []);
+
+  const removeWatched = useCallback((icao24: string) => {
+    setWatchedFlights((prev) => prev.filter((w) => w.icao24 !== icao24));
+    setAircraftTracks((prev) => {
+      const next = { ...prev };
+      delete next[icao24];
+      return next;
+    });
+  }, []);
+
+  const handleAircraftDetail = useCallback((icao24: string, detail: AircraftDetail | null) => {
+    setAircraftTracks((prev) =>
+      detail?.track?.length ? { ...prev, [icao24]: detail.track } : prev);
+  }, []);
+
+  // Telemetry for watched aircraft, refreshed from whatever the feed last gave us.
+  const watchTelemetry = useMemo(() => {
+    const out: Record<string, FlightTelemetry> = {};
+    if (!watchedFlights.length) return out;
+    const buckets = [
+      data?.commercial_flights, data?.private_flights,
+      data?.private_jets, data?.military_flights,
+    ];
+    const wanted = new Set(watchedFlights.map((w) => w.icao24));
+    for (const bucket of buckets) {
+      for (const f of bucket || []) {
+        if (f?.icao24 && wanted.has(f.icao24)) {
+          out[f.icao24] = {
+            lat: f.lat, lng: f.lng, alt: f.alt,
+            speed_knots: f.speed_knots, heading: f.heading,
+            grounded: f.grounded, squawk: f.squawk,
+          };
+        }
+      }
+    }
+    return out;
+  }, [watchedFlights, data]);
 
   // A navigation session owns its own position watch. The planner's watch dies
   // with the planner when guidance takes over the panel, so guidance cannot
@@ -890,6 +939,7 @@ export default function Dashboard() {
           }
           followUser={followUser}
           navigating={Boolean(navSession)}
+          aircraftTracks={aircraftTracks}
         />
       </ErrorBoundary>
 
@@ -952,6 +1002,24 @@ export default function Dashboard() {
         )}
       </div>
 
+
+      {/* ── FLIGHT WATCH ── */}
+      {watchedFlights.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }}
+          className="absolute top-3 z-[380] w-[min(92vw,290px)] pointer-events-auto
+                     max-h-[calc(100vh-180px)] overflow-y-auto styled-scrollbar"
+          style={{ left: isMobile ? '12px' : '120px' }}
+        >
+          <FlightWatchPanel
+            watched={watchedFlights}
+            telemetry={watchTelemetry}
+            onRemove={removeWatched}
+            onLocate={(lat, lng) => setFlyToLocation({ lat, lng, zoom: 8, ts: Date.now() })}
+            onDetail={handleAircraftDetail}
+          />
+        </motion.div>
+      )}
 
       {/* ── MAP VIEW CONTROLS ── */}
       <motion.div

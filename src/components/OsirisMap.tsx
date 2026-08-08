@@ -39,6 +39,8 @@ interface OsirisMapProps {
   followUser?: boolean;
   /** Live navigation: tighter zoom and the map turned to face travel direction. */
   navigating?: boolean;
+  /** Flown tracks for watched aircraft, keyed by icao24. */
+  aircraftTracks?: Record<string, [number, number][]>;
 }
 
 function computeSolarTerminator(): [number, number][] {
@@ -63,7 +65,7 @@ function computeSolarTerminator(): [number, number][] {
 
 const EMPTY_FC = { type: 'FeatureCollection' as const, features: [] };
 
-function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, flyToLocation, projection = 'globe', mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', drawnPolygons = [], arcgisLayers = [], drawingMode = false, onDrawComplete, onMapCenter, route = null, userLocation = null, followUser = false, navigating = false }: OsirisMapProps) {
+function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, flyToLocation, projection = 'globe', mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', drawnPolygons = [], arcgisLayers = [], drawingMode = false, onDrawComplete, onMapCenter, route = null, userLocation = null, followUser = false, navigating = false, aircraftTracks = {} }: OsirisMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
@@ -872,7 +874,11 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
             <div><span style="color:#5C5A54;font-size:9px;">REG</span><br/><span style="color:#B0BEC5;">${htmlEsc(p.registration||'—')}</span></div>
             <div><span style="color:#5C5A54;font-size:9px;">POS</span><br/><span style="color:#B0BEC5;">${coords[1].toFixed(2)},${coords[0].toFixed(2)}</span></div>
           </div>
-          <div id="${routeLoadingId}" style="margin-top:10px;padding:6px;border-top:1px solid rgba(255,255,255,0.06);text-align:center;">
+          <div id="ac-${idSafe(p.icao24||'')}" style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);">
+            <span style="color:#5C5A54;font-size:9px;letter-spacing:0.1em;">IDENTIFYING AIRFRAME…</span>
+          </div>
+          <button onclick="window.osirisWatchFlight && window.osirisWatchFlight({ icao24: '${idSafe(p.icao24||'')}', callsign: '${idSafe(cs)}' })" style="width:100%;margin-top:8px;padding:6px 12px;background:rgba(0,229,255,0.10);border:1px solid rgba(0,229,255,0.35);color:#7FE9FF;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:bold;letter-spacing:0.1em;border-radius:4px;cursor:pointer;">+ WATCH THIS AIRCRAFT</button>
+          <div id="${routeLoadingId}" style="margin-top:8px;padding:6px;border-top:1px solid rgba(255,255,255,0.06);text-align:center;">
             <span style="color:#5C5A54;font-size:9px;letter-spacing:0.1em;">RESOLVING ROUTE…</span>
           </div>
           <div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap;">
@@ -891,6 +897,26 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
               clearFlightRoute(true);
             }
           });
+        }
+
+        // The transponder only reports a type code (often nothing at all), so
+        // resolve the real manufacturer/model and registration out of band.
+        if (p.icao24) {
+          fetch(`/api/aircraft?icao24=${encodeURIComponent(p.icao24)}`)
+            .then(r => (r.ok ? r.json() : null))
+            .then((d) => {
+              const el = document.getElementById(`ac-${p.icao24}`);
+              if (!el || !d || d.error) {
+                if (el) el.innerHTML = '<span style="color:#5C5A54;font-size:9px;">AIRFRAME NOT IN REGISTRY</span>';
+                return;
+              }
+              const bits = [d.registration, d.typeCode, d.operator].filter(Boolean)
+                .map((x: string) => htmlEsc(String(x))).join(' · ');
+              el.innerHTML =
+                `<div style="color:#E8E6E0;font-size:11px;line-height:1.35;">${htmlEsc(d.model || 'Unidentified type')}</div>` +
+                (bits ? `<div style="color:#78909C;font-size:9px;margin-top:2px;">${bits}</div>` : '');
+            })
+            .catch(() => {});
         }
 
         // Fetch route data and draw on map
@@ -2453,6 +2479,58 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     if (!mapReady || !mapRef.current || navigating) return;
     mapRef.current.easeTo({ pitch: 0, bearing: 0, duration: 600 });
   }, [mapReady, navigating]);
+
+  // ── WATCHED AIRCRAFT FLOWN TRACKS ──
+  // The straight airport-to-airport line was never the path flown: an orbit,
+  // a hold or a diversion all rendered as a direct line to the destination.
+  // These are the actual reported positions.
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    const map = mapRef.current;
+    const SRC = 'aircraft-tracks';
+    const IDS = ['aircraft-track-casing', 'aircraft-track-line'];
+
+    const features = Object.entries(aircraftTracks)
+      .filter(([, t]) => Array.isArray(t) && t.length > 1)
+      .map(([icao24, t]) => ({
+        type: 'Feature' as const,
+        properties: { icao24 },
+        geometry: { type: 'LineString' as const, coordinates: t },
+      }));
+
+    if (features.length === 0) {
+      IDS.forEach((id) => { if (map.getLayer(id)) map.removeLayer(id); });
+      if (map.getSource(SRC)) map.removeSource(SRC);
+      return;
+    }
+
+    const fc = { type: 'FeatureCollection' as const, features };
+    if (!map.getSource(SRC)) map.addSource(SRC, { type: 'geojson', data: fc as never });
+    else (map.getSource(SRC) as maplibregl.GeoJSONSource).setData(fc as never);
+
+    if (!map.getLayer('aircraft-track-casing')) {
+      map.addLayer({
+        id: 'aircraft-track-casing', type: 'line', source: SRC,
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': '#001014',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 2, 3, 8, 6],
+          'line-opacity': 0.7,
+        },
+      });
+    }
+    if (!map.getLayer('aircraft-track-line')) {
+      map.addLayer({
+        id: 'aircraft-track-line', type: 'line', source: SRC,
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': '#FFB300',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 2, 1.4, 8, 3],
+          'line-opacity': 0.9,
+        },
+      });
+    }
+  }, [mapReady, aircraftTracks]);
 
   // ── ARCGIS LAYERS ──
   useEffect(() => {

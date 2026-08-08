@@ -1,4 +1,6 @@
 import https from 'https';
+import zlib from 'zlib';
+import type { Readable } from 'stream';
 
 /**
  * OSIRIS — JSON fetch over Node's https client.
@@ -32,10 +34,20 @@ export function httpJson<T>(
           reject(new Error(`HTTP ${res.statusCode}`));
           return;
         }
+        // Some hosts serve pre-compressed static JSON and set Content-Encoding
+        // regardless of what we asked for — adsb.lol's trace files do exactly
+        // that — so decode by the header rather than by what we requested.
+        const encoding = (res.headers['content-encoding'] || '').toLowerCase();
+        let stream: Readable = res;
+        if (encoding === 'gzip') stream = res.pipe(zlib.createGunzip());
+        else if (encoding === 'deflate') stream = res.pipe(zlib.createInflate());
+        else if (encoding === 'br') stream = res.pipe(zlib.createBrotliDecompress());
+
         let body = '';
-        res.setEncoding('utf8');
-        res.on('data', (chunk) => { body += chunk; });
-        res.on('end', () => {
+        stream.setEncoding('utf8');
+        stream.on('data', (chunk: string) => { body += chunk; });
+        stream.on('error', reject);
+        stream.on('end', () => {
           try { resolve(JSON.parse(body) as T); } catch (e) { reject(e); }
         });
       },
