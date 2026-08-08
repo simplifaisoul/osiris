@@ -5,7 +5,7 @@ import {
   X, Car, Footprints, Bike, ArrowUpDown, MapPin, Flag, Route,
   CornerUpRight, CornerUpLeft, ArrowUp, RotateCw, Merge, Search,
   LocateFixed, Building2, Landmark, Globe2, Signpost, Home, Crosshair, Clock,
-  Plus, Trash2, SlidersHorizontal, Mountain, Navigation,
+  Plus, Trash2, SlidersHorizontal, Mountain, Navigation, Play,
 } from 'lucide-react';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -79,6 +79,8 @@ interface DirectionsBarProps {
   /** Selected step segment, for highlighting the leg on the map. */
   onActiveSegment?: (seg: [number, number][] | null) => void;
   onFollowChange?: (follow: boolean) => void;
+  /** Hand the chosen route to the parent to drive live navigation. */
+  onStartNavigation?: (route: RouteResult, destinationLabel: string) => void;
 }
 
 const MODES = [
@@ -414,7 +416,7 @@ function PlaceInput({
   );
 }
 
-export default function DirectionsBar({ onRoute, onLocate, onClose, center = null, onLiveLocation, onActiveSegment, onFollowChange }: DirectionsBarProps) {
+export default function DirectionsBar({ onRoute, onLocate, onClose, center = null, onLiveLocation, onActiveSegment, onFollowChange, onStartNavigation }: DirectionsBarProps) {
   const [fromText, setFromText] = useState('');
   const [toText, setToText] = useState('');
   const [from, setFrom] = useState<Place | null>(null);
@@ -913,6 +915,19 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
                     />
                   </svg>
                 </div>
+              )}
+
+              {onStartNavigation && (
+                <button
+                  onClick={() => onStartNavigation(route, to?.label || 'your destination')}
+                  className="w-full mt-2.5 flex items-center justify-center gap-2 py-2 rounded-lg
+                             bg-[rgba(66,133,244,0.16)] border border-[rgba(66,133,244,0.45)]
+                             text-[#7BAAF7] text-[11px] tracking-wide
+                             hover:bg-[rgba(66,133,244,0.24)] transition-colors"
+                >
+                  <Play className="w-3.5 h-3.5" />
+                  Start navigation
+                </button>
               )}
 
               {routes.length > 1 && (

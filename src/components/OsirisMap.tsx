@@ -37,6 +37,8 @@ interface OsirisMapProps {
   userLocation?: { lat: number; lng: number; accuracy?: number; heading?: number | null } | null;
   /** Keep the camera centred on userLocation as it moves. */
   followUser?: boolean;
+  /** Live navigation: tighter zoom and the map turned to face travel direction. */
+  navigating?: boolean;
 }
 
 function computeSolarTerminator(): [number, number][] {
@@ -61,7 +63,7 @@ function computeSolarTerminator(): [number, number][] {
 
 const EMPTY_FC = { type: 'FeatureCollection' as const, features: [] };
 
-function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, flyToLocation, projection = 'globe', mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', drawnPolygons = [], arcgisLayers = [], drawingMode = false, onDrawComplete, onMapCenter, route = null, userLocation = null, followUser = false }: OsirisMapProps) {
+function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, flyToLocation, projection = 'globe', mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', drawnPolygons = [], arcgisLayers = [], drawingMode = false, onDrawComplete, onMapCenter, route = null, userLocation = null, followUser = false, navigating = false }: OsirisMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
@@ -2429,8 +2431,28 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
   // ── FOLLOW MODE ──
   useEffect(() => {
     if (!mapReady || !mapRef.current || !followUser || !userLocation) return;
-    mapRef.current.easeTo({ center: [userLocation.lng, userLocation.lat], duration: 700 });
-  }, [mapReady, followUser, userLocation]);
+    // While navigating, sit close in and rotate the map so travel direction is
+    // "up" — reading a turn off a north-locked map at speed does not work.
+    mapRef.current.easeTo({
+      center: [userLocation.lng, userLocation.lat],
+      ...(navigating
+        ? {
+            zoom: Math.max(mapRef.current.getZoom(), 16.5),
+            pitch: 50,
+            ...(typeof userLocation.heading === 'number' && !Number.isNaN(userLocation.heading)
+              ? { bearing: userLocation.heading }
+              : {}),
+          }
+        : {}),
+      duration: 700,
+    });
+  }, [mapReady, followUser, userLocation, navigating]);
+
+  // Restore a plain north-up view when guidance ends.
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || navigating) return;
+    mapRef.current.easeTo({ pitch: 0, bearing: 0, duration: 600 });
+  }, [mapReady, navigating]);
 
   // ── ARCGIS LAYERS ──
   useEffect(() => {
