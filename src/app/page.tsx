@@ -10,7 +10,7 @@ import ScmPanel from '@/components/ScmPanel';
 import SearchBar from '@/components/SearchBar';
 import DirectionsBar, { type RouteResult, type LiveLocation } from '@/components/DirectionsBar';
 import NavigationView from '@/components/NavigationView';
-import FlightWatchPanel, { type WatchedFlight, type FlightTelemetry, type AircraftDetail, type Airport } from '@/components/FlightWatchPanel';
+import FlightWatchPanel, { type WatchedFlight, type FlightTelemetry, type AircraftDetail } from '@/components/FlightWatchPanel';
 import type { NavProgress } from '@/lib/navigation';
 import ScaleBar from '@/components/ScaleBar';
 import ErrorBoundary from '@/components/ErrorBoundary';
@@ -129,8 +129,6 @@ export default function Dashboard() {
   const [navProgress, setNavProgress] = useState<NavProgress | null>(null);
   const [watchedFlights, setWatchedFlights] = useState<WatchedFlight[]>([]);
   const [aircraftTracks, setAircraftTracks] = useState<Record<string, [number, number][]>>({});
-  const [aircraftAirports, setAircraftAirports] = useState<Record<string, Airport[]>>({});
-  const [aircraftPending, setAircraftPending] = useState<Record<string, [number, number][]>>({});
 
   // The popup lives in raw map HTML, so it hands aircraft over through a global.
   useEffect(() => {
@@ -148,41 +146,11 @@ export default function Dashboard() {
       delete next[icao24];
       return next;
     });
-    setAircraftAirports((prev) => {
-      const next = { ...prev };
-      delete next[icao24];
-      return next;
-    });
-    setAircraftPending((prev) => {
-      const next = { ...prev };
-      delete next[icao24];
-      return next;
-    });
   }, []);
 
   const handleAircraftDetail = useCallback((icao24: string, detail: AircraftDetail | null) => {
     setAircraftTracks((prev) =>
       detail?.track?.length ? { ...prev, [icao24]: detail.track } : prev);
-
-    const ports = [detail?.origin, detail?.destination]
-      .filter((a): a is Airport => Boolean(a && Number.isFinite(a.lat) && Number.isFinite(a.lng)));
-    setAircraftAirports((prev) => (ports.length ? { ...prev, [icao24]: ports } : prev));
-
-    // The origin is read off the track, so it already sits on the first fix and
-    // needs nothing drawn to reach it. The destination is still ahead of the
-    // aircraft — a dashed run from the last fix says so without pretending to
-    // know the path it will take.
-    const track = detail?.track || [];
-    const dest = detail?.destination;
-    setAircraftPending((prev) => {
-      if (track.length < 2 || !dest || detail?.arrival) {
-        if (!(icao24 in prev)) return prev;
-        const next = { ...prev };
-        delete next[icao24];
-        return next;
-      }
-      return { ...prev, [icao24]: [track[track.length - 1], [dest.lng, dest.lat]] };
-    });
   }, []);
 
   // Telemetry for watched aircraft, refreshed from whatever the feed last gave us.
@@ -972,8 +940,6 @@ export default function Dashboard() {
           followUser={followUser}
           navigating={Boolean(navSession)}
           aircraftTracks={aircraftTracks}
-          aircraftAirports={aircraftAirports}
-          aircraftPending={aircraftPending}
         />
       </ErrorBoundary>
 

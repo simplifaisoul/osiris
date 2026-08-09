@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { httpJson, optional } from '@/lib/httpJson';
 import { cachedSource } from '@/lib/sourceCache';
-import { nearestAirport, type Airport } from '@/lib/airports';
 
 export const maxDuration = 20;
 
@@ -34,10 +33,6 @@ export interface AircraftDetail {
   /** Altitude in feet at each track point, aligned by index. */
   altitudes: (number | null)[];
   points: number;
-  /** Airport this leg was seen to leave, read off the track. Null if unknown. */
-  departure: Airport | null;
-  /** Airport this leg was seen to land at. Null while still airborne. */
-  arrival: Airport | null;
   source: string;
 }
 
@@ -98,39 +93,6 @@ export function currentLeg(
   return leg.length > 1 ? leg : rows;
 }
 
-/** Above this, the leg was picked up in the cruise, not seen to depart. */
-const DEPARTURE_CEILING_FT = 10_000;
-
-/**
- * Name the airports a leg was *observed* to use.
- *
- * Schedule lookups are keyed by callsign and hand back whichever leg of the
- * aircraft's day the database happens to hold — measured against the flown
- * track, the origin they claim is typically over a thousand kilometres out,
- * which is what turned the drawn route into lines to nowhere. The track knows
- * better: a leg that begins low over an airport began *at* that airport, and
- * one whose trace ends in ground reports has landed at the airport under it.
- *
- * Anything else stays null. An aircraft first seen at cruise has no knowable
- * origin, and one still airborne has no knowable destination.
- */
-export function legEndpoints(
-  track: [number, number][],
-  altitudes: (number | null)[],
-  landed: boolean,
-): { departure: Airport | null; arrival: Airport | null } {
-  if (track.length < 2) return { departure: null, arrival: null };
-
-  const firstAlt = altitudes[0];
-  const lowStart = firstAlt === null || (typeof firstAlt === 'number' && firstAlt <= DEPARTURE_CEILING_FT);
-  const departure = lowStart ? nearestAirport(track[0][1], track[0][0]) : null;
-
-  const last = track[track.length - 1];
-  const arrival = landed ? nearestAirport(last[1], last[0]) : null;
-
-  return { departure, arrival };
-}
-
 /**
  * Thin a track to at most `max` points, always keeping the first and last so
  * the path still starts and ends where the aircraft did. A 5,000-point trace
@@ -169,11 +131,6 @@ export function parseTrace(
   const idx = track.map((_, i) => i);
   const keep = downsample(idx, maxPoints);
 
-  // Trailing ground reports are trimmed off the leg, so the landing has to be
-  // read from the untrimmed trace.
-  const raw = json?.trace || [];
-  const landed = raw.length > 0 && raw[raw.length - 1]?.[3] === 'ground';
-
   return {
     icao24: (json?.icao || '').toLowerCase(),
     registration: json?.r?.trim() || null,
@@ -182,7 +139,6 @@ export function parseTrace(
     track: keep.map((i) => track[i]),
     altitudes: keep.map((i) => altitudes[i]),
     points: keep.length,
-    ...legEndpoints(track, altitudes, landed),
   };
 }
 
@@ -244,8 +200,6 @@ export async function GET(request: Request) {
           track: parsed?.track || [],
           altitudes: parsed?.altitudes || [],
           points: parsed?.points || 0,
-          departure: parsed?.departure || null,
-          arrival: parsed?.arrival || null,
           source: parsed ? 'adsb.lol' : 'adsbdb',
         }];
       },

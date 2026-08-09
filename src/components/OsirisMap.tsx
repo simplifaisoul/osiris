@@ -41,10 +41,6 @@ interface OsirisMapProps {
   navigating?: boolean;
   /** Flown tracks for watched aircraft, keyed by icao24. */
   aircraftTracks?: Record<string, [number, number][]>;
-  /** Corroborated endpoint airports for watched aircraft, keyed by icao24. */
-  aircraftAirports?: Record<string, Array<{ icao: string; iata?: string; city?: string; lat: number; lng: number }>>;
-  /** Aircraft position to its destination — the leg still to fly, drawn dashed. */
-  aircraftPending?: Record<string, [number, number][]>;
 }
 
 function computeSolarTerminator(): [number, number][] {
@@ -69,7 +65,7 @@ function computeSolarTerminator(): [number, number][] {
 
 const EMPTY_FC = { type: 'FeatureCollection' as const, features: [] };
 
-function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, flyToLocation, projection = 'globe', mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', drawnPolygons = [], arcgisLayers = [], drawingMode = false, onDrawComplete, onMapCenter, route = null, userLocation = null, followUser = false, navigating = false, aircraftTracks = {}, aircraftAirports = {}, aircraftPending = {} }: OsirisMapProps) {
+function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, flyToLocation, projection = 'globe', mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', drawnPolygons = [], arcgisLayers = [], drawingMode = false, onDrawComplete, onMapCenter, route = null, userLocation = null, followUser = false, navigating = false, aircraftTracks = {} }: OsirisMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
@@ -701,14 +697,6 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     const urlSafe = (s: any): string => { const u = String(s ?? ''); return /^https?:\/\//i.test(u) ? u : '#'; };
     const colorSafe = (s: any): string => /^#[0-9a-fA-F]{3,8}$/.test(String(s ?? '')) ? String(s) : '#aaa';
 
-    const formatTime = (iso: string | null) => {
-      if (!iso) return '—';
-      try {
-        const d = new Date(iso);
-        return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZoneName: 'short' });
-      } catch { return '—'; }
-    };
-
     // ── Flights (with FlightAware + ADS-B Exchange links + ROUTE VISUALIZATION) ──
     ['fl-commercial','fl-private','fl-jets','fl-military'].forEach(layer => {
       map.on('click', layer, e => {
@@ -718,7 +706,6 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         const cs = (p.callsign||'').trim();
 
         // Show initial popup immediately (without route data)
-        const routeLoadingId = `route-info-${Date.now()}`;
         popup(coords, `<div style="${pStyle}border:1px solid rgba(255,255,255,0.08);">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
             <span style="color:#E8E6E0;font-size:15px;font-weight:700;letter-spacing:0.08em;">${htmlEsc(cs)}</span>
@@ -736,9 +723,6 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
             <span style="color:#5C5A54;font-size:9px;letter-spacing:0.1em;">IDENTIFYING AIRFRAME…</span>
           </div>
           <button onclick="window.osirisWatchFlight && window.osirisWatchFlight({ icao24: '${idSafe(p.icao24||'')}', callsign: '${idSafe(cs)}' })" style="width:100%;margin-top:8px;padding:6px 12px;background:rgba(0,229,255,0.10);border:1px solid rgba(0,229,255,0.35);color:#7FE9FF;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:bold;letter-spacing:0.1em;border-radius:4px;cursor:pointer;">+ WATCH THIS AIRCRAFT</button>
-          <div id="${routeLoadingId}" style="margin-top:8px;padding:6px;border-top:1px solid rgba(255,255,255,0.06);text-align:center;">
-            <span style="color:#5C5A54;font-size:9px;letter-spacing:0.1em;">RESOLVING ROUTE…</span>
-          </div>
           <div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap;">
             <a href="https://www.flightaware.com/live/flight/${encodeURIComponent(cs)}" target="_blank" style="${linkStyle}color:#78909C;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);">FLIGHTAWARE</a>
             <a href="https://globe.adsbexchange.com/?icao=${encodeURIComponent(p.icao24||'')}" target="_blank" style="${linkStyle}color:#78909C;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);">ADS-B</a>
@@ -767,48 +751,6 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
             .catch(() => {});
         }
 
-        // Resolve origin/destination for the readout only. The line this used
-        // to draw was a straight hop between two airports, which is not the
-        // path flown — watched aircraft draw their real reported track instead.
-        const cleanCallsign = cs.replace(/\s+/g, '');
-        const routeParams = new URLSearchParams({
-          callsign: cleanCallsign,
-          icao24: p.icao24 || '',
-          lat: String(coords[1]),
-          lng: String(coords[0]),
-          speed: String(p.speed_knots || 0),
-        });
-        fetch(`/api/flight-route?${routeParams}`)
-          .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-          .then(routeData => {
-            const el = document.getElementById(routeLoadingId);
-            if (!el) return;
-            if (routeData.found && routeData.origin && routeData.destination) {
-              const depTime = formatTime(routeData.departureTime);
-              const arrTime = formatTime(routeData.arrivalTime);
-              const pct = Math.round((routeData.progress || 0) * 100);
-              const distKm = routeData.totalDistanceKm || 0;
-              el.innerHTML = `
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-                  <div><span style="color:#5C5A54;font-size:8px;">FROM</span><br/><span style="color:#E8E6E0;font-size:13px;font-weight:700;">${htmlEsc(routeData.origin.iata || routeData.origin.icao)}</span> <span style="color:#5C5A54;font-size:9px;">${htmlEsc(routeData.origin.city)}</span></div>
-                  <span style="color:#5C5A54;font-size:11px;">&rarr;</span>
-                  <div style="text-align:right;"><span style="color:#5C5A54;font-size:8px;">TO</span><br/><span style="color:#E8E6E0;font-size:13px;font-weight:700;">${htmlEsc(routeData.destination.iata || routeData.destination.icao)}</span> <span style="color:#5C5A54;font-size:9px;">${htmlEsc(routeData.destination.city)}</span></div>
-                </div>
-                <div style="height:2px;background:rgba(255,255,255,0.06);border-radius:1px;margin:6px 0;"><div style="width:${pct}%;height:100%;background:rgba(255,255,255,0.35);border-radius:1px;"></div></div>
-                <div style="display:flex;justify-content:space-between;font-size:10px;color:#78909C;">
-                  <span>DEP ${depTime}</span>
-                  <span>${pct}% &middot; ${distKm.toLocaleString()}km</span>
-                  <span>ARR ${arrTime}</span>
-                </div>
-              `;
-            } else {
-              el.innerHTML = `<span style="color:#5C5A54;font-size:9px;">NO SCHEDULED ROUTE</span>`;
-            }
-          })
-          .catch(() => {
-            const el = document.getElementById(routeLoadingId);
-            if (el) el.innerHTML = `<span style="color:#5C5A54;font-size:9px;">ROUTE UNAVAILABLE</span>`;
-          });
       });
       map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
       map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
@@ -2378,113 +2320,6 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       });
     }
   }, [mapReady, aircraftTracks]);
-
-  // ── REMAINING LEG ──
-  // Dashed, because it is where the aircraft is booked to go, not where it has
-  // been — the solid track is the part that actually happened.
-  useEffect(() => {
-    if (!mapReady || !mapRef.current) return;
-    const map = mapRef.current;
-    const SRC = 'aircraft-pending';
-    const ID = 'aircraft-pending-line';
-
-    const features = Object.entries(aircraftPending)
-      .filter(([, t]) => Array.isArray(t) && t.length > 1)
-      .map(([icao24, pts]) => ({
-        type: 'Feature' as const,
-        properties: { icao24 },
-        geometry: { type: 'LineString' as const, coordinates: pts },
-      }));
-
-    if (features.length === 0) {
-      if (map.getLayer(ID)) map.removeLayer(ID);
-      if (map.getSource(SRC)) map.removeSource(SRC);
-      return;
-    }
-
-    const fc = { type: 'FeatureCollection' as const, features };
-    if (!map.getSource(SRC)) map.addSource(SRC, { type: 'geojson', data: fc as never });
-    else (map.getSource(SRC) as maplibregl.GeoJSONSource).setData(fc as never);
-
-    if (!map.getLayer(ID)) {
-      map.addLayer({
-        id: ID, type: 'line', source: SRC,
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: {
-          'line-color': '#FFB300',
-          'line-width': ['interpolate', ['linear'], ['zoom'], 2, 1, 8, 2],
-          'line-opacity': 0.45,
-          'line-dasharray': [2, 3],
-        },
-      });
-    }
-  }, [mapReady, aircraftPending]);
-
-  // ── AIRPORTS FOR WATCHED AIRCRAFT ──
-  // A bare track is hard to read: it shows where the aircraft went without
-  // saying between what. These are the endpoints that survived corroboration
-  // against the track, so each dot lands on the line rather than beside it.
-  useEffect(() => {
-    if (!mapReady || !mapRef.current) return;
-    const map = mapRef.current;
-    const SRC = 'watched-airports';
-    const IDS = ['watched-airport-glow', 'watched-airport-dot', 'watched-airport-label'];
-
-    // The same airport can serve several watched aircraft — draw it once.
-    const seen = new Set<string>();
-    const features = Object.values(aircraftAirports).flat()
-      .filter((a) => {
-        if (!a || seen.has(a.icao)) return false;
-        seen.add(a.icao);
-        return true;
-      })
-      .map((a) => ({
-        type: 'Feature' as const,
-        properties: { label: a.iata || a.icao, city: a.city || '' },
-        geometry: { type: 'Point' as const, coordinates: [a.lng, a.lat] },
-      }));
-
-    if (features.length === 0) {
-      IDS.forEach((id) => { if (map.getLayer(id)) map.removeLayer(id); });
-      if (map.getSource(SRC)) map.removeSource(SRC);
-      return;
-    }
-
-    const fc = { type: 'FeatureCollection' as const, features };
-    if (!map.getSource(SRC)) map.addSource(SRC, { type: 'geojson', data: fc as never });
-    else (map.getSource(SRC) as maplibregl.GeoJSONSource).setData(fc as never);
-
-    if (!map.getLayer('watched-airport-glow')) {
-      map.addLayer({
-        id: 'watched-airport-glow', type: 'circle', source: SRC,
-        paint: { 'circle-radius': 13, 'circle-color': '#FFB300', 'circle-opacity': 0.16, 'circle-blur': 0.8 },
-      });
-    }
-    if (!map.getLayer('watched-airport-dot')) {
-      map.addLayer({
-        id: 'watched-airport-dot', type: 'circle', source: SRC,
-        paint: {
-          'circle-radius': 5,
-          'circle-color': '#FFFFFF',
-          'circle-stroke-width': 2,
-          'circle-stroke-color': '#FFB300',
-        },
-      });
-    }
-    if (!map.getLayer('watched-airport-label')) {
-      map.addLayer({
-        id: 'watched-airport-label', type: 'symbol', source: SRC,
-        layout: {
-          'text-field': ['get', 'label'],
-          'text-size': 11,
-          'text-font': ['Open Sans Bold'],
-          'text-offset': [0, 1.6],
-          'text-allow-overlap': true,
-        },
-        paint: { 'text-color': '#FFB300', 'text-halo-color': '#0C0E1A', 'text-halo-width': 1.5 },
-      });
-    }
-  }, [mapReady, aircraftAirports]);
 
   // ── ARCGIS LAYERS ──
   useEffect(() => {

@@ -25,14 +25,6 @@ export interface FlightTelemetry {
   squawk?: string;
 }
 
-export interface Airport {
-  icao: string;
-  iata?: string;
-  city?: string;
-  lat: number;
-  lng: number;
-}
-
 export interface AircraftDetail {
   icao24: string;
   registration: string | null;
@@ -41,87 +33,6 @@ export interface AircraftDetail {
   operator: string | null;
   track: [number, number][];
   points: number;
-  /** Airports read off the track: where this leg was seen to leave and land. */
-  departure?: Airport | null;
-  arrival?: Airport | null;
-  /** Endpoints the map should pin — observed where possible, schedule where not. */
-  origin?: Airport | null;
-  destination?: Airport | null;
-}
-
-/** Schedule lookup result from /api/flight-route. */
-export interface ScheduledRoute {
-  found?: boolean;
-  origin?: Airport | null;
-  destination?: Airport | null;
-}
-
-const R_KM = 6371;
-
-export function greatCircleKm(a: [number, number], b: [number, number]): number {
-  const t = Math.PI / 180;
-  const dLat = (b[1] - a[1]) * t;
-  const dLng = (b[0] - a[0]) * t;
-  const h = Math.sin(dLat / 2) ** 2
-    + Math.cos(a[1] * t) * Math.cos(b[1] * t) * Math.sin(dLng / 2) ** 2;
-  return 2 * R_KM * Math.asin(Math.sqrt(h));
-}
-
-const sameAirport = (a: Airport, b: Airport) =>
-  a.icao === b.icao || (Boolean(a.iata) && a.iata === b.iata);
-
-/**
- * Is the aircraft actually inside the corridor between these two airports?
- *
- * Flying O→D means the legs either side of you add up to about the whole trip.
- * A wrong-leg schedule fails loudly — one sampled aircraft measured 32× the
- * direct distance out of its supposed corridor.
- */
-export function onCorridor(here: [number, number], origin: Airport, destination: Airport): boolean {
-  const direct = greatCircleKm([origin.lng, origin.lat], [destination.lng, destination.lat]);
-  const detour = greatCircleKm([origin.lng, origin.lat], here)
-    + greatCircleKm(here, [destination.lng, destination.lat]);
-  // Short hops spend a bigger share of the trip on departure and arrival
-  // vectoring, so allow a fixed slice of slack on top of the proportional one.
-  return detour <= direct * 1.15 + 150;
-}
-
-/**
- * Decide which airports are safe to put on the map.
- *
- * Schedule lookups are keyed by callsign, and across a live sample they named
- * the wrong leg of the aircraft's day about four times in five — origins over
- * a thousand kilometres from where the track began. Drawn, that is a dot in
- * open country with a straight line to nowhere, which is exactly what this
- * used to look like.
- *
- * So the track leads and the schedule corroborates: the departure the aircraft
- * was seen to make is the origin, and the schedule's destination is only
- * accepted when its origin agrees with that departure. With no observed
- * departure to check against — coverage that began mid-ocean — the corridor
- * test stands in. Failing both, nothing is drawn.
- */
-export function resolveEndpoints(
-  ac: AircraftDetail,
-  schedule: ScheduledRoute | null,
-): { origin: Airport | null; destination: Airport | null } {
-  const observedDep = ac.departure || null;
-  const observedArr = ac.arrival || null;
-  const sched = schedule?.found ? schedule : null;
-  const here = ac.track.length ? ac.track[ac.track.length - 1] : null;
-
-  // Already landed: both ends were watched happening, nothing to corroborate.
-  if (observedDep && observedArr) return { origin: observedDep, destination: observedArr };
-
-  let destination: Airport | null = observedArr;
-  if (!destination && sched?.origin && sched?.destination && here) {
-    const corroborated = observedDep
-      ? sameAirport(observedDep, sched.origin)
-      : onCorridor(here, sched.origin, sched.destination);
-    if (corroborated) destination = sched.destination;
-  }
-
-  return { origin: observedDep, destination };
 }
 
 interface FlightWatchPanelProps {
@@ -157,31 +68,21 @@ function Row({ flight, telem, onRemove, onLocate, onDetail }: {
 
   useEffect(() => {
     let cancelled = false;
-    const cs = (flight.callsign || '').replace(/\s+/g, '');
 
-    // Airframe and scheduled route come from different places: the trace files
-    // know what the aircraft is and where it has been, the route lookup knows
-    // which airports it is booked between.
-    Promise.all([
-      fetch(`/api/aircraft?icao24=${flight.icao24}`)
-        .then((r) => (r.ok ? r.json() : null)).catch(() => null),
-      cs
-        ? fetch(`/api/flight-route?callsign=${encodeURIComponent(cs)}&icao24=${flight.icao24}`)
-            .then((r) => (r.ok ? r.json() : null)).catch(() => null)
-        : Promise.resolve(null),
-    ]).then(([ac, route]) => {
-      if (cancelled) return;
-      const base = ac && !ac.error ? (ac as AircraftDetail) : null;
-      const merged: AircraftDetail | null = base
-        ? { ...base, ...resolveEndpoints(base, route as ScheduledRoute | null) }
-        : null;
-      setDetail(merged);
-      setLoading(false);
-      onDetail(flight.icao24, merged);
-    });
+    // The trace files know what the aircraft is and where it has been.
+    fetch(`/api/aircraft?icao24=${flight.icao24}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((ac) => {
+        if (cancelled) return;
+        const detail = ac && !ac.error ? (ac as AircraftDetail) : null;
+        setDetail(detail);
+        setLoading(false);
+        onDetail(flight.icao24, detail);
+      });
 
     return () => { cancelled = true; };
-  }, [flight.icao24, flight.callsign, onDetail]);
+  }, [flight.icao24, onDetail]);
 
   return (
     <div className="glass-panel overflow-hidden" style={{ boxShadow: '0 12px 32px rgba(0,0,0,0.6)' }}>
@@ -250,23 +151,6 @@ function Row({ flight, telem, onRemove, onLocate, onDetail }: {
             </span>
           </div>
         </div>
-
-        {(detail?.origin || detail?.destination) && (
-          <div className="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-[var(--border-secondary)]">
-            <span className="text-[10px] text-[var(--text-primary)] tabular-nums">
-              {detail.origin ? detail.origin.iata || detail.origin.icao : '····'}
-            </span>
-            <span className="text-[9px] text-[var(--text-muted)]">&rarr;</span>
-            <span className="text-[10px] text-[var(--text-primary)] tabular-nums">
-              {detail.destination ? detail.destination.iata || detail.destination.icao : '····'}
-            </span>
-            {/* An unconfirmed destination is a schedule claim, not something the
-                aircraft was seen to do — say so rather than imply certainty. */}
-            <span className="text-[8px] text-[var(--text-muted)] ml-auto">
-              {detail.arrival ? 'landed' : detail.destination ? 'scheduled' : 'destination unknown'}
-            </span>
-          </div>
-        )}
 
         {detail && detail.points > 0 && (
           <div className="mt-1.5 text-[8px] text-[var(--text-muted)] tabular-nums">
