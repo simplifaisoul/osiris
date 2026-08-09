@@ -1183,7 +1183,9 @@ export default function Dashboard() {
       </motion.div>
 
       {/* ── MOBILE: Compact top status ── */}
-      {isMobile && (
+      {/* The route planner claims the top of a phone screen; leaving this in
+          place would put the support badge underneath the destination field. */}
+      {isMobile && !showDirections && !navSession && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 2.5 }} className="absolute top-3 right-3 z-[200] pointer-events-auto flex items-center gap-2">
           <TokenPanel />
           <a href='https://ko-fi.com/M8D41ZYW4Z' target='_blank' rel='noopener noreferrer' className="glass-panel px-2 py-1 flex items-center gap-1.5 text-[7px] font-mono tracking-widest hover:opacity-80 transition-opacity border-[var(--gold-primary)]/40 bg-[var(--gold-primary)]/10">
@@ -1436,14 +1438,45 @@ export default function Dashboard() {
                 { id: 'intel' as const, icon: Newspaper, label: 'INTEL' },
                 { id: 'recon' as const, icon: Radar, label: 'RECON' },
                 { id: 'search' as const, icon: Search, label: 'SEARCH' },
+                // Routing was reachable only from the desktop tool rail, so a
+                // phone could not open it at all. It sits next to SEARCH
+                // because both answer "take me somewhere".
+                { id: 'route' as const, icon: Route, label: 'ROUTE' },
                 { id: 'remote' as const, icon: Bluetooth, label: 'REMOTE' },
-              ].map(tab => (
-                <button key={tab.id} onClick={() => setMobilePanel(mobilePanel === tab.id ? null : tab.id)}
-                  className={`mobile-nav-btn ${mobilePanel === tab.id ? 'active' : ''}`}>
-                  <tab.icon className={`w-4 h-4 ${tab.id === 'recon' ? 'text-[var(--cyan-primary)]' : ''}`} />
-                  <span className={tab.id === 'recon' ? 'text-[var(--cyan-primary)]' : ''}>{tab.label}</span>
-                </button>
-              ))}
+              ].map(tab => {
+                // Routing opens the planner at the top of the screen rather than
+                // the bottom drawer — it needs the room above the keyboard, and
+                // guidance has to stay readable while you drive.
+                const isRoute = tab.id === 'route';
+                const active = isRoute ? showDirections || Boolean(navSession) : mobilePanel === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      if (isRoute) {
+                        // Mid-drive this must not touch anything: closing the
+                        // planner clears the active route, which would take the
+                        // line off the map underneath a driver. Guidance is
+                        // ended from the navigation view's own exit.
+                        if (navSession) return;
+                        setMobilePanel(null);
+                        setShowDirections((open) => {
+                          if (open) setActiveRoute(null);
+                          return !open;
+                        });
+                        return;
+                      }
+                      setMobilePanel(mobilePanel === tab.id ? null : tab.id);
+                    }}
+                    aria-pressed={active}
+                    disabled={isRoute && Boolean(navSession)}
+                    className={`mobile-nav-btn ${active ? 'active' : ''}`}
+                  >
+                    <tab.icon className={`w-4 h-4 ${tab.id === 'recon' ? 'text-[var(--cyan-primary)]' : ''}`} />
+                    <span className={tab.id === 'recon' ? 'text-[var(--cyan-primary)]' : ''}>{tab.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
