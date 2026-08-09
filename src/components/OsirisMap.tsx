@@ -39,12 +39,8 @@ interface OsirisMapProps {
   followUser?: boolean;
   /** Live navigation: tighter zoom and the map turned to face travel direction. */
   navigating?: boolean;
-  /** Flown tracks for watched aircraft, keyed by icao24. */
-  aircraftTracks?: Record<string, [number, number][]>;
   /** Corroborated endpoint airports for watched aircraft, keyed by icao24. */
   aircraftAirports?: Record<string, Array<{ icao: string; iata?: string; city?: string; lat: number; lng: number }>>;
-  /** Aircraft position to its destination — the leg still to fly, drawn dashed. */
-  aircraftPending?: Record<string, [number, number][]>;
 }
 
 function computeSolarTerminator(): [number, number][] {
@@ -69,7 +65,7 @@ function computeSolarTerminator(): [number, number][] {
 
 const EMPTY_FC = { type: 'FeatureCollection' as const, features: [] };
 
-function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, flyToLocation, projection = 'globe', mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', drawnPolygons = [], arcgisLayers = [], drawingMode = false, onDrawComplete, onMapCenter, route = null, userLocation = null, followUser = false, navigating = false, aircraftTracks = {}, aircraftAirports = {}, aircraftPending = {} }: OsirisMapProps) {
+function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, flyToLocation, projection = 'globe', mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', drawnPolygons = [], arcgisLayers = [], drawingMode = false, onDrawComplete, onMapCenter, route = null, userLocation = null, followUser = false, navigating = false, aircraftAirports = {} }: OsirisMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
@@ -2308,122 +2304,9 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     mapRef.current.easeTo({ pitch: 0, bearing: 0, duration: 600 });
   }, [mapReady, navigating]);
 
-  // ── WATCHED AIRCRAFT FLOWN TRACKS ──
-  // The straight airport-to-airport line was never the path flown: an orbit,
-  // a hold or a diversion all rendered as a direct line to the destination.
-  // These are the actual reported positions.
-  useEffect(() => {
-    if (!mapReady || !mapRef.current) return;
-    const map = mapRef.current;
-    const SRC = 'aircraft-tracks';
-    const IDS = ['aircraft-track-casing', 'aircraft-track-line'];
-
-    // An aircraft taxiing produces a few hundred samples inside a few hundred
-    // metres — at map scale that is a meaningless squiggle, so require the leg
-    // to actually cover ground before drawing it.
-    const spansGround = (t: [number, number][]) => {
-      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-      for (const [x, y] of t) {
-        if (x < minX) minX = x; if (x > maxX) maxX = x;
-        if (y < minY) minY = y; if (y > maxY) maxY = y;
-      }
-      return Math.max(maxX - minX, maxY - minY) > 0.05; // ≈5 km
-    };
-
-    const features = Object.entries(aircraftTracks)
-      .filter(([, t]) => Array.isArray(t) && t.length > 1 && spansGround(t))
-      .map(([icao24, t]) => ({
-        type: 'Feature' as const,
-        properties: { icao24 },
-        geometry: { type: 'LineString' as const, coordinates: t },
-      }));
-
-    if (features.length === 0) {
-      IDS.forEach((id) => { if (map.getLayer(id)) map.removeLayer(id); });
-      if (map.getSource(SRC)) map.removeSource(SRC);
-      return;
-    }
-
-    const fc = { type: 'FeatureCollection' as const, features };
-    // lineMetrics is what makes line-progress — and so the gradient — available.
-    if (!map.getSource(SRC)) map.addSource(SRC, { type: 'geojson', lineMetrics: true, data: fc as never });
-    else (map.getSource(SRC) as maplibregl.GeoJSONSource).setData(fc as never);
-
-    if (!map.getLayer('aircraft-track-casing')) {
-      map.addLayer({
-        id: 'aircraft-track-casing', type: 'line', source: SRC,
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: {
-          'line-color': '#001014',
-          'line-width': ['interpolate', ['linear'], ['zoom'], 2, 3, 8, 6],
-          'line-opacity': 0.7,
-        },
-      });
-    }
-    if (!map.getLayer('aircraft-track-line')) {
-      map.addLayer({
-        id: 'aircraft-track-line', type: 'line', source: SRC,
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: {
-          // Faint where the leg began, bright at the aircraft — the line reads
-          // as a direction of travel rather than a stroke someone drew.
-          'line-gradient': [
-            'interpolate', ['linear'], ['line-progress'],
-            0, 'rgba(255,179,0,0.18)',
-            0.6, 'rgba(255,193,7,0.6)',
-            1, '#FFD54F',
-          ],
-          'line-width': ['interpolate', ['linear'], ['zoom'], 2, 1.4, 8, 3],
-        },
-      });
-    }
-  }, [mapReady, aircraftTracks]);
-
-  // ── REMAINING LEG ──
-  // Dashed, because it is where the aircraft is booked to go, not where it has
-  // been — the solid track is the part that actually happened.
-  useEffect(() => {
-    if (!mapReady || !mapRef.current) return;
-    const map = mapRef.current;
-    const SRC = 'aircraft-pending';
-    const ID = 'aircraft-pending-line';
-
-    const features = Object.entries(aircraftPending)
-      .filter(([, t]) => Array.isArray(t) && t.length > 1)
-      .map(([icao24, pts]) => ({
-        type: 'Feature' as const,
-        properties: { icao24 },
-        geometry: { type: 'LineString' as const, coordinates: pts },
-      }));
-
-    if (features.length === 0) {
-      if (map.getLayer(ID)) map.removeLayer(ID);
-      if (map.getSource(SRC)) map.removeSource(SRC);
-      return;
-    }
-
-    const fc = { type: 'FeatureCollection' as const, features };
-    if (!map.getSource(SRC)) map.addSource(SRC, { type: 'geojson', data: fc as never });
-    else (map.getSource(SRC) as maplibregl.GeoJSONSource).setData(fc as never);
-
-    if (!map.getLayer(ID)) {
-      map.addLayer({
-        id: ID, type: 'line', source: SRC,
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: {
-          'line-color': '#FFB300',
-          'line-width': ['interpolate', ['linear'], ['zoom'], 2, 1, 8, 2],
-          'line-opacity': 0.45,
-          'line-dasharray': [2, 3],
-        },
-      });
-    }
-  }, [mapReady, aircraftPending]);
-
   // ── AIRPORTS FOR WATCHED AIRCRAFT ──
-  // A bare track is hard to read: it shows where the aircraft went without
-  // saying between what. These are the endpoints that survived corroboration
-  // against the track, so each dot lands on the line rather than beside it.
+  // The endpoints that survived corroboration against the aircraft's reported
+  // track — where the leg began and where it is booked to end.
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
     const map = mapRef.current;
