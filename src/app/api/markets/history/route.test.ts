@@ -1,5 +1,25 @@
 import { describe, it, expect } from 'vitest';
-import { parseCandles } from './route';
+import { parseCandles, RANGES } from './route';
+
+describe('RANGES', () => {
+  /* The whole reason the route stopped upper-casing its query parameter:
+     case-folding would turn one-minute bars into one-month bars. */
+  it('keeps one-minute and one-month as separate ranges', () => {
+    expect(RANGES['1m'].interval).toBe('1m');
+    expect(RANGES['1M'].interval).toBe('1d');
+    expect(RANGES['1m']).not.toEqual(RANGES['1M']);
+  });
+
+  it('serves every intraday range at a sub-daily bar size', () => {
+    for (const key of ['1m', '15m', '24H', '1W']) {
+      expect(RANGES[key].interval).toMatch(/m$/);
+    }
+  });
+
+  it('offers the ranges the selector renders', () => {
+    expect(Object.keys(RANGES)).toEqual(['1m', '15m', '24H', '1W', '1M', '6M', '1Y']);
+  });
+});
 
 /** A chart result shaped the way Yahoo returns it. */
 function result(over: Record<string, unknown> = {}) {

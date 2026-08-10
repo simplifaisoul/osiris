@@ -139,6 +139,19 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
+  // Fullscreen covers the map, so Escape has to get you out of it — closing
+  // the chart first, since that is the nearer thing to dismiss.
+  useEffect(() => {
+    if (!maximized) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (selected) setSelected(null);
+      else setMaximized(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [maximized, selected]);
+
   /** Every instrument across every section — the basis for the breadth line. */
   const allQuotes = useMemo<Quote[]>(
     () => SECTIONS.flatMap(s => Object.values<Quote>(markets[s.key] || {})).filter(q => Number.isFinite(q?.change_percent)),
@@ -162,8 +175,133 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
   const feedLoaded = Boolean(markets.timestamp || markets.error);
   const sessionOpen = rows.some(q => q.market_open);
 
+  /* The blocks below are shared by both layouts. Docked stacks them in one
+     column; fullscreen splits them across two, so they carry no margins of
+     their own — the container that places them owns the spacing. */
+
+  const breadthBlock = breadth && (
+    <div className="px-2 py-1.5 rounded-lg border border-[var(--border-primary)] bg-white/[0.02]">
+      <div className="flex items-center justify-between">
+        <span className="text-[8px] font-mono tracking-widest text-[var(--text-muted)]">BREADTH</span>
+        <span className="text-[9px] font-mono tabular-nums">
+          <span style={{ color: GREEN }}>{breadth.up}▲</span>
+          <span className="text-[var(--text-muted)]"> / </span>
+          <span style={{ color: RED }}>{breadth.down}▼</span>
+          <span className="text-[var(--text-muted)]"> of {breadth.total}</span>
+        </span>
+      </div>
+      <div className="mt-1.5 h-1 rounded-full overflow-hidden bg-[var(--alert-red)]/30">
+        <div className="h-full rounded-full" style={{ width: `${(breadth.up / breadth.total) * 100}%`, background: GREEN }} />
+      </div>
+      <div className="mt-1.5 flex items-center justify-between text-[8px] font-mono">
+        <span style={{ color: GREEN }}>▲ {breadth.top.name} +{breadth.top.change_percent.toFixed(2)}%</span>
+        <span style={{ color: RED }}>▼ {breadth.worst.name} {breadth.worst.change_percent.toFixed(2)}%</span>
+      </div>
+    </div>
+  );
+
+  const spaceBlock = spaceWeather && (
+    <div className="p-2 rounded-lg border" style={{ borderColor: `${spaceWeather.storm_color}33`, background: `${spaceWeather.storm_color}08` }}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <Zap className="w-3 h-3" style={{ color: spaceWeather.storm_color }} />
+          <span className="text-[10px] font-mono tracking-widest text-[var(--text-muted)]">SPACE WEATHER</span>
+        </div>
+        <span className="text-[10px] font-mono font-bold" style={{ color: spaceWeather.storm_color }}>
+          Kp {spaceWeather.kp_index} — {spaceWeather.storm_level}
+        </span>
+      </div>
+      {spaceWeather.solar_flares?.length > 0 && (
+        <div className="mt-1 text-[8px] font-mono text-[var(--text-muted)]">
+          Latest flare: {spaceWeather.solar_flares[0].class}
+        </div>
+      )}
+    </div>
+  );
+
+  const aiBlock = <AiOverview mode="markets" payload={{ markets, spaceWeather }} accent="#D4AF37" />;
+
+  const scmBlock = markets.scm_alerts && markets.scm_alerts.length > 0 && (
+    <div className="space-y-1">
+      {markets.scm_alerts.map((alert: string, i: number) => (
+        <div key={i} className="px-2 py-1.5 rounded border border-[#FF9500] bg-[#FF9500]/10 text-[#FF9500] text-[9px] font-mono leading-tight shadow-[0_0_8px_rgba(255,149,0,0.15)]">
+          {alert}
+        </div>
+      ))}
+    </div>
+  );
+
+  const chartBlock = selected && (
+    <MarketChart
+      symbol={selected.symbol}
+      name={selected.name}
+      large={maximized}
+      onClose={() => setSelected(null)}
+    />
+  );
+
+  const tabsBar = (
+    <div className="flex gap-0.5 overflow-x-auto styled-scrollbar">
+      {SECTIONS.map(s => {
+        const Icon = s.icon;
+        const count = Object.keys(markets[s.key] || {}).length;
+        return (
+          <button key={s.key} onClick={() => setActiveSection(s.key)}
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-[9px] font-mono tracking-wider whitespace-nowrap transition-all ${activeSection === s.key ? 'bg-[var(--hover-accent)] text-[var(--gold-primary)] border border-[var(--border-primary)]' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] border border-transparent'}`}>
+            <Icon className="w-3 h-3" />
+            {s.label}
+            {count > 0 && <span className="text-[var(--text-muted)]">{count}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const listHeader = rows.length > 0 && (
+    <div className="flex items-center justify-between px-2 py-1 shrink-0">
+      <span className="flex items-center gap-1 text-[8px] font-mono tracking-widest text-[var(--text-muted)]">
+        <span className="w-1 h-1 rounded-full" style={{ background: sessionOpen ? GREEN : 'var(--text-muted)' }} />
+        {sessionOpen ? 'SESSION OPEN' : 'SESSION CLOSED'}
+      </span>
+      <button
+        onClick={() => setSortByMove(v => !v)}
+        className={`flex items-center gap-1 text-[8px] font-mono tracking-widest transition-colors ${sortByMove ? 'text-[var(--gold-primary)]' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+        title={sortByMove ? 'Listed by biggest move' : 'Listed in feed order'}
+      >
+        <ArrowUpDown className="w-2.5 h-2.5" />
+        {sortByMove ? 'BY MOVE' : 'DEFAULT'}
+      </button>
+    </div>
+  );
+
+  const listRows = (
+    <>
+      {rows.map(q => (
+        <Ticker
+          key={q.symbol || q.name}
+          quote={q}
+          active={selected?.symbol === q.symbol}
+          onSelect={() => setSelected(
+            selected?.symbol === q.symbol ? null : { symbol: q.symbol, name: q.name },
+          )}
+        />
+      ))}
+
+      {rows.length === 0 && (
+        feedLoaded ? (
+          <div className="flex items-center justify-center gap-1.5 py-3 text-[9px] font-mono text-[var(--text-muted)]">
+            <AlertTriangle className="w-3 h-3" />
+            {activeSection.toUpperCase()} FEED UNAVAILABLE — RETRYING
+          </div>
+        ) : (
+          <div className="text-center py-3 text-[10px] font-mono text-[var(--text-muted)]">Loading {activeSection}...</div>
+        )
+      )}
+    </>
+  );
+
   const content = (
-    <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.6, duration: 0.6 }} className={`glass-panel p-3 pointer-events-auto transition-all duration-300 flex flex-col ${maximized ? 'fixed inset-4 z-[9999] bg-[#0a0a09]/95 backdrop-blur-3xl' : ''}`}>
+    <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.6, duration: 0.6 }} className={`glass-panel p-3 pointer-events-auto transition-all duration-300 flex flex-col ${maximized ? 'fixed inset-3 z-[9999] bg-[#0a0a09]/95 backdrop-blur-3xl' : ''}`}>
       {/* Header controls sit side by side, not nested — a button inside a
           button is invalid HTML and React fails hydration on it. */}
       <div className="flex items-center justify-between w-full mb-2">
@@ -184,135 +322,64 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
         </div>
       </div>
 
+      {/* Fades rather than animating height. Fullscreen makes this a flex child
+          and docked lets it size to content; animating height across that
+          switch stranded it at 0 with the content spilling out of the panel.
+          The key remounts it per mode so the chart re-measures at the new size. */}
       <AnimatePresence>
         {expanded && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className={maximized ? 'flex-1 min-h-0 flex flex-col' : ''}>
-            {/* Breadth — the one-line answer to "what is the tape doing" */}
-            {breadth && (
-              <div className="mb-2 px-2 py-1.5 rounded-lg border border-[var(--border-primary)] bg-white/[0.02]">
-                <div className="flex items-center justify-between">
-                  <span className="text-[8px] font-mono tracking-widest text-[var(--text-muted)]">BREADTH</span>
-                  <span className="text-[9px] font-mono tabular-nums">
-                    <span style={{ color: GREEN }}>{breadth.up}▲</span>
-                    <span className="text-[var(--text-muted)]"> / </span>
-                    <span style={{ color: RED }}>{breadth.down}▼</span>
-                    <span className="text-[var(--text-muted)]"> of {breadth.total}</span>
-                  </span>
+          <motion.div
+            key={maximized ? 'fullscreen' : 'docked'}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className={maximized ? 'flex-1 min-h-0 flex flex-col' : ''}
+          >
+            {maximized ? (
+              /* Fullscreen: context and chart on the left, the list beside it.
+                 Each column scrolls on its own, so a long list never pushes the
+                 chart off-screen and the panel itself never overflows. Below
+                 lg the columns stack and the whole body scrolls instead. */
+              <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-3 overflow-y-auto lg:overflow-hidden styled-scrollbar">
+                <div className="min-h-0 lg:overflow-y-auto styled-scrollbar space-y-2 lg:pr-1">
+                  {chartBlock}
+                  {breadthBlock}
+                  {scmBlock}
+                  {spaceBlock}
+                  {aiBlock}
                 </div>
-                <div className="mt-1.5 h-1 rounded-full overflow-hidden bg-[var(--alert-red)]/30">
-                  <div className="h-full rounded-full" style={{ width: `${(breadth.up / breadth.total) * 100}%`, background: GREEN }} />
+
+                <div className="min-h-0 flex flex-col lg:border-l lg:border-[var(--border-primary)] lg:pl-3">
+                  <div className="shrink-0 space-y-2">
+                    {tabsBar}
+                    {listHeader}
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-y-auto styled-scrollbar space-y-0.5">
+                    {listRows}
+                  </div>
                 </div>
-                <div className="mt-1.5 flex items-center justify-between text-[8px] font-mono">
-                  <span style={{ color: GREEN }}>▲ {breadth.top.name} +{breadth.top.change_percent.toFixed(2)}%</span>
-                  <span style={{ color: RED }}>▼ {breadth.worst.name} {breadth.worst.change_percent.toFixed(2)}%</span>
+              </div>
+            ) : (
+              /* Docked: one scroll region for the whole body, capped to the
+                 viewport. With a chart open the content is taller than the
+                 screen, and nested scrollers here would mean choosing which
+                 one you meant to scroll. */
+              <div className="space-y-2 overflow-y-auto styled-scrollbar max-h-[calc(100vh-9rem)] pr-0.5">
+                {breadthBlock}
+                {spaceBlock}
+                {aiBlock}
+                {tabsBar}
+                {scmBlock}
+                {chartBlock}
+                <div>
+                  {listHeader}
+                  <div className="space-y-0.5">
+                    {listRows}
+                  </div>
                 </div>
               </div>
             )}
-
-            {/* Space Weather Banner */}
-            {spaceWeather && (
-              <div className="mb-2 p-2 rounded-lg border" style={{ borderColor: `${spaceWeather.storm_color}33`, background: `${spaceWeather.storm_color}08` }}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <Zap className="w-3 h-3" style={{ color: spaceWeather.storm_color }} />
-                    <span className="text-[10px] font-mono tracking-widest text-[var(--text-muted)]">SPACE WEATHER</span>
-                  </div>
-                  <span className="text-[10px] font-mono font-bold" style={{ color: spaceWeather.storm_color }}>
-                    Kp {spaceWeather.kp_index} — {spaceWeather.storm_level}
-                  </span>
-                </div>
-                {spaceWeather.solar_flares?.length > 0 && (
-                  <div className="mt-1 text-[8px] font-mono text-[var(--text-muted)]">
-                    Latest flare: {spaceWeather.solar_flares[0].class}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* One-click AI overview of the current market picture */}
-            <div className="mb-2">
-              <AiOverview mode="markets" payload={{ markets, spaceWeather }} accent="#D4AF37" />
-            </div>
-
-            {/* Section Tabs — icons instead of emojis */}
-            <div className="flex gap-0.5 mb-2 overflow-x-auto">
-              {SECTIONS.map(s => {
-                const Icon = s.icon;
-                return (
-                  <button key={s.key} onClick={() => setActiveSection(s.key)}
-                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-[9px] font-mono tracking-wider whitespace-nowrap transition-all ${activeSection === s.key ? 'bg-[var(--hover-accent)] text-[var(--gold-primary)] border border-[var(--border-primary)]' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] border border-transparent'}`}>
-                    <Icon className="w-3 h-3" />
-                    {s.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* SCM Alerts from Markets API */}
-            {markets.scm_alerts && markets.scm_alerts.length > 0 && (
-              <div className="mb-2 space-y-1">
-                {markets.scm_alerts.map((alert: string, i: number) => (
-                  <div key={i} className="px-2 py-1.5 rounded border border-[#FF9500] bg-[#FF9500]/10 text-[#FF9500] text-[9px] font-mono leading-tight shadow-[0_0_8px_rgba(255,149,0,0.15)]">
-                    {alert}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Chart for the selected instrument, above the list it came from */}
-            {selected && (
-              <div className="mb-2">
-                <MarketChart
-                  symbol={selected.symbol}
-                  name={selected.name}
-                  large={maximized}
-                  onClose={() => setSelected(null)}
-                />
-              </div>
-            )}
-
-            {/* Session state + sort control */}
-            {rows.length > 0 && (
-              <div className="flex items-center justify-between px-2 mb-0.5">
-                <span className="flex items-center gap-1 text-[8px] font-mono tracking-widest text-[var(--text-muted)]">
-                  <span className="w-1 h-1 rounded-full" style={{ background: sessionOpen ? GREEN : 'var(--text-muted)' }} />
-                  {sessionOpen ? 'SESSION OPEN' : 'SESSION CLOSED'}
-                </span>
-                <button
-                  onClick={() => setSortByMove(v => !v)}
-                  className={`flex items-center gap-1 text-[8px] font-mono tracking-widest transition-colors ${sortByMove ? 'text-[var(--gold-primary)]' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
-                  title={sortByMove ? 'Listed by biggest move' : 'Listed in feed order'}
-                >
-                  <ArrowUpDown className="w-2.5 h-2.5" />
-                  {sortByMove ? 'BY MOVE' : 'DEFAULT'}
-                </button>
-              </div>
-            )}
-
-            {/* Ticker List */}
-            <div className={`space-y-0.5 overflow-y-auto styled-scrollbar mt-1 ${maximized ? 'flex-1 min-h-0' : 'max-h-[280px]'}`}>
-              {rows.map(q => (
-                <Ticker
-                  key={q.symbol || q.name}
-                  quote={q}
-                  active={selected?.symbol === q.symbol}
-                  onSelect={() => setSelected(
-                    selected?.symbol === q.symbol ? null : { symbol: q.symbol, name: q.name },
-                  )}
-                />
-              ))}
-
-              {rows.length === 0 && (
-                feedLoaded ? (
-                  <div className="flex items-center justify-center gap-1.5 py-3 text-[9px] font-mono text-[var(--text-muted)]">
-                    <AlertTriangle className="w-3 h-3" />
-                    {activeSection.toUpperCase()} FEED UNAVAILABLE — RETRYING
-                  </div>
-                ) : (
-                  <div className="text-center py-3 text-[10px] font-mono text-[var(--text-muted)]">Loading {activeSection}...</div>
-                )
-              )}
-            </div>
           </motion.div>
         )}
       </AnimatePresence>

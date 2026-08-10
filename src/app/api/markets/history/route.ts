@@ -8,9 +8,17 @@ import { NextResponse } from 'next/server';
  * every window comes back at a resolution that is worth drawing.
  */
 
-/** Ranges the client may ask for, and the bar size each is served at. */
-const RANGES: Record<string, { interval: string; range: string }> = {
-  '1D': { interval: '5m', range: '1d' },
+/**
+ * Ranges the client may ask for, and the bar size each is served at.
+ *
+ * Case matters, and deliberately so: `1m` is one-minute bars while `1M` is one
+ * month, the same convention the trading tools use. Do not case-fold the query
+ * parameter — it would collapse the two.
+ */
+export const RANGES: Record<string, { interval: string; range: string }> = {
+  '1m': { interval: '1m', range: '1d' },
+  '15m': { interval: '15m', range: '2d' },
+  '24H': { interval: '5m', range: '1d' },
   '1W': { interval: '30m', range: '5d' },
   '1M': { interval: '1d', range: '1mo' },
   '6M': { interval: '1d', range: '6mo' },
@@ -63,7 +71,7 @@ export function parseCandles(result: unknown): Candle[] {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const symbol = searchParams.get('symbol')?.trim();
-  const rangeKey = (searchParams.get('range') || '1M').toUpperCase();
+  const rangeKey = searchParams.get('range') || '1M';
 
   if (!symbol) {
     return NextResponse.json({ error: 'symbol required' }, { status: 400 });

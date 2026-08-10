@@ -20,11 +20,16 @@ interface MarketChartProps {
   large?: boolean;
 }
 
-const RANGES = ['1D', '1W', '1M', '6M', '1Y'] as const;
+/* Lowercase m is minutes, uppercase M is months — the convention every
+   trading tool uses, and what the API's range keys mean. */
+const RANGES = ['1m', '15m', '24H', '1W', '1M', '6M', '1Y'] as const;
 type Range = typeof RANGES[number];
 
 /** Bars finer than a day need the clock on the axis, not just the date. */
-const INTRADAY: Record<Range, boolean> = { '1D': true, '1W': true, '1M': false, '6M': false, '1Y': false };
+const INTRADAY: Record<Range, boolean> = {
+  '1m': true, '15m': true, '24H': true, '1W': true,
+  '1M': false, '6M': false, '1Y': false,
+};
 
 const UP = '#26A69A';
 const DOWN = '#D32F2F';
@@ -217,11 +222,12 @@ export default function MarketChart({ symbol, name, onClose, large = false }: Ma
       </div>
 
       {/* Window extremes + range selector */}
-      <div className="flex items-center justify-between mt-1.5">
+      <div className="flex items-center justify-between gap-2 mt-1.5 flex-wrap">
         <div className="text-[8px] font-mono text-[var(--text-muted)] tabular-nums">
           {high !== null && low !== null && <>H {priceFormat(high)} · L {priceFormat(low)}</>}
         </div>
-        <div className="flex gap-0.5">
+        {/* Seven ranges will not fit one line in the docked panel — let them wrap. */}
+        <div className="flex gap-0.5 flex-wrap justify-end">
           {RANGES.map(r => (
             <button
               key={r}
