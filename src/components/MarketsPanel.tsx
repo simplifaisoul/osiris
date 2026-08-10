@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   TrendingUp, TrendingDown, ChevronDown, ChevronUp, BarChart3,
@@ -9,6 +10,10 @@ import {
   DollarSign, ArrowUpDown, AlertTriangle,
 } from 'lucide-react';
 import AiOverview from './AiOverview';
+
+// Canvas charting has no business in the server bundle, and it only mounts
+// once a ticker is actually opened.
+const MarketChart = dynamic(() => import('./MarketChart'), { ssr: false });
 
 interface Quote {
   name: string;
@@ -70,10 +75,13 @@ function Sparkline({ points, up }: { points: number[]; up: boolean }) {
   );
 }
 
-function Ticker({ quote }: { quote: Quote }) {
+function Ticker({ quote, active, onSelect }: { quote: Quote; active: boolean; onSelect: () => void }) {
   const d = quote;
   return (
-    <div className="flex items-center justify-between gap-2 py-1.5 px-2 rounded hover:bg-[var(--hover-accent)] transition-colors">
+    <button
+      onClick={onSelect}
+      title={`${d.name} — open chart`}
+      className={`w-full flex items-center justify-between gap-2 py-1.5 px-2 rounded transition-colors ${active ? 'bg-[var(--hover-accent)] border border-[var(--border-primary)]' : 'border border-transparent hover:bg-[var(--hover-accent)]'}`}>
       <div className="min-w-0 flex-1">
         <div className="text-[10px] font-mono text-[var(--text-secondary)] tracking-wide truncate">{d.name}</div>
         {d.symbol && d.symbol !== d.name && (
@@ -95,7 +103,7 @@ function Ticker({ quote }: { quote: Quote }) {
           {d.change_percent > 0 ? '+' : ''}{d.change_percent?.toFixed(2)}%
         </span>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -121,6 +129,8 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
   const [maximized, setMaximized] = useState(false);
   const [activeSection, setActiveSection] = useState('stocks');
   const [sortByMove, setSortByMove] = useState(false);
+  /** The instrument whose chart is open, if any. */
+  const [selected, setSelected] = useState<{ symbol: string; name: string } | null>(null);
   // Memoised so the derived lists below don't recompute on every render.
   const markets = useMemo(() => data.markets || {}, [data.markets]);
   const age = useFeedAge(markets.timestamp);
@@ -249,6 +259,18 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
               </div>
             )}
 
+            {/* Chart for the selected instrument, above the list it came from */}
+            {selected && (
+              <div className="mb-2">
+                <MarketChart
+                  symbol={selected.symbol}
+                  name={selected.name}
+                  large={maximized}
+                  onClose={() => setSelected(null)}
+                />
+              </div>
+            )}
+
             {/* Session state + sort control */}
             {rows.length > 0 && (
               <div className="flex items-center justify-between px-2 mb-0.5">
@@ -269,7 +291,16 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
 
             {/* Ticker List */}
             <div className={`space-y-0.5 overflow-y-auto styled-scrollbar mt-1 ${maximized ? 'flex-1 min-h-0' : 'max-h-[280px]'}`}>
-              {rows.map(q => <Ticker key={q.symbol || q.name} quote={q} />)}
+              {rows.map(q => (
+                <Ticker
+                  key={q.symbol || q.name}
+                  quote={q}
+                  active={selected?.symbol === q.symbol}
+                  onSelect={() => setSelected(
+                    selected?.symbol === q.symbol ? null : { symbol: q.symbol, name: q.name },
+                  )}
+                />
+              ))}
 
               {rows.length === 0 && (
                 feedLoaded ? (

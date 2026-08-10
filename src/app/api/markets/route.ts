@@ -124,10 +124,29 @@ export async function fetchQuote(t: { symbol: string; name: string; group: strin
   } catch { return null; }
 }
 
+/**
+ * Yahoo is one host, and firing every symbol at it at once is the access
+ * pattern upstreams throttle first — enough in-flight connections and requests
+ * start hanging until they time out, which loses the whole refresh. A small
+ * number of workers walking the list keeps the fan-out civil and still
+ * finishes well inside a request.
+ */
+const CONCURRENCY = 5;
+
 /** All instruments in one pass. A symbol that fails is simply absent. */
 async function fetchAllQuotes(): Promise<Quote[]> {
-  const results = await Promise.all(TICKERS.map(fetchQuote));
-  return results.filter((q): q is Quote => q !== null);
+  const out: Quote[] = [];
+  let next = 0;
+
+  const worker = async () => {
+    while (next < TICKERS.length) {
+      const quote = await fetchQuote(TICKERS[next++]);
+      if (quote) out.push(quote);
+    }
+  };
+
+  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+  return out;
 }
 
 /**
