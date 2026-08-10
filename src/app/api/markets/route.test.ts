@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { fetchQuote, groupQuotes, type Quote } from './route';
+import { fetchQuote, fetchAllQuotes, groupQuotes, type Quote } from './route';
 
 const TICKER = { symbol: 'LMT', name: 'LMT', group: 'stocks' };
 
@@ -108,6 +108,38 @@ describe('fetchQuote', () => {
   it('swallows a network failure', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
     expect(await fetchQuote(TICKER)).toBeNull();
+  });
+});
+
+/* These share the route's module-level last-good cache, so they run in order:
+   the first populates it, the second depends on it being warm. */
+describe('fetchAllQuotes', () => {
+  /** Answer normally, except for symbols the caller wants to fail. */
+  function mockUpstream(failing: string[] = []) {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const symbol = decodeURIComponent(new URL(url).pathname.split('/').pop() || '');
+      if (failing.includes(symbol)) throw new Error('upstream down');
+      return chartResponse({ price: 100, closes: [90, 100] });
+    }));
+  }
+
+  it('returns instruments in the declared order, not the order they answered', async () => {
+    mockUpstream();
+    const quotes = await fetchAllQuotes();
+    const indices = quotes.filter(q => q.group === 'indices').map(q => q.name);
+    expect(indices).toEqual(['S&P 500', 'Nasdaq 100', 'VIX', 'Dollar Index', 'US 10Y']);
+  });
+
+  /* The bug this guards: the workers start on the first five tickers — which
+     are the five indices — so they raced cold connections together and failed
+     as a group. Dropping them emptied the whole INDICES tab. */
+  it('keeps the last good value for a symbol that fails this refresh', async () => {
+    mockUpstream(['ES=F', '^VIX']);
+    const quotes = await fetchAllQuotes();
+    const names = quotes.filter(q => q.group === 'indices').map(q => q.name);
+    expect(names).toContain('S&P 500');
+    expect(names).toContain('VIX');
+    expect(quotes).toHaveLength(28);
   });
 });
 

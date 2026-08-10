@@ -133,20 +133,49 @@ export async function fetchQuote(t: { symbol: string; name: string; group: strin
  */
 const CONCURRENCY = 5;
 
-/** All instruments in one pass. A symbol that fails is simply absent. */
-async function fetchAllQuotes(): Promise<Quote[]> {
-  const out: Quote[] = [];
-  let next = 0;
+/**
+ * The last good quote for each symbol.
+ *
+ * A refresh that loses some symbols used to drop them from the payload
+ * entirely, which empties a whole tab: the workers start on the first five
+ * tickers, those are the five indices, and they race cold connections
+ * together — so INDICES was the group that kept vanishing. Holding the
+ * previous value per symbol means a transient miss costs freshness rather
+ * than the instrument.
+ */
+const lastGood = new Map<string, Quote>();
 
+/** Run `fetchQuote` over a list with a bounded number of requests in flight. */
+async function fetchBatch(tickers: typeof TICKERS, into: Map<string, Quote>): Promise<void> {
+  let next = 0;
   const worker = async () => {
-    while (next < TICKERS.length) {
-      const quote = await fetchQuote(TICKERS[next++]);
-      if (quote) out.push(quote);
+    while (next < tickers.length) {
+      const ticker = tickers[next++];
+      const quote = await fetchQuote(ticker);
+      if (quote) into.set(ticker.symbol, quote);
     }
   };
-
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));
-  return out;
+}
+
+/**
+ * All instruments in one pass, with a second go at whatever missed. The retry
+ * runs against connections the first pass has already opened, which is exactly
+ * what the symbols unlucky enough to be first in the list need.
+ */
+export async function fetchAllQuotes(): Promise<Quote[]> {
+  const fresh = new Map<string, Quote>();
+
+  await fetchBatch(TICKERS, fresh);
+
+  const missed = TICKERS.filter(t => !fresh.has(t.symbol));
+  if (missed.length) await fetchBatch(missed, fresh);
+
+  for (const [symbol, quote] of fresh) lastGood.set(symbol, quote);
+
+  return TICKERS
+    .map(t => fresh.get(t.symbol) || lastGood.get(t.symbol))
+    .filter((q): q is Quote => q !== undefined);
 }
 
 /**
