@@ -1,13 +1,25 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   TrendingUp, TrendingDown, ChevronDown, ChevronUp, BarChart3,
-  Zap, Shield, Droplets, Gem, Bitcoin, LineChart, Maximize2, Minimize2
+  Zap, Shield, Droplets, Gem, Bitcoin, LineChart, Maximize2, Minimize2,
+  DollarSign, ArrowUpDown, AlertTriangle,
 } from 'lucide-react';
 import AiOverview from './AiOverview';
+
+interface Quote {
+  name: string;
+  symbol: string;
+  price: number;
+  change_percent: number;
+  up: boolean;
+  spark?: number[];
+  currency?: string;
+  market_open?: boolean;
+}
 
 interface MarketsPanelProps { data: any; spaceWeather?: any; }
 
@@ -17,18 +29,68 @@ const SECTIONS = [
   { key: 'oil', label: 'ENERGY', icon: Droplets },
   { key: 'commodities', label: 'COMMODITIES', icon: Gem },
   { key: 'crypto', label: 'CRYPTO', icon: Bitcoin },
+  { key: 'fx', label: 'FX', icon: DollarSign },
 ];
 
-function Ticker({ name, data: d }: { name: string; data: any }) {
-  if (!d) return null;
+const GREEN = 'var(--alert-green)';
+const RED = 'var(--alert-red)';
+
+/** Prices span 0.9 (FX) to 100,000 (BTC) — one formatter can't serve both. */
+function formatPrice(v: number): string {
+  const abs = Math.abs(v);
+  if (abs >= 10000) return `${(v / 1000).toFixed(1)}K`;
+  if (abs >= 100) return v.toFixed(2);
+  if (abs >= 1) return v.toFixed(2);
+  return v.toFixed(4);
+}
+
+/**
+ * A month of closes as a single path. Drawn in the direction colour so the
+ * trend and the day's move read as one thing rather than two competing signals.
+ */
+function Sparkline({ points, up }: { points: number[]; up: boolean }) {
+  const W = 46, H = 14;
+  const path = useMemo(() => {
+    if (points.length < 2) return null;
+    const min = Math.min(...points);
+    const max = Math.max(...points);
+    const span = max - min || 1; // a flat line would divide by zero
+    const step = W / (points.length - 1);
+    return points
+      .map((p, i) => `${i === 0 ? 'M' : 'L'}${(i * step).toFixed(1)},${(H - ((p - min) / span) * H).toFixed(1)}`)
+      .join(' ');
+  }, [points]);
+
+  if (!path) return <div style={{ width: W, height: H }} />;
+
   return (
-    <div className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-[var(--hover-accent)] transition-colors">
-      <span className="text-[10px] font-mono text-[var(--text-secondary)] tracking-wide">{name}</span>
-      <div className="flex items-center gap-2">
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="overflow-visible shrink-0" aria-hidden="true">
+      <path d={path} fill="none" stroke={up ? GREEN : RED} strokeWidth="1" strokeLinejoin="round" strokeLinecap="round" opacity="0.75" />
+    </svg>
+  );
+}
+
+function Ticker({ quote }: { quote: Quote }) {
+  const d = quote;
+  return (
+    <div className="flex items-center justify-between gap-2 py-1.5 px-2 rounded hover:bg-[var(--hover-accent)] transition-colors">
+      <div className="min-w-0 flex-1">
+        <div className="text-[10px] font-mono text-[var(--text-secondary)] tracking-wide truncate">{d.name}</div>
+        {d.symbol && d.symbol !== d.name && (
+          <div className="text-[8px] font-mono text-[var(--text-muted)] truncate">{d.symbol}</div>
+        )}
+      </div>
+
+      <Sparkline points={d.spark || []} up={d.up} />
+
+      <div className="flex flex-col items-end shrink-0 w-[86px]">
         <span className="text-[11px] font-mono font-bold text-[var(--text-primary)] tabular-nums">
-          {d.price >= 1000 ? `${(d.price / 1000).toFixed(1)}K` : d.price?.toFixed(2)}
+          {formatPrice(d.price)}
         </span>
-        <span className={`text-[9px] font-mono font-bold flex items-center gap-0.5 ${d.up ? 'text-[var(--alert-green)]' : 'text-[var(--alert-red)]'}`}>
+        <span
+          className="text-[9px] font-mono font-bold flex items-center gap-0.5 tabular-nums"
+          style={{ color: d.up ? GREEN : RED }}
+        >
           {d.up ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
           {d.change_percent > 0 ? '+' : ''}{d.change_percent?.toFixed(2)}%
         </span>
@@ -37,36 +99,106 @@ function Ticker({ name, data: d }: { name: string; data: any }) {
   );
 }
 
+/** How long ago the feed was built, so a frozen panel is visibly frozen. */
+function useFeedAge(timestamp?: string): string | null {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
+  if (!timestamp) return null;
+  const ms = now - new Date(timestamp).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return null;
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  return `${Math.floor(mins / 60)}h ago`;
+}
+
 export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) {
   const [expanded, setExpanded] = useState(true);
   const [maximized, setMaximized] = useState(false);
   const [activeSection, setActiveSection] = useState('stocks');
-  const markets = data.markets || {};
+  const [sortByMove, setSortByMove] = useState(false);
+  // Memoised so the derived lists below don't recompute on every render.
+  const markets = useMemo(() => data.markets || {}, [data.markets]);
+  const age = useFeedAge(markets.timestamp);
 
   // Ensure portal only renders on client
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
+  /** Every instrument across every section — the basis for the breadth line. */
+  const allQuotes = useMemo<Quote[]>(
+    () => SECTIONS.flatMap(s => Object.values<Quote>(markets[s.key] || {})).filter(q => Number.isFinite(q?.change_percent)),
+    [markets],
+  );
+
+  const breadth = useMemo(() => {
+    if (!allQuotes.length) return null;
+    const up = allQuotes.filter(q => q.change_percent > 0).length;
+    const sorted = [...allQuotes].sort((a, b) => b.change_percent - a.change_percent);
+    return { up, down: allQuotes.length - up, total: allQuotes.length, top: sorted[0], worst: sorted[sorted.length - 1] };
+  }, [allQuotes]);
+
+  const rows = useMemo<Quote[]>(() => {
+    const list = Object.values<Quote>(markets[activeSection] || {});
+    return sortByMove ? [...list].sort((a, b) => b.change_percent - a.change_percent) : list;
+  }, [markets, activeSection, sortByMove]);
+
+  // A section with no rows means the upstream refresh failed — say so, rather
+  // than showing a "Loading…" that never resolves until the next 15m poll.
+  const feedLoaded = Boolean(markets.timestamp || markets.error);
+  const sessionOpen = rows.some(q => q.market_open);
+
   const content = (
     <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.6, duration: 0.6 }} className={`glass-panel p-3 pointer-events-auto transition-all duration-300 flex flex-col ${maximized ? 'fixed inset-4 z-[9999] bg-[#0a0a09]/95 backdrop-blur-3xl' : ''}`}>
-      <button onClick={() => setExpanded(!expanded)} className="flex items-center justify-between w-full mb-2">
-        <div className="flex items-center gap-2">
+      {/* Header controls sit side by side, not nested — a button inside a
+          button is invalid HTML and React fails hydration on it. */}
+      <div className="flex items-center justify-between w-full mb-2">
+        <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-2">
           <BarChart3 className="w-3.5 h-3.5 text-[var(--gold-primary)]" />
           <span className="hud-text text-[12px] text-[var(--text-primary)]">MARKETS & INTEL</span>
           <span className="gotham-tag gotham-tag--low" style={{ fontSize: '7px', padding: '1px 4px' }}>LIVE</span>
-        </div>
+        </button>
         <div className="flex items-center gap-2">
+          {age && <span className="text-[8px] font-mono text-[var(--text-muted)]">{age}</span>}
           <div className="w-1.5 h-1.5 rounded-full bg-[var(--alert-green)] animate-osiris-pulse" />
-          <button onClick={(e) => { e.stopPropagation(); setMaximized(!maximized); if (!expanded && !maximized) setExpanded(true); }} className="hover:text-white transition-colors" title={maximized ? "Restore" : "Maximize"}>
+          <button onClick={() => { setMaximized(!maximized); if (!expanded && !maximized) setExpanded(true); }} className="hover:text-white transition-colors" title={maximized ? "Restore" : "Maximize"}>
             {maximized ? <Minimize2 className="w-3.5 h-3.5 text-[var(--text-muted)]" /> : <Maximize2 className="w-3.5 h-3.5 text-[var(--text-muted)]" />}
           </button>
-          {expanded ? <ChevronUp className="w-3.5 h-3.5 text-[var(--text-muted)]" /> : <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)]" />}
+          <button onClick={() => setExpanded(!expanded)} title={expanded ? 'Collapse' : 'Expand'}>
+            {expanded ? <ChevronUp className="w-3.5 h-3.5 text-[var(--text-muted)]" /> : <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)]" />}
+          </button>
         </div>
-      </button>
+      </div>
 
       <AnimatePresence>
         {expanded && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}>
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className={maximized ? 'flex-1 min-h-0 flex flex-col' : ''}>
+            {/* Breadth — the one-line answer to "what is the tape doing" */}
+            {breadth && (
+              <div className="mb-2 px-2 py-1.5 rounded-lg border border-[var(--border-primary)] bg-white/[0.02]">
+                <div className="flex items-center justify-between">
+                  <span className="text-[8px] font-mono tracking-widest text-[var(--text-muted)]">BREADTH</span>
+                  <span className="text-[9px] font-mono tabular-nums">
+                    <span style={{ color: GREEN }}>{breadth.up}▲</span>
+                    <span className="text-[var(--text-muted)]"> / </span>
+                    <span style={{ color: RED }}>{breadth.down}▼</span>
+                    <span className="text-[var(--text-muted)]"> of {breadth.total}</span>
+                  </span>
+                </div>
+                <div className="mt-1.5 h-1 rounded-full overflow-hidden bg-[var(--alert-red)]/30">
+                  <div className="h-full rounded-full" style={{ width: `${(breadth.up / breadth.total) * 100}%`, background: GREEN }} />
+                </div>
+                <div className="mt-1.5 flex items-center justify-between text-[8px] font-mono">
+                  <span style={{ color: GREEN }}>▲ {breadth.top.name} +{breadth.top.change_percent.toFixed(2)}%</span>
+                  <span style={{ color: RED }}>▼ {breadth.worst.name} {breadth.worst.change_percent.toFixed(2)}%</span>
+                </div>
+              </div>
+            )}
+
             {/* Space Weather Banner */}
             {spaceWeather && (
               <div className="mb-2 p-2 rounded-lg border" style={{ borderColor: `${spaceWeather.storm_color}33`, background: `${spaceWeather.storm_color}08` }}>
@@ -117,13 +249,37 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
               </div>
             )}
 
+            {/* Session state + sort control */}
+            {rows.length > 0 && (
+              <div className="flex items-center justify-between px-2 mb-0.5">
+                <span className="flex items-center gap-1 text-[8px] font-mono tracking-widest text-[var(--text-muted)]">
+                  <span className="w-1 h-1 rounded-full" style={{ background: sessionOpen ? GREEN : 'var(--text-muted)' }} />
+                  {sessionOpen ? 'SESSION OPEN' : 'SESSION CLOSED'}
+                </span>
+                <button
+                  onClick={() => setSortByMove(v => !v)}
+                  className={`flex items-center gap-1 text-[8px] font-mono tracking-widest transition-colors ${sortByMove ? 'text-[var(--gold-primary)]' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+                  title={sortByMove ? 'Listed by biggest move' : 'Listed in feed order'}
+                >
+                  <ArrowUpDown className="w-2.5 h-2.5" />
+                  {sortByMove ? 'BY MOVE' : 'DEFAULT'}
+                </button>
+              </div>
+            )}
+
             {/* Ticker List */}
-            <div className="space-y-0.5 overflow-y-auto styled-scrollbar mt-2">
-              {markets[activeSection] && Object.entries(markets[activeSection]).map(([name, d]) => (
-                <Ticker key={name} name={name} data={d} />
-              ))}
-              {(!markets[activeSection] || Object.keys(markets[activeSection]).length === 0) && (
-                <div className="text-center py-3 text-[10px] font-mono text-[var(--text-muted)]">Loading {activeSection}...</div>
+            <div className={`space-y-0.5 overflow-y-auto styled-scrollbar mt-1 ${maximized ? 'flex-1 min-h-0' : 'max-h-[280px]'}`}>
+              {rows.map(q => <Ticker key={q.symbol || q.name} quote={q} />)}
+
+              {rows.length === 0 && (
+                feedLoaded ? (
+                  <div className="flex items-center justify-center gap-1.5 py-3 text-[9px] font-mono text-[var(--text-muted)]">
+                    <AlertTriangle className="w-3 h-3" />
+                    {activeSection.toUpperCase()} FEED UNAVAILABLE — RETRYING
+                  </div>
+                ) : (
+                  <div className="text-center py-3 text-[10px] font-mono text-[var(--text-muted)]">Loading {activeSection}...</div>
+                )
               )}
             </div>
           </motion.div>

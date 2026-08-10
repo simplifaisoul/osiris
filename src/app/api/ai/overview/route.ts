@@ -84,7 +84,7 @@ function digestMarkets(payload: any): Digest {
     facts.push('No live market instruments available in the current feed.');
   }
 
-  const btc = markets?.crypto?.BTC || markets?.crypto?.bitcoin;
+  const btc = markets?.crypto?.Bitcoin || markets?.crypto?.BTC || markets?.crypto?.bitcoin;
   const btcPct = num(btc?.change_percent);
   if (btcPct !== null) {
     facts.push(`Bitcoin ${btcPct >= 0 ? 'up' : 'down'} ${btcPct.toFixed(2)}% at $${num(btc?.price)?.toLocaleString() ?? '—'}.`);

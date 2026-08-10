@@ -460,7 +460,17 @@ export default function Dashboard() {
     const eqTransform = (data: any) => ({ earthquakes: (data.features || []).map((f: any) => ({ id: f.id, lat: f.geometry?.coordinates?.[1] || 0, lng: f.geometry?.coordinates?.[0] || 0, depth: f.geometry?.coordinates?.[2] || 0, magnitude: f.properties?.mag, place: f.properties?.place, time: f.properties?.time, url: f.properties?.url, tsunami: f.properties?.tsunami, type: f.properties?.type, felt: f.properties?.felt, alert: f.properties?.alert })) });
     fetchEndpoint(eqUrl, eqTransform);
     fetchEndpoint('/api/news');
-    const marketTimer = setTimeout(() => fetchEndpoint('/api/markets', d => ({ markets: d })), 800);
+    /* A cold start can time out every upstream quote and return an all-empty
+       feed. Waiting a full poll interval to find out leaves the panel blank for
+       15 minutes, so retry a few times up-front until instruments actually land. */
+    const marketRetries: ReturnType<typeof setTimeout>[] = [];
+    const loadMarkets = async (attempt = 0) => {
+      await fetchEndpoint('/api/markets', d => ({ markets: d }));
+      if ((dataRef.current.markets?.count || 0) === 0 && attempt < 3) {
+        marketRetries.push(setTimeout(() => loadMarkets(attempt + 1), 15000));
+      }
+    };
+    const marketTimer = setTimeout(() => loadMarkets(), 800);
 
     // Priority 2: Space Weather (needed for MarketsPanel)
     const spaceTimer = setTimeout(async () => {
@@ -478,6 +488,7 @@ export default function Dashboard() {
     ];
     return () => {
       clearTimeout(marketTimer);
+      marketRetries.forEach(clearTimeout);
       clearTimeout(spaceTimer);
       intervals.forEach(clearInterval);
     };
