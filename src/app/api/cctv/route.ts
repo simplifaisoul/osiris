@@ -24,6 +24,7 @@ import { fetchHongKongCameras } from './hongkong';
 import { fetchUtahCameras } from './utah';
 import { fetchIcelandCameras } from './iceland';
 import { fetchTaiwanCameras } from './taiwan';
+import { fetchThailandCameras } from './thailand';
 import { fetchAsiaLiveCameras } from './asia-live';
 import { fetchNewZealandCameras } from './newzealand';
 import { fetchOregonCameras } from './oregon';
@@ -450,6 +451,7 @@ const REGION_FETCHERS: Record<string, () => Promise<any[]>> = {
   'utah': fetchUtahCameras,
   'iceland': fetchIcelandCameras,
   'taiwan': fetchTaiwanCameras,
+  'thailand': fetchThailandCameras,
   'asia-live': fetchAsiaLiveCameras,
   'newzealand': fetchNewZealandCameras,
   'oregon': fetchOregonCameras,
@@ -528,6 +530,9 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
 
   // Taiwan
   if (lat > 21.9 && lat < 25.3 && lng > 119.5 && lng < 122.1) regions.push('taiwan');
+
+  // Thailand — mainland through the Gulf islands
+  if (lat > 5.5 && lat < 20.5 && lng > 97.3 && lng < 105.7) regions.push('thailand');
 
   // Asia live webcams — spans West Asia (Turkey / Levant / Gulf) through Japan and Indonesia
   if (lat > -11 && lat < 46 && lng > 25 && lng < 155) regions.push('asia-live');
