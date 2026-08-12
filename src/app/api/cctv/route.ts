@@ -27,6 +27,7 @@ import { fetchTaiwanCameras } from './taiwan';
 import { fetchThailandCameras } from './thailand';
 import { fetchAsiaLiveCameras } from './asia-live';
 import { fetchNewZealandCameras } from './newzealand';
+import { fetchLithuaniaCameras } from './lithuania';
 import { fetchOregonCameras } from './oregon';
 import { fetchMichiganCameras } from './michigan';
 import {
@@ -454,6 +455,7 @@ const REGION_FETCHERS: Record<string, () => Promise<any[]>> = {
   'thailand': fetchThailandCameras,
   'asia-live': fetchAsiaLiveCameras,
   'newzealand': fetchNewZealandCameras,
+  'lithuania': fetchLithuaniaCameras,
   'oregon': fetchOregonCameras,
   'michigan': fetchMichiganCameras,
   'latam-live': fetchLatamLiveCameras,
@@ -495,9 +497,10 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   const inSpain = lat > 27 && lat < 43.8 && lng > -18.2 && lng < 4.4;
   const inPoland = lat > 49.0 && lat < 55.0 && lng > 14.1 && lng < 24.1;
   const inFinland = lat > 59.5 && lat < 70.1 && lng > 20 && lng < 31.6;
+  const inLithuania = lat > 53.8 && lat < 56.5 && lng > 20.9 && lng < 26.9;
   const inIceland = lat > 63.0 && lat < 67.0 && lng > -25.0 && lng < -13.0;
   const inBalkans = inBulgaria || inGreece || inSerbia || inMacedonia || inRomania || inTurkey;
-  const inWesternEurope = inItaly || inCzechia || inSlovakia || inGermany || inFrance || inSpain || inPoland || inFinland || inIceland;
+  const inWesternEurope = inItaly || inCzechia || inSlovakia || inGermany || inFrance || inSpain || inPoland || inFinland || inIceland || inLithuania;
 
   if (lat > 35 && lat < 72 && lng > -11 && lng < 40 && !inBalkans && !inWesternEurope) {
     regions.push('europe');
@@ -517,6 +520,7 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   if (inPoland) regions.push('poland');
   if (inFinland) regions.push('finland');
   if (inIceland) regions.push('iceland');
+  if (inLithuania) regions.push('lithuania');
 
   // Middle East
   const inMiddleEast = lat > 29 && lat < 34.5 && lng > 34 && lng < 36.5;
