@@ -16,6 +16,7 @@ const ALLOWED_HOSTS = [
   's3-eu-west-1.amazonaws.com',
   'voyage.aprr.fr',
   'thb.gov.tw',
+  'etraffic.dgt.es',
 ];
 
 // THB servers send non-standard HTTP headers that Node's strict parser rejects.

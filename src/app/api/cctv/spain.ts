@@ -1,4 +1,19 @@
 import type { CctvCamera } from './types';
+import { stealthFetch } from '@/lib/stealthFetch';
+
+const PROVINCE_MAP: Record<string, string> = {
+  '01': 'Álava', '02': 'Albacete', '03': 'Alicante', '04': 'Almería', '05': 'Ávila',
+  '06': 'Badajoz', '07': 'Baleares', '08': 'Barcelona', '09': 'Burgos', '10': 'Cáceres',
+  '11': 'Cádiz', '12': 'Castellón', '13': 'Ciudad Real', '14': 'Córdoba', '15': 'A Coruña',
+  '16': 'Cuenca', '17': 'Girona', '18': 'Granada', '19': 'Guadalajara', '20': 'Gipuzkoa',
+  '21': 'Huelva', '22': 'Huesca', '23': 'Jaén', '24': 'León', '25': 'Lleida',
+  '26': 'La Rioja', '27': 'Lugo', '28': 'Madrid', '29': 'Málaga', '30': 'Murcia',
+  '31': 'Navarra', '32': 'Ourense', '33': 'Asturias', '34': 'Palencia', '35': 'Las Palmas',
+  '36': 'Pontevedra', '37': 'Salamanca', '38': 'S.C. Tenerife', '39': 'Cantabria',
+  '40': 'Segovia', '41': 'Sevilla', '42': 'Soria', '43': 'Tarragona', '44': 'Teruel',
+  '45': 'Toledo', '46': 'Valencia', '47': 'Valladolid', '48': 'Bizkaia', '49': 'Zamora',
+  '50': 'Zaragoza', '51': 'Ceuta', '52': 'Melilla'
+};
 
 // ── Existing YouTube Live Streams ──
 const YOUTUBE_LIVE: CctvCamera[] = [
@@ -95,6 +110,70 @@ const SKYLINE_SPAIN: CctvCamera[] = [
 
 const SPAIN_CAMERAS: CctvCamera[] = [...YOUTUBE_LIVE, ...SKYLINE_SPAIN];
 
+let dgtCache: { cameras: CctvCamera[], timestamp: number } | null = null;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+async function fetchDGTCameras(): Promise<CctvCamera[]> {
+  if (dgtCache && Date.now() - dgtCache.timestamp < CACHE_TTL_MS) {
+    return dgtCache.cameras;
+  }
+
+  try {
+    const response = await stealthFetch('https://www.dgt.es/.content/.assets/json/camaras.json', {
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!response.ok) return dgtCache?.cameras || [];
+    const data = await response.json();
+    
+    if (!data || !Array.isArray(data.camaras)) {
+      return [];
+    }
+
+    const cameras: CctvCamera[] = [];
+    for (const cam of data.camaras) {
+      const lat = parseFloat(cam.latitud);
+      const lng = parseFloat(cam.longitud);
+      
+      if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) continue;
+
+      const direction = cam.sentido !== '-' ? ` (${cam.sentido === '+' ? 'Ascending' : cam.sentido})` : '';
+      const name = `${cam.carretera} km ${cam.pk}${direction}`;
+      const city = PROVINCE_MAP[cam.provincia] || `Province ${cam.provincia}`;
+
+      cameras.push({
+        id: `dgt-${cam.id}`,
+        lat,
+        lng,
+        name,
+        city,
+        country: 'Spain',
+        feed_url: `/api/cctv/proxy?url=${encodeURIComponent(cam.imagen)}`,
+        source: 'DGT'
+      });
+    }
+
+    dgtCache = { cameras, timestamp: Date.now() };
+    return cameras;
+  } catch (error) {
+    console.error('Failed to fetch DGT cameras:', error);
+    return [];
+  }
+}
+
 export async function fetchSpainCameras(): Promise<CctvCamera[]> {
-  return SPAIN_CAMERAS;
+  const dgtCameras = await fetchDGTCameras();
+  const merged: CctvCamera[] = [...SPAIN_CAMERAS];
+
+  for (const dgtCam of dgtCameras) {
+    const isDuplicate = SPAIN_CAMERAS.some(staticCam => 
+      Math.abs(staticCam.lat - dgtCam.lat) <= 0.001 && 
+      Math.abs(staticCam.lng - dgtCam.lng) <= 0.001
+    );
+
+    if (!isDuplicate) {
+      merged.push(dgtCam);
+    }
+  }
+
+  return merged;
 }
