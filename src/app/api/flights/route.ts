@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { stealthFetch } from '@/lib/stealthFetch';
 
+export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 // 30 regions covering every major aviation corridor at 250 nm radius.
@@ -94,10 +95,24 @@ const AIRLINE_CODE_RE = /^([A-Z]{3})\d/;
 const ADSB_MAX_DIST = 250; // nm — hard cap the provider enforces
 const ADSBFI_BASE = 'https://opendata.adsb.fi/api/v2';
 
-// adsb.fi allows roughly one request per second and soft-throttles over that by
-// returning 200 with an empty ac[] rather than 429, so a parallel fanout looks
-// like it succeeded while returning nothing. The regional sweep is paced.
+// adsb.fi soft-throttles by returning 200 with an empty ac[] rather than 429, so
+// an over-budget request looks like it succeeded while returning nothing.
+//
+// Its /mil feed and its geographic endpoint are metered separately, and the
+// geographic one is metered very tightly: measured against the live API, an
+// isolated query returns ~217 aircraft, but a single 30-region sweep paced at
+// one request per 1.1s returns 0 from all 30, and stays at 0 for tens of
+// minutes afterwards — 18 further requests spread over the following 6 minutes
+// all came back empty. It tolerates a handful of calls per hour, not polling.
+//
+// So the sweep cannot carry commercial traffic, and running it every cycle
+// (which is what happens with no OpenSky credentials) just keeps the server
+// permanently in that penalty box and spends ~35s of the 60s budget for nothing.
+// It is rate-limited here to a genuine outage fallback. Commercial coverage
+// comes from OpenSky, which needs credentials — see the note below.
 const ADSBFI_GAP_MS = 1100;
+const REGIONAL_SWEEP_INTERVAL = 30 * 60 * 1000; // 30 min
+let lastRegionalSweep = 0;
 
 // adsb.fi serves /mil but returns 400 for /ladd, /pia and /squawk/{code},
 // so the global type feeds collapse to the military one.
@@ -105,6 +120,7 @@ async function fetchAdsbFiRegion(lat: number, lon: number): Promise<any[]> {
   try {
     const res = await stealthFetch(`${ADSBFI_BASE}/lat/${lat}/lon/${lon}/dist/${ADSB_MAX_DIST}`, {
       signal: AbortSignal.timeout(12000),
+      cache: 'no-store' as any,
     });
     if (res.ok) {
       const data = await res.json();
@@ -288,10 +304,10 @@ export async function GET() {
       : { signal: AbortSignal.timeout(30000) };
 
     const [milRes, osRes] = await Promise.allSettled([
-      stealthFetch(`${ADSBFI_BASE}/mil`, { signal: AbortSignal.timeout(15000) }),
+      stealthFetch(`${ADSBFI_BASE}/mil`, { signal: AbortSignal.timeout(15000), cache: 'no-store' as any }),
       skipOpenSky
         ? Promise.reject(new Error('OpenSky in cooldown'))
-        : stealthFetch('https://opensky-network.org/api/states/all', osInit),
+        : stealthFetch('https://opensky-network.org/api/states/all', { ...osInit, cache: 'no-store' as any }),
     ]);
 
     // Drain the military feed — parse on ok, discard the body otherwise to free the connection.
@@ -348,27 +364,30 @@ export async function GET() {
     ingestAc(osSnapshot, allRaw, seenHex);
     const openSkyWorked = osSnapshot.length > 0;
 
-    // ── Phase 3: Regional sweep — last resort only ────────────────────────────
-    // Runs only when there is no OpenSky snapshot at all, never as the steady
-    // state. adsb.fi's geographic endpoint is metered far more tightly than its
-    // /mil feed and answers 200 with an empty ac[] once that budget is spent
-    // rather than 429, so sweeping it every cycle would quietly exhaust it and
-    // look like empty airspace. Paced at ~1 req/s; 30 regions ≈ 33s, inside the
-    // 60s maxDuration above.
+    // ── Phase 3: Regional sweep — rate-limited outage fallback ────────────────
+    // Only when there is no OpenSky snapshot at all, and at most once every
+    // 30 minutes for the reasons documented on REGIONAL_SWEEP_INTERVAL. Without
+    // that gate this runs on every cache miss, which is exactly the state a
+    // deployment with no OpenSky credentials sits in permanently.
     if (!openSkyWorked) {
       source = 'regional';
-      console.warn('[OSIRIS] no OpenSky snapshot — falling back to adsb.fi regional sweep');
 
-      for (const r of REGIONS) {
-        ingestAc(await fetchAdsbFiRegion(r.lat, r.lon), allRaw, seenHex);
-        await new Promise(resolve => setTimeout(resolve, ADSBFI_GAP_MS));
+      if (Date.now() - lastRegionalSweep >= REGIONAL_SWEEP_INTERVAL) {
+        lastRegionalSweep = Date.now();
+        console.warn('[OSIRIS] no OpenSky snapshot — attempting adsb.fi regional sweep');
+
+        for (const r of REGIONS) {
+          ingestAc(await fetchAdsbFiRegion(r.lat, r.lon), allRaw, seenHex);
+          await new Promise(resolve => setTimeout(resolve, ADSBFI_GAP_MS));
+        }
       }
 
-      if (allRaw.length === 0) {
+      if (allRaw.length === milCount) {
         console.error(
-          '[OSIRIS] every flight provider returned zero aircraft — ' +
-          'set OPENSKY_CLIENT_ID/OPENSKY_CLIENT_SECRET (free at opensky-network.org); ' +
-          'the anonymous 400 credits/day pool cannot sustain a live map'
+          '[OSIRIS] no commercial traffic — only adsb.fi military is reporting. ' +
+          'Set OPENSKY_CLIENT_ID/OPENSKY_CLIENT_SECRET (free at opensky-network.org); ' +
+          'anonymous OpenSky is 400 credits/day and is refused outright from many ' +
+          'hosting IPs, and adsb.fi geographic queries cannot be polled.'
         );
       }
     } else {
