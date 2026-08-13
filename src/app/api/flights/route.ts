@@ -79,7 +79,35 @@ const MILITARY_INDICATORS = new Set([
   'EUFI','RFAL','TORD','TYP','GR4',
 ]);
 
+// Airliner and regional types, hoisted out of the classifier condition it used
+// to sit inside. A typed airliner stays commercial whatever its callsign says.
+const AIRLINER_TYPES = new Set([
+  'A319','A320','A321','A332','A333','A339','A343','A359','A388',
+  'B737','B738','B739','B38M','B39M','B752','B753','B763','B764',
+  'B772','B77L','B77W','B788','B789','B78X',
+  'E170','E175','E190','E195','CRJ7','CRJ9','AT43','AT72','DH8D',
+]);
+
+// Fractional-ownership and charter operators file under a 3-letter ICAO
+// designator exactly like an airline, so AIRLINE_CODE_RE matches them and they
+// would otherwise be counted as commercial traffic.
+const BIZJET_OPERATORS = new Set([
+  'EJA','EJM','NJE','LXJ','FJO','VJT','XOJ','JTL','WUP','GAJ','DPJ','CLY','TWY',
+]);
+
 const AIRLINE_CODE_RE = /^([A-Z]{3})\d/;
+
+// A callsign that is not an airline designator + flight number is a
+// registration: what general-aviation aircraft broadcast once the hyphen is
+// stripped — DMMKG (D-MMKG), HBYKO (HB-YKO), OEDLH (OE-DLH), N425RS, CGABC.
+const CALLSIGN_RE = /^[A-Z0-9]{3,8}$/;
+
+// Business jets cruise in the mid-thirties at transonic speed; nothing flying
+// under a civil registration reaches FL280 at 300 kt without turbofans. This is
+// the only bizjet/piston discriminator available for OpenSky aircraft, which
+// carry no aircraft type at all.
+const JET_CRUISE_ALT_M = 8500;
+const JET_CRUISE_KTS = 300;
 
 // adsb.fi is the last free tar1090/ADSBexchange-v2 shaped feed still serving
 // data without an API key, so classifyFlight() works on it unchanged. The two
@@ -135,18 +163,37 @@ function classifyFlight(f: any) {
   const isGrounded = typeof altRaw === 'number' && altRaw < 100;
 
   const isOsMilitary = f.category_os === 14;
-  const isOsJet = f.category_os === 7 || f.category_os === 3;
-  const isOsPrivate = f.category_os === 2;
+  const isOsHighPerf = f.category_os === 7;
+  const isOsLight = f.category_os === 2;
+  // Large / high-vortex large / heavy — airline or cargo metal by weight alone.
+  const isOsHeavy = f.category_os === 4 || f.category_os === 5 || f.category_os === 6;
 
   const airlineMatch = AIRLINE_CODE_RE.exec(callsign);
   const airlineCode = airlineMatch ? airlineMatch[1] : '';
 
+  // OpenSky supplies no aircraft type, and its ADS-B emitter category is
+  // "no information" for ~96% of aircraft even with extended=1 (measured live:
+  // 597 of 620 over central Europe). Every type-based test below therefore only
+  // fires on the adsb.fi feeds, which is what left all OpenSky traffic in the
+  // commercial bucket. The callsign is the field OpenSky always fills, so the
+  // airline-designator test is what carries the split for the bulk of the map.
+  const isGaCallsign = !airlineCode && CALLSIGN_RE.test(flightStr);
+  const cruisesLikeAJet =
+    altMeters > JET_CRUISE_ALT_M && (speedKnots ?? 0) > JET_CRUISE_KTS;
+
   let category: 'commercial' | 'private' | 'jet' | 'military' = 'commercial';
   if (isOsMilitary || dbFlags & 1 || MILITARY_INDICATORS.has(modelUpper) || (f.flight || '').match(/^(RCH|KING|DUKE|EVAC|JAKE|REACH|CONVOY)\d/i)) {
     category = 'military';
-  } else if (isOsJet || PRIVATE_JET_TYPES.has(modelUpper)) {
+  } else if (AIRLINER_TYPES.has(modelUpper) || isOsHeavy) {
+    category = 'commercial';
+  } else if (
+    BIZJET_OPERATORS.has(airlineCode) ||
+    PRIVATE_JET_TYPES.has(modelUpper) ||
+    isOsHighPerf ||
+    (isGaCallsign && cruisesLikeAJet)
+  ) {
     category = 'jet';
-  } else if (isOsPrivate || (!airlineCode && modelUpper && !['A319','A320','A321','A332','A333','A339','A343','A359','A388','B737','B738','B739','B38M','B39M','B752','B753','B763','B764','B772','B77L','B77W','B788','B789','B78X','E170','E175','E190','E195','CRJ7','CRJ9','AT43','AT72','DH8D'].includes(modelUpper))) {
+  } else if (isGaCallsign || isOsLight) {
     category = 'private';
   }
 
@@ -291,7 +338,11 @@ export async function GET() {
       stealthFetch(`${ADSBFI_BASE}/mil`, { signal: AbortSignal.timeout(15000) }),
       skipOpenSky
         ? Promise.reject(new Error('OpenSky in cooldown'))
-        : stealthFetch('https://opensky-network.org/api/states/all', osInit),
+        // extended=1 appends the ADS-B emitter category as an 18th field. Without
+        // it the state vector is 17 long and s[17] below is silently undefined,
+        // which is what made every category_os test in classifyFlight() dead.
+        // It does not change the credit cost — that is set by the area queried.
+        : stealthFetch('https://opensky-network.org/api/states/all?extended=1', osInit),
     ]);
 
     // Drain the military feed — parse on ok, discard the body otherwise to free the connection.
