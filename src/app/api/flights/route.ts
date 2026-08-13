@@ -212,6 +212,16 @@ const openSkyInterval = () => (hasOpenSkyCreds() ? 90000 : 900000);
 // on screen stable; only their age varies, which providers.opensky_age_s reports.
 let osSnapshot: any[] = [];
 let osSnapshotTime = 0;
+
+// The interval has to be measured from the last *attempt*, not the last success.
+// Measuring it from osSnapshotTime only throttles OpenSky once it has already
+// worked: while it is failing, osSnapshotTime stays put, every cache miss looks
+// due, and the route retries on all of them — ~960 calls a day against a 400
+// credit anonymous budget. A deployment that starts out unable to reach OpenSky
+// therefore never recovers, because it spends each day's quota re-failing and
+// the quota never gets a chance to cover a real request. Throttling attempts
+// holds anonymous to ~96 calls (384 credits) a day, inside the budget.
+let lastOpenSkyAttempt = 0;
 let fetchPromise: Promise<any> | null = null;
 
 // Back off from OpenSky after a 429 so the daily quota can reset.
@@ -297,7 +307,8 @@ export async function GET() {
     // anonymous OpenSky snapshot is waiting out its interval.
     const skipOpenSky =
       Date.now() < openSkyCooldownUntil ||
-      Date.now() - osSnapshotTime < openSkyInterval();
+      Date.now() - lastOpenSkyAttempt < openSkyInterval();
+    if (!skipOpenSky) lastOpenSkyAttempt = Date.now();
     const token = skipOpenSky ? null : await getOpenSkyToken();
     const osInit: RequestInit = token
       ? { signal: AbortSignal.timeout(30000), headers: { Authorization: `Bearer ${token}` } }
@@ -359,6 +370,11 @@ export async function GET() {
         console.warn('[OSIRIS] OpenSky returned', osRes.value.status);
         await osRes.value.body?.cancel();
       }
+    } else if (!skipOpenSky) {
+      // A genuine attempt that never got a response — DNS, TLS, timeout, or the
+      // host refusing the connection. Distinct from the deliberate skip, which
+      // rejects with a sentinel and must not be reported as a provider failure.
+      console.warn('[OSIRIS] OpenSky request failed:', osRes.reason);
     }
 
     ingestAc(osSnapshot, allRaw, seenHex);
@@ -433,6 +449,9 @@ export async function GET() {
         opensky:         osSnapshot.length,
         opensky_auth:    hasOpenSkyCreds(),
         opensky_age_s:   osSnapshotTime ? Math.round((Date.now() - osSnapshotTime) / 1000) : null,
+        // Separates "not tried recently" from "tried and failed", which is the
+        // distinction needed to tell a throttled deployment from a blocked one.
+        opensky_tried_s: lastOpenSkyAttempt ? Math.round((Date.now() - lastOpenSkyAttempt) / 1000) : null,
       },
       timestamp:          new Date().toISOString(),
     };
