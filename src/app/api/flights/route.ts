@@ -82,6 +82,34 @@ const MILITARY_INDICATORS = new Set([
 
 const AIRLINE_CODE_RE = /^([A-Z]{3})\d/;
 
+// Scheduled-airline ICAO type codes. Only ever usable on the adsb.fi feed —
+// OpenSky state vectors carry no aircraft type at all.
+const AIRLINER_TYPES = new Set([
+  'A319','A320','A321','A332','A333','A339','A343','A359','A388',
+  'B737','B738','B739','B38M','B39M','B752','B753','B763','B764',
+  'B772','B77L','B77W','B788','B789','B78X',
+  'E170','E175','E190','E195','CRJ7','CRJ9','AT43','AT72','DH8D',
+]);
+
+// Fractional-ownership and executive-charter operators. These file airline-style
+// ICAO callsigns (NJE880U, EJA512), so callsign shape alone reads them as
+// scheduled traffic when they are in fact business jets.
+const BIZAV_OPERATORS = new Set([
+  'EJA','EJM','NJE','LXJ','VJT','JTL','XOJ','WUP','OPT','GAJ','DCM',
+]);
+
+// An aircraft only shows a jet profile in cruise: the same Gulfstream on approach
+// at 6000 ft and 200 kt is indistinguishable from a light single on performance
+// alone. Remembering hexes that have shown one keeps a flight in a single bucket
+// for the whole descent instead of flipping between polls.
+const jetHexes = new Set<string>();
+const JET_HEX_CAP = 20000;
+function rememberJet(hex: string) {
+  if (!hex) return;
+  if (jetHexes.size >= JET_HEX_CAP) jetHexes.clear();
+  jetHexes.add(hex);
+}
+
 // adsb.fi is the last free tar1090/ADSBexchange-v2 shaped feed still serving
 // data without an API key, so classifyFlight() works on it unchanged. The two
 // providers this route used to fan out to have both stopped returning aircraft:
@@ -150,20 +178,54 @@ function classifyFlight(f: any) {
   const isHeli = HELI_TYPES.has(modelUpper) || f.category_os === 8;
   const isGrounded = typeof altRaw === 'number' && altRaw < 100;
 
-  const isOsMilitary = f.category_os === 14;
+  // 14 is "UAV". 13 is reserved in the ADS-B spec and is what military
+  // transponders emit in practice: all 150 aircraft carrying it in a live
+  // snapshot were military — GLOCK, SUNDG, SENTRY, PAT, SPAR, NATO42, CFC,
+  // CTM, IAM — with no civilian entry among them. It catches the fleets the
+  // callsign list below misses, and only exists because of extended=1.
+  const isOsMilitary = f.category_os === 14 || f.category_os === 13;
+  // 3 = "Small" (15,500–75,000 lb), 7 = "High Performance". Both are turbine
+  // signatures, but only meaningful once the callsign has ruled out an airline.
   const isOsJet = f.category_os === 7 || f.category_os === 3;
-  const isOsPrivate = f.category_os === 2;
 
-  const airlineMatch = AIRLINE_CODE_RE.exec(callsign);
+  // Match on the transmitted callsign, not on `callsign`, which falls back to the
+  // hex when nothing was transmitted — a hex is not evidence of an operator.
+  const airlineMatch = AIRLINE_CODE_RE.exec(flightStr);
   const airlineCode = airlineMatch ? airlineMatch[1] : '';
+  const isBizav = BIZAV_OPERATORS.has(airlineCode);
+
+  // Three letters then a digit is the ICAO scheduled-callsign shape. Registrations
+  // — N387A, SPWTW, OEKWJ, CFUTP — never take it, and that is the whole basis of
+  // the split on an OpenSky-only feed: ~95% of its aircraft report ADS-B emitter
+  // category 0 ("no information"), so the category field cannot carry it.
+  const isAirline = Boolean(airlineCode) && !isBizav;
+
+  // Separates business jets from light aircraft when no type is available.
+  // FL280 above 300 kt is a turbine profile — unpressurised piston GA cannot get
+  // there. The flat 350 kt clause covers the climb and descent, where a jet
+  // spends much of its flight below FL280 and would otherwise read as a light
+  // single: every non-airline aircraft over 350 kt in a live snapshot was a
+  // business jet or a military type, none were piston GA.
+  const altFeet = typeof altRaw === 'number' ? altRaw : 0;
+  const kts = speedKnots || 0;
+  const jetProfile = (altFeet > 28000 && kts > 300) || kts > 350;
+
+  const hex = (f.hex || '').toLowerCase();
 
   let category: 'commercial' | 'private' | 'jet' | 'military' = 'commercial';
-  if (isOsMilitary || dbFlags & 1 || MILITARY_INDICATORS.has(modelUpper) || (f.flight || '').match(/^(RCH|KING|DUKE|EVAC|JAKE|REACH|CONVOY)\d/i)) {
+  if (isOsMilitary || dbFlags & 1 || MILITARY_INDICATORS.has(modelUpper) || /^(RCH|KING|DUKE|EVAC|JAKE|REACH|CONVOY)\d/.test(flightStr)) {
     category = 'military';
-  } else if (isOsJet || PRIVATE_JET_TYPES.has(modelUpper)) {
+  } else if (isBizav || PRIVATE_JET_TYPES.has(modelUpper)) {
     category = 'jet';
-  } else if (isOsPrivate || (!airlineCode && modelUpper && !['A319','A320','A321','A332','A333','A339','A343','A359','A388','B737','B738','B739','B38M','B39M','B752','B753','B763','B764','B772','B77L','B77W','B788','B789','B78X','E170','E175','E190','E195','CRJ7','CRJ9','AT43','AT72','DH8D'].includes(modelUpper))) {
-    category = 'private';
+    rememberJet(hex);
+  } else if (!isAirline && (flightStr || modelUpper) && !AIRLINER_TYPES.has(modelUpper)) {
+    // No airline callsign, and not a known airliner type — general aviation.
+    if (isOsJet || jetProfile || jetHexes.has(hex)) {
+      category = 'jet';
+      rememberJet(hex);
+    } else {
+      category = 'private';
+    }
   }
 
   return {
@@ -318,7 +380,11 @@ export async function GET() {
       stealthFetch(`${ADSBFI_BASE}/mil`, { signal: AbortSignal.timeout(15000), cache: 'no-store' as any }),
       skipOpenSky
         ? Promise.reject(new Error('OpenSky in cooldown'))
-        : stealthFetch('https://opensky-network.org/api/states/all', { ...osInit, cache: 'no-store' as any }),
+        // extended=1 is what makes s[17] exist at all. Without it the API returns
+        // 17-element state vectors and every category_os read below was undefined,
+        // so the emitter-category branches of classifyFlight had never once run.
+        // It does not change the credit cost — /states/all is billed by area.
+        : stealthFetch('https://opensky-network.org/api/states/all?extended=1', { ...osInit, cache: 'no-store' as any }),
     ]);
 
     // Drain the military feed — parse on ok, discard the body otherwise to free the connection.
