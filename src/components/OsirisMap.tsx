@@ -997,11 +997,23 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       // instead, which sent every event outside the six hardcoded boxes — all
       // of the Americas, Asia and Oceania among them — to the Ukraine map.
       const src = urlSafe(p.url);
+      // GDACS is a natural-disaster feed. Every event here was headed
+      // "CONFLICT EVENT" — on a live sample that mislabelled 342 of 369
+      // events, nearly all of them wildfires.
+      const KIND: Record<string, [string, string]> = {
+        earthquake: ['🌐 EARTHQUAKE',   '#FF9500'],
+        wildfire:   ['🔥 WILDFIRE',     '#FF6B1A'],
+        flood:      ['🌊 FLOOD',        '#00B0FF'],
+        weather:    ['🌀 TROPICAL CYCLONE', '#00E5FF'],
+        volcano:    ['🌋 VOLCANO',      '#FF3D3D'],
+        drought:    ['☀️ DROUGHT',      '#FFD500'],
+      };
+      const [kindLabel, kindColor] = KIND[String(p.kind)] ?? ['⚠️ GLOBAL INCIDENT', '#FF3D3D'];
 
-      popup(coords, `<div style="${pStyle}border:1px solid rgba(255,61,61,0.3);">
-        <div style="color:#FF3D3D;font-size:12px;font-weight:700;margin-bottom:6px;">⚠️ CONFLICT EVENT</div>
+      popup(coords, `<div style="${pStyle}border:1px solid ${kindColor}4d;">
+        <div style="color:${kindColor};font-size:12px;font-weight:700;margin-bottom:6px;">${kindLabel}</div>
         <div style="font-size:9px;color:#E8E6E0;margin-bottom:8px;line-height:1.4;">${htmlEsc(p.name||'Unclassified incident')}</div>
-        ${src !== '#' ? `<a href="${src}" target="_blank" rel="noopener noreferrer" style="${linkStyle}flex:1;text-align:center;color:#FF3D3D;border:1px solid rgba(255,61,61,0.4);background:rgba(255,61,61,0.15);display:inline-block;width:100%;box-sizing:border-box;margin-top:4px;">[ OPEN SOURCE ↗ ]</a>` : ''}
+        ${src !== '#' ? `<a href="${src}" target="_blank" rel="noopener noreferrer" style="${linkStyle}flex:1;text-align:center;color:${kindColor};border:1px solid ${kindColor}66;background:${kindColor}26;display:inline-block;width:100%;box-sizing:border-box;margin-top:4px;">[ OPEN SOURCE ↗ ]</a>` : ''}
       </div>`);
     });
 
@@ -1441,7 +1453,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     // url has to travel with the feature: /api/gdelt gives every event its own
     // GDACS report link, and dropping it here is what left the popup with
     // nothing to link to.
-    setGeo('gdelt', activeLayers.global_incidents && data.gdelt ? data.gdelt.map((e: any) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [e.lng, e.lat] }, properties: { name: e.name, url: e.url } })) : []);
+    setGeo('gdelt', activeLayers.global_incidents && data.gdelt ? data.gdelt.map((e: any) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [e.lng, e.lat] }, properties: { name: e.name, url: e.url, kind: e.type } })) : []);
   }, [mapReady, data.gdelt, activeLayers.global_incidents, setGeo]);
 
   /* ── GDELT 2.0 Events ── */

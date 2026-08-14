@@ -59,12 +59,18 @@ export async function GET() {
       const lng = parseFloat(lngMatch[1]);
       const eventType = typeMatch ? typeMatch[1] : 'UNK';
 
-      // Map GDACS event types to Osiris types
-      let type = 'conflict';
+      // Map GDACS event types to Osiris types. WF and DR used to fall through
+      // to the 'conflict' default, which is most of the feed — a live sample
+      // was 330 wildfires and 12 droughts out of 369 events, all of them
+      // reaching the map labelled as conflicts. Unknown types are 'incident'
+      // now; nothing in this feed is a conflict, it is a disaster alert feed.
+      let type = 'incident';
       if (eventType === 'EQ') type = 'earthquake';
       else if (eventType === 'TC') type = 'weather';
-      else if (eventType === 'FL') type = 'weather';
+      else if (eventType === 'FL') type = 'flood';
       else if (eventType === 'VO') type = 'volcano';
+      else if (eventType === 'WF') type = 'wildfire';
+      else if (eventType === 'DR') type = 'drought';
 
       allEvents.push({
         id: `gdacs-${eventId++}`,
