@@ -441,6 +441,16 @@ export const API_GROUPS: ApiGroup[] = [
         returns: ['breached', 'breaches', 'data_exposed', 'detail'],
       },
       {
+        path: '/api/osint/hudsonrock',
+        method: 'GET',
+        summary: 'Reports whether an asset appears in Hudson Rock\'s infostealer corpus — machines compromised by credential-stealing malware.',
+        params: [
+          { name: 'query', required: true, desc: 'Email, domain, username or phone number.', example: 'tesla.com' },
+          { name: 'type', required: false, desc: 'Pins the asset type instead of inferring it: email, domain, username or phone.', example: 'domain' },
+        ],
+        returns: ['query', 'type', 'compromised', 'stealers', 'total_corporate_services', 'total_user_services', 'totalStealers', 'employees', 'users'],
+      },
+      {
         path: '/api/osint/cve',
         method: 'GET',
         summary: 'Full NVD record for a single CVE identifier.',
