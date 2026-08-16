@@ -85,7 +85,6 @@ const LAYER_GROUPS: LayerGroupDef[] = [
     layers: [
       { key: 'cctv', label: 'CCTV Cameras', dataKey: 'cameras' },
       { key: 'live_news', label: 'Live News Feeds', dataKey: 'live_feeds' },
-      { key: 'news_intel', label: 'SIGINT News', dataKey: 'sigint_news' },
     ],
   },
   {
@@ -105,7 +104,7 @@ const LAYER_GROUPS: LayerGroupDef[] = [
     layers: [
       { key: 'infrastructure', label: 'Nuclear Facilities', dataKey: 'infrastructure' },
       { key: 'global_incidents', label: 'Global Incidents', dataKey: 'gdelt' },
-      { key: 'gps_jamming', label: 'GPS Jamming', dataKey: 'gps_jamming' },
+      { key: 'gdelt_events', label: 'GDELT Events', dataKey: 'gdelt_events' },
     ],
   },
   {
@@ -122,7 +121,6 @@ const LAYER_GROUPS: LayerGroupDef[] = [
     fullLabel: 'NET & EVENT INTEL',
     icon: Megaphone,
     layers: [
-      { key: 'gdelt_events', label: 'GDELT Events', dataKey: 'gdelt_events' },
       { key: 'cf_outages', label: 'Internet Outages', dataKey: 'cf_outages', requires: 'cloudflare' },
       { key: 'cf_attacks', label: 'Attack Origins', dataKey: 'cf_attack_origins', requires: 'cloudflare' },
     ],
