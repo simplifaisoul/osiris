@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import https from 'https';
 import http from 'http';
-import { execSync } from 'child_process';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 15;
@@ -19,31 +18,43 @@ const ALLOWED_HOSTS = [
   'etraffic.dgt.es',
 ];
 
-// THB servers send non-standard HTTP headers that Node's strict parser rejects.
-// These need special handling via curl fallback.
-const LENIENT_HOSTS = ['thb.gov.tw'];
+// Taiwan Highway Bureau cameras are DigiEver encoders, and they emit a
+// malformed response header when the request carries a Referer — Node's parser
+// then rejects the entire response with "Parse Error: Invalid header token".
+// Asking without a Referer returns a clean JPEG. Measured across all eight
+// cctv-ss01…08 servers: 8/8 fail with a Referer, 8/8 succeed without one.
+//
+// This is what the old curl.exe shell-out was working around. That never ran in
+// production at all — curl.exe is a Windows binary name, so on the Linux host
+// every THB request failed, which is why the live map showed "FEED UNAVAILABLE"
+// on Taiwan while it worked on a Windows dev machine.
+//
+// An Accept header is still required: without one these servers hang up.
+const NO_REFERER_HOSTS = ['thb.gov.tw'];
 
 function isAllowed(hostname: string): boolean {
   return ALLOWED_HOSTS.some(h => hostname === h || hostname.endsWith('.' + h));
 }
 
-function needsLenientParsing(hostname: string): boolean {
-  return LENIENT_HOSTS.some(h => hostname === h || hostname.endsWith('.' + h));
+function sendsReferer(hostname: string): boolean {
+  return !NO_REFERER_HOSTS.some(h => hostname === h || hostname.endsWith('.' + h));
 }
 
-/** Standard proxy for well-behaved servers */
-function proxyFetch(url: string, referer: string): Promise<{ status: number; contentType: string; data: Buffer }> {
+/** Fetches a camera frame. `referer` is omitted for hosts that choke on it. */
+function proxyFetch(url: string, referer: string | null): Promise<{ status: number; contentType: string; data: Buffer }> {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
     const isHttps = parsed.protocol === 'https:';
     const mod = isHttps ? https : http;
 
+    const headers: Record<string, string> = {
+      'Accept': 'image/*,*/*',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+    };
+    if (referer) headers['Referer'] = referer;
+
     const options: any = {
-      headers: {
-        'Accept': 'image/*,*/*',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-        'Referer': referer,
-      },
+      headers,
       timeout: 12000,
     };
 
@@ -72,19 +83,6 @@ function proxyFetch(url: string, referer: string): Promise<{ status: number; con
   });
 }
 
-/** Lenient proxy using curl for servers with non-standard HTTP headers */
-function curlFetch(url: string): { status: number; contentType: string; data: Buffer } {
-  try {
-    const data = execSync(`curl.exe -s -k -L --max-time 10 "${url}"`, {
-      maxBuffer: 2 * 1024 * 1024, // 2MB
-      timeout: 12000,
-    });
-    return { status: 200, contentType: 'image/jpeg', data };
-  } catch {
-    return { status: 502, contentType: 'application/json', data: Buffer.from('{}') };
-  }
-}
-
 export async function GET(request: NextRequest) {
   const url = request.nextUrl.searchParams.get('url');
 
@@ -104,14 +102,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    let result: { status: number; contentType: string; data: Buffer };
-
-    if (needsLenientParsing(target.hostname.toLowerCase())) {
-      // THB and similar servers with non-standard headers — use curl
-      result = curlFetch(target.toString());
-    } else {
-      result = await proxyFetch(target.toString(), `https://${target.hostname}/`);
-    }
+    const host = target.hostname.toLowerCase();
+    const result = await proxyFetch(
+      target.toString(),
+      sendsReferer(host) ? `https://${target.hostname}/` : null
+    );
 
     if (result.status >= 400) {
       return NextResponse.json({ error: `Upstream ${result.status}` }, { status: result.status });
