@@ -28,6 +28,21 @@ const CameraViewer = dynamic(() => import('@/components/CameraViewer'));
 const OsintPanel = dynamic(() => import('@/components/OsintPanel'));
 const EntityGraphPanel = dynamic(() => import('@/components/EntityGraphPanel'));
 const TokenPanel = dynamic(() => import('@/components/TokenPanel'));
+
+// A curated first-run set for the ArcGIS panel: real, global infrastructure
+// data (Bucknell University GIS's Global Oil and Gas Features service --
+// verified live: worldwide extent, ~94k pipeline segments, ~280k railway
+// segments, ~14k power plants) instead of the panel opening empty until a
+// user happens to search for something. FIRST RUN ONLY: seeded into
+// arcgisLayers' initial state below, and from then on this session's own
+// add/remove actions are the only source of truth -- removing one of these
+// is a real user decision this component has no reason to override.
+const DEFAULT_ARCGIS_LAYERS = [
+  { id: 'gogf-pipelines-13', title: 'Global Oil & Gas Pipelines', url: 'https://services2.arcgis.com/xsh7pVZv42relbEf/arcgis/rest/services/Global_Oil_and_Gas_Features/FeatureServer/13', color: '#FF6B35' },
+  { id: 'gogf-railways-14', title: 'Global Railways', url: 'https://services2.arcgis.com/xsh7pVZv42relbEf/arcgis/rest/services/Global_Oil_and_Gas_Features/FeatureServer/14', color: '#8D6E63' },
+  { id: 'gogf-power-plants-2', title: 'Global Power Plants', url: 'https://services2.arcgis.com/xsh7pVZv42relbEf/arcgis/rest/services/Global_Oil_and_Gas_Features/FeatureServer/2', color: '#FFC107' },
+];
+
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
@@ -199,8 +214,47 @@ export default function Dashboard() {
   }, [navSession]);
   const [showRemote, setShowRemote] = useState(false);
   const [showArcGIS, setShowArcGIS] = useState(false);
-  const [arcgisLayers, setArcgisLayers] = useState<Array<{ id: string; title: string; url: string; geojson: any; color: string; visible: boolean; opacity: number }>>([]);
+  const [arcgisLayers, setArcgisLayers] = useState<Array<{ id: string; title: string; url: string; geojson: any; color: string; visible: boolean; opacity: number }>>(
+    // Geometry deliberately absent: the viewport effect below fills it in
+    // for wherever the map happens to be pointing.
+    DEFAULT_ARCGIS_LAYERS.map(l => ({ ...l, geojson: null, visible: true, opacity: 0.8 }))
+  );
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number; bounds?: { west: number; south: number; east: number; north: number } } | null>(null);
+  const arcgisLayersRef = useRef(arcgisLayers);
+  useEffect(() => { arcgisLayersRef.current = arcgisLayers; }, [arcgisLayers]);
+
+  // Refetch every visible ArcGIS layer for the current viewport. Without
+  // this, an imported (or seeded) layer's geometry is a one-time snapshot
+  // of whatever the map happened to show at import time -- panning away
+  // leaves it stale, and the seeded global layers above are ~94k/280k/14k
+  // features each, far more than any single-viewport query returns.
+  const arcgisKey = arcgisLayers.filter(l => l.visible).map(l => l.id).join('|');
+  const arcgisBounds = mapCenter?.bounds;
+  useEffect(() => {
+    if (!arcgisKey || !arcgisBounds) return;
+    const bbox = `${arcgisBounds.west.toFixed(3)},${arcgisBounds.south.toFixed(3)},${arcgisBounds.east.toFixed(3)},${arcgisBounds.north.toFixed(3)}`;
+    const ctrl = new AbortController();
+    // Debounced: moveend fires on every pan and zoom, and a fetch per twitch
+    // would hammer both this process and Esri.
+    const timer = setTimeout(async () => {
+      const ids = arcgisKey.split('|');
+      for (const id of ids) {
+        const layer = arcgisLayersRef.current.find(l => l.id === id);
+        if (!layer) continue;
+        try {
+          const res = await fetch(
+            `/api/arcgis?service=${encodeURIComponent(layer.url)}&bbox=${encodeURIComponent(bbox)}`,
+            { signal: ctrl.signal });
+          if (!res.ok) continue;
+          const gj = await res.json();
+          if (ctrl.signal.aborted) return;
+          setArcgisLayers(prev => prev.map(l => l.id === id ? { ...l, geojson: gj } : l));
+        } catch { /* aborted or a transient Esri error -- next move retries */ }
+      }
+    }, 400);
+    return () => { ctrl.abort(); clearTimeout(timer); };
+  }, [arcgisKey, arcgisBounds]);
+
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<'layers'|'markets'|'intel'|'search'|'recon'|'remote'|null>(null);
   const [mapProjection, setMapProjection] = useState<'globe'|'mercator'>('globe');
@@ -238,6 +292,13 @@ export default function Dashboard() {
     cctv: true,
     live_news: true,
     earthquakes: true,
+    // Same default as earthquakes, not fires/weather's off-by-default: wave
+    // height off a real buoy network is a live tsunami precursor signal.
+    buoys: true,
+    // Off by default: an always-on particle animation (redrawn every frame,
+    // fetching a wind grid per viewport) is a real cost a first-time visitor
+    // should not pay without asking for it.
+    wind: false,
     fires: false,
     weather: false,
     radiation: false,
@@ -494,6 +555,19 @@ export default function Dashboard() {
     };
   }, [fetchEndpoint]);
 
+  // Ocean buoys refresh on their own timer, not just once on toggle: NDBC
+  // stations report roughly hourly, so this is a real-data-driven interval,
+  // not an arbitrary one, and it is what makes a wave-height anomaly show up
+  // without a manual reload.
+  useEffect(() => {
+    if (!(activeLayers as any).buoys) return;
+    const iv = setInterval(
+      () => fetchEndpoint('/api/buoys', d => ({ buoys: d.buoys }), undefined, { skipWhenHidden: true }),
+      900000, // 15 min
+    );
+    return () => clearInterval(iv);
+  }, [(activeLayers as any).buoys, fetchEndpoint]);
+
   // ── LAYER-AWARE DATA LOADING — only fetch when layer is toggled ON ──
   const layerFetchedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
@@ -545,6 +619,11 @@ export default function Dashboard() {
     if (activeLayers.weather && !layerFetchedRef.current.has('weather')) {
       fetchEndpoint('/api/weather', d => ({ weather_events: d.events }));
       layerFetchedRef.current.add('weather');
+    }
+    // Ocean buoys (wave height / period — tsunami precursor signal)
+    if ((activeLayers as any).buoys && !layerFetchedRef.current.has('buoys')) {
+      fetchEndpoint('/api/buoys', d => ({ buoys: d.buoys }));
+      layerFetchedRef.current.add('buoys');
     }
     // Infrastructure
     if (activeLayers.infrastructure && !layerFetchedRef.current.has('infrastructure')) {
