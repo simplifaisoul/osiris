@@ -37,6 +37,8 @@ interface OsirisMapProps {
   userLocation?: { lat: number; lng: number; accuracy?: number; heading?: number | null } | null;
   /** Keep the camera centred on userLocation as it moves. */
   followUser?: boolean;
+  /** Fired when the operator pans/zooms/rotates while follow mode is on. */
+  onFollowInterrupt?: () => void;
   /** Live navigation: tighter zoom and the map turned to face travel direction. */
   navigating?: boolean;
   /** Corroborated endpoint airports for watched aircraft, keyed by icao24. */
@@ -65,7 +67,7 @@ function computeSolarTerminator(): [number, number][] {
 
 const EMPTY_FC = { type: 'FeatureCollection' as const, features: [] };
 
-function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, flyToLocation, projection = 'globe', mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', drawnPolygons = [], arcgisLayers = [], drawingMode = false, onDrawComplete, onMapCenter, route = null, userLocation = null, followUser = false, navigating = false, aircraftAirports = {} }: OsirisMapProps) {
+function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, flyToLocation, projection = 'globe', mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', drawnPolygons = [], arcgisLayers = [], drawingMode = false, onDrawComplete, onMapCenter, route = null, userLocation = null, followUser = false, onFollowInterrupt, navigating = false, aircraftAirports = {} }: OsirisMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
@@ -2249,6 +2251,27 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
   }, [mapReady, userLocation]);
 
   // ── FOLLOW MODE ──
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !followUser) return;
+    const map = mapRef.current;
+    // originalEvent is only set when a real input device drove the change, so
+    // the easeTo below cannot trip this and cancel its own follow.
+    const onGesture = (e: any) => { if (e?.originalEvent) onFollowInterrupt?.(); };
+    map.on('dragstart', onGesture);
+    map.on('zoomstart', onGesture);
+    map.on('rotatestart', onGesture);
+    map.on('pitchstart', onGesture);
+    return () => {
+      map.off('dragstart', onGesture);
+      map.off('zoomstart', onGesture);
+      map.off('rotatestart', onGesture);
+      map.off('pitchstart', onGesture);
+    };
+  }, [mapReady, followUser, onFollowInterrupt]);
+
+  // Recentering runs on every position fix, so without the handover above the
+  // map fights the operator: zoom out to look ahead and the next GPS tick drags
+  // the camera back to 16.5. Follow itself is unchanged and resumes on recenter.
   useEffect(() => {
     if (!mapReady || !mapRef.current || !followUser || !userLocation) return;
     // While navigating, sit close in and rotate the map so travel direction is

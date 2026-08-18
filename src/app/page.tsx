@@ -950,6 +950,7 @@ export default function Dashboard() {
               : liveLocation
           }
           followUser={followUser}
+          onFollowInterrupt={() => setFollowUser(false)}
           navigating={Boolean(navSession)}
           aircraftAirports={aircraftAirports}
         />
@@ -968,6 +969,8 @@ export default function Dashboard() {
               destinationLabel={navSession.label}
               fix={liveLocation}
               onProgress={setNavProgress}
+              following={followUser}
+              onRecenter={() => setFollowUser(true)}
               onExit={() => { setNavSession(null); setNavProgress(null); setFollowUser(false); }}
               onReroute={async (fromPt) => {
                 // Re-plan from where the driver actually is, to the same destination.

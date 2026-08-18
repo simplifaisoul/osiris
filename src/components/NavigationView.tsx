@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   X, Volume2, VolumeX, CornerUpRight, CornerUpLeft, ArrowUp, RotateCw,
-  Merge, Flag, MapPin, AlertTriangle, Loader2,
+  Merge, Flag, MapPin, AlertTriangle, Loader2, LocateFixed,
 } from 'lucide-react';
 import {
   cumulativeDistances, stepPositions, computeProgress, shouldAnnounce, announcementText,
@@ -32,6 +32,10 @@ interface NavigationViewProps {
   onReroute: (from: { lat: number; lng: number }) => void;
   /** Snapped position + progress, so the map can follow and draw. */
   onProgress?: (p: NavProgress | null) => void;
+  /** Whether the map is currently locked to the driver. */
+  following?: boolean;
+  /** Re-lock the camera after the operator has looked around. */
+  onRecenter?: () => void;
 }
 
 function ManeuverIcon({ type, className }: { type: string; className?: string }) {
@@ -59,7 +63,7 @@ export function navDuration(s: number): string {
 }
 
 export default function NavigationView({
-  route, destinationLabel, fix, onExit, onReroute, onProgress,
+  route, destinationLabel, fix, onExit, onReroute, onProgress, following, onRecenter,
 }: NavigationViewProps) {
   const [muted, setMuted] = useState(false);
   const [rerouting, setRerouting] = useState(false);
@@ -184,6 +188,18 @@ export default function NavigationView({
           </div>
 
           <div className="flex flex-col gap-1 flex-shrink-0">
+            {/* Only offered once the operator has taken the camera off the
+                driver — while following, it would be a no-op. */}
+            {onRecenter && !following && (
+              <button
+                onClick={onRecenter}
+                title="Recenter on me and resume follow"
+                aria-label="Recenter on me and resume follow"
+                className="p-1.5 rounded-md text-[#4285F4] bg-[rgba(66,133,244,0.14)] hover:bg-[rgba(66,133,244,0.24)] transition-colors animate-pulse"
+              >
+                <LocateFixed className="w-4 h-4" />
+              </button>
+            )}
             <button
               onClick={() => { setMuted((m) => !m); window.speechSynthesis?.cancel(); }}
               aria-pressed={muted}
@@ -214,15 +230,15 @@ export default function NavigationView({
         {/* ── trip status ── */}
         <div className="px-4 py-2.5 flex items-center justify-between gap-3">
           {rerouting ? (
-            <span className="flex items-center gap-2 text-[10px] text-[var(--alert-orange)]">
+            <span className="flex items-center gap-2 text-[12px] text-[var(--alert-orange)]">
               <Loader2 className="w-3 h-3 animate-spin" /> Recalculating route…
             </span>
           ) : progress?.offRoute ? (
-            <span className="flex items-center gap-2 text-[10px] text-[var(--alert-orange)]">
+            <span className="flex items-center gap-2 text-[12px] text-[var(--alert-orange)]">
               <AlertTriangle className="w-3 h-3" /> Off route
             </span>
           ) : (
-            <span className="text-[10px] text-[var(--text-muted)] truncate">
+            <span className="text-[12px] text-[var(--text-muted)] truncate">
               to {destinationLabel}
             </span>
           )}
@@ -230,8 +246,8 @@ export default function NavigationView({
           {progress && !arrived && (
             <span className="flex items-baseline gap-2.5 flex-shrink-0 tabular-nums">
               <span className="text-[13px] text-[var(--text-primary)]">{navDuration(progress.durationRemaining)}</span>
-              <span className="text-[10px] text-[var(--text-secondary)]">{navDistance(progress.distanceRemaining)}</span>
-              <span className="text-[10px] text-[var(--text-muted)]">
+              <span className="text-[12px] text-[var(--text-secondary)]">{navDistance(progress.distanceRemaining)}</span>
+              <span className="text-[12px] text-[var(--text-muted)]">
                 {new Date(now + progress.durationRemaining * 1000)
                   .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
@@ -243,16 +259,16 @@ export default function NavigationView({
       {/* ── the turn after this one ── */}
       {progress && !arrived && route.steps[progress.stepIndex + 1] && (
         <div className="glass-panel px-4 py-2 flex items-center gap-3">
-          <span className="text-[8px] uppercase tracking-[0.15em] text-[var(--text-muted)] flex-shrink-0">Then</span>
+          <span className="text-[10px] uppercase tracking-[0.15em] text-[var(--text-muted)] flex-shrink-0">Then</span>
           <ManeuverIcon type={route.steps[progress.stepIndex + 1].type} className="w-4 h-4" />
-          <span className="text-[10px] text-[var(--text-secondary)] truncate">
+          <span className="text-[12px] text-[var(--text-secondary)] truncate">
             {route.steps[progress.stepIndex + 1].instruction}
           </span>
         </div>
       )}
 
       {!fix && (
-        <div className="glass-panel px-4 py-2 text-[10px] text-[var(--alert-orange)]">
+        <div className="glass-panel px-4 py-2 text-[12px] text-[var(--alert-orange)]">
           Waiting for a position fix… navigation needs HTTPS or localhost.
         </div>
       )}
