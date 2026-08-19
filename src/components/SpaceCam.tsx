@@ -96,12 +96,12 @@ export default function SpaceCam() {
     <div className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-panel)] backdrop-blur-2xl overflow-hidden shadow-[0_4px_24px_rgba(0,0,0,0.5)]">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--border-secondary)]/40">
         <Radio className="w-3.5 h-3.5 text-[#00E5FF]" />
-        <span className="text-[10px] font-mono font-bold tracking-widest text-[#00E5FF]">
+        <span className="text-[12px] font-mono font-bold tracking-widest text-[#00E5FF]">
           LIVE FROM SPACE
         </span>
         <span className="ml-auto flex items-center gap-1">
           <span className="w-1.5 h-1.5 rounded-full bg-[#FF3D3D] animate-pulse" />
-          <span className="text-[8px] font-mono tracking-wider text-[var(--text-muted)]">24/7</span>
+          <span className="text-[10px] font-mono tracking-wider text-[var(--text-muted)]">24/7</span>
         </span>
         <button
           onClick={() => setExpanded(true)}
@@ -125,7 +125,7 @@ export default function SpaceCam() {
             so the panel says so rather than looking broken. */}
         <button
           onClick={() => setExpanded(true)}
-          className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/70 text-[7px] font-mono tracking-wider text-[#00E5FF] opacity-0 group-hover/player:opacity-100 transition-opacity"
+          className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/70 text-[10px] font-mono tracking-wider text-[#00E5FF] opacity-0 group-hover/player:opacity-100 transition-opacity"
         >
           EXPAND FOR HD ↗
         </button>
@@ -137,7 +137,7 @@ export default function SpaceCam() {
             <button
               key={f.id}
               onClick={() => setActive(f)}
-              className={`flex-1 px-2 py-1.5 rounded text-[8px] font-mono tracking-wider transition-colors border ${
+              className={`flex-1 px-2 py-1.5 rounded text-[10px] font-mono tracking-wider transition-colors border ${
                 active.id === f.id
                   ? 'border-[#00E5FF]/40 bg-[#00E5FF]/15 text-[#00E5FF]'
                   : 'border-transparent text-[var(--text-muted)] hover:bg-[var(--hover-accent)]'
@@ -151,8 +151,8 @@ export default function SpaceCam() {
 
       <div className="px-3 py-2 flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-[9px] font-mono text-[var(--text-secondary)] truncate">{active.detail}</div>
-          <div className="text-[8px] font-mono text-[var(--text-muted)]">
+          <div className="text-[11px] font-mono text-[var(--text-secondary)] truncate">{active.detail}</div>
+          <div className="text-[10px] font-mono text-[var(--text-muted)]">
             ALT ~{ORBIT_ALT_KM} KM · ORBIT ~93 MIN
           </div>
         </div>
@@ -160,7 +160,7 @@ export default function SpaceCam() {
           href={`https://www.youtube.com/watch?v=${active.videoId}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1 px-2 py-1 rounded border border-[var(--border-secondary)]/40 text-[8px] font-mono text-[var(--text-muted)] hover:text-[#00E5FF] hover:border-[#00E5FF]/40 transition-colors flex-shrink-0"
+          className="flex items-center gap-1 px-2 py-1 rounded border border-[var(--border-secondary)]/40 text-[10px] font-mono text-[var(--text-muted)] hover:text-[#00E5FF] hover:border-[#00E5FF]/40 transition-colors flex-shrink-0"
         >
           SOURCE <ExternalLink className="w-2.5 h-2.5" />
         </a>
@@ -180,10 +180,10 @@ export default function SpaceCam() {
               <span className="text-[12px] font-mono font-bold tracking-widest text-[#00E5FF]">
                 LIVE FROM SPACE
               </span>
-              <span className="text-[10px] font-mono text-[var(--text-muted)]">· {active.detail}</span>
+              <span className="text-[12px] font-mono text-[var(--text-muted)]">· {active.detail}</span>
               <span className="ml-auto flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#FF3D3D] animate-pulse" />
-                <span className="text-[9px] font-mono tracking-wider text-[var(--text-muted)]">24/7</span>
+                <span className="text-[11px] font-mono tracking-wider text-[var(--text-muted)]">24/7</span>
               </span>
               <button
                 onClick={() => setExpanded(false)}
@@ -216,7 +216,7 @@ export default function SpaceCam() {
                 <button
                   key={f.id}
                   onClick={() => setActive(f)}
-                  className={`px-3 py-1.5 rounded text-[10px] font-mono tracking-wider transition-colors border ${
+                  className={`px-3 py-1.5 rounded text-[12px] font-mono tracking-wider transition-colors border ${
                     active.id === f.id
                       ? 'border-[#00E5FF]/40 bg-[#00E5FF]/15 text-[#00E5FF]'
                       : 'border-white/10 text-[var(--text-muted)] hover:bg-white/10'
@@ -225,7 +225,7 @@ export default function SpaceCam() {
                   {f.label}
                 </button>
               ))}
-              <span className="ml-auto text-[9px] font-mono text-[var(--text-muted)]">
+              <span className="ml-auto text-[11px] font-mono text-[var(--text-muted)]">
                 ALT ~{ORBIT_ALT_KM} KM · ORBIT ~93 MIN · ESC TO CLOSE
               </span>
             </div>

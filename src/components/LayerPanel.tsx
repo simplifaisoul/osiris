@@ -201,7 +201,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
       <div className="flex flex-col gap-5 py-2">
         {visibleGroups.map((group) => (
           <div key={group.label} className="flex flex-col gap-2">
-            <div className="text-[9px] font-mono tracking-[0.2em] uppercase text-white/30 border-b border-white/[0.06] pb-1.5">
+            <div className="text-[11px] font-mono tracking-[0.2em] uppercase text-white/30 border-b border-white/[0.06] pb-1.5">
               {group.fullLabel}
             </div>
             <div className="flex flex-col gap-1">
@@ -214,11 +214,11 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                       active={!!isLayerActive}
                       onClick={() => toggle(layer.key)}
                     />
-                    <span className={`text-[10px] font-mono uppercase tracking-wider flex-1 transition-colors ${isLayerActive ? 'text-white/80' : 'text-white/40'}`}>
+                    <span className={`text-[12px] font-mono uppercase tracking-wider flex-1 transition-colors ${isLayerActive ? 'text-white/80' : 'text-white/40'}`}>
                       {layer.label}
                     </span>
                     {count !== null && (
-                      <span className="text-[8px] font-mono tabular-nums text-white/20">
+                      <span className="text-[10px] font-mono tabular-nums text-white/20">
                         {count.toLocaleString()}
                       </span>
                     )}
@@ -232,7 +232,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
         {/* MOBILE GHOST TOGGLE */}
         {setTheme && (
           <div className="flex items-center justify-between mt-2 pt-3 border-t border-white/[0.06] px-1">
-            <span className="text-[9px] font-mono tracking-[0.2em] text-white/25 uppercase">Ghost Protocol</span>
+            <span className="text-[11px] font-mono tracking-[0.2em] text-white/25 uppercase">Ghost Protocol</span>
             <button
               onClick={() => setTheme(theme === 'core' ? 'ghost' : 'core')}
               className="w-8 h-8 rounded-full flex items-center justify-center transition-all"
@@ -314,7 +314,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                       boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
                     }}
                   >
-                    <div className="text-[9px] font-mono tracking-[0.2em] uppercase text-white/30 mb-2.5 pb-1.5 border-b border-white/[0.04]">
+                    <div className="text-[11px] font-mono tracking-[0.2em] uppercase text-white/30 mb-2.5 pb-1.5 border-b border-white/[0.04]">
                       {group.fullLabel}
                     </div>
                     <div className="flex flex-col gap-0.5">
@@ -329,11 +329,11 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                             onClick={() => toggle(layer.key)}
                           >
                             <ToggleSwitch active={!!isLayerActive} onClick={() => {}} />
-                            <span className={`text-[10px] font-mono uppercase tracking-wider flex-1 transition-colors duration-200 ${isLayerActive ? 'text-white/70' : 'text-white/35'}`}>
+                            <span className={`text-[12px] font-mono uppercase tracking-wider flex-1 transition-colors duration-200 ${isLayerActive ? 'text-white/70' : 'text-white/35'}`}>
                               {layer.label}
                             </span>
                             {count !== null && (
-                              <span className="text-[9px] font-mono tabular-nums text-white/20">
+                              <span className="text-[11px] font-mono tabular-nums text-white/20">
                                 {count.toLocaleString()}
                               </span>
                             )}

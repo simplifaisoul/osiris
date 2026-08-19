@@ -46,7 +46,7 @@ export default function ScaleBar({ zoom, latitude }: ScaleBarProps) {
           <div className="mt-[4px] h-px bg-[var(--text-muted)] opacity-60 w-full" />
         </div>
       </div>
-      <span className="text-[8px] font-mono text-[var(--text-muted)] tracking-widest opacity-70 leading-none">
+      <span className="text-[10px] font-mono text-[var(--text-muted)] tracking-widest opacity-70 leading-none">
         {scaleInfo.label}
       </span>
     </div>

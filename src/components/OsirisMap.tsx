@@ -2386,9 +2386,16 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       const o = layer.opacity ?? 0.8;
       if (!map.getSource(sourceId)) {
         map.addSource(sourceId, { type: 'geojson', data: layer.geojson });
-        map.addLayer({ id: `${sourceId}-fill`, type: 'fill', source: sourceId, paint: { 'fill-color': c, 'fill-opacity': o * 0.15, 'fill-outline-color': c } });
-        map.addLayer({ id: `${sourceId}-line`, type: 'line', source: sourceId, paint: { 'line-color': c, 'line-width': 2, 'line-opacity': o } });
-        map.addLayer({ id: `${sourceId}-circle`, type: 'circle', source: sourceId, filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-color': c, 'circle-radius': 5, 'circle-stroke-width': 1.5, 'circle-stroke-color': '#000', 'circle-opacity': o } });
+        // A fill layer with no geometry filter is applied to LineStrings too,
+        // and maplibre fills an open path by closing it — which is what draws
+        // the triangular wedges across a pipeline or railway dataset. Fill is
+        // only ever meaningful for polygons.
+        map.addLayer({ id: `${sourceId}-fill`, type: 'fill', source: sourceId, filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': c, 'fill-opacity': o * 0.15, 'fill-outline-color': c } });
+        map.addLayer({ id: `${sourceId}-line`, type: 'line', source: sourceId, filter: ['match', ['geometry-type'], ['LineString', 'Polygon'], true, false], paint: { 'line-color': c, 'line-width': ['interpolate', ['linear'], ['zoom'], 4, 0.6, 10, 1.4, 14, 2, 18, 3], 'line-opacity': o } });
+        // A fixed radius does not survive a dense dataset: ~1.2k points at
+        // city zoom merge into one blob. Scaling with zoom keeps them as
+        // discrete stations when you are far out, and readable up close.
+        map.addLayer({ id: `${sourceId}-circle`, type: 'circle', source: sourceId, filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-color': c, 'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 1.5, 8, 2.5, 11, 4, 14, 6, 18, 9], 'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 8, 0.4, 14, 1.2], 'circle-stroke-color': '#000', 'circle-opacity': ['interpolate', ['linear'], ['zoom'], 6, 0.55, 12, 0.85] } });
       } else {
         (map.getSource(sourceId) as maplibregl.GeoJSONSource).setData(layer.geojson);
         // Update paint properties for color/opacity changes

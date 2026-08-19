@@ -154,7 +154,7 @@ export default function DocsClient() {
               <span className="text-[13px] font-bold tracking-[0.3em] text-[var(--gold-primary)] font-mono">
                 OSIRIS
               </span>
-              <span className="text-[7px] font-mono tracking-[0.22em] text-[var(--text-muted)] uppercase mt-[3px]">
+              <span className="text-[10px] font-mono tracking-[0.22em] text-[var(--text-muted)] uppercase mt-[3px]">
                 Docs
               </span>
             </span>
@@ -173,7 +173,7 @@ export default function DocsClient() {
               <path d="m20 20-3.5-3.5" />
             </svg>
             <span className="hidden sm:inline text-[11.5px] text-[var(--text-muted)] font-mono">Search</span>
-            <kbd className="hidden sm:inline text-[9px] font-mono px-1.5 py-0.5 rounded border border-white/10 text-[var(--text-muted)]">
+            <kbd className="hidden sm:inline text-[11px] font-mono px-1.5 py-0.5 rounded border border-white/10 text-[var(--text-muted)]">
               ⌘K
             </kbd>
           </button>
@@ -192,7 +192,7 @@ export default function DocsClient() {
 
           <Link
             href="/"
-            className="hidden md:inline-flex items-center gap-1.5 text-[10px] font-mono tracking-[0.15em] uppercase px-3 h-8 rounded-lg border border-[var(--gold-primary)]/30 bg-[var(--gold-primary)]/[0.08] text-[var(--gold-primary)] hover:bg-[var(--gold-primary)]/[0.18] transition-colors"
+            className="hidden md:inline-flex items-center gap-1.5 text-[12px] font-mono tracking-[0.15em] uppercase px-3 h-8 rounded-lg border border-[var(--gold-primary)]/30 bg-[var(--gold-primary)]/[0.08] text-[var(--gold-primary)] hover:bg-[var(--gold-primary)]/[0.18] transition-colors"
           >
             Launch Map
             <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -235,18 +235,18 @@ export default function DocsClient() {
               : '-translate-x-4 opacity-0 pointer-events-none lg:translate-x-0 lg:opacity-100 lg:pointer-events-auto'
           } fixed lg:sticky top-14 left-0 bottom-0 lg:bottom-auto z-[260] lg:z-auto w-64 lg:w-56 shrink-0 lg:h-[calc(100vh-3.5rem)] overflow-y-auto styled-scrollbar bg-[var(--bg-void)] lg:bg-transparent border-r lg:border-r-0 border-white/[0.06] py-6 pr-2 pl-2 lg:pl-0 transition-all duration-200`}
         >
-          <div className="text-[9px] font-mono tracking-[0.3em] uppercase text-[var(--text-muted)]/70 pl-4 mb-2">
+          <div className="text-[11px] font-mono tracking-[0.3em] uppercase text-[var(--text-muted)]/70 pl-4 mb-2">
             Guide
           </div>
           {GUIDE_SECTIONS.map(navLink)}
 
-          <div className="text-[9px] font-mono tracking-[0.3em] uppercase text-[var(--text-muted)]/70 pl-4 mb-2 mt-7">
+          <div className="text-[11px] font-mono tracking-[0.3em] uppercase text-[var(--text-muted)]/70 pl-4 mb-2 mt-7">
             API Reference
           </div>
           {API_SECTIONS.map(navLink)}
 
           <div className="mt-8 mx-2 rounded-lg border border-white/[0.07] bg-white/[0.02] p-3">
-            <div className="text-[10px] font-mono text-[var(--text-secondary)] leading-relaxed">
+            <div className="text-[12px] font-mono text-[var(--text-secondary)] leading-relaxed">
               <span className="text-[var(--gold-primary)] font-bold">{ENDPOINT_COUNT}</span> endpoints, no key
               required.
             </div>
@@ -259,7 +259,7 @@ export default function DocsClient() {
           <div className="mb-20">
             <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full border border-[var(--cyan-primary)]/20 bg-[var(--cyan-primary)]/[0.05] mb-6">
               <span className="w-1.5 h-1.5 rounded-full bg-[var(--alert-green)] animate-pulse" />
-              <span className="text-[9px] font-mono tracking-[0.2em] uppercase text-[var(--text-secondary)]">
+              <span className="text-[11px] font-mono tracking-[0.2em] uppercase text-[var(--text-secondary)]">
                 Open Source · MIT
               </span>
             </div>
@@ -304,7 +304,7 @@ export default function DocsClient() {
               ].map(s => (
                 <div key={s.l} className="rounded-xl border border-white/[0.07] bg-white/[0.015] px-4 py-3">
                   <div className="text-[24px] font-bold text-[var(--gold-primary)] font-mono leading-none">{s.n}</div>
-                  <div className="text-[10px] font-mono tracking-[0.15em] uppercase text-[var(--text-muted)] mt-1.5">
+                  <div className="text-[12px] font-mono tracking-[0.15em] uppercase text-[var(--text-muted)] mt-1.5">
                     {s.l}
                   </div>
                 </div>
@@ -571,7 +571,7 @@ docker compose up -d`}</Pre>
                   href={`#${prev.id}`}
                   className="rounded-xl border border-white/[0.07] bg-white/[0.015] p-4 hover:border-[var(--gold-primary)]/30 transition-colors"
                 >
-                  <div className="text-[9px] font-mono tracking-[0.2em] uppercase text-[var(--text-muted)] mb-1">
+                  <div className="text-[11px] font-mono tracking-[0.2em] uppercase text-[var(--text-muted)] mb-1">
                     ← Previous
                   </div>
                   <div className="text-[13px] text-[var(--text-primary)]">{prev.title}</div>
@@ -584,7 +584,7 @@ docker compose up -d`}</Pre>
                   href={`#${next.id}`}
                   className="rounded-xl border border-white/[0.07] bg-white/[0.015] p-4 hover:border-[var(--gold-primary)]/30 transition-colors sm:text-right"
                 >
-                  <div className="text-[9px] font-mono tracking-[0.2em] uppercase text-[var(--text-muted)] mb-1">
+                  <div className="text-[11px] font-mono tracking-[0.2em] uppercase text-[var(--text-muted)] mb-1">
                     Next →
                   </div>
                   <div className="text-[13px] text-[var(--text-primary)]">{next.title}</div>
@@ -617,7 +617,7 @@ docker compose up -d`}</Pre>
 
         {/* ── Right rail: on this page ── */}
         <aside className="hidden xl:block w-52 shrink-0 sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto styled-scrollbar py-16">
-          <div className="text-[9px] font-mono tracking-[0.3em] uppercase text-[var(--text-muted)]/70 mb-3">
+          <div className="text-[11px] font-mono tracking-[0.3em] uppercase text-[var(--text-muted)]/70 mb-3">
             On this page
           </div>
           <div className="space-y-0.5">
@@ -638,7 +638,7 @@ docker compose up -d`}</Pre>
 
           <button
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="mt-6 flex items-center gap-1.5 text-[10px] font-mono tracking-[0.15em] uppercase text-[var(--text-muted)] hover:text-[var(--gold-primary)] transition-colors"
+            className="mt-6 flex items-center gap-1.5 text-[12px] font-mono tracking-[0.15em] uppercase text-[var(--text-muted)] hover:text-[var(--gold-primary)] transition-colors"
           >
             <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="m18 15-6-6-6 6" />

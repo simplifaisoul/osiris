@@ -65,7 +65,7 @@ const formatChange = (change: number | undefined) => {
   if (change === undefined) return null;
   const isUp = change >= 0;
   return (
-    <span className={`text-[8px] ${isUp ? 'text-[#00E676]' : 'text-[#FF3D57]'}`}>
+    <span className={`text-[10px] ${isUp ? 'text-[#00E676]' : 'text-[#FF3D57]'}`}>
       {isUp ? '▲' : '▼'}{Math.abs(change).toFixed(1)}%
     </span>
   );
@@ -143,7 +143,7 @@ export default function GlobalStatusBar() {
       transition={{ delay: 3, duration: 0.6 }}
       className="hidden md:block absolute bottom-0 left-0 right-0 z-[210] pointer-events-none"
     >
-      <div className="h-[28px] overflow-hidden bg-[#0a0a0f]/95 border-t border-white/[0.06] flex items-center text-[9px] font-mono tracking-wider backdrop-blur-xl relative">
+      <div className="h-[28px] overflow-hidden bg-[#0a0a0f]/95 border-t border-white/[0.06] flex items-center text-[11px] font-mono tracking-wider backdrop-blur-xl relative">
         {/* Animated scan line */}
         <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[var(--cyan-primary)]/30 to-transparent" style={{ animation: 'hud-scanline 4s linear infinite' }} />
         
@@ -166,7 +166,7 @@ export default function GlobalStatusBar() {
             className="h-full px-3 flex items-center gap-1.5 bg-[var(--gold-primary)]/10 text-[var(--gold-primary)]/80 hover:text-[var(--gold-primary)] hover:bg-[var(--gold-primary)]/25 border-r border-white/[0.04] transition-all duration-200"
           >
             <DocsIcon />
-            <span className="text-[8px] font-bold tracking-[0.15em] uppercase">Docs</span>
+            <span className="text-[10px] font-bold tracking-[0.15em] uppercase">Docs</span>
           </Link>
         </div>
 
@@ -195,7 +195,7 @@ export default function GlobalStatusBar() {
                     onMouseEnter={() => setHoveredQuake(quake)}
                     onMouseLeave={() => setHoveredQuake(null)}
                   >
-                    <span className="text-[#FF5722] text-[8px]">🔴</span>
+                    <span className="text-[#FF5722] text-[10px]">🔴</span>
                     <span className="text-[#FF5722] font-bold">M{quake.magnitude.toFixed(1)}</span>
                     <span className="text-white/30 truncate max-w-[140px]">{quake.place}</span>
                   </span>
@@ -212,7 +212,7 @@ export default function GlobalStatusBar() {
           {/* Status indicator */}
           <div className="h-full px-3 flex items-center gap-1.5">
             <div className="w-1.5 h-1.5 rounded-full bg-[#00E676] animate-pulse" />
-            <span className="text-[#00E676]/70 text-[7px] tracking-[0.2em]">ONLINE</span>
+            <span className="text-[#00E676]/70 text-[10px] tracking-[0.2em]">ONLINE</span>
           </div>
         </div>
       </div>
@@ -220,16 +220,16 @@ export default function GlobalStatusBar() {
       {/* Earthquake hover tooltip */}
       {hoveredQuake && (
         <div className="absolute bottom-[34px] left-1/2 -translate-x-1/2 z-[300] pointer-events-none">
-          <div className="bg-black/90 backdrop-blur-xl border border-white/[0.08] rounded-lg px-4 py-3 text-[10px] font-mono whitespace-nowrap shadow-2xl">
+          <div className="bg-black/90 backdrop-blur-xl border border-white/[0.08] rounded-lg px-4 py-3 text-[12px] font-mono whitespace-nowrap shadow-2xl">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-[12px]">🔴</span>
               <span className="font-bold text-[#FF5722]">Magnitude {hoveredQuake.magnitude.toFixed(1)}</span>
-              <span className="text-white/30 text-[8px] bg-white/5 px-1.5 py-0.5 rounded">USGS</span>
+              <span className="text-white/30 text-[10px] bg-white/5 px-1.5 py-0.5 rounded">USGS</span>
             </div>
             <div className="text-[11px] text-white font-bold mb-2">
               {hoveredQuake.place}
             </div>
-            <div className="flex flex-col gap-1 text-[9px]">
+            <div className="flex flex-col gap-1 text-[11px]">
               <div className="text-white/50"><span className="text-white/30">Depth:</span> {hoveredQuake.depth} km</div>
               <div className="text-white/50 mt-1"><span className="text-white/30">Time:</span> {new Date(hoveredQuake.time).toLocaleString()}</div>
             </div>

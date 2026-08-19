@@ -179,7 +179,7 @@ function renderMarkdown(text: string): string {
     .replace(/# (.+)/g, '<h2 class="text-[13px] font-bold text-[var(--gold-primary)] mt-3 mb-1.5 tracking-wider uppercase font-mono">$1</h2>')
     .replace(/\*\*(.+?)\*\*/g, '<strong class="text-[var(--text-heading)] font-semibold">$1</strong>')
     .replace(/\*(.+?)\*/g, '<em class="text-[var(--text-secondary)] italic">$1</em>')
-    .replace(/^- (.+)/gm, '<div class="flex items-start gap-1.5 ml-1 my-0.5"><span class="text-[var(--gold-dim)] mt-[3px] text-[8px]">◆</span><span>$1</span></div>')
+    .replace(/^- (.+)/gm, '<div class="flex items-start gap-1.5 ml-1 my-0.5"><span class="text-[var(--gold-dim)] mt-[3px] text-[10px]">◆</span><span>$1</span></div>')
     .replace(/\n/g, '<br />');
 }
 
@@ -449,7 +449,7 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                   </div>
                   <div className="flex flex-col">
                     <span className="hud-text text-[11px] text-[var(--text-heading)]">OSIRIS ANALYST</span>
-                    <span className="text-[7px] font-mono tracking-[0.2em] text-[var(--text-muted)]">
+                    <span className="text-[10px] font-mono tracking-[0.2em] text-[var(--text-muted)]">
                       GEMINI 2.0 FLASH • ONLINE
                     </span>
                   </div>
@@ -505,7 +505,7 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                     >
                       <div className="flex items-center gap-2">
                         <Key className="w-3 h-3 text-[var(--gold-dim)]" />
-                        <span className="hud-label" style={{ fontSize: '8px' }}>
+                        <span className="hud-label" style={{ fontSize: '10px' }}>
                           GEMINI API KEY (OPTIONAL)
                         </span>
                       </div>
@@ -524,7 +524,7 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                           <>
                             <button
                               onClick={saveApiKey}
-                              className="px-3 rounded-lg text-[9px] font-mono tracking-wider transition-all"
+                              className="px-3 rounded-lg text-[11px] font-mono tracking-wider transition-all"
                               style={{
                                 background: keySaved ? 'rgba(0, 230, 118, 0.15)' : 'rgba(212, 175, 55, 0.1)',
                                 border: `1px solid ${keySaved ? 'rgba(0, 230, 118, 0.3)' : 'rgba(212, 175, 55, 0.2)'}`,
@@ -535,7 +535,7 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                             </button>
                             <button
                               onClick={clearApiKey}
-                              className="px-2 rounded-lg text-[9px] font-mono tracking-wider transition-all hover:bg-red-500/10"
+                              className="px-2 rounded-lg text-[11px] font-mono tracking-wider transition-all hover:bg-red-500/10"
                               style={{
                                 border: '1px solid rgba(255, 61, 61, 0.2)',
                                 color: 'var(--alert-red)',
@@ -546,7 +546,7 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                           </>
                         )}
                       </div>
-                      <p className="text-[8px] font-mono text-[var(--text-muted)] leading-relaxed">
+                      <p className="text-[10px] font-mono text-[var(--text-muted)] leading-relaxed">
                         Your key is stored locally and sent only to the OSIRIS server. Get a free key at{' '}
                         <a
                           href="https://aistudio.google.com/apikey"
@@ -596,14 +596,14 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                       <h3 className="hud-text text-[12px] text-[var(--text-heading)]">
                         INTELLIGENCE ANALYST READY
                       </h3>
-                      <p className="text-[10px] font-mono text-[var(--text-muted)] leading-relaxed max-w-[280px]">
+                      <p className="text-[12px] font-mono text-[var(--text-muted)] leading-relaxed max-w-[280px]">
                         I correlate live seismic, OSINT, threat, and cyber data to deliver actionable intelligence assessments.
                       </p>
                     </div>
 
                     {/* Quick prompts */}
                     <div className="w-full space-y-1.5">
-                      <span className="hud-label block text-center mb-2" style={{ fontSize: '7px' }}>
+                      <span className="hud-label block text-center mb-2" style={{ fontSize: '10px' }}>
                         SUGGESTED QUERIES
                       </span>
                       {[
@@ -617,7 +617,7 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                             setInputText(prompt);
                             setTimeout(() => inputRef.current?.focus(), 50);
                           }}
-                          className="w-full text-left px-3 py-2 rounded-lg text-[10px] font-mono text-[var(--text-secondary)] transition-all hover:text-[var(--text-primary)] hover:bg-[var(--hover-accent)]"
+                          className="w-full text-left px-3 py-2 rounded-lg text-[12px] font-mono text-[var(--text-secondary)] transition-all hover:text-[var(--text-primary)] hover:bg-[var(--hover-accent)]"
                           style={{
                             border: '1px solid rgba(212, 175, 55, 0.08)',
                           }}
@@ -670,7 +670,7 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                           <Bot className="w-3 h-3 text-[var(--gold-primary)]" />
                         )}
                         <span
-                          className="text-[8px] font-mono tracking-[0.15em] uppercase"
+                          className="text-[10px] font-mono tracking-[0.15em] uppercase"
                           style={{
                             color: msg.role === 'user'
                               ? 'var(--cyan-primary)'
@@ -681,7 +681,7 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                         >
                           {msg.role === 'user' ? 'OPERATOR' : 'OSIRIS ANALYST'}
                         </span>
-                        <span className="text-[7px] font-mono text-[var(--text-muted)] ml-auto">
+                        <span className="text-[10px] font-mono text-[var(--text-muted)] ml-auto">
                           {new Date(msg.timestamp).toLocaleTimeString([], {
                             hour: '2-digit',
                             minute: '2-digit',
@@ -720,7 +720,7 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                     >
                       <Loader2 className="w-3.5 h-3.5 text-[var(--gold-primary)] animate-spin" />
                       <div className="flex items-center gap-1">
-                        <span className="text-[9px] font-mono tracking-[0.15em] text-[var(--gold-primary)] uppercase">
+                        <span className="text-[11px] font-mono tracking-[0.15em] text-[var(--gold-primary)] uppercase">
                           Analyzing intelligence
                         </span>
                         <motion.span
@@ -751,7 +751,7 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                   <button
                     onClick={handleBriefing}
                     disabled={isLoading}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-mono tracking-[0.1em] uppercase transition-all disabled:opacity-40"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-mono tracking-[0.1em] uppercase transition-all disabled:opacity-40"
                     style={{
                       background: 'rgba(212, 175, 55, 0.08)',
                       border: '1px solid rgba(212, 175, 55, 0.2)',
@@ -762,7 +762,7 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                     GENERATE BRIEFING
                   </button>
                   <div className="flex-1" />
-                  <span className="flex items-center text-[7px] font-mono text-[var(--text-muted)] tracking-wider">
+                  <span className="flex items-center text-[10px] font-mono text-[var(--text-muted)] tracking-wider">
                     <ChevronDown className="w-2.5 h-2.5 mr-0.5" />
                     SHIFT+ENTER FOR NEWLINE
                   </span>
@@ -822,10 +822,10 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
 
                 {/* Footer */}
                 <div className="flex items-center justify-between mt-1.5 px-1">
-                  <span className="text-[7px] font-mono text-[var(--text-muted)] tracking-wider">
+                  <span className="text-[10px] font-mono text-[var(--text-muted)] tracking-wider">
                     {keySaved ? '🔑 CUSTOM KEY' : '🔧 SERVER KEY'} • {messages.filter((m) => m.role === 'user').length} QUERIES
                   </span>
-                  <span className="text-[7px] font-mono text-[var(--text-muted)] tracking-wider">
+                  <span className="text-[10px] font-mono text-[var(--text-muted)] tracking-wider">
                     FEEDS: {(data.earthquakes?.length || 0) + (data.news?.length || 0) + (data.gdelt?.length || 0)} ITEMS
                   </span>
                 </div>

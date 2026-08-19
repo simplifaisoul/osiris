@@ -83,9 +83,9 @@ function Ticker({ quote, active, onSelect }: { quote: Quote; active: boolean; on
       title={`${d.name} — open chart`}
       className={`w-full flex items-center justify-between gap-2 py-1.5 px-2 rounded transition-colors ${active ? 'bg-[var(--hover-accent)] border border-[var(--border-primary)]' : 'border border-transparent hover:bg-[var(--hover-accent)]'}`}>
       <div className="min-w-0 flex-1">
-        <div className="text-[10px] font-mono text-[var(--text-secondary)] tracking-wide truncate">{d.name}</div>
+        <div className="text-[12px] font-mono text-[var(--text-secondary)] tracking-wide truncate">{d.name}</div>
         {d.symbol && d.symbol !== d.name && (
-          <div className="text-[8px] font-mono text-[var(--text-muted)] truncate">{d.symbol}</div>
+          <div className="text-[10px] font-mono text-[var(--text-muted)] truncate">{d.symbol}</div>
         )}
       </div>
 
@@ -96,7 +96,7 @@ function Ticker({ quote, active, onSelect }: { quote: Quote; active: boolean; on
           {formatPrice(d.price)}
         </span>
         <span
-          className="text-[9px] font-mono font-bold flex items-center gap-0.5 tabular-nums"
+          className="text-[11px] font-mono font-bold flex items-center gap-0.5 tabular-nums"
           style={{ color: d.up ? GREEN : RED }}
         >
           {d.up ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
@@ -182,8 +182,8 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
   const breadthBlock = breadth && (
     <div className="px-2 py-1.5 rounded-lg border border-[var(--border-primary)] bg-white/[0.02]">
       <div className="flex items-center justify-between">
-        <span className="text-[8px] font-mono tracking-widest text-[var(--text-muted)]">BREADTH</span>
-        <span className="text-[9px] font-mono tabular-nums">
+        <span className="text-[10px] font-mono tracking-widest text-[var(--text-muted)]">BREADTH</span>
+        <span className="text-[11px] font-mono tabular-nums">
           <span style={{ color: GREEN }}>{breadth.up}▲</span>
           <span className="text-[var(--text-muted)]"> / </span>
           <span style={{ color: RED }}>{breadth.down}▼</span>
@@ -193,7 +193,7 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
       <div className="mt-1.5 h-1 rounded-full overflow-hidden bg-[var(--alert-red)]/30">
         <div className="h-full rounded-full" style={{ width: `${(breadth.up / breadth.total) * 100}%`, background: GREEN }} />
       </div>
-      <div className="mt-1.5 flex items-center justify-between text-[8px] font-mono">
+      <div className="mt-1.5 flex items-center justify-between text-[10px] font-mono">
         <span style={{ color: GREEN }}>▲ {breadth.top.name} +{breadth.top.change_percent.toFixed(2)}%</span>
         <span style={{ color: RED }}>▼ {breadth.worst.name} {breadth.worst.change_percent.toFixed(2)}%</span>
       </div>
@@ -205,14 +205,14 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <Zap className="w-3 h-3" style={{ color: spaceWeather.storm_color }} />
-          <span className="text-[10px] font-mono tracking-widest text-[var(--text-muted)]">SPACE WEATHER</span>
+          <span className="text-[12px] font-mono tracking-widest text-[var(--text-muted)]">SPACE WEATHER</span>
         </div>
-        <span className="text-[10px] font-mono font-bold" style={{ color: spaceWeather.storm_color }}>
+        <span className="text-[12px] font-mono font-bold" style={{ color: spaceWeather.storm_color }}>
           Kp {spaceWeather.kp_index} — {spaceWeather.storm_level}
         </span>
       </div>
       {spaceWeather.solar_flares?.length > 0 && (
-        <div className="mt-1 text-[8px] font-mono text-[var(--text-muted)]">
+        <div className="mt-1 text-[10px] font-mono text-[var(--text-muted)]">
           Latest flare: {spaceWeather.solar_flares[0].class}
         </div>
       )}
@@ -224,7 +224,7 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
   const scmBlock = markets.scm_alerts && markets.scm_alerts.length > 0 && (
     <div className="space-y-1">
       {markets.scm_alerts.map((alert: string, i: number) => (
-        <div key={i} className="px-2 py-1.5 rounded border border-[#FF9500] bg-[#FF9500]/10 text-[#FF9500] text-[9px] font-mono leading-tight shadow-[0_0_8px_rgba(255,149,0,0.15)]">
+        <div key={i} className="px-2 py-1.5 rounded border border-[#FF9500] bg-[#FF9500]/10 text-[#FF9500] text-[11px] font-mono leading-tight shadow-[0_0_8px_rgba(255,149,0,0.15)]">
           {alert}
         </div>
       ))}
@@ -247,7 +247,7 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
         const count = Object.keys(markets[s.key] || {}).length;
         return (
           <button key={s.key} onClick={() => setActiveSection(s.key)}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-[9px] font-mono tracking-wider whitespace-nowrap transition-all ${activeSection === s.key ? 'bg-[var(--hover-accent)] text-[var(--gold-primary)] border border-[var(--border-primary)]' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] border border-transparent'}`}>
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-[11px] font-mono tracking-wider whitespace-nowrap transition-all ${activeSection === s.key ? 'bg-[var(--hover-accent)] text-[var(--gold-primary)] border border-[var(--border-primary)]' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] border border-transparent'}`}>
             <Icon className="w-3 h-3" />
             {s.label}
             {count > 0 && <span className="text-[var(--text-muted)]">{count}</span>}
@@ -259,13 +259,13 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
 
   const listHeader = rows.length > 0 && (
     <div className="flex items-center justify-between px-2 py-1 shrink-0">
-      <span className="flex items-center gap-1 text-[8px] font-mono tracking-widest text-[var(--text-muted)]">
+      <span className="flex items-center gap-1 text-[10px] font-mono tracking-widest text-[var(--text-muted)]">
         <span className="w-1 h-1 rounded-full" style={{ background: sessionOpen ? GREEN : 'var(--text-muted)' }} />
         {sessionOpen ? 'SESSION OPEN' : 'SESSION CLOSED'}
       </span>
       <button
         onClick={() => setSortByMove(v => !v)}
-        className={`flex items-center gap-1 text-[8px] font-mono tracking-widest transition-colors ${sortByMove ? 'text-[var(--gold-primary)]' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+        className={`flex items-center gap-1 text-[10px] font-mono tracking-widest transition-colors ${sortByMove ? 'text-[var(--gold-primary)]' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
         title={sortByMove ? 'Listed by biggest move' : 'Listed in feed order'}
       >
         <ArrowUpDown className="w-2.5 h-2.5" />
@@ -289,12 +289,12 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
 
       {rows.length === 0 && (
         feedLoaded ? (
-          <div className="flex items-center justify-center gap-1.5 py-3 text-[9px] font-mono text-[var(--text-muted)]">
+          <div className="flex items-center justify-center gap-1.5 py-3 text-[11px] font-mono text-[var(--text-muted)]">
             <AlertTriangle className="w-3 h-3" />
             {activeSection.toUpperCase()} FEED UNAVAILABLE — RETRYING
           </div>
         ) : (
-          <div className="text-center py-3 text-[10px] font-mono text-[var(--text-muted)]">Loading {activeSection}...</div>
+          <div className="text-center py-3 text-[12px] font-mono text-[var(--text-muted)]">Loading {activeSection}...</div>
         )
       )}
     </>
@@ -308,12 +308,12 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
         <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-2">
           <BarChart3 className="w-3.5 h-3.5 text-[var(--gold-primary)]" />
           <span className="hud-text text-[12px] text-[var(--text-primary)]">MARKETS & INTEL</span>
-          <span className="gotham-tag gotham-tag--low" style={{ fontSize: '7px', padding: '1px 4px' }}>LIVE</span>
+          <span className="gotham-tag gotham-tag--low" style={{ fontSize: '10px', padding: '1px 4px' }}>LIVE</span>
         </button>
         <div className="flex items-center gap-2">
-          {age && <span className="text-[8px] font-mono text-[var(--text-muted)]">{age}</span>}
+          {age && <span className="text-[10px] font-mono text-[var(--text-muted)]">{age}</span>}
           <div className="w-1.5 h-1.5 rounded-full bg-[var(--alert-green)] animate-osiris-pulse" />
-          <button onClick={() => { setMaximized(!maximized); if (!expanded && !maximized) setExpanded(true); }} className="hover:text-white transition-colors" title={maximized ? "Restore" : "Maximize"}>
+          <button onClick={() => { setMaximized(!maximized); if (!expanded && !maximized) setExpanded(true); }} className="p-1.5 -m-0.5 rounded hover:text-white hover:bg-white/10 transition-colors" title={maximized ? "Restore" : "Maximize"}>
             {maximized ? <Minimize2 className="w-3.5 h-3.5 text-[var(--text-muted)]" /> : <Maximize2 className="w-3.5 h-3.5 text-[var(--text-muted)]" />}
           </button>
           <button onClick={() => setExpanded(!expanded)} title={expanded ? 'Collapse' : 'Expand'}>

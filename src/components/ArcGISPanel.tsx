@@ -103,6 +103,9 @@ export default function ArcGISPanel({
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [featureCounts, setFeatureCounts] = useState<Record<string, number>>({});
   const [expandedLayerId, setExpandedLayerId] = useState<string | null>(null);
+  // The query the visible results actually came from. Reading `query` here
+  // would relabel the list the moment someone starts typing the next search.
+  const [resultsFor, setResultsFor] = useState('');
 
   const importedIds = importedLayers.map(l => l.id);
 
@@ -129,6 +132,7 @@ export default function ArcGISPanel({
 
         const data = await res.json();
         setResults(data.results || []);
+        setResultsFor(searchQuery);
       } catch (err: any) {
         setError(err.message || 'Search failed');
       } finally {
@@ -190,12 +194,12 @@ export default function ArcGISPanel({
       <div className="flex items-center justify-between bg-[#D4AF37]/10 border border-[#D4AF37]/30 rounded-lg p-2.5">
         <div className="flex items-center gap-2">
           <Database className="w-4 h-4 text-[#D4AF37]" />
-          <span className="text-[10px] font-mono font-bold tracking-[0.2em] text-[#D4AF37] uppercase">
+          <span className="text-[12px] font-mono font-bold tracking-[0.2em] text-[#D4AF37] uppercase">
             ArcGIS Intel
           </span>
         </div>
         <div className="text-right">
-          <div className="text-[9px] font-mono text-[#D4AF37]/80 uppercase tracking-widest">
+          <div className="text-[11px] font-mono text-[#D4AF37]/80 uppercase tracking-widest">
             {importedLayers.length} Layers Active
           </div>
           <div className="text-[11px] font-mono font-bold text-[#D4AF37] tabular-nums">
@@ -208,10 +212,10 @@ export default function ArcGISPanel({
       {mapBounds && (
         <div className="flex items-center gap-2 px-2 py-1 rounded border border-white/[0.04] bg-white/[0.02]">
           <Globe className="w-3 h-3 text-[var(--text-muted)]" />
-          <span className="text-[8px] font-mono text-[var(--text-muted)] uppercase tracking-wider flex-1">
+          <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-wider flex-1">
             Map Extent:
           </span>
-          <span className="text-[8px] font-mono text-[var(--text-muted)] tabular-nums truncate max-w-[150px]">
+          <span className="text-[10px] font-mono text-[var(--text-muted)] tabular-nums truncate max-w-[150px]">
             {mapBounds.west.toFixed(2)}, {mapBounds.south.toFixed(2)} to {mapBounds.east.toFixed(2)}, {mapBounds.north.toFixed(2)}
           </span>
         </div>
@@ -220,7 +224,7 @@ export default function ArcGISPanel({
       {/* ── Active Imported Layers (TOP) ─────────────────────────── */}
       {importedLayers.length > 0 && (
         <div className="flex flex-col gap-1.5 shrink-0">
-          <span className="text-[8px] font-mono tracking-[0.2em] uppercase text-[var(--text-muted)] px-1">
+          <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-[var(--text-muted)] px-1">
             Active Data Layers
           </span>
           <div className="flex flex-col gap-1 max-h-[220px] overflow-y-auto styled-scrollbar">
@@ -262,14 +266,14 @@ export default function ArcGISPanel({
                       </button>
 
                       {/* Layer name */}
-                      <span className={`text-[10px] font-mono font-medium truncate flex-1 ${layer.visible ? 'text-white' : 'text-white/40'}`}>
+                      <span className={`text-[12px] font-mono font-medium truncate flex-1 ${layer.visible ? 'text-white' : 'text-white/40'}`}>
                         {layer.title}
                       </span>
 
                       {/* Feature count */}
                       {count !== undefined && (
                         <span
-                          className="text-[8px] font-mono font-bold tabular-nums px-1.5 py-0.5 rounded"
+                          className="text-[10px] font-mono font-bold tabular-nums px-1.5 py-0.5 rounded"
                           style={{ color: layer.color, background: `${layer.color}15` }}
                         >
                           {count.toLocaleString()}
@@ -316,7 +320,7 @@ export default function ArcGISPanel({
                           <div className="px-2.5 pb-2.5 flex flex-col gap-2 border-t border-white/[0.06] pt-2">
                             {/* Color Swatches */}
                             <div className="flex flex-col gap-1">
-                              <span className="text-[7px] font-mono tracking-[0.2em] uppercase text-[var(--text-muted)] flex items-center gap-1">
+                              <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-[var(--text-muted)] flex items-center gap-1">
                                 <Palette className="w-2.5 h-2.5" /> Color
                               </span>
                               <div className="flex flex-wrap gap-1.5">
@@ -341,10 +345,10 @@ export default function ArcGISPanel({
                             {/* Opacity Slider */}
                             <div className="flex flex-col gap-1">
                               <div className="flex items-center justify-between">
-                                <span className="text-[7px] font-mono tracking-[0.2em] uppercase text-[var(--text-muted)] flex items-center gap-1">
+                                <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-[var(--text-muted)] flex items-center gap-1">
                                   <Eye className="w-2.5 h-2.5" /> Opacity
                                 </span>
-                                <span className="text-[9px] font-mono font-bold tabular-nums" style={{ color: layer.color }}>
+                                <span className="text-[11px] font-mono font-bold tabular-nums" style={{ color: layer.color }}>
                                   {Math.round(layer.opacity * 100)}%
                                 </span>
                               </div>
@@ -390,7 +394,7 @@ export default function ArcGISPanel({
         <button
           onClick={() => runSearch(query)}
           disabled={searching || !query.trim()}
-          className="absolute right-1 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-md text-[9px] font-mono font-bold tracking-widest uppercase disabled:opacity-30 transition-all bg-[#D4AF37]/10 border border-[#D4AF37]/30 text-[#D4AF37] hover:bg-[#D4AF37]/20"
+          className="absolute right-1 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-md text-[11px] font-mono font-bold tracking-widest uppercase disabled:opacity-30 transition-all bg-[#D4AF37]/10 border border-[#D4AF37]/30 text-[#D4AF37] hover:bg-[#D4AF37]/20"
         >
           {searching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'SCAN'}
         </button>
@@ -402,7 +406,7 @@ export default function ArcGISPanel({
           <button
             key={cat.label}
             onClick={() => handleCategory(cat)}
-            className={`px-3 py-1.5 rounded-full text-[8px] font-mono tracking-[0.1em] uppercase transition-all border ${
+            className={`px-3 py-1.5 rounded-full text-[10px] font-mono tracking-[0.1em] uppercase transition-all border ${
               activeCategory === cat.label
                 ? 'bg-[#D4AF37]/20 border-[#D4AF37]/50 text-[#D4AF37] shadow-[0_0_12px_rgba(212,175,55,0.3)]'
                 : 'bg-white/[0.03] border-white/[0.08] text-[var(--text-muted)] hover:bg-white/[0.06] hover:border-white/20'
@@ -420,7 +424,7 @@ export default function ArcGISPanel({
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="flex items-center gap-2 p-2.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[10px] font-mono text-red-400 shrink-0"
+            className="flex items-center gap-2 p-2.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[12px] font-mono text-red-400 shrink-0"
           >
             <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
             <span className="truncate flex-1">{error}</span>
@@ -439,6 +443,26 @@ export default function ArcGISPanel({
             {[...Array(4)].map((_, i) => (
               <div key={i} className="skeleton-shimmer h-[72px] rounded-lg" />
             ))}
+          </div>
+        )}
+
+        {/* Result count — searching without knowing how much came back, or
+            which query it belongs to, leaves the list unanchored. */}
+        {!searching && results.length > 0 && (
+          <div className="flex items-baseline gap-2 px-1 pb-0.5">
+            <span className="text-[11px] font-mono text-white tabular-nums">
+              {results.length} layer{results.length === 1 ? '' : 's'}
+            </span>
+            {resultsFor && (
+              <span className="text-[10px] font-mono text-[var(--text-muted)] truncate">
+                for &ldquo;{resultsFor}&rdquo;
+              </span>
+            )}
+            {results.filter(r => importedIds.includes(r.id)).length > 0 && (
+              <span className="ml-auto text-[10px] font-mono text-[var(--alert-green)] tabular-nums flex-shrink-0">
+                {results.filter(r => importedIds.includes(r.id)).length} live
+              </span>
+            )}
           </div>
         )}
 
@@ -473,14 +497,14 @@ export default function ArcGISPanel({
                         {getGeometryIcon(result.title, result.tags)}
                       </div>
                       <div className="min-w-0">
-                        <h4 className="text-[11px] font-mono font-bold text-white leading-tight truncate">
+                        <h4 className="text-[11px] font-mono font-bold text-white leading-tight line-clamp-2" title={result.title}>
                           {result.title}
                         </h4>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[8px] font-mono text-[var(--text-muted)] truncate">
+                          <span className="text-[10px] font-mono text-[var(--text-muted)] truncate">
                             {result.owner}
                           </span>
-                          <span className="text-[8px] font-mono text-[#D4AF37]/70 tabular-nums flex items-center gap-0.5">
+                          <span className="text-[10px] font-mono text-[#D4AF37]/70 tabular-nums flex items-center gap-0.5">
                             <Eye className="w-2.5 h-2.5" />
                             {result.numViews?.toLocaleString() ?? 0}
                           </span>
@@ -491,7 +515,7 @@ export default function ArcGISPanel({
                     {/* Import / Imported badge */}
                     {isImported ? (
                       <span
-                        className="flex items-center gap-1.5 px-2 py-1 rounded text-[9px] font-mono font-bold tracking-widest uppercase shadow-[0_0_10px_rgba(0,230,118,0.2)]"
+                        className="flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-mono font-bold tracking-widest uppercase shadow-[0_0_10px_rgba(0,230,118,0.2)]"
                         style={{
                           color: importedLayer?.color || 'var(--alert-green)',
                           background: `${importedLayer?.color || 'var(--alert-green)'}15`,
@@ -506,7 +530,7 @@ export default function ArcGISPanel({
                       <button
                         onClick={() => handleImport(result)}
                         disabled={isImporting || !result.url}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[9px] font-mono font-bold tracking-widest uppercase transition-all disabled:opacity-40 bg-[#D4AF37]/10 border border-[#D4AF37]/40 text-[#D4AF37] hover:bg-[#D4AF37]/20 hover:shadow-[0_0_12px_rgba(212,175,55,0.2)] active:scale-95"
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[11px] font-mono font-bold tracking-widest uppercase transition-all disabled:opacity-40 bg-[#D4AF37]/10 border border-[#D4AF37]/40 text-[#D4AF37] hover:bg-[#D4AF37]/20 hover:shadow-[0_0_12px_rgba(212,175,55,0.2)] active:scale-95"
                       >
                         {isImporting ? (
                           <>
@@ -524,11 +548,11 @@ export default function ArcGISPanel({
                   </div>
 
                   {/* Snippet */}
-                  {result.snippet && (
-                    <p className="text-[9px] font-mono text-[var(--text-muted)]/80 leading-relaxed line-clamp-2 mt-0.5">
-                      {result.snippet}
-                    </p>
-                  )}
+                  <p className={`text-[11px] font-mono leading-relaxed line-clamp-2 mt-0.5 ${
+                    result.snippet ? 'text-[var(--text-muted)]/80' : 'text-[var(--text-muted)]/40 italic'
+                  }`}>
+                    {result.snippet || 'No description published for this layer.'}
+                  </p>
 
                   {/* Tags */}
                   {result.tags?.length > 0 && (
@@ -536,14 +560,14 @@ export default function ArcGISPanel({
                       {result.tags.slice(0, 4).map((tag) => (
                         <span
                           key={tag}
-                          className="px-1.5 py-0.5 rounded-full text-[7px] font-mono tracking-wide text-[#D4AF37]/80 bg-[#D4AF37]/10 border border-[#D4AF37]/20"
+                          className="px-1.5 py-0.5 rounded-full text-[10px] font-mono tracking-wide text-[#D4AF37]/80 bg-[#D4AF37]/10 border border-[#D4AF37]/20"
                         >
                           {tag}
                         </span>
                       ))}
                       {result.tags.length > 4 && (
-                        <span className="text-[7px] font-mono text-[var(--text-muted)]/50 flex items-center px-1">
-                          +{result.tags.length - 4}
+                        <span className="text-[10px] font-mono text-[var(--text-muted)]/50 flex items-center px-1">
+                          +{result.tags.length - 4} more
                         </span>
                       )}
                     </div>
@@ -564,7 +588,7 @@ export default function ArcGISPanel({
               <span className="text-[11px] font-mono font-bold text-white tracking-wide">
                 No active search
               </span>
-              <span className="text-[9px] font-mono text-[var(--text-muted)] max-w-[200px] leading-relaxed">
+              <span className="text-[11px] font-mono text-[var(--text-muted)] max-w-[200px] leading-relaxed">
                 Try searching for Power Plants, Substations, Evacuation Routes, or Pipelines in the designated area.
               </span>
             </div>
@@ -576,12 +600,12 @@ export default function ArcGISPanel({
       <div className="flex items-center justify-between pt-2 border-t border-white/[0.06] shrink-0">
         <div className="flex items-center gap-1.5">
           <Radio className="w-3 h-3 text-[#D4AF37]" />
-          <span className="text-[8px] font-mono tracking-[0.2em] uppercase text-[#D4AF37]/80">
+          <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-[#D4AF37]/80">
             ArcGIS PUBLIC
           </span>
         </div>
         <div className="flex items-center gap-2.5">
-          <span className="text-[8px] font-mono text-[var(--text-muted)] uppercase tracking-wider">
+          <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-wider">
             Connection Health
           </span>
           <div className="relative flex items-center justify-center">

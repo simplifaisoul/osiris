@@ -137,7 +137,7 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
             {/* Tactical Header */}
             <div className="flex flex-col border-b border-[var(--border-primary)] bg-black/60 relative z-10">
               {/* Top Meta Bar */}
-              <div className="flex items-center justify-between px-3 py-1 border-b border-white/5 text-[7px] font-mono tracking-[0.2em] text-[var(--text-muted)] bg-[var(--hover-accent)]">
+              <div className="flex items-center justify-between px-3 py-1 border-b border-white/5 text-[10px] font-mono tracking-[0.2em] text-[var(--text-muted)] bg-[var(--hover-accent)]">
                 <div className="flex items-center gap-3">
                   <span className="text-[var(--gold-primary)] font-bold">{camId}</span>
                   <span>{camera.lat?.toFixed(4)}, {camera.lng?.toFixed(4)}</span>
@@ -158,7 +158,7 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
                   </div>
                   <div className="min-w-0 flex-1">
                     <h3 className="text-[12px] md:text-[13px] font-mono font-bold tracking-widest truncate text-white uppercase" style={{ textShadow: '0 0 10px rgba(255,255,255,0.3)' }}>{camera.name}</h3>
-                    <p className="text-[7px] md:text-[8px] font-mono text-[var(--gold-primary)] uppercase tracking-wider opacity-80">{camera.city}, {camera.country} • SOURCE: {camera.source}</p>
+                    <p className="text-[10px] md:text-[10px] font-mono text-[var(--gold-primary)] uppercase tracking-wider opacity-80">{camera.city}, {camera.country} • SOURCE: {camera.source}</p>
                   </div>
                 </div>
                 
@@ -206,7 +206,7 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
               <div className="absolute inset-0 flex items-center justify-center bg-black/90 z-30 backdrop-blur-sm">
                 <div className="text-center">
                   <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin mx-auto mb-3" style={{ borderColor: 'var(--gold-dim)', borderTopColor: 'transparent' }} />
-                  <span className="text-[9px] font-mono tracking-[0.25em]" style={{ color: 'var(--gold-primary)' }}>DECRYPTING FEED...</span>
+                  <span className="text-[11px] font-mono tracking-[0.25em]" style={{ color: 'var(--gold-primary)' }}>DECRYPTING FEED...</span>
                 </div>
               </div>
             )}
@@ -214,13 +214,13 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
             {externalOnly ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-30 backdrop-blur-sm p-4 text-center">
                 <ExternalLink className="w-6 h-6 mb-3 opacity-50" style={{ color: 'var(--gold-primary)' }} />
-                <p className="text-[10px] font-mono uppercase tracking-widest" style={{ color: 'var(--gold-primary)' }}>SECURE FEED ENCRYPTED</p>
-                <p className="text-[8px] font-mono text-[var(--text-muted)] mt-2 max-w-[80%] uppercase">This feed requires external clearance</p>
+                <p className="text-[12px] font-mono uppercase tracking-widest" style={{ color: 'var(--gold-primary)' }}>SECURE FEED ENCRYPTED</p>
+                <p className="text-[10px] font-mono text-[var(--text-muted)] mt-2 max-w-[80%] uppercase">This feed requires external clearance</p>
                 <a 
                   href={externalFeedUrl} 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="mt-4 px-4 py-2 rounded text-[9px] font-mono font-bold tracking-widest transition-all hover:bg-white/10"
+                  className="mt-4 px-4 py-2 rounded text-[11px] font-mono font-bold tracking-widest transition-all hover:bg-white/10"
                   style={{ border: '1px solid var(--border-primary)', color: 'var(--gold-primary)' }}
                 >
                   ACCESS TERMINAL
@@ -230,9 +230,9 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
               <div className="absolute inset-0 flex items-center justify-center bg-black/90">
                 <div className="text-center">
                   <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center mb-2 mx-auto"><Camera className="w-4 h-4 text-red-400" /></div>
-                  <span className="text-[9px] font-mono text-red-400 tracking-widest block mb-1">FEED UNAVAILABLE</span>
-                  <span className="text-[7px] font-mono text-[var(--text-muted)]">Camera may be offline or restricted</span>
-                  <button onClick={() => { setError(false); setRetryCount(c => c + 1); }} className="block mx-auto mt-3 px-3 py-1 text-[8px] font-mono text-[#7E57C2] border border-[#7E57C2]/30 rounded hover:bg-[#7E57C2]/10 transition-colors tracking-wider">
+                  <span className="text-[11px] font-mono text-red-400 tracking-widest block mb-1">FEED UNAVAILABLE</span>
+                  <span className="text-[10px] font-mono text-[var(--text-muted)]">Camera may be offline or restricted</span>
+                  <button onClick={() => { setError(false); setRetryCount(c => c + 1); }} className="block mx-auto mt-3 px-3 py-1 text-[10px] font-mono text-[#7E57C2] border border-[#7E57C2]/30 rounded hover:bg-[#7E57C2]/10 transition-colors tracking-wider">
                     RETRY
                   </button>
                 </div>
@@ -283,7 +283,7 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
             {!error && !loading && !externalOnly && (
               <div className="absolute top-3 left-3 flex items-center gap-2 bg-black/80 border border-[var(--gold-primary)]/50 px-2 py-1 shadow-[0_0_10px_rgba(0,0,0,0.8)]">
                 <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_#ef4444]" />
-                <span className="text-[8px] font-mono text-white tracking-[0.2em]">
+                <span className="text-[10px] font-mono text-white tracking-[0.2em]">
                   {streamType === 'jpg' ? 'LIVE SAT-LINK' : 'LIVE FEED'}
                 </span>
               </div>
@@ -303,15 +303,15 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
             <div className="flex items-center justify-between px-3 py-1.5 border-b border-white/5">
               <div className="flex gap-4">
                 <div className="flex flex-col">
-                  <span className="text-[6px] text-[var(--text-muted)] font-mono tracking-widest">FEED TYPE</span>
-                  <span className="text-[8px] text-white font-mono tracking-widest uppercase">
+                  <span className="text-[10px] text-[var(--text-muted)] font-mono tracking-widest">FEED TYPE</span>
+                  <span className="text-[10px] text-white font-mono tracking-widest uppercase">
                     {externalOnly ? 'EXTERNAL' : streamType}
                   </span>
                 </div>
                 <div className="flex flex-col border-l border-white/10 pl-4">
-                  <span className="text-[6px] text-[var(--text-muted)] font-mono tracking-widest">STATUS</span>
+                  <span className="text-[10px] text-[var(--text-muted)] font-mono tracking-widest">STATUS</span>
                   {/* Nothing is being received locally for an external feed — don't claim otherwise. */}
-                  <span className={`text-[8px] font-mono tracking-widest ${externalOnly ? 'text-[var(--gold-primary)]' : 'text-[var(--alert-green)]'}`}>
+                  <span className={`text-[10px] font-mono tracking-widest ${externalOnly ? 'text-[var(--gold-primary)]' : 'text-[var(--alert-green)]'}`}>
                     {externalOnly ? 'HOSTED OFF-PLATFORM' : 'ACTIVE / RECORDING'}
                   </span>
                 </div>
@@ -319,12 +319,12 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
               <div className="flex gap-3">
                 {(camera.feed_url || camera.external_url || (streamType === 'iframe' && camera.stream_url)) && (
                   <a href={camera.external_url || camera.feed_url || (streamType === 'iframe' ? camera.stream_url : undefined)} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-[8px] font-mono text-[var(--gold-primary)] tracking-widest">
+                    className="flex items-center gap-1.5 px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-[10px] font-mono text-[var(--gold-primary)] tracking-widest">
                     <ExternalLink className="w-2.5 h-2.5" /> RAW FEED
                   </a>
                 )}
                 <a href={`https://www.google.com/maps/@${camera.lat},${camera.lng},17z`} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-[8px] font-mono text-[var(--cyan-primary)] tracking-widest">
+                  className="flex items-center gap-1.5 px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-[10px] font-mono text-[var(--cyan-primary)] tracking-widest">
                   <MapPin className="w-2.5 h-2.5" /> MAP TARGET
                 </a>
               </div>

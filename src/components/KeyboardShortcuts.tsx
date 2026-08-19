@@ -55,14 +55,14 @@ export default function KeyboardShortcuts() {
             <div className="space-y-2">
               {SHORTCUTS.map(s => (
                 <div key={s.key} className="flex items-center justify-between">
-                  <span className="text-[9px] font-mono text-[var(--text-secondary)]">{s.desc}</span>
-                  <kbd className="px-2 py-0.5 rounded text-[8px] font-mono font-bold text-[var(--gold-primary)] bg-[var(--bg-void)] border border-[var(--border-primary)]">
+                  <span className="text-[11px] font-mono text-[var(--text-secondary)]">{s.desc}</span>
+                  <kbd className="px-2 py-0.5 rounded text-[10px] font-mono font-bold text-[var(--gold-primary)] bg-[var(--bg-void)] border border-[var(--border-primary)]">
                     {s.key}
                   </kbd>
                 </div>
               ))}
             </div>
-            <div className="mt-4 text-center text-[7px] font-mono text-[var(--text-muted)] tracking-widest">
+            <div className="mt-4 text-center text-[10px] font-mono text-[var(--text-muted)] tracking-widest">
               PRESS [?] OR [ESC] TO CLOSE
             </div>
           </motion.div>

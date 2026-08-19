@@ -32,7 +32,7 @@ export default function ScmPanel({ data }: ScmPanelProps) {
           <Target className="w-3.5 h-3.5 text-[#00BCD4]" />
           <span className="hud-text text-[12px] text-[var(--text-primary)]">SCM RISK COMMAND</span>
           {totalRisks > 0 && (
-            <span className="gotham-tag gotham-tag--critical" style={{ fontSize: '7px', padding: '1px 4px' }}>{totalRisks} ALERTS</span>
+            <span className="gotham-tag gotham-tag--critical" style={{ fontSize: '10px', padding: '1px 4px' }}>{totalRisks} ALERTS</span>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -50,11 +50,11 @@ export default function ScmPanel({ data }: ScmPanelProps) {
                 <div>
                   <div className="flex items-center gap-1.5 mb-1.5">
                     <AlertCircle className="w-3 h-3 text-[#FF9500]" />
-                    <span className="text-[9px] font-mono text-[#FF9500] tracking-widest font-bold">MARKET IMPACT ALERTS</span>
+                    <span className="text-[11px] font-mono text-[#FF9500] tracking-widest font-bold">MARKET IMPACT ALERTS</span>
                   </div>
                   <div className="space-y-1">
                     {marketAlerts.map((alert: string, i: number) => (
-                      <div key={i} className="px-2 py-1.5 rounded border border-[#FF9500] bg-[#FF9500]/10 text-[#FF9500] text-[9px] font-mono leading-tight shadow-[0_0_8px_rgba(255,149,0,0.15)]">
+                      <div key={i} className="px-2 py-1.5 rounded border border-[#FF9500] bg-[#FF9500]/10 text-[#FF9500] text-[11px] font-mono leading-tight shadow-[0_0_8px_rgba(255,149,0,0.15)]">
                         {alert}
                       </div>
                     ))}
@@ -66,10 +66,10 @@ export default function ScmPanel({ data }: ScmPanelProps) {
               <div>
                 <div className="flex items-center gap-1.5 mb-1.5">
                   <AlertTriangle className="w-3 h-3 text-[#FF1744]" />
-                  <span className="text-[9px] font-mono text-[var(--text-muted)] tracking-widest">CRITICAL SUPPLIERS</span>
+                  <span className="text-[11px] font-mono text-[var(--text-muted)] tracking-widest">CRITICAL SUPPLIERS</span>
                 </div>
                 {criticalSuppliers.length === 0 ? (
-                  <div className="text-[9px] font-mono text-[#00E676] px-2">✓ All monitored Tier 1/2 nodes operational.</div>
+                  <div className="text-[11px] font-mono text-[#00E676] px-2">✓ All monitored Tier 1/2 nodes operational.</div>
                 ) : (
                   <div className="space-y-1">
                     {criticalSuppliers.map((s: any, i: number) => {
@@ -77,10 +77,10 @@ export default function ScmPanel({ data }: ScmPanelProps) {
                       return (
                         <div key={i} className="px-2 py-1.5 rounded border border-[#FF1744]/40 bg-[#FF1744]/10">
                           <div className="flex justify-between items-start mb-1">
-                            <span className="text-[10px] font-mono font-bold text-[#FF1744]">{s.name}</span>
-                            <span className="text-[8px] font-mono text-[#FF1744]/80">{s.city}</span>
+                            <span className="text-[12px] font-mono font-bold text-[#FF1744]">{s.name}</span>
+                            <span className="text-[10px] font-mono text-[#FF1744]/80">{s.city}</span>
                           </div>
-                          <div className="text-[8px] font-mono text-[#E8E6E0]">{threats.join(' • ')}</div>
+                          <div className="text-[10px] font-mono text-[#E8E6E0]">{threats.join(' • ')}</div>
                         </div>
                       );
                     })}
@@ -92,28 +92,28 @@ export default function ScmPanel({ data }: ScmPanelProps) {
               <div>
                 <div className="flex items-center gap-1.5 mb-1.5">
                   <Anchor className="w-3 h-3 text-[#FF9500]" />
-                  <span className="text-[9px] font-mono text-[var(--text-muted)] tracking-widest">CONGESTED NODES</span>
+                  <span className="text-[11px] font-mono text-[var(--text-muted)] tracking-widest">CONGESTED NODES</span>
                 </div>
                 {(congestedPorts.length === 0 && riskyChokes.length === 0) ? (
-                  <div className="text-[9px] font-mono text-[#00E676] px-2">✓ Global maritime flow optimal.</div>
+                  <div className="text-[11px] font-mono text-[#00E676] px-2">✓ Global maritime flow optimal.</div>
                 ) : (
                   <div className="space-y-1">
                     {riskyChokes.map((c: any, i: number) => (
                       <div key={`c-${i}`} className="px-2 py-1.5 rounded hover:bg-white/5 transition-colors border-l-2" style={{ borderLeftColor: c.risk === 'CRITICAL' ? '#FF1744' : '#FF9500' }}>
                         <div className="flex justify-between items-center mb-0.5">
-                          <span className="text-[10px] font-mono text-[#FF9500] font-bold">{c.name}</span>
-                          <span className="text-[8px] font-mono font-bold px-1 rounded" style={{ background: c.risk === 'CRITICAL' ? '#FF1744' : '#FF9500', color: '#000' }}>{c.risk}</span>
+                          <span className="text-[12px] font-mono text-[#FF9500] font-bold">{c.name}</span>
+                          <span className="text-[10px] font-mono font-bold px-1 rounded" style={{ background: c.risk === 'CRITICAL' ? '#FF1744' : '#FF9500', color: '#000' }}>{c.risk}</span>
                         </div>
-                        <div className="text-[8px] font-mono text-[#aaa]">{c.traffic}</div>
+                        <div className="text-[10px] font-mono text-[#aaa]">{c.traffic}</div>
                       </div>
                     ))}
                     {congestedPorts.map((p: any, i: number) => (
                       <div key={`p-${i}`} className="px-2 py-1.5 rounded hover:bg-white/5 transition-colors border-l-2" style={{ borderLeftColor: p.congestion === 'SEVERE' ? '#FF1744' : '#FF9500' }}>
                         <div className="flex justify-between items-center mb-0.5">
-                          <span className="text-[10px] font-mono text-[#00BCD4]">{p.name}</span>
-                          <span className="text-[8px] font-mono font-bold px-1 rounded" style={{ background: p.congestion === 'SEVERE' ? '#FF1744' : '#FF9500', color: '#000' }}>{p.congestion}</span>
+                          <span className="text-[12px] font-mono text-[#00BCD4]">{p.name}</span>
+                          <span className="text-[10px] font-mono font-bold px-1 rounded" style={{ background: p.congestion === 'SEVERE' ? '#FF1744' : '#FF9500', color: '#000' }}>{p.congestion}</span>
                         </div>
-                        <div className="flex justify-between items-center text-[8px] font-mono text-[#aaa]">
+                        <div className="flex justify-between items-center text-[10px] font-mono text-[#aaa]">
                           <span>DWELL: <span className="text-[#fff]">{p.dwell_time}</span></span>
                           <span>{p.volume.split(' | ')[1]}</span>
                         </div>

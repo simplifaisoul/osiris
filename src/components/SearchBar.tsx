@@ -230,7 +230,7 @@ export default function SearchBar({ onLocate, alwaysExpanded = false }: SearchBa
     return (
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 glass-panel-sm px-3 py-2 text-[9px] font-mono tracking-[0.15em] text-[var(--text-muted)] hover:text-[var(--gold-primary)] hover:border-[var(--border-active)] transition-all hover:shadow-[0_0_12px_rgba(212,175,55,0.08)]"
+        className="flex items-center gap-1.5 glass-panel-sm px-3 py-2 text-[11px] font-mono tracking-[0.15em] text-[var(--text-muted)] hover:text-[var(--gold-primary)] hover:border-[var(--border-active)] transition-all hover:shadow-[0_0_12px_rgba(212,175,55,0.08)]"
       >
         <Search className="w-3 h-3" />
         CMD: LOCATE
@@ -250,12 +250,12 @@ export default function SearchBar({ onLocate, alwaysExpanded = false }: SearchBa
           onChange={(e) => handleSearch(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="SEARCH ADDRESS, CITY, OR COORDINATES..."
-          className="flex-1 bg-transparent text-[10px] text-[var(--text-primary)] font-mono tracking-wider outline-none placeholder:text-[var(--text-muted)]"
+          className="flex-1 bg-transparent text-[12px] text-[var(--text-primary)] font-mono tracking-wider outline-none placeholder:text-[var(--text-muted)]"
           autoComplete="off"
           spellCheck={false}
         />
         {loading && <div className="w-3 h-3 border border-[var(--gold-primary)] border-t-transparent rounded-full animate-spin" />}
-        <span className="text-[8px] text-[var(--text-muted)] font-mono opacity-50 hidden md:inline">CTRL+F</span>
+        <span className="text-[10px] text-[var(--text-muted)] font-mono opacity-50 hidden md:inline">CTRL+F</span>
         {(value || !alwaysExpanded) && (
           <button onClick={() => {
             if (alwaysExpanded) { setValue(''); setResults([]); }
@@ -285,16 +285,16 @@ export default function SearchBar({ onLocate, alwaysExpanded = false }: SearchBa
               >
                 <div className="mt-0.5">{getResultIcon(r.type, r.category)}</div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[10px] text-[var(--text-primary)] font-mono truncate leading-tight">{primary}</div>
+                  <div className="text-[12px] text-[var(--text-primary)] font-mono truncate leading-tight">{primary}</div>
                   {secondary && (
-                    <div className="text-[8px] text-[var(--text-muted)] font-mono truncate mt-0.5">{secondary}</div>
+                    <div className="text-[10px] text-[var(--text-muted)] font-mono truncate mt-0.5">{secondary}</div>
                   )}
                 </div>
                 <div className="flex flex-col items-end flex-shrink-0">
-                  <span className="text-[7px] text-[var(--text-muted)] font-mono uppercase tracking-wider">
+                  <span className="text-[10px] text-[var(--text-muted)] font-mono uppercase tracking-wider">
                     {r.type === 'coordinate' ? 'COORDS' : r.type}
                   </span>
-                  <span className="text-[7px] text-[var(--gold-primary)] font-mono opacity-40">
+                  <span className="text-[10px] text-[var(--gold-primary)] font-mono opacity-40">
                     Z{r.zoomLevel}
                   </span>
                 </div>

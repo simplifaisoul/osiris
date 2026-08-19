@@ -59,7 +59,7 @@ export default function AiOverview({ mode, payload, accent = '#7C4DFF' }: AiOver
     <div className="w-full">
       <button
         onClick={handleClick}
-        className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-mono tracking-wider transition-all border"
+        className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded text-[12px] font-mono tracking-wider transition-all border"
         style={{
           color: accent,
           borderColor: `${accent}55`,
@@ -80,12 +80,12 @@ export default function AiOverview({ mode, payload, accent = '#7C4DFF' }: AiOver
             className="overflow-hidden"
           >
             <div
-              className="mt-2 p-2.5 rounded-lg border text-[10px] leading-relaxed"
+              className="mt-2 p-2.5 rounded-lg border text-[12px] leading-relaxed"
               style={{ borderColor: `${accent}33`, background: `${accent}08` }}
             >
               {/* Header row */}
               <div className="flex items-center justify-between mb-1.5">
-                <span className="font-mono tracking-widest text-[8px]" style={{ color: accent }}>
+                <span className="font-mono tracking-widest text-[10px]" style={{ color: accent }}>
                   {result ? `OSIRIS ${result.generatedBy === 'gemini' ? 'AI' : 'ANALYST'}` : 'OSIRIS ANALYST'}
                 </span>
                 <div className="flex items-center gap-2">
@@ -115,7 +115,7 @@ export default function AiOverview({ mode, payload, accent = '#7C4DFF' }: AiOver
                       {result.highlights.map((h, i) => (
                         <span
                           key={i}
-                          className="px-1.5 py-0.5 rounded text-[8px] font-mono"
+                          className="px-1.5 py-0.5 rounded text-[10px] font-mono"
                           style={{ background: `${accent}18`, color: accent, border: `1px solid ${accent}33` }}
                         >
                           {h}
@@ -124,7 +124,7 @@ export default function AiOverview({ mode, payload, accent = '#7C4DFF' }: AiOver
                     </div>
                   )}
 
-                  <div className="mt-2 text-[7px] font-mono text-[var(--text-muted)] tracking-wide">
+                  <div className="mt-2 text-[10px] font-mono text-[var(--text-muted)] tracking-wide">
                     {result.generatedBy === 'gemini' ? 'GEMINI 2.0 FLASH' : 'HEURISTIC ANALYST'} ·{' '}
                     {new Date(result.generatedAt).toLocaleTimeString()}
                   </div>

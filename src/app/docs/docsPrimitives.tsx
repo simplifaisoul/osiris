@@ -35,7 +35,7 @@ export function CopyButton({ value, className = '' }: { value: string; className
     <button
       onClick={copy}
       aria-label={copied ? 'Copied' : 'Copy to clipboard'}
-      className={`inline-flex items-center gap-1 text-[9px] font-mono tracking-[0.15em] uppercase px-2 py-1 rounded-[5px] border transition-all duration-200 ${
+      className={`inline-flex items-center gap-1 text-[11px] font-mono tracking-[0.15em] uppercase px-2 py-1 rounded-[5px] border transition-all duration-200 ${
         copied
           ? 'border-[var(--alert-green)]/40 bg-[var(--alert-green)]/10 text-[var(--alert-green)]'
           : 'border-white/10 bg-black/60 text-[var(--text-muted)] hover:text-[var(--gold-primary)] hover:border-[var(--gold-primary)]/40'
@@ -142,14 +142,14 @@ export function CodeBlock({
     <div className={`rounded-xl border border-white/[0.08] bg-[#07070D] overflow-hidden ${dense ? 'my-3' : 'my-5'}`}>
       <div className="flex items-center gap-1 px-2 h-9 border-b border-white/[0.07] bg-white/[0.015]">
         {label && !tabs.length && (
-          <span className="text-[9px] font-mono tracking-[0.2em] uppercase text-[var(--text-muted)] px-2">{label}</span>
+          <span className="text-[11px] font-mono tracking-[0.2em] uppercase text-[var(--text-muted)] px-2">{label}</span>
         )}
         {tabs.length > 1 ? (
           tabs.map((t, i) => (
             <button
               key={t.label}
               onClick={() => setIdx(i)}
-              className={`text-[10px] font-mono tracking-wider px-2.5 py-1 rounded-[5px] transition-colors ${
+              className={`text-[12px] font-mono tracking-wider px-2.5 py-1 rounded-[5px] transition-colors ${
                 i === idx
                   ? 'text-[var(--gold-primary)] bg-[var(--gold-primary)]/10'
                   : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
@@ -159,7 +159,7 @@ export function CodeBlock({
             </button>
           ))
         ) : (
-          <span className="text-[9px] font-mono tracking-[0.2em] uppercase text-[var(--text-muted)] px-2">
+          <span className="text-[11px] font-mono tracking-[0.2em] uppercase text-[var(--text-muted)] px-2">
             {label || tabs[0]?.label}
           </span>
         )}
@@ -217,7 +217,7 @@ export function Callout({
           {tone !== 'good' && <circle cx="12" cy="12" r="9" />}
           <path d={t.icon} />
         </svg>
-        <span className="text-[10px] font-mono tracking-[0.2em] uppercase" style={{ color: t.border }}>
+        <span className="text-[12px] font-mono tracking-[0.2em] uppercase" style={{ color: t.border }}>
           {title || t.label}
         </span>
       </div>
@@ -244,7 +244,7 @@ export function Section({
   return (
     <section id={id} className="scroll-mt-28 mb-20">
       {eyebrow && (
-        <div className="text-[9px] font-mono tracking-[0.3em] uppercase text-[var(--cyan-primary)]/60 mb-2">
+        <div className="text-[11px] font-mono tracking-[0.3em] uppercase text-[var(--cyan-primary)]/60 mb-2">
           {eyebrow}
         </div>
       )}

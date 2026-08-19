@@ -196,14 +196,14 @@ export default function SatellitePanel({
             <span className="text-[14px] font-mono font-bold tracking-[0.2em] text-white">
               SATELLITE
             </span>
-            <span className="text-[9px] font-mono tracking-wider text-[#448AFF]">
+            <span className="text-[11px] font-mono tracking-wider text-[#448AFF]">
               IMAGERY ARCHIVE
             </span>
           </div>
         </div>
         <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-[#00E676]/10 border border-[#00E676]/20">
           <div className="w-2 h-2 rounded-full bg-[#00E676] animate-pulse shadow-[0_0_8px_#00E676]" />
-          <span className="text-[9px] font-mono font-bold text-[#00E676] tracking-wider">
+          <span className="text-[11px] font-mono font-bold text-[#00E676] tracking-wider">
             STAC ONLINE
           </span>
         </div>
@@ -221,7 +221,7 @@ export default function SatellitePanel({
       <div className="flex flex-col gap-3">
         <div className="flex gap-2">
           <div className="relative flex-1">
-            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[9px] font-mono font-bold text-[var(--text-muted)] uppercase">
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] font-mono font-bold text-[var(--text-muted)] uppercase">
               LAT
             </span>
             <input
@@ -233,7 +233,7 @@ export default function SatellitePanel({
             />
           </div>
           <div className="relative flex-1">
-            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[9px] font-mono font-bold text-[var(--text-muted)] uppercase">
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] font-mono font-bold text-[var(--text-muted)] uppercase">
               LNG
             </span>
             <input
@@ -261,7 +261,7 @@ export default function SatellitePanel({
                   setLng(centroidLng.toFixed(4));
                 }
               }}
-              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--gold-primary)]/10 border border-[var(--gold-primary)]/20 text-[var(--gold-primary)] text-[10px] font-mono font-bold tracking-wider hover:bg-[var(--gold-primary)]/20 transition-all"
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--gold-primary)]/10 border border-[var(--gold-primary)]/20 text-[var(--gold-primary)] text-[12px] font-mono font-bold tracking-wider hover:bg-[var(--gold-primary)]/20 transition-all"
             >
               <Layers className="w-3.5 h-3.5" />
               USE POLYGON
@@ -273,7 +273,7 @@ export default function SatellitePanel({
               <button
                 key={d}
                 onClick={() => setDays(d)}
-                className={`flex-1 py-2 text-[10px] font-mono transition-all ${
+                className={`flex-1 py-2 text-[12px] font-mono transition-all ${
                   days === d
                     ? 'bg-[#448AFF]/20 text-[#448AFF] font-bold'
                     : 'text-[var(--text-muted)] hover:bg-white/5 hover:text-white'
@@ -399,12 +399,12 @@ export default function SatellitePanel({
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-white/10 text-white font-bold tracking-wider">
+                        <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-white/10 text-white font-bold tracking-wider">
                           {scene.platform}
                         </span>
                         {scene.cloud_cover !== null && (
                           <div 
-                            className="flex items-center gap-1 px-2 py-0.5 rounded-full font-mono font-bold text-[9px]"
+                            className="flex items-center gap-1 px-2 py-0.5 rounded-full font-mono font-bold text-[11px]"
                             style={{ 
                               background: `${getCloudColor(scene.cloud_cover)}20`,
                               color: getCloudColor(scene.cloud_cover),
@@ -456,7 +456,7 @@ export default function SatellitePanel({
                                 href={scene.preview}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#448AFF]/15 border border-[#448AFF]/30 text-[#448AFF] text-[10px] font-mono font-bold hover:bg-[#448AFF]/25 transition-all"
+                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#448AFF]/15 border border-[#448AFF]/30 text-[#448AFF] text-[12px] font-mono font-bold hover:bg-[#448AFF]/25 transition-all"
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <Eye className="w-3.5 h-3.5" />
@@ -475,7 +475,7 @@ export default function SatellitePanel({
                               }`}
                               target="_blank"
                               rel="noreferrer"
-                              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-[10px] font-mono font-bold hover:bg-white/10 transition-all"
+                              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-[12px] font-mono font-bold hover:bg-white/10 transition-all"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <ExternalLink className="w-3.5 h-3.5" />
@@ -492,7 +492,7 @@ export default function SatellitePanel({
 
             {/* Total results note */}
             {results.total > results.scenes.length && (
-              <div className="text-center text-[9px] font-mono text-[var(--text-muted)] py-1">
+              <div className="text-center text-[11px] font-mono text-[var(--text-muted)] py-1">
                 Showing {results.scenes.length} of {results.total} total scenes
               </div>
             )}
@@ -537,7 +537,7 @@ export default function SatellitePanel({
                   boxShadow: 'inset 0 1px 0 rgba(212,175,55,0.1)',
                 }}
               >
-                <p className="text-[10px] font-mono text-white/80 leading-relaxed">
+                <p className="text-[12px] font-mono text-white/80 leading-relaxed">
                   Order premium commercial satellite imagery (50cm–30cm resolution). 
                   Task new captures or access archive imagery.
                 </p>
@@ -622,7 +622,7 @@ export default function SatellitePanel({
                         </span>
                         <ExternalLink className="w-3.5 h-3.5 text-[var(--text-muted)] opacity-0 group-hover:opacity-80 transition-opacity" />
                       </div>
-                      <p className="text-[9px] font-mono text-[var(--text-muted)] mt-1 leading-relaxed pr-2">
+                      <p className="text-[11px] font-mono text-[var(--text-muted)] mt-1 leading-relaxed pr-2">
                         {src.desc}
                       </p>
                     </div>
@@ -643,10 +643,10 @@ export default function SatellitePanel({
         }}
       />
       <div className="flex items-center justify-between px-1 pb-1">
-        <span className="text-[8px] font-mono font-bold text-[var(--text-muted)] tracking-wider">
+        <span className="text-[10px] font-mono font-bold text-[var(--text-muted)] tracking-wider">
           DATA SOURCE: ELEMENT84 / COPERNICUS
         </span>
-        <span className="text-[8px] font-mono font-bold text-[var(--text-muted)]">
+        <span className="text-[10px] font-mono font-bold text-[var(--text-muted)]">
           {results?.timestamp
             ? new Date(results.timestamp).toLocaleTimeString()
             : '—'}
@@ -661,10 +661,10 @@ export default function SatellitePanel({
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-[9px] font-mono font-bold text-[var(--text-muted)] uppercase tracking-wider">
+      <span className="text-[11px] font-mono font-bold text-[var(--text-muted)] uppercase tracking-wider">
         {label}
       </span>
-      <span className="text-[10px] font-mono text-white break-all leading-tight">
+      <span className="text-[12px] font-mono text-white break-all leading-tight">
         {value}
       </span>
     </div>
@@ -688,7 +688,7 @@ function SpecBadge({
         border: `1px solid ${color}25`,
       }}
     >
-      <span className="text-[8px] font-mono font-bold text-[var(--text-muted)] uppercase tracking-wider">
+      <span className="text-[10px] font-mono font-bold text-[var(--text-muted)] uppercase tracking-wider">
         {label}
       </span>
       <span
