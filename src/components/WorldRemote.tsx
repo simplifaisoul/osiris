@@ -330,18 +330,18 @@ export default function WorldRemote({onClose,onPlaceOnMap}:{onClose?:()=>void,on
       <div className="flex-shrink-0 flex items-center justify-between px-3 py-2.5 border-b border-[rgba(255,255,255,0.05)] bg-[rgba(0,0,0,0.3)] hover:bg-[var(--hover-accent)] transition-colors">
         <button onClick={()=>setExpanded(!expanded)} className="flex items-center gap-2 flex-1">
           <Crosshair className="w-3.5 h-3.5 text-[var(--cyan-primary)]"/>
-          <span className="hud-text text-[12px] text-[var(--text-primary)]">MARAUDER</span>
-          <span className="gotham-tag gotham-tag--info" style={{fontSize:'10px',padding:'1px 5px'}}>{devices.length} DEVS</span>
-          {scanning&&<span className="gotham-tag" style={{fontSize:'10px',padding:'1px 5px',background:'rgba(0,230,255,0.1)',color:'var(--cyan-primary)'}}>SCANNING</span>}
+          <span className="hud-text text-[11px] text-[var(--text-primary)]">MARAUDER</span>
+          <span className="gotham-tag gotham-tag--info" style={{fontSize:'9px',padding:'1px 5px'}}>{devices.length} DEVS</span>
+          {scanning&&<span className="gotham-tag" style={{fontSize:'9px',padding:'1px 5px',background:'rgba(0,230,255,0.1)',color:'var(--cyan-primary)'}}>SCANNING</span>}
         </button>
         <div className="flex items-center gap-2">
           <motion.button whileTap={{scale:0.95}} onClick={scan} disabled={scanning||!btOk}
-            className="px-2.5 py-1 rounded-md text-[10px] font-mono font-bold tracking-wider flex items-center gap-1.5 disabled:opacity-30"
+            className="px-2.5 py-1 rounded-md text-[9px] font-mono font-bold tracking-wider flex items-center gap-1.5 disabled:opacity-30"
             style={{background:scanning?'rgba(0,230,255,0.08)':'rgba(0,230,255,0.12)',color:'var(--cyan-primary)',border:'1px solid rgba(0,230,255,0.12)'}}>
             {scanning?<BluetoothSearching className="w-3 h-3 animate-pulse"/>:<Bluetooth className="w-3 h-3"/>}{scanning?'...':'SCAN'}
           </motion.button>
           {geoCount>0&&<motion.button whileTap={{scale:0.95}} onClick={placeOnWorldMap}
-            className="px-2.5 py-1 rounded-md text-[10px] font-mono font-bold tracking-wider flex items-center gap-1.5"
+            className="px-2.5 py-1 rounded-md text-[9px] font-mono font-bold tracking-wider flex items-center gap-1.5"
             style={{background:'rgba(255,183,77,0.08)',color:'#FFB74D',border:'1px solid rgba(255,183,77,0.1)'}}>
             <MapPin className="w-3 h-3"/>VIEW ON MAP
           </motion.button>}
@@ -362,7 +362,7 @@ export default function WorldRemote({onClose,onPlaceOnMap}:{onClose?:()=>void,on
           {/* Tab Bar */}
           <div className="flex items-center px-2 py-1.5 shrink-0 gap-0.5 border-b border-[rgba(255,255,255,0.04)]" style={{background:'rgba(0,0,0,0.2)'}}>
             {([['scan','DEVICES',Scan],['intel','INTEL',Globe],['log','LOG',Terminal]] as const).map(([id,label,Icon])=>(
-              <button key={id} onClick={()=>setView(id as any)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[10px] font-mono font-bold tracking-[0.12em] transition-all flex-1 justify-center"
+              <button key={id} onClick={()=>setView(id as any)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[9px] font-mono font-bold tracking-[0.12em] transition-all flex-1 justify-center"
                 style={{color:view===id?'var(--cyan-primary)':'var(--text-muted)',background:view===id?'rgba(0,230,255,0.06)':'transparent'}}>
                 <Icon className="w-3 h-3"/>{label}
               </button>
@@ -370,7 +370,7 @@ export default function WorldRemote({onClose,onPlaceOnMap}:{onClose?:()=>void,on
           </div>
 
           {/* Error */}
-          <AnimatePresence>{error&&<motion.div initial={{height:0}} animate={{height:'auto'}} exit={{height:0}} className="overflow-hidden shrink-0"><div className="mx-2 mt-1.5 px-2.5 py-1.5 rounded-lg flex items-center gap-2" style={{background:'rgba(255,61,61,0.04)',border:'1px solid rgba(255,61,61,0.1)'}}><AlertTriangle className="w-3 h-3 text-[#FF3D3D] shrink-0"/><span className="text-[10px] font-mono text-[#FF3D3D] flex-1 truncate">{error}</span><button onClick={()=>setError(null)}><X className="w-2.5 h-2.5 text-[#FF3D3D]/50"/></button></div></motion.div>}</AnimatePresence>
+          <AnimatePresence>{error&&<motion.div initial={{height:0}} animate={{height:'auto'}} exit={{height:0}} className="overflow-hidden shrink-0"><div className="mx-2 mt-1.5 px-2.5 py-1.5 rounded-lg flex items-center gap-2" style={{background:'rgba(255,61,61,0.04)',border:'1px solid rgba(255,61,61,0.1)'}}><AlertTriangle className="w-3 h-3 text-[#FF3D3D] shrink-0"/><span className="text-[9px] font-mono text-[#FF3D3D] flex-1 truncate">{error}</span><button onClick={()=>setError(null)}><X className="w-2.5 h-2.5 text-[#FF3D3D]/50"/></button></div></motion.div>}</AnimatePresence>
 
           {/* Content */}
           <div className="flex-1 overflow-hidden flex min-h-0">
@@ -381,13 +381,13 @@ export default function WorldRemote({onClose,onPlaceOnMap}:{onClose?:()=>void,on
                 {devices.length===0&&!scanning&&btOk&&(
                   <div className="flex flex-col items-center justify-center py-8 opacity-40">
                     <Crosshair className="w-8 h-8 text-[var(--cyan-primary)] mb-2"/>
-                    <p className="text-[11px] font-mono text-[var(--text-muted)] text-center tracking-wider">
+                    <p className="text-[10px] font-mono text-[var(--text-muted)] text-center tracking-wider">
                       Hit <span className="text-[var(--cyan-primary)]">SCAN</span> to acquire targets<br/>
-                      <span className="text-[10px] opacity-50">Auto-vacuum · GPS-tagged · Vault</span>
+                      <span className="text-[9px] opacity-50">Auto-vacuum · GPS-tagged · Vault</span>
                     </p>
                   </div>
                 )}
-                {!btOk&&<div className="p-2 rounded-lg" style={{background:'rgba(255,61,61,0.04)',border:'1px solid rgba(255,61,61,0.08)'}}><span className="text-[10px] font-mono text-[#FF3D3D]">Web Bluetooth unavailable — use Chrome/Edge on localhost</span></div>}
+                {!btOk&&<div className="p-2 rounded-lg" style={{background:'rgba(255,61,61,0.04)',border:'1px solid rgba(255,61,61,0.08)'}}><span className="text-[9px] font-mono text-[#FF3D3D]">Web Bluetooth unavailable — use Chrome/Edge on localhost</span></div>}
 
                 {devices.map(dev=>{const isE=exDev===dev.id;const isG=gattTarget===dev.id;const isC=connecting===dev.id;
                   return(<motion.div key={dev.id} initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} layout>
@@ -401,17 +401,17 @@ export default function WorldRemote({onClose,onPlaceOnMap}:{onClose?:()=>void,on
                         </motion.div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 mb-0.5">
-                            <span className="text-[12px] font-mono font-bold text-[var(--text-primary)] truncate">{dev.name}</span>
-                            {dev.connected&&<span className="text-[10px] font-mono px-1 py-0.5 rounded bg-[var(--alert-green)]/10 text-[var(--alert-green)] tracking-widest font-bold">LIVE</span>}
+                            <span className="text-[11px] font-mono font-bold text-[var(--text-primary)] truncate">{dev.name}</span>
+                            {dev.connected&&<span className="text-[9px] font-mono px-1 py-0.5 rounded bg-[var(--alert-green)]/10 text-[var(--alert-green)] tracking-widest font-bold">LIVE</span>}
                           </div>
                           {dev.probing?(
-                            <div className="flex items-center gap-2"><motion.div className="h-1 rounded-full flex-1" style={{background:`${dev.color}10`}}><motion.div className="h-full rounded-full" style={{background:dev.color}} animate={{width:['0%','60%','100%']}} transition={{duration:3}}/></motion.div><span className="text-[10px] font-mono animate-pulse" style={{color:dev.color}}>VACUUMING</span></div>
+                            <div className="flex items-center gap-2"><motion.div className="h-1 rounded-full flex-1" style={{background:`${dev.color}10`}}><motion.div className="h-full rounded-full" style={{background:dev.color}} animate={{width:['0%','60%','100%']}} transition={{duration:3}}/></motion.div><span className="text-[9px] font-mono animate-pulse" style={{color:dev.color}}>VACUUMING</span></div>
                           ):(
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded tracking-wider font-bold" style={{background:`${dev.color}10`,color:dev.color}}>{dev.type.toUpperCase()}</span>
-                              {dev.battery!=null&&<span className="text-[10px] font-mono flex items-center gap-0.5" style={{color:dev.battery>50?'var(--alert-green)':dev.battery>20?'#FFB800':'#FF3D3D'}}><BatteryMedium className="w-2.5 h-2.5"/>{dev.battery}%</span>}
-                              {dev.geo&&<span className="text-[10px] font-mono text-[#FFB74D] flex items-center gap-0.5"><MapPin className="w-2 h-2"/></span>}
-                              <span className="text-[10px] font-mono text-[var(--text-muted)]">{dev.serviceCount}svcs · {dev.probeMs}ms</span>
+                              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded tracking-wider font-bold" style={{background:`${dev.color}10`,color:dev.color}}>{dev.type.toUpperCase()}</span>
+                              {dev.battery!=null&&<span className="text-[9px] font-mono flex items-center gap-0.5" style={{color:dev.battery>50?'var(--alert-green)':dev.battery>20?'#FFB800':'#FF3D3D'}}><BatteryMedium className="w-2.5 h-2.5"/>{dev.battery}%</span>}
+                              {dev.geo&&<span className="text-[9px] font-mono text-[#FFB74D] flex items-center gap-0.5"><MapPin className="w-2 h-2"/></span>}
+                              <span className="text-[9px] font-mono text-[var(--text-muted)]">{dev.serviceCount}svcs · {dev.probeMs}ms</span>
                             </div>
                           )}
                         </div>
@@ -423,53 +423,53 @@ export default function WorldRemote({onClose,onPlaceOnMap}:{onClose?:()=>void,on
 
                         {/* Device Info */}
                         <div className="mt-2 mb-2.5 rounded-lg p-2.5" style={{background:'rgba(0,0,0,0.25)',border:'1px solid rgba(255,255,255,0.03)'}}>
-                          <div className="text-[10px] font-mono text-[var(--text-muted)] tracking-[0.2em] mb-1.5 font-bold">DEVICE INTEL</div>
+                          <div className="text-[9px] font-mono text-[var(--text-muted)] tracking-[0.2em] mb-1.5 font-bold">DEVICE INTEL</div>
                           <div className="space-y-1">
                             {[{k:'Manufacturer',v:dev.manufacturer},{k:'Model',v:dev.model},{k:'Serial',v:dev.serial},{k:'Firmware',v:dev.firmware},{k:'TX Power',v:dev.txPower!=null?`${dev.txPower} dBm`:undefined}].filter(x=>x.v).map(x=>(
-                              <div key={x.k} className="flex gap-2"><span className="text-[10px] font-mono text-[var(--text-muted)] w-[65px] shrink-0 tracking-wider">{x.k}</span><span className="text-[10px] font-mono text-[var(--text-primary)] truncate">{x.v}</span></div>
+                              <div key={x.k} className="flex gap-2"><span className="text-[9px] font-mono text-[var(--text-muted)] w-[65px] shrink-0 tracking-wider">{x.k}</span><span className="text-[9px] font-mono text-[var(--text-primary)] truncate">{x.v}</span></div>
                             ))}
-                            {dev.geo&&<div className="flex gap-2"><span className="text-[10px] font-mono text-[var(--text-muted)] w-[65px] shrink-0 tracking-wider">GPS</span><span className="text-[10px] font-mono text-[#FFB74D]">{dev.geo.lat.toFixed(5)}, {dev.geo.lng.toFixed(5)} ±{Math.round(dev.geo.acc)}m</span></div>}
-                            <div className="flex gap-2"><span className="text-[10px] font-mono text-[var(--text-muted)] w-[65px] shrink-0 tracking-wider">Extracted</span><span className="text-[10px] font-mono text-[var(--text-muted)]">{dev.serviceCount}svcs · {dev.charCount}chars · {dev.gattDump.length}vals · {dev.totalBytes}B</span></div>
+                            {dev.geo&&<div className="flex gap-2"><span className="text-[9px] font-mono text-[var(--text-muted)] w-[65px] shrink-0 tracking-wider">GPS</span><span className="text-[9px] font-mono text-[#FFB74D]">{dev.geo.lat.toFixed(5)}, {dev.geo.lng.toFixed(5)} ±{Math.round(dev.geo.acc)}m</span></div>}
+                            <div className="flex gap-2"><span className="text-[9px] font-mono text-[var(--text-muted)] w-[65px] shrink-0 tracking-wider">Extracted</span><span className="text-[9px] font-mono text-[var(--text-muted)]">{dev.serviceCount}svcs · {dev.charCount}chars · {dev.gattDump.length}vals · {dev.totalBytes}B</span></div>
                           </div>
                         </div>
 
                         {/* Services */}
-                        {dev.services.length>0&&<div className="flex flex-wrap gap-1 mb-2.5">{dev.services.map((s,i)=><span key={i} className="text-[10px] font-mono px-1.5 py-0.5 rounded tracking-wider" style={{background:`${dev.color}06`,color:`${dev.color}70`}}>{s}</span>)}</div>}
+                        {dev.services.length>0&&<div className="flex flex-wrap gap-1 mb-2.5">{dev.services.map((s,i)=><span key={i} className="text-[9px] font-mono px-1.5 py-0.5 rounded tracking-wider" style={{background:`${dev.color}06`,color:`${dev.color}70`}}>{s}</span>)}</div>}
 
                         {/* GATT Dump */}
-                        {dev.gattDump.length>0&&<div className="mb-2.5"><div className="text-[10px] font-mono text-[var(--text-muted)] tracking-[0.15em] mb-1 font-bold">VACUUM DUMP ({dev.gattDump.length})</div><div className="max-h-[120px] overflow-y-auto styled-scrollbar rounded-lg" style={{background:'rgba(0,0,0,0.3)'}}>
-                          {dev.gattDump.map((g,i)=><div key={i} className="px-2 py-1 flex items-start gap-1.5 hover:bg-white/[0.02]" style={{borderBottom:'1px solid rgba(255,255,255,0.02)'}}><span className="text-[10px] font-mono text-[var(--text-muted)] shrink-0 w-[50px] truncate">{g.svc}</span><span className="text-[10px] font-mono shrink-0 w-[50px] truncate" style={{color:dev.color}}>{g.char}</span><span className="text-[10px] font-mono text-[var(--text-primary)] flex-1 truncate">{g.value}</span></div>)}
+                        {dev.gattDump.length>0&&<div className="mb-2.5"><div className="text-[9px] font-mono text-[var(--text-muted)] tracking-[0.15em] mb-1 font-bold">VACUUM DUMP ({dev.gattDump.length})</div><div className="max-h-[120px] overflow-y-auto styled-scrollbar rounded-lg" style={{background:'rgba(0,0,0,0.3)'}}>
+                          {dev.gattDump.map((g,i)=><div key={i} className="px-2 py-1 flex items-start gap-1.5 hover:bg-white/[0.02]" style={{borderBottom:'1px solid rgba(255,255,255,0.02)'}}><span className="text-[9px] font-mono text-[var(--text-muted)] shrink-0 w-[50px] truncate">{g.svc}</span><span className="text-[9px] font-mono shrink-0 w-[50px] truncate" style={{color:dev.color}}>{g.char}</span><span className="text-[9px] font-mono text-[var(--text-primary)] flex-1 truncate">{g.value}</span></div>)}
                         </div></div>}
 
-                        <div className="text-[10px] font-mono text-[var(--text-muted)] mb-2.5 opacity-20 tracking-wider">{dev.id}</div>
+                        <div className="text-[9px] font-mono text-[var(--text-muted)] mb-2.5 opacity-20 tracking-wider">{dev.id}</div>
 
                         {/* Actions */}
                         <div className="flex gap-1.5 flex-wrap">
                           {dev.bt&&(dev.connected?(<>
-                            <motion.button whileTap={{scale:0.95}} onClick={()=>explore(dev)} className="flex-1 py-1.5 rounded-lg text-[10px] font-mono font-bold tracking-wider flex items-center justify-center gap-1.5" style={{background:`${dev.color}08`,color:dev.color,border:`1px solid ${dev.color}10`}}><Layers className="w-3 h-3"/>GATT</motion.button>
-                            <motion.button whileTap={{scale:0.95}} onClick={()=>disconnect(dev)} className="py-1.5 px-2.5 rounded-lg text-[10px] font-mono font-bold flex items-center gap-1" style={{background:'rgba(255,61,61,0.05)',color:'#FF6B6B',border:'1px solid rgba(255,61,61,0.06)'}}><Unplug className="w-3 h-3"/>DROP</motion.button>
+                            <motion.button whileTap={{scale:0.95}} onClick={()=>explore(dev)} className="flex-1 py-1.5 rounded-lg text-[9px] font-mono font-bold tracking-wider flex items-center justify-center gap-1.5" style={{background:`${dev.color}08`,color:dev.color,border:`1px solid ${dev.color}10`}}><Layers className="w-3 h-3"/>GATT</motion.button>
+                            <motion.button whileTap={{scale:0.95}} onClick={()=>disconnect(dev)} className="py-1.5 px-2.5 rounded-lg text-[9px] font-mono font-bold flex items-center gap-1" style={{background:'rgba(255,61,61,0.05)',color:'#FF6B6B',border:'1px solid rgba(255,61,61,0.06)'}}><Unplug className="w-3 h-3"/>DROP</motion.button>
                           </>):(<>
-                            <motion.button whileTap={{scale:0.95}} onClick={()=>connect(dev)} disabled={!!connecting} className="flex-1 py-2 rounded-lg text-[10px] font-mono font-bold tracking-wider flex items-center justify-center gap-1.5 disabled:opacity-30" style={{background:`${dev.color}08`,color:dev.color,border:`1px solid ${dev.color}10`}}><Zap className="w-3 h-3"/>{isC?'PAIRING...':'CONNECT'}</motion.button>
+                            <motion.button whileTap={{scale:0.95}} onClick={()=>connect(dev)} disabled={!!connecting} className="flex-1 py-2 rounded-lg text-[9px] font-mono font-bold tracking-wider flex items-center justify-center gap-1.5 disabled:opacity-30" style={{background:`${dev.color}08`,color:dev.color,border:`1px solid ${dev.color}10`}}><Zap className="w-3 h-3"/>{isC?'PAIRING...':'CONNECT'}</motion.button>
                           </>))}
-                          {dev.geo&&<motion.button whileTap={{scale:0.95}} onClick={()=>placeSingleOnMap(dev)} className="py-1.5 px-2.5 rounded-lg text-[10px] font-mono font-bold tracking-wider flex items-center gap-1" style={{background:'rgba(255,183,77,0.06)',color:'#FFB74D',border:'1px solid rgba(255,183,77,0.08)'}}><MapPin className="w-3 h-3"/>VIEW ON MAP</motion.button>}
+                          {dev.geo&&<motion.button whileTap={{scale:0.95}} onClick={()=>placeSingleOnMap(dev)} className="py-1.5 px-2.5 rounded-lg text-[9px] font-mono font-bold tracking-wider flex items-center gap-1" style={{background:'rgba(255,183,77,0.06)',color:'#FFB74D',border:'1px solid rgba(255,183,77,0.08)'}}><MapPin className="w-3 h-3"/>VIEW ON MAP</motion.button>}
                         </div>
 
                         {/* GATT Explorer */}
                         <AnimatePresence>{isG&&(<motion.div initial={{height:0,opacity:0}} animate={{height:'auto',opacity:1}} exit={{height:0,opacity:0}} className="overflow-hidden"><div className="mt-2.5 pt-2.5" style={{borderTop:`1px solid ${dev.color}08`}}>
-                          <div className="flex items-center justify-between mb-2"><span className="text-[10px] font-mono font-bold tracking-[0.12em]" style={{color:dev.color}}>GATT TREE</span><button onClick={()=>{setGattTarget(null);setGattSvcs([]);}}><X className="w-2.5 h-2.5 text-[var(--text-muted)]"/></button></div>
-                          {gattLoading?<div className="flex items-center justify-center py-3 gap-1.5"><div className="w-3.5 h-3.5 border-2 rounded-full animate-spin" style={{borderColor:dev.color,borderTopColor:'transparent'}}/><span className="text-[10px] font-mono animate-pulse" style={{color:dev.color}}>Enumerating...</span></div>
+                          <div className="flex items-center justify-between mb-2"><span className="text-[9px] font-mono font-bold tracking-[0.12em]" style={{color:dev.color}}>GATT TREE</span><button onClick={()=>{setGattTarget(null);setGattSvcs([]);}}><X className="w-2.5 h-2.5 text-[var(--text-muted)]"/></button></div>
+                          {gattLoading?<div className="flex items-center justify-center py-3 gap-1.5"><div className="w-3.5 h-3.5 border-2 rounded-full animate-spin" style={{borderColor:dev.color,borderTopColor:'transparent'}}/><span className="text-[9px] font-mono animate-pulse" style={{color:dev.color}}>Enumerating...</span></div>
                           :gattSvcs.map(svc=>(<div key={svc.uuid} className="mb-0.5">
                             <button onClick={()=>setExSvc(exSvc===svc.uuid?null:svc.uuid)} className="w-full px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-left hover:bg-white/[0.02]">
-                              <Bluetooth className="w-2.5 h-2.5 shrink-0" style={{color:dev.color}}/><span className="text-[10px] font-mono font-bold text-[var(--text-primary)] truncate flex-1">{svc.name}</span><span className="text-[10px] font-mono" style={{color:`${dev.color}80`}}>{svc.chars.length}</span><ChevronRight className={`w-2.5 h-2.5 text-[var(--text-muted)] transition-transform ${exSvc===svc.uuid?'rotate-90':''}`}/>
+                              <Bluetooth className="w-2.5 h-2.5 shrink-0" style={{color:dev.color}}/><span className="text-[9px] font-mono font-bold text-[var(--text-primary)] truncate flex-1">{svc.name}</span><span className="text-[9px] font-mono" style={{color:`${dev.color}80`}}>{svc.chars.length}</span><ChevronRight className={`w-2.5 h-2.5 text-[var(--text-muted)] transition-transform ${exSvc===svc.uuid?'rotate-90':''}`}/>
                             </button>
                             <AnimatePresence>{exSvc===svc.uuid&&(<motion.div initial={{height:0}} animate={{height:'auto'}} exit={{height:0}} className="overflow-hidden"><div className="pl-3 pr-1 py-1 space-y-1">{svc.chars.map(ch=>{const ck=`${svc.uuid}/${ch.uuid}`;const fl=[ch.p.r&&'R',ch.p.w&&'W',ch.p.wn&&'Wn',ch.p.n&&'N',ch.p.i&&'I'].filter(Boolean).join('·');const wV=wIn[ck]||'';const wOk=!wV||validHex(wV);return(
                               <div key={ch.uuid} className="p-2 rounded-lg" style={{background:'rgba(0,0,0,0.25)',borderLeft:`2px solid ${dev.color}12`}}>
-                                <div className="flex items-center gap-1 mb-1"><span className="text-[10px] font-mono font-bold text-[var(--text-primary)] truncate flex-1">{ch.name}</span><span className="text-[10px] font-mono px-1 py-0.5 rounded" style={{background:`${dev.color}06`,color:`${dev.color}80`}}>{fl}</span></div>
-                                {ch.value&&<div className="flex items-center gap-1 mb-1"><div className="flex-1 rounded px-1.5 py-1 min-w-0" style={{background:'rgba(0,0,0,0.3)'}}><div className={`text-[10px] font-mono truncate ${ch.notifying?'text-[#00FF88]':'text-[var(--alert-green)]'}`}>{ch.value}</div>{ch.hex&&ch.hex!==ch.value&&<div className="text-[10px] font-mono text-[var(--text-muted)] truncate mt-0.5 opacity-40">{ch.hex}</div>}</div><button onClick={()=>{navigator.clipboard?.writeText(ch.value||'');setCopied(ck);setTimeout(()=>setCopied(null),1500);}} className="p-0.5 rounded hover:bg-white/5 shrink-0">{copied===ck?<Check className="w-2 h-2 text-[var(--alert-green)]"/>:<Copy className="w-2 h-2 text-[var(--text-muted)]"/>}</button></div>}
+                                <div className="flex items-center gap-1 mb-1"><span className="text-[9px] font-mono font-bold text-[var(--text-primary)] truncate flex-1">{ch.name}</span><span className="text-[9px] font-mono px-1 py-0.5 rounded" style={{background:`${dev.color}06`,color:`${dev.color}80`}}>{fl}</span></div>
+                                {ch.value&&<div className="flex items-center gap-1 mb-1"><div className="flex-1 rounded px-1.5 py-1 min-w-0" style={{background:'rgba(0,0,0,0.3)'}}><div className={`text-[9px] font-mono truncate ${ch.notifying?'text-[#00FF88]':'text-[var(--alert-green)]'}`}>{ch.value}</div>{ch.hex&&ch.hex!==ch.value&&<div className="text-[9px] font-mono text-[var(--text-muted)] truncate mt-0.5 opacity-40">{ch.hex}</div>}</div><button onClick={()=>{navigator.clipboard?.writeText(ch.value||'');setCopied(ck);setTimeout(()=>setCopied(null),1500);}} className="p-0.5 rounded hover:bg-white/5 shrink-0">{copied===ck?<Check className="w-2 h-2 text-[var(--alert-green)]"/>:<Copy className="w-2 h-2 text-[var(--text-muted)]"/>}</button></div>}
                                 <div className="flex items-center gap-1 flex-wrap">
-                                  {ch.p.r&&<button onClick={async()=>{if(!ch.char)return;try{const v=await ch.char.readValue();const d=decode(v);setGattSvcs(sv=>sv.map(s=>s.uuid===svc.uuid?{...s,chars:s.chars.map(c=>c.uuid===ch.uuid?{...c,value:d.text,hex:d.hex}:c)}:s));log('READ',dev.name,`${ch.name}: ${d.text.slice(0,50)}`,d.hex,v.byteLength);}catch{log('ERROR',dev.name,`Read: ${ch.name}`);}}} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono" style={{background:`${dev.color}06`,color:dev.color}}><Eye className="w-2 h-2"/>READ</button>}
-                                  {ch.p.n&&<button onClick={()=>toggleN(svc.uuid,ch,dev.name)} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono" style={{background:ch.notifying?'rgba(0,255,136,0.06)':'rgba(255,255,255,0.02)',color:ch.notifying?'#00FF88':'var(--text-muted)'}}>{ch.notifying?<Bell className="w-2 h-2"/>:<BellOff className="w-2 h-2"/>}{ch.notifying?'LIVE':'SUB'}</button>}
-                                  {(ch.p.w||ch.p.wn)&&<div className="flex items-center gap-0.5 flex-1"><input type="text" placeholder="FF 01" value={wV} onChange={e=>setWIn(iv=>({...iv,[ck]:e.target.value}))} className="flex-1 rounded px-1.5 py-0.5 text-[10px] font-mono text-[var(--text-primary)] outline-none min-w-0" style={{background:'rgba(0,0,0,0.3)',border:`1px solid ${wOk?'transparent':'rgba(255,61,61,0.3)'}`}}/><button onClick={async()=>{if(!ch.char||!wV||!validHex(wV))return;try{await writeSafe(ch.char,parseHex(wV),ch.p.w);log('WRITE',dev.name,`${ch.name} ← ${wV}`);setWIn(iv=>({...iv,[ck]:''}));}catch{log('ERROR',dev.name,`Write: ${ch.name}`);}}} disabled={!wV||!wOk} className="p-0.5 rounded shrink-0 disabled:opacity-30" style={{color:'#FFB800'}}><Send className="w-2 h-2"/></button></div>}
+                                  {ch.p.r&&<button onClick={async()=>{if(!ch.char)return;try{const v=await ch.char.readValue();const d=decode(v);setGattSvcs(sv=>sv.map(s=>s.uuid===svc.uuid?{...s,chars:s.chars.map(c=>c.uuid===ch.uuid?{...c,value:d.text,hex:d.hex}:c)}:s));log('READ',dev.name,`${ch.name}: ${d.text.slice(0,50)}`,d.hex,v.byteLength);}catch{log('ERROR',dev.name,`Read: ${ch.name}`);}}} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-mono" style={{background:`${dev.color}06`,color:dev.color}}><Eye className="w-2 h-2"/>READ</button>}
+                                  {ch.p.n&&<button onClick={()=>toggleN(svc.uuid,ch,dev.name)} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-mono" style={{background:ch.notifying?'rgba(0,255,136,0.06)':'rgba(255,255,255,0.02)',color:ch.notifying?'#00FF88':'var(--text-muted)'}}>{ch.notifying?<Bell className="w-2 h-2"/>:<BellOff className="w-2 h-2"/>}{ch.notifying?'LIVE':'SUB'}</button>}
+                                  {(ch.p.w||ch.p.wn)&&<div className="flex items-center gap-0.5 flex-1"><input type="text" placeholder="FF 01" value={wV} onChange={e=>setWIn(iv=>({...iv,[ck]:e.target.value}))} className="flex-1 rounded px-1.5 py-0.5 text-[9px] font-mono text-[var(--text-primary)] outline-none min-w-0" style={{background:'rgba(0,0,0,0.3)',border:`1px solid ${wOk?'transparent':'rgba(255,61,61,0.3)'}`}}/><button onClick={async()=>{if(!ch.char||!wV||!validHex(wV))return;try{await writeSafe(ch.char,parseHex(wV),ch.p.w);log('WRITE',dev.name,`${ch.name} ← ${wV}`);setWIn(iv=>({...iv,[ck]:''}));}catch{log('ERROR',dev.name,`Write: ${ch.name}`);}}} disabled={!wV||!wOk} className="p-0.5 rounded shrink-0 disabled:opacity-30" style={{color:'#FFB800'}}><Send className="w-2 h-2"/></button></div>}
                                 </div>
                               </div>);})}</div></motion.div>)}</AnimatePresence>
                           </div>))}
@@ -487,25 +487,25 @@ export default function WorldRemote({onClose,onPlaceOnMap}:{onClose?:()=>void,on
                 {/* Network Recon */}
                 <div className="rounded-xl overflow-hidden" style={{background:'rgba(255,255,255,0.015)',border:'1px solid rgba(255,255,255,0.04)'}}>
                   <div className="px-3 py-2 flex items-center justify-between" style={{borderBottom:'1px solid rgba(255,255,255,0.03)'}}>
-                    <div className="flex items-center gap-1.5"><Globe className="w-3 h-3 text-[#80DEEA]"/><span className="text-[10px] font-mono font-bold tracking-[0.12em] text-[var(--text-primary)]">NETWORK RECON</span></div>
-                    <motion.button whileTap={{scale:0.95}} onClick={runNetRecon} disabled={netLoading} className="px-2 py-0.5 rounded text-[10px] font-mono font-bold tracking-wider disabled:opacity-30" style={{background:'rgba(128,222,234,0.06)',color:'#80DEEA',border:'1px solid rgba(128,222,234,0.08)'}}>{netLoading?'...':'PROBE'}</motion.button>
+                    <div className="flex items-center gap-1.5"><Globe className="w-3 h-3 text-[#80DEEA]"/><span className="text-[9px] font-mono font-bold tracking-[0.12em] text-[var(--text-primary)]">NETWORK RECON</span></div>
+                    <motion.button whileTap={{scale:0.95}} onClick={runNetRecon} disabled={netLoading} className="px-2 py-0.5 rounded text-[9px] font-mono font-bold tracking-wider disabled:opacity-30" style={{background:'rgba(128,222,234,0.06)',color:'#80DEEA',border:'1px solid rgba(128,222,234,0.08)'}}>{netLoading?'...':'PROBE'}</motion.button>
                   </div>
-                  {!netIntel&&<div className="px-3 py-4 text-center"><span className="text-[10px] font-mono text-[var(--text-muted)] opacity-30">Tap PROBE to scan local network</span></div>}
+                  {!netIntel&&<div className="px-3 py-4 text-center"><span className="text-[9px] font-mono text-[var(--text-muted)] opacity-30">Tap PROBE to scan local network</span></div>}
                   {netIntel&&<div className="p-2.5 space-y-2">
-                    {netIntel.localIPs.length>0&&<div><div className="text-[10px] font-mono text-[var(--text-muted)] tracking-wider mb-1 font-bold">LOCAL IPs</div>{netIntel.localIPs.map((ip,i)=><div key={i} className="text-[11px] font-mono text-[#80DEEA] pl-2">{ip}</div>)}</div>}
-                    {netIntel.type&&<div className="flex gap-3">{[{l:'TYPE',v:netIntel.type},{l:'DOWN',v:netIntel.downlink!=null?`${netIntel.downlink}Mbps`:undefined},{l:'RTT',v:netIntel.rtt!=null?`${netIntel.rtt}ms`:undefined}].filter(x=>x.v).map(x=><div key={x.l}><div className="text-[10px] font-mono text-[var(--text-muted)] tracking-wider">{x.l}</div><div className="text-[11px] font-mono text-[var(--text-primary)] font-bold">{x.v}</div></div>)}</div>}
-                    {netIntel.openPorts.length>0&&<div><div className="text-[10px] font-mono text-[var(--text-muted)] tracking-wider mb-1 font-bold">OPEN PORTS</div>{netIntel.openPorts.map((p,i)=><div key={i} className="flex items-center gap-2 pl-2 py-0.5"><span className="text-[10px] font-mono font-bold text-[var(--alert-green)]">:{p.port}</span><span className="text-[10px] font-mono text-[var(--text-muted)]">{p.service}</span></div>)}</div>}
+                    {netIntel.localIPs.length>0&&<div><div className="text-[9px] font-mono text-[var(--text-muted)] tracking-wider mb-1 font-bold">LOCAL IPs</div>{netIntel.localIPs.map((ip,i)=><div key={i} className="text-[10px] font-mono text-[#80DEEA] pl-2">{ip}</div>)}</div>}
+                    {netIntel.type&&<div className="flex gap-3">{[{l:'TYPE',v:netIntel.type},{l:'DOWN',v:netIntel.downlink!=null?`${netIntel.downlink}Mbps`:undefined},{l:'RTT',v:netIntel.rtt!=null?`${netIntel.rtt}ms`:undefined}].filter(x=>x.v).map(x=><div key={x.l}><div className="text-[9px] font-mono text-[var(--text-muted)] tracking-wider">{x.l}</div><div className="text-[10px] font-mono text-[var(--text-primary)] font-bold">{x.v}</div></div>)}</div>}
+                    {netIntel.openPorts.length>0&&<div><div className="text-[9px] font-mono text-[var(--text-muted)] tracking-wider mb-1 font-bold">OPEN PORTS</div>{netIntel.openPorts.map((p,i)=><div key={i} className="flex items-center gap-2 pl-2 py-0.5"><span className="text-[9px] font-mono font-bold text-[var(--alert-green)]">:{p.port}</span><span className="text-[9px] font-mono text-[var(--text-muted)]">{p.service}</span></div>)}</div>}
                   </div>}
                 </div>
                 {/* Export */}
                 <div className="rounded-xl overflow-hidden" style={{background:'rgba(255,255,255,0.015)',border:'1px solid rgba(255,255,255,0.04)'}}>
-                  <div className="px-3 py-2 flex items-center gap-1.5" style={{borderBottom:'1px solid rgba(255,255,255,0.03)'}}><Database className="w-3 h-3 text-[#FFB800]"/><span className="text-[10px] font-mono font-bold tracking-[0.12em] text-[var(--text-primary)]">VAULT & EXPORT</span></div>
+                  <div className="px-3 py-2 flex items-center gap-1.5" style={{borderBottom:'1px solid rgba(255,255,255,0.03)'}}><Database className="w-3 h-3 text-[#FFB800]"/><span className="text-[9px] font-mono font-bold tracking-[0.12em] text-[var(--text-primary)]">VAULT & EXPORT</span></div>
                   <div className="p-2.5 space-y-1.5">
-                    <div className="text-[10px] font-mono text-[var(--text-muted)]">{vaultCount} device{vaultCount!==1?'s':''} · {bytes>1024?`${(bytes/1024).toFixed(1)}KB`:`${bytes}B`}</div>
+                    <div className="text-[9px] font-mono text-[var(--text-muted)]">{vaultCount} device{vaultCount!==1?'s':''} · {bytes>1024?`${(bytes/1024).toFixed(1)}KB`:`${bytes}B`}</div>
                     <div className="flex gap-1.5">
-                      <motion.button whileTap={{scale:0.95}} onClick={exportJSON} disabled={devices.length===0} className="flex-1 py-1.5 rounded-lg text-[10px] font-mono font-bold tracking-wider flex items-center justify-center gap-1 disabled:opacity-30" style={{background:'rgba(255,184,0,0.06)',color:'#FFB800',border:'1px solid rgba(255,184,0,0.08)'}}><Download className="w-2.5 h-2.5"/>JSON</motion.button>
-                      <motion.button whileTap={{scale:0.95}} onClick={exportCSV} disabled={devices.length===0} className="flex-1 py-1.5 rounded-lg text-[10px] font-mono font-bold tracking-wider flex items-center justify-center gap-1 disabled:opacity-30" style={{background:'rgba(0,255,136,0.06)',color:'#00FF88',border:'1px solid rgba(0,255,136,0.08)'}}><Download className="w-2.5 h-2.5"/>CSV</motion.button>
-                      <motion.button whileTap={{scale:0.95}} onClick={async()=>{await vaultClear();setVaultCount(0);log('INFO','VAULT','Vault cleared');}} className="py-1.5 px-2.5 rounded-lg text-[10px] font-mono font-bold flex items-center gap-1" style={{background:'rgba(255,61,61,0.04)',color:'#FF6B6B',border:'1px solid rgba(255,61,61,0.06)'}}><Trash2 className="w-2.5 h-2.5"/>WIPE</motion.button>
+                      <motion.button whileTap={{scale:0.95}} onClick={exportJSON} disabled={devices.length===0} className="flex-1 py-1.5 rounded-lg text-[9px] font-mono font-bold tracking-wider flex items-center justify-center gap-1 disabled:opacity-30" style={{background:'rgba(255,184,0,0.06)',color:'#FFB800',border:'1px solid rgba(255,184,0,0.08)'}}><Download className="w-2.5 h-2.5"/>JSON</motion.button>
+                      <motion.button whileTap={{scale:0.95}} onClick={exportCSV} disabled={devices.length===0} className="flex-1 py-1.5 rounded-lg text-[9px] font-mono font-bold tracking-wider flex items-center justify-center gap-1 disabled:opacity-30" style={{background:'rgba(0,255,136,0.06)',color:'#00FF88',border:'1px solid rgba(0,255,136,0.08)'}}><Download className="w-2.5 h-2.5"/>CSV</motion.button>
+                      <motion.button whileTap={{scale:0.95}} onClick={async()=>{await vaultClear();setVaultCount(0);log('INFO','VAULT','Vault cleared');}} className="py-1.5 px-2.5 rounded-lg text-[9px] font-mono font-bold flex items-center gap-1" style={{background:'rgba(255,61,61,0.04)',color:'#FF6B6B',border:'1px solid rgba(255,61,61,0.06)'}}><Trash2 className="w-2.5 h-2.5"/>WIPE</motion.button>
                     </div>
                   </div>
                 </div>
@@ -516,14 +516,14 @@ export default function WorldRemote({onClose,onPlaceOnMap}:{onClose?:()=>void,on
             {view==='log'&&(
               <div className="flex-1 flex flex-col overflow-hidden">
                 <div className="flex items-center justify-between px-3 py-1 shrink-0" style={{background:'rgba(0,0,0,0.3)',borderBottom:'1px solid rgba(255,255,255,0.03)'}}>
-                  <span className="text-[10px] font-mono text-[var(--text-muted)] tracking-wider">{pkts.length} pkts · {bytes>1024?`${(bytes/1024).toFixed(1)}KB`:`${bytes}B`}</span>
+                  <span className="text-[9px] font-mono text-[var(--text-muted)] tracking-wider">{pkts.length} pkts · {bytes>1024?`${(bytes/1024).toFixed(1)}KB`:`${bytes}B`}</span>
                   <div className="flex items-center gap-1.5">
-                    <button onClick={()=>setPaused(!paused)} className={`text-[10px] font-mono tracking-wider px-1 py-0.5 rounded flex items-center gap-0.5 ${paused?'text-[#FFB800]':'text-[var(--text-muted)]'}`}>{paused?<><Pause className="w-2 h-2"/>PAUSE</>:<><Play className="w-2 h-2"/>LIVE</>}</button>
-                    <button onClick={()=>{setPkts([]);setBytes(0);pid.current=0;}} className="text-[10px] font-mono text-[var(--text-muted)] tracking-wider px-1 py-0.5 rounded hover:bg-white/5 flex items-center gap-0.5"><Trash2 className="w-2 h-2"/>CLR</button>
+                    <button onClick={()=>setPaused(!paused)} className={`text-[9px] font-mono tracking-wider px-1 py-0.5 rounded flex items-center gap-0.5 ${paused?'text-[#FFB800]':'text-[var(--text-muted)]'}`}>{paused?<><Pause className="w-2 h-2"/>PAUSE</>:<><Play className="w-2 h-2"/>LIVE</>}</button>
+                    <button onClick={()=>{setPkts([]);setBytes(0);pid.current=0;}} className="text-[9px] font-mono text-[var(--text-muted)] tracking-wider px-1 py-0.5 rounded hover:bg-white/5 flex items-center gap-0.5"><Trash2 className="w-2 h-2"/>CLR</button>
                   </div>
                 </div>
                 <div ref={logEl} className="flex-1 overflow-y-auto styled-scrollbar font-mono" style={{background:'#020406'}}>
-                  {pkts.length===0?<div className="flex items-center justify-center h-full opacity-15"><span className="text-[10px] font-mono text-[var(--text-muted)] tracking-wider">Scan to see packets...</span></div>
+                  {pkts.length===0?<div className="flex items-center justify-center h-full opacity-15"><span className="text-[9px] font-mono text-[var(--text-muted)] tracking-wider">Scan to see packets...</span></div>
                   :<div className="py-0.5">{pkts.map(p=>{const oc=OP_CLR[p.op]||'#90A4AE';return(<div key={p.id} className="px-2 py-[2px] flex items-start hover:bg-white/[0.015] border-b border-white/[0.01] group" style={{fontSize:10,lineHeight:'16px'}}><span className="text-white/8 shrink-0 w-[24px] tabular-nums text-right pr-1.5">{p.id}</span><span className="text-[var(--text-muted)]/30 shrink-0 w-[58px] tabular-nums">{fts(p.ts)}</span><span className="shrink-0 font-bold tracking-wider w-[44px]" style={{color:oc}}>{p.op}</span><span className="text-[var(--cyan-primary)]/40 shrink-0 truncate w-[55px]">{p.src}</span><span className="text-[var(--text-secondary)] flex-1 truncate">{p.msg}</span>{p.len!=null&&<span className="text-[var(--text-muted)]/12 ml-1 shrink-0 tabular-nums">{p.len}B</span>}</div>);})}</div>}
                 </div>
               </div>
@@ -532,8 +532,8 @@ export default function WorldRemote({onClose,onPlaceOnMap}:{onClose?:()=>void,on
 
           {/* Footer */}
           <div className="flex items-center justify-between px-3 py-1.5 shrink-0" style={{borderTop:'1px solid rgba(255,255,255,0.03)',background:'rgba(0,0,0,0.2)'}}>
-            <div className="flex items-center gap-1.5"><div className={`w-1.5 h-1.5 rounded-full ${btOk?'bg-[var(--alert-green)]':'bg-[#FF3D3D]'} ${scanning?'animate-pulse':''}`}/><span className="text-[10px] font-mono text-[var(--text-muted)] tracking-wider">{scanning?'SCANNING':liveCount>0?`${liveCount} LIVE`:'STANDBY'} · {upStr}</span></div>
-            <span className="text-[10px] font-mono text-[var(--text-muted)]/15 tracking-[0.2em]">MARAUDER V8</span>
+            <div className="flex items-center gap-1.5"><div className={`w-1.5 h-1.5 rounded-full ${btOk?'bg-[var(--alert-green)]':'bg-[#FF3D3D]'} ${scanning?'animate-pulse':''}`}/><span className="text-[9px] font-mono text-[var(--text-muted)] tracking-wider">{scanning?'SCANNING':liveCount>0?`${liveCount} LIVE`:'STANDBY'} · {upStr}</span></div>
+            <span className="text-[9px] font-mono text-[var(--text-muted)]/15 tracking-[0.2em]">MARAUDER V8</span>
           </div>
         </motion.div>
       )}</AnimatePresence>

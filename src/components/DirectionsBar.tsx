@@ -346,7 +346,7 @@ function PlaceInput({
         }}
         placeholder={placeholder}
         aria-label={placeholder}
-        className="w-full bg-transparent py-2 pr-6 text-[13px] text-[var(--text-primary)] outline-none
+        className="w-full bg-transparent py-2 pr-6 text-[12px] text-[var(--text-primary)] outline-none
                    placeholder:text-[var(--text-muted)] focus:placeholder:text-[var(--text-secondary)]
                    border-b border-transparent focus:border-[var(--border-active)] transition-colors"
         autoComplete="off"
@@ -385,8 +385,8 @@ function PlaceInput({
             >
               <KindIcon kind="current" />
               <span className="min-w-0">
-                <span className="block text-[12px] text-[var(--alert-green)]">Your location</span>
-                <span className="block text-[11px] text-[var(--text-muted)]">Live position</span>
+                <span className="block text-[11px] text-[var(--alert-green)]">Your location</span>
+                <span className="block text-[10px] text-[var(--text-muted)]">Live position</span>
               </span>
             </button>
           )}
@@ -401,11 +401,11 @@ function PlaceInput({
             >
               <KindIcon kind={r.kind} />
               <span className="min-w-0">
-                <span className={`block text-[12px] text-[var(--text-primary)] truncate ${r.kind === 'coordinate' ? 'tabular-nums' : ''}`}>
+                <span className={`block text-[11px] text-[var(--text-primary)] truncate ${r.kind === 'coordinate' ? 'tabular-nums' : ''}`}>
                   {r.label}
                 </span>
                 {r.context && (
-                  <span className="block text-[11px] text-[var(--text-muted)] truncate">{r.context}</span>
+                  <span className="block text-[10px] text-[var(--text-muted)] truncate">{r.context}</span>
                 )}
               </span>
             </button>
@@ -629,9 +629,9 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
       {/* ── header ── */}
       <header className="flex items-center gap-2 px-3 h-9 border-b border-[var(--border-secondary)] flex-shrink-0">
         <Route className="w-3.5 h-3.5 text-[var(--gold-primary)]" />
-        <h2 className="text-[12px] tracking-[0.18em] text-[var(--text-secondary)] uppercase flex-1">Route</h2>
+        <h2 className="text-[11px] tracking-[0.18em] text-[var(--text-secondary)] uppercase flex-1">Route</h2>
         {route && (
-          <span className="text-[11px] text-[var(--text-muted)] tabular-nums">
+          <span className="text-[10px] text-[var(--text-muted)] tabular-nums">
             {route.steps.length} steps
           </span>
         )}
@@ -749,7 +749,7 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
                 role="tab"
                 aria-selected={on}
                 onClick={() => pickMode(id)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-[6px] text-[12px] transition-all ${
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-[6px] text-[11px] transition-all ${
                   on
                     ? 'bg-[rgba(var(--gold-rgb),0.14)] text-[var(--gold-primary)] shadow-[inset_0_0_0_1px_rgba(var(--gold-rgb),0.25)]'
                     : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
@@ -793,7 +793,7 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
               key={k}
               onClick={() => toggleAvoid(k)}
               aria-pressed={avoid[k]}
-              className={`flex-1 py-1.5 rounded-md border text-[11px] capitalize transition-all ${
+              className={`flex-1 py-1.5 rounded-md border text-[10px] capitalize transition-all ${
                 avoid[k]
                   ? 'border-[var(--border-active)] bg-[rgba(var(--gold-rgb),0.12)] text-[var(--gold-primary)]'
                   : 'border-[var(--border-secondary)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
@@ -823,20 +823,20 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
         )}
 
         {!loading && !error && locateError && (
-          <p className="px-3 pt-2 text-[11px] text-[var(--gold-primary)]">{locateError}</p>
+          <p className="px-3 pt-2 text-[10px] text-[var(--gold-primary)]">{locateError}</p>
         )}
 
         {!loading && error && (
           <div className="px-3 py-4 text-center">
-            <p className="text-[12px] text-[var(--alert-red)]">{error}</p>
-            <p className="text-[11px] text-[var(--text-muted)] mt-1">
+            <p className="text-[11px] text-[var(--alert-red)]">{error}</p>
+            <p className="text-[10px] text-[var(--text-muted)] mt-1">
               Try a different point, or switch travel mode.
             </p>
           </div>
         )}
 
         {!loading && !error && !route && (
-          <p className="px-3 py-4 text-[12px] text-[var(--text-muted)] leading-relaxed">
+          <p className="px-3 py-4 text-[11px] text-[var(--text-muted)] leading-relaxed">
             {ready
               ? 'Calculating…'
               : 'Enter a start and destination. Place names, addresses and lat,lng all work.'}
@@ -849,14 +849,14 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
               <div className="px-3 py-2.5 border-b border-[var(--border-secondary)] bg-[rgba(66,133,244,0.07)]">
                 <div className="flex items-center gap-1.5 mb-1.5">
                   <Navigation className="w-2.5 h-2.5 text-[#4285F4]" />
-                  <span className="text-[10px] uppercase tracking-[0.15em] text-[#4285F4]">Next turn</span>
+                  <span className="text-[9px] uppercase tracking-[0.15em] text-[#4285F4]">Next turn</span>
                 </div>
                 <div className="flex items-start gap-2.5">
                   <span className="mt-0.5 flex-shrink-0"><StepIcon type={guidance.step.type} /></span>
-                  <span className="flex-1 min-w-0 text-[13px] text-[var(--text-primary)] leading-snug">
+                  <span className="flex-1 min-w-0 text-[12px] text-[var(--text-primary)] leading-snug">
                     {guidance.step.instruction}
                   </span>
-                  <span className="text-[13px] text-[var(--gold-primary)] tabular-nums flex-shrink-0">
+                  <span className="text-[12px] text-[var(--gold-primary)] tabular-nums flex-shrink-0">
                     {formatDistance(guidance.distance)}
                   </span>
                 </div>
@@ -872,14 +872,14 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
                     {formatDuration(route.duration)}
                   </div>
                   {via && (
-                    <div className="text-[11px] text-[var(--text-muted)] truncate mt-1">via {via}</div>
+                    <div className="text-[10px] text-[var(--text-muted)] truncate mt-1">via {via}</div>
                   )}
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <div className="text-[13px] text-[var(--text-secondary)] tabular-nums">
+                  <div className="text-[12px] text-[var(--text-secondary)] tabular-nums">
                     {formatDistance(route.distance)}
                   </div>
-                  <div className="flex items-center gap-1 justify-end text-[11px] text-[var(--text-muted)] tabular-nums mt-1">
+                  <div className="flex items-center gap-1 justify-end text-[10px] text-[var(--text-muted)] tabular-nums mt-1">
                     <Clock className="w-2.5 h-2.5" />
                     {arrivalTime(route.duration)}
                   </div>
@@ -888,19 +888,19 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
 
               {(route.hasToll || route.hasHighway || route.hasFerry) && (
                 <div className="flex gap-1.5 mt-2">
-                  {route.hasToll && <span className="px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border border-[var(--border-secondary)] text-[var(--alert-orange)]">Toll</span>}
-                  {route.hasHighway && <span className="px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border border-[var(--border-secondary)] text-[var(--text-muted)]">Motorway</span>}
-                  {route.hasFerry && <span className="px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border border-[var(--border-secondary)] text-[var(--cyan-primary)]">Ferry</span>}
+                  {route.hasToll && <span className="px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider border border-[var(--border-secondary)] text-[var(--alert-orange)]">Toll</span>}
+                  {route.hasHighway && <span className="px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider border border-[var(--border-secondary)] text-[var(--text-muted)]">Motorway</span>}
+                  {route.hasFerry && <span className="px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider border border-[var(--border-secondary)] text-[var(--cyan-primary)]">Ferry</span>}
                 </div>
               )}
 
               {route.elevation && route.elevation.length > 1 && (
                 <div className="mt-2.5">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="flex items-center gap-1 text-[10px] uppercase tracking-[0.15em] text-[var(--text-muted)]">
+                    <span className="flex items-center gap-1 text-[9px] uppercase tracking-[0.15em] text-[var(--text-muted)]">
                       <Mountain className="w-2.5 h-2.5" /> Elevation
                     </span>
-                    <span className="text-[11px] text-[var(--text-secondary)] tabular-nums">
+                    <span className="text-[10px] text-[var(--text-secondary)] tabular-nums">
                       ↑{route.ascent ?? 0} m · ↓{route.descent ?? 0} m
                     </span>
                   </div>
@@ -923,7 +923,7 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
                   onClick={() => onStartNavigation(route, to?.label || 'your destination')}
                   className="w-full mt-2.5 flex items-center justify-center gap-2 py-2 rounded-lg
                              bg-[rgba(66,133,244,0.16)] border border-[rgba(66,133,244,0.45)]
-                             text-[#7BAAF7] text-[13px] tracking-wide
+                             text-[#7BAAF7] text-[12px] tracking-wide
                              hover:bg-[rgba(66,133,244,0.24)] transition-colors"
                 >
                   <Play className="w-3.5 h-3.5" />
@@ -953,14 +953,14 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
                             });
                           }
                         }}
-                        className={`flex-1 px-2 py-2 rounded-md border text-[11px] transition-all ${
+                        className={`flex-1 px-2 py-2 rounded-md border text-[10px] transition-all ${
                           on
                             ? 'border-[var(--border-active)] bg-[rgba(var(--gold-rgb),0.12)] text-[var(--gold-primary)]'
                             : 'border-[var(--border-secondary)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
                         }`}
                       >
                         <span className="block tabular-nums">{formatDuration(r.duration)}</span>
-                        <span className="block text-[10px] opacity-70 tabular-nums">
+                        <span className="block text-[9px] opacity-70 tabular-nums">
                           {i === 0 ? 'Fastest' : slower > 0 ? `+${slower} min` : formatDistance(r.distance)}
                         </span>
                       </button>
@@ -989,11 +989,11 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
                     }`}
                   >
                     <span className="mt-px flex-shrink-0"><StepIcon type={s.type} /></span>
-                    <span className="flex-1 min-w-0 text-[12px] text-[var(--text-primary)] leading-snug">
+                    <span className="flex-1 min-w-0 text-[11px] text-[var(--text-primary)] leading-snug">
                       {s.instruction}
                     </span>
                     {s.distance > 0 && (
-                      <span className="text-[11px] text-[var(--text-muted)] tabular-nums flex-shrink-0 mt-px w-12 text-right">
+                      <span className="text-[10px] text-[var(--text-muted)] tabular-nums flex-shrink-0 mt-px w-12 text-right">
                         {formatDistance(s.distance)}
                       </span>
                     )}
@@ -1002,7 +1002,7 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
               ))}
             </ol>
 
-            <p className="px-3 py-2 text-[10px] text-[var(--text-muted)] tracking-wider uppercase border-t border-[var(--border-secondary)]">
+            <p className="px-3 py-2 text-[9px] text-[var(--text-muted)] tracking-wider uppercase border-t border-[var(--border-secondary)]">
               Routing via {route.provider} · OpenStreetMap
             </p>
           </>

@@ -61,10 +61,10 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
       >
         <div className="flex items-center gap-2">
           <Newspaper className="w-3.5 h-3.5 text-[var(--gold-primary)]" />
-          <span className="hud-text text-[12px] text-[var(--text-primary)]">SIGINT FEED</span>
-          <span className="gotham-tag gotham-tag--info" style={{ fontSize: '10px', padding: '1px 5px' }}>{news.length}</span>
+          <span className="hud-text text-[11px] text-[var(--text-primary)]">SIGINT FEED</span>
+          <span className="gotham-tag gotham-tag--info" style={{ fontSize: '9px', padding: '1px 5px' }}>{news.length}</span>
           {news.some((n: any) => n.risk_score >= 8) && (
-            <span className="gotham-tag gotham-tag--critical" style={{ fontSize: '10px', padding: '1px 4px' }}>ALERTS</span>
+            <span className="gotham-tag gotham-tag--critical" style={{ fontSize: '9px', padding: '1px 4px' }}>ALERTS</span>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -85,7 +85,7 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
             <div className="max-h-[400px] overflow-y-auto styled-scrollbar divide-y divide-[var(--border-secondary)]">
               {news.length === 0 ? (
                 <div className="px-4 py-6 text-center">
-                  <span className="text-[11px] font-mono text-[var(--text-muted)] tracking-widest">
+                  <span className="text-[10px] font-mono text-[var(--text-muted)] tracking-widest">
                     AWAITING INTELLIGENCE...
                   </span>
                 </div>
@@ -101,10 +101,10 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
                   >
                     {/* Top row: risk badge + source + time */}
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-[11px] font-mono font-bold tracking-widest ${getRiskClass(item.risk_score)}`}>
+                      <span className={`text-[10px] font-mono font-bold tracking-widest ${getRiskClass(item.risk_score)}`}>
                         {getRiskLabel(item.risk_score)}
                       </span>
-                      <span className="text-[10px] font-mono text-[var(--text-muted)] bg-[var(--bg-tertiary)] px-1.5 py-0.5 rounded">
+                      <span className="text-[9px] font-mono text-[var(--text-muted)] bg-[var(--bg-tertiary)] px-1.5 py-0.5 rounded">
                         {item.source}
                       </span>
                       {item.coords && (
@@ -118,13 +118,13 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
                           <MapPin className="w-2.5 h-2.5" />
                         </button>
                       )}
-                      <span className="text-[10px] font-mono text-[var(--text-muted)] ml-auto">
+                      <span className="text-[9px] font-mono text-[var(--text-muted)] ml-auto">
                         {timeAgo(item.published)}
                       </span>
                     </div>
 
                     {/* Title */}
-                    <h4 className="text-[11px] text-[var(--text-primary)] leading-tight line-clamp-2">
+                    <h4 className="text-[10px] text-[var(--text-primary)] leading-tight line-clamp-2">
                       {item.title}
                     </h4>
 
@@ -132,7 +132,7 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
                     {item.machine_assessment && (
                       <div className="mt-1.5 flex items-start gap-1.5 bg-red-950/20 border border-red-900/20 rounded px-2 py-1">
                         <Zap className="w-2.5 h-2.5 text-red-400 flex-shrink-0 mt-0.5" />
-                        <span className="text-[11px] font-mono text-red-400/80 leading-relaxed">
+                        <span className="text-[10px] font-mono text-red-400/80 leading-relaxed">
                           {item.machine_assessment}
                         </span>
                       </div>
@@ -151,7 +151,7 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
                             href={item.link}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-[12px] font-mono text-[var(--cyan-primary)] hover:underline"
+                            className="flex items-center gap-1 text-[11px] font-mono text-[var(--cyan-primary)] hover:underline"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <ExternalLink className="w-2.5 h-2.5" />

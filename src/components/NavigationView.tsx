@@ -182,7 +182,7 @@ export default function NavigationView({
                 {navDistance(progress.distanceToStep)}
               </div>
             )}
-            <div className={`text-[12px] leading-snug ${arrived ? 'text-[var(--alert-green)]' : 'text-[var(--text-primary)]'}`}>
+            <div className={`text-[11px] leading-snug ${arrived ? 'text-[var(--alert-green)]' : 'text-[var(--text-primary)]'}`}>
               {arrived ? `You have arrived at ${destinationLabel}` : step?.instruction ?? 'Starting…'}
             </div>
           </div>
@@ -230,24 +230,24 @@ export default function NavigationView({
         {/* ── trip status ── */}
         <div className="px-4 py-2.5 flex items-center justify-between gap-3">
           {rerouting ? (
-            <span className="flex items-center gap-2 text-[12px] text-[var(--alert-orange)]">
+            <span className="flex items-center gap-2 text-[11px] text-[var(--alert-orange)]">
               <Loader2 className="w-3 h-3 animate-spin" /> Recalculating route…
             </span>
           ) : progress?.offRoute ? (
-            <span className="flex items-center gap-2 text-[12px] text-[var(--alert-orange)]">
+            <span className="flex items-center gap-2 text-[11px] text-[var(--alert-orange)]">
               <AlertTriangle className="w-3 h-3" /> Off route
             </span>
           ) : (
-            <span className="text-[12px] text-[var(--text-muted)] truncate">
+            <span className="text-[11px] text-[var(--text-muted)] truncate">
               to {destinationLabel}
             </span>
           )}
 
           {progress && !arrived && (
             <span className="flex items-baseline gap-2.5 flex-shrink-0 tabular-nums">
-              <span className="text-[13px] text-[var(--text-primary)]">{navDuration(progress.durationRemaining)}</span>
-              <span className="text-[12px] text-[var(--text-secondary)]">{navDistance(progress.distanceRemaining)}</span>
-              <span className="text-[12px] text-[var(--text-muted)]">
+              <span className="text-[12px] text-[var(--text-primary)]">{navDuration(progress.durationRemaining)}</span>
+              <span className="text-[11px] text-[var(--text-secondary)]">{navDistance(progress.distanceRemaining)}</span>
+              <span className="text-[11px] text-[var(--text-muted)]">
                 {new Date(now + progress.durationRemaining * 1000)
                   .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
@@ -259,16 +259,16 @@ export default function NavigationView({
       {/* ── the turn after this one ── */}
       {progress && !arrived && route.steps[progress.stepIndex + 1] && (
         <div className="glass-panel px-4 py-2 flex items-center gap-3">
-          <span className="text-[10px] uppercase tracking-[0.15em] text-[var(--text-muted)] flex-shrink-0">Then</span>
+          <span className="text-[9px] uppercase tracking-[0.15em] text-[var(--text-muted)] flex-shrink-0">Then</span>
           <ManeuverIcon type={route.steps[progress.stepIndex + 1].type} className="w-4 h-4" />
-          <span className="text-[12px] text-[var(--text-secondary)] truncate">
+          <span className="text-[11px] text-[var(--text-secondary)] truncate">
             {route.steps[progress.stepIndex + 1].instruction}
           </span>
         </div>
       )}
 
       {!fix && (
-        <div className="glass-panel px-4 py-2 text-[12px] text-[var(--alert-orange)]">
+        <div className="glass-panel px-4 py-2 text-[11px] text-[var(--alert-orange)]">
           Waiting for a position fix… navigation needs HTTPS or localhost.
         </div>
       )}

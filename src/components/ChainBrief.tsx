@@ -31,9 +31,9 @@ function Head({ title, icon: Icon, color, right }: { title: string; icon: any; c
   return (
     <div className="flex items-center gap-2 mt-3 mb-1.5 first:mt-0">
       <Icon className="w-3.5 h-3.5" style={{ color }} />
-      <span className="text-[12px] font-mono font-bold tracking-widest" style={{ color }}>{title}</span>
+      <span className="text-[11px] font-mono font-bold tracking-widest" style={{ color }}>{title}</span>
       <div className="flex-1 h-px" style={{ background: `${color}30` }} />
-      {right && <span className="text-[11px] font-mono text-[var(--text-muted)]">{right}</span>}
+      {right && <span className="text-[10px] font-mono text-[var(--text-muted)]">{right}</span>}
     </div>
   );
 }
@@ -102,12 +102,12 @@ function ChainBriefInner() {
     <div>
       {/* window selector */}
       <div className="flex items-center gap-1 mb-2">
-        <span className="text-[11px] font-mono text-[var(--text-muted)] mr-1">WINDOW</span>
+        <span className="text-[10px] font-mono text-[var(--text-muted)] mr-1">WINDOW</span>
         {[7, 30, 90].map(d => (
           <button
             key={d}
             onClick={() => setDays(d)}
-            className="px-1.5 py-0.5 rounded text-[11px] font-mono transition-colors"
+            className="px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors"
             style={{
               color: days === d ? ACCENT : 'var(--text-muted)',
               background: days === d ? `${ACCENT}1a` : 'transparent',
@@ -119,7 +119,7 @@ function ChainBriefInner() {
         ))}
         <button
           onClick={() => load(days, true)}
-          className="ml-auto text-[10px] font-mono text-[var(--text-muted)] hover:text-white/70 transition-colors"
+          className="ml-auto text-[9px] font-mono text-[var(--text-muted)] hover:text-white/70 transition-colors"
           title="Refresh now"
         >
           {lastRefresh ? lastRefresh.toLocaleTimeString() : 'refresh'}
@@ -129,10 +129,10 @@ function ChainBriefInner() {
       {loading && !brief && (
         <div className="flex items-center gap-2 py-6 justify-center">
           <Loader2 className="w-4 h-4 animate-spin" style={{ color: ACCENT }} />
-          <span className="text-[12px] font-mono text-[var(--text-muted)]">Building brief…</span>
+          <span className="text-[11px] font-mono text-[var(--text-muted)]">Building brief…</span>
         </div>
       )}
-      {error && <div className="text-[12px] font-mono text-red-400 py-2">{error}</div>}
+      {error && <div className="text-[11px] font-mono text-red-400 py-2">{error}</div>}
 
       {brief && (
         <>
@@ -143,8 +143,8 @@ function ChainBriefInner() {
               { label: 'CVES', value: t?.cve_count ?? 0, color: '#E040FB' },
             ].map(c => (
               <div key={c.label} className="rounded border px-2 py-1.5" style={{ borderColor: `${c.color}33`, background: `${c.color}0d` }}>
-                <div className="text-[10px] font-mono text-[var(--text-muted)]">{c.label}</div>
-                <div className="text-[12px] font-mono font-bold" style={{ color: c.color }}>{c.value}</div>
+                <div className="text-[9px] font-mono text-[var(--text-muted)]">{c.label}</div>
+                <div className="text-[11px] font-mono font-bold" style={{ color: c.color }}>{c.value}</div>
               </div>
             ))}
           </div>
@@ -152,14 +152,14 @@ function ChainBriefInner() {
           <button
             onClick={runAi}
             disabled={aiLoading}
-            className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded text-[11px] font-mono font-bold tracking-wider transition-colors disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded text-[10px] font-mono font-bold tracking-wider transition-colors disabled:opacity-50"
             style={{ color: ACCENT, background: `${ACCENT}14`, border: `1px solid ${ACCENT}44` }}
           >
             {aiLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
             AI OVERVIEW
           </button>
           {ai && (
-            <div className="mt-1.5 px-2 py-1.5 rounded border text-[12px] font-mono leading-relaxed whitespace-pre-wrap"
+            <div className="mt-1.5 px-2 py-1.5 rounded border text-[11px] font-mono leading-relaxed whitespace-pre-wrap"
               style={{ borderColor: `${ACCENT}33`, background: `${ACCENT}0a`, color: 'var(--text-secondary)' }}>
               {ai}
             </div>
@@ -167,26 +167,26 @@ function ChainBriefInner() {
 
           <Head title="ON-CHAIN EXPLOITS" icon={Flame} color="#FF3D3D" right={`${brief.exploits.length} shown`} />
           {brief.exploits.length === 0 && (
-            <div className="text-[11px] font-mono text-[var(--text-muted)] py-1">None in window.</div>
+            <div className="text-[10px] font-mono text-[var(--text-muted)] py-1">None in window.</div>
           )}
           {brief.exploits.slice(0, 12).map((e: any, i: number) => (
             <div key={i} className="py-1.5 border-b border-[var(--border-secondary)]/20 last:border-0">
               <div className="flex items-center gap-2">
-                <span className="text-[12px] font-mono font-bold text-[#FF3D3D] flex-1 break-all">{e.name}</span>
-                <span className="text-[12px] font-mono font-bold text-[#FF9500]">{usd(e.amount_usd)}</span>
+                <span className="text-[11px] font-mono font-bold text-[#FF3D3D] flex-1 break-all">{e.name}</span>
+                <span className="text-[11px] font-mono font-bold text-[#FF9500]">{usd(e.amount_usd)}</span>
               </div>
-              <div className="flex items-center gap-2 text-[11px] font-mono text-[var(--text-muted)] mt-0.5">
+              <div className="flex items-center gap-2 text-[10px] font-mono text-[var(--text-muted)] mt-0.5">
                 <span>{String(e.date).slice(0, 10)}</span>
                 <span className="text-[var(--text-secondary)]">{e.chain}</span>
                 {e.bridge_hack && <span className="text-[#E040FB]">BRIDGE</span>}
               </div>
-              <div className="text-[11px] font-mono text-[var(--text-secondary)] leading-snug">{e.technique}</div>
+              <div className="text-[10px] font-mono text-[var(--text-secondary)] leading-snug">{e.technique}</div>
             </div>
           ))}
 
           <Head title="CRYPTO CVES" icon={Bug} color="#E040FB" right={`${brief.cves.length} shown`} />
           {brief.cves.length === 0 && (
-            <div className="text-[11px] font-mono text-[var(--text-muted)] py-1">None published in window.</div>
+            <div className="text-[10px] font-mono text-[var(--text-muted)] py-1">None published in window.</div>
           )}
           {brief.cves.slice(0, 10).map((c: any, i: number) => {
             const col = SEV_COLOR[String(c.severity || '').toLowerCase()] || '#9B978E';
@@ -194,13 +194,13 @@ function ChainBriefInner() {
               <div key={i} className="py-1.5 border-b border-[var(--border-secondary)]/20 last:border-0">
                 <div className="flex items-center gap-2">
                   <a href={c.url} target="_blank" rel="noopener noreferrer"
-                    className="text-[12px] font-mono font-bold hover:underline flex items-center gap-1" style={{ color: col }}>
+                    className="text-[11px] font-mono font-bold hover:underline flex items-center gap-1" style={{ color: col }}>
                     {c.id} <ExternalLink className="w-2.5 h-2.5" />
                   </a>
-                  {c.cvss != null && <span className="text-[11px] font-mono font-bold" style={{ color: col }}>CVSS {c.cvss}</span>}
-                  <span className="ml-auto text-[10px] font-mono text-[var(--text-muted)]">{String(c.published).slice(0, 10)}</span>
+                  {c.cvss != null && <span className="text-[10px] font-mono font-bold" style={{ color: col }}>CVSS {c.cvss}</span>}
+                  <span className="ml-auto text-[9px] font-mono text-[var(--text-muted)]">{String(c.published).slice(0, 10)}</span>
                 </div>
-                <div className="text-[11px] font-mono text-[var(--text-secondary)] leading-snug mt-0.5">
+                <div className="text-[10px] font-mono text-[var(--text-secondary)] leading-snug mt-0.5">
                   {String(c.description).slice(0, 180)}{c.description.length > 180 ? '…' : ''}
                 </div>
               </div>
@@ -209,7 +209,7 @@ function ChainBriefInner() {
 
           <Head title="OFAC DESIGNATED WALLETS" icon={ShieldAlert} color="#FFD700" right={`${t?.sanctioned_wallet_count ?? 0} total`} />
           {brief.sanctioned_wallets.slice(0, 10).map((w: any, i: number) => (
-            <div key={i} className="flex items-center gap-2 py-1 text-[11px] font-mono">
+            <div key={i} className="flex items-center gap-2 py-1 text-[10px] font-mono">
               <span className="w-[34px] font-bold text-[#FFD700]">{w.asset}</span>
               <span className="flex-1 break-all text-[var(--text-primary)]">{shortAddr(w.address)}</span>
               <span className="text-[var(--text-muted)]">{w.first_seen ? String(w.first_seen).slice(0, 10) : ''}</span>
@@ -218,14 +218,14 @@ function ChainBriefInner() {
 
           {brief.degraded?.length > 0 && (
             <div className="mt-3 px-2 py-1.5 rounded border border-white/10 bg-white/[0.03]">
-              <span className="text-[11px] font-mono text-[var(--text-muted)] block mb-0.5">DEGRADED SOURCES</span>
+              <span className="text-[10px] font-mono text-[var(--text-muted)] block mb-0.5">DEGRADED SOURCES</span>
               {brief.degraded.map((d: string, i: number) => (
-                <div key={i} className="text-[11px] font-mono text-[var(--text-secondary)] leading-snug">↳ {d}</div>
+                <div key={i} className="text-[10px] font-mono text-[var(--text-secondary)] leading-snug">↳ {d}</div>
               ))}
             </div>
           )}
 
-          <div className="mt-2 text-[10px] font-mono text-[var(--text-muted)]">
+          <div className="mt-2 text-[9px] font-mono text-[var(--text-muted)]">
             Sources: {(brief.sources || []).join(' · ')} · auto-refresh 15m
           </div>
         </>

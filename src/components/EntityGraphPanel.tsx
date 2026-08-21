@@ -237,7 +237,7 @@ function EntityGraphPanel({ entity, onClose }: Props) {
         <div className="flex items-center justify-between px-6 py-3 border-b border-[var(--border-primary)] bg-[var(--gold-primary)]/5 relative z-20">
           <div className="flex items-center gap-3">
             <div className="w-1.5 h-1.5 bg-[var(--gold-primary)] animate-osiris-pulse shadow-[0_0_8px_var(--gold-primary)]" />
-            <span className="text-[12px] font-mono font-bold tracking-[0.2em] text-[var(--gold-primary)]">[ OSIRIS // ENTITY INTEL ]</span>
+            <span className="text-[11px] font-mono font-bold tracking-[0.2em] text-[var(--gold-primary)]">[ OSIRIS // ENTITY INTEL ]</span>
             {loading && <Loader2 className="w-3.5 h-3.5 text-[var(--gold-primary)] animate-spin" />}
           </div>
           <div className="flex items-center gap-2">
@@ -255,7 +255,7 @@ function EntityGraphPanel({ entity, onClose }: Props) {
           <div className="px-6 py-2 border-b border-[var(--border-primary)] flex items-center gap-3 bg-black/20 relative z-20">
             {(() => { const I = TYPE_ICONS[entity.type] || Globe; return <I className="w-4 h-4" style={{ color: TYPE_COLORS[entity.type] }} />; })()}
             <span className="text-xs font-mono text-white/90 tracking-widest uppercase truncate">{entity.label || entity.id}</span>
-            <span className="text-[12px] font-mono text-[var(--gold-primary)]/70 ml-auto tracking-widest">{graphData.nodes.length} NODES // {graphData.links.length} LINKS</span>
+            <span className="text-[11px] font-mono text-[var(--gold-primary)]/70 ml-auto tracking-widest">{graphData.nodes.length} NODES // {graphData.links.length} LINKS</span>
           </div>
         ) : (
           <div className="px-6 py-3 border-b border-[var(--border-primary)] flex items-center gap-3 bg-black/20 relative z-20">
@@ -268,7 +268,7 @@ function EntityGraphPanel({ entity, onClose }: Props) {
         {error && (
           <div className="px-6 py-2 bg-[#FF1744]/10 border-b border-[#FF1744]/30 flex items-center gap-2 relative z-20 shadow-[inset_0_0_15px_rgba(255,23,68,0.2)]">
             <AlertTriangle className="w-3.5 h-3.5 text-[#FF1744]" />
-            <span className="text-[12px] font-mono font-bold tracking-widest text-[#FF1744] uppercase">[ ERR: {error} ]</span>
+            <span className="text-[11px] font-mono font-bold tracking-widest text-[#FF1744] uppercase">[ ERR: {error} ]</span>
           </div>
         )}
 
@@ -305,9 +305,9 @@ function EntityGraphPanel({ entity, onClose }: Props) {
                 <div className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 bg-[var(--gold-primary)] animate-osiris-pulse shadow-[0_0_8px_var(--gold-primary)]" />
                   {(() => { const I = TYPE_ICONS[selectedNode.type] || Globe; return <I className="w-4 h-4" style={{ color: TYPE_COLORS[selectedNode.type] }} />; })()}
-                  <span className="text-[13px] font-mono font-bold text-white tracking-[0.1em] uppercase">{selectedNode.label}</span>
+                  <span className="text-[12px] font-mono font-bold text-white tracking-[0.1em] uppercase">{selectedNode.label}</span>
                 </div>
-                <span className="text-[12px] font-mono font-bold px-2 py-0.5 border"
+                <span className="text-[11px] font-mono font-bold px-2 py-0.5 border"
                   style={{ color: TYPE_COLORS[selectedNode.type], borderColor: `${TYPE_COLORS[selectedNode.type]}80`, background: `${TYPE_COLORS[selectedNode.type]}15`, textShadow: `0 0 5px ${TYPE_COLORS[selectedNode.type]}` }}>
                   [{selectedNode.type.toUpperCase()}]
                 </span>
@@ -316,8 +316,8 @@ function EntityGraphPanel({ entity, onClose }: Props) {
                 <div className="grid grid-cols-2 gap-x-6 gap-y-2 mt-2">
                   {Object.entries(selectedNode.properties).map(([k, v], i) => (
                     <div key={`${selectedNode.id}-${k}`}>
-                      <span className="text-[11px] font-mono text-[var(--gold-primary)]/70 uppercase tracking-widest">{k.replace(/_/g, ' ')}</span>
-                      <div className="text-[11px] font-mono text-white/90 truncate flex items-center gap-1 mt-0.5">
+                      <span className="text-[10px] font-mono text-[var(--gold-primary)]/70 uppercase tracking-widest">{k.replace(/_/g, ' ')}</span>
+                      <div className="text-[10px] font-mono text-white/90 truncate flex items-center gap-1 mt-0.5">
                         <span className="w-1 h-1 bg-[var(--gold-primary)]/40 inline-block" />
                         <span className="typewriter" style={{ animationDelay: `${i * 0.1}s` }}>
                           {typeof v === 'boolean' ? (v ? 'YES' : 'NO') : String(v || '—')}
@@ -333,7 +333,7 @@ function EntityGraphPanel({ entity, onClose }: Props) {
                   expandEntity(selectedNode.type, rawId);
                 }} className="btn-tactical w-full mt-4 flex items-center justify-center gap-2" disabled={loading}>
                   {loading ? <Loader2 className="w-3.5 h-3.5 text-[var(--gold-primary)] animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 text-[var(--gold-primary)]" />}
-                  <span className="text-[11px] font-mono font-bold text-[var(--gold-primary)] tracking-[0.2em]">[ ACQUIRE TARGET DATA ]</span>
+                  <span className="text-[10px] font-mono font-bold text-[var(--gold-primary)] tracking-[0.2em]">[ ACQUIRE TARGET DATA ]</span>
                 </button>
               )}
             </motion.div>
@@ -345,7 +345,7 @@ function EntityGraphPanel({ entity, onClose }: Props) {
           {Object.entries(TYPE_COLORS).map(([t, c]) => (
             <div key={t} className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-full" style={{ background: c }} />
-              <span className="text-[10px] font-mono text-white/40 uppercase">{t}</span>
+              <span className="text-[9px] font-mono text-white/40 uppercase">{t}</span>
             </div>
           ))}
         </div>

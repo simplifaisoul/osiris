@@ -187,10 +187,10 @@ function Row({ flight, telem, onRemove, onLocate, onDetail }: {
     <div className="glass-panel overflow-hidden" style={{ boxShadow: '0 12px 32px rgba(0,0,0,0.6)' }}>
       <header className="flex items-center gap-2 px-2.5 h-8 border-b border-[var(--border-secondary)]">
         <Plane className="w-3 h-3 text-[var(--cyan-primary)] flex-shrink-0" />
-        <span className="text-[11px] text-[var(--text-primary)] tracking-wide truncate">
+        <span className="text-[10px] text-[var(--text-primary)] tracking-wide truncate">
           {flight.callsign || flight.icao24.toUpperCase()}
         </span>
-        <span className="text-[10px] text-[var(--text-muted)] tabular-nums ml-auto flex-shrink-0">
+        <span className="text-[9px] text-[var(--text-muted)] tabular-nums ml-auto flex-shrink-0">
           {flight.icao24.toUpperCase()}
         </span>
         {telem && (
@@ -214,15 +214,15 @@ function Row({ flight, telem, onRemove, onLocate, onDetail }: {
 
       <div className="px-2.5 py-2">
         {loading ? (
-          <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
+          <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-muted)]">
             <Loader2 className="w-3 h-3 animate-spin" /> Identifying airframe…
           </div>
         ) : (
           <>
-            <div className="text-[12px] text-[var(--text-primary)] leading-snug">
+            <div className="text-[11px] text-[var(--text-primary)] leading-snug">
               {detail?.model || 'Unidentified type'}
             </div>
-            <div className="flex flex-wrap gap-x-2.5 gap-y-0.5 mt-0.5 text-[10px] text-[var(--text-muted)]">
+            <div className="flex flex-wrap gap-x-2.5 gap-y-0.5 mt-0.5 text-[9px] text-[var(--text-muted)]">
               {detail?.registration && <span className="tabular-nums">{detail.registration}</span>}
               {detail?.typeCode && <span>{detail.typeCode}</span>}
               {detail?.operator && <span className="truncate max-w-[170px]">{detail.operator}</span>}
@@ -233,19 +233,19 @@ function Row({ flight, telem, onRemove, onLocate, onDetail }: {
         <div className="grid grid-cols-3 gap-1.5 mt-2">
           <div className="flex items-center gap-1">
             <ArrowUp className="w-2.5 h-2.5 text-[var(--text-muted)] flex-shrink-0" />
-            <span className="text-[11px] text-[var(--text-secondary)] tabular-nums truncate">
+            <span className="text-[10px] text-[var(--text-secondary)] tabular-nums truncate">
               {formatAlt(telem?.alt, telem?.grounded)}
             </span>
           </div>
           <div className="flex items-center gap-1">
             <Gauge className="w-2.5 h-2.5 text-[var(--text-muted)] flex-shrink-0" />
-            <span className="text-[11px] text-[var(--text-secondary)] tabular-nums truncate">
+            <span className="text-[10px] text-[var(--text-secondary)] tabular-nums truncate">
               {telem ? `${Math.round(telem.speed_knots)} kt` : '—'}
             </span>
           </div>
           <div className="flex items-center gap-1">
             <Radio className="w-2.5 h-2.5 text-[var(--text-muted)] flex-shrink-0" />
-            <span className="text-[11px] text-[var(--text-secondary)] tabular-nums truncate">
+            <span className="text-[10px] text-[var(--text-secondary)] tabular-nums truncate">
               {telem?.squawk || '—'}
             </span>
           </div>
@@ -253,28 +253,28 @@ function Row({ flight, telem, onRemove, onLocate, onDetail }: {
 
         {(detail?.origin || detail?.destination) && (
           <div className="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-[var(--border-secondary)]">
-            <span className="text-[12px] text-[var(--text-primary)] tabular-nums">
+            <span className="text-[11px] text-[var(--text-primary)] tabular-nums">
               {detail.origin ? detail.origin.iata || detail.origin.icao : '····'}
             </span>
-            <span className="text-[11px] text-[var(--text-muted)]">&rarr;</span>
-            <span className="text-[12px] text-[var(--text-primary)] tabular-nums">
+            <span className="text-[10px] text-[var(--text-muted)]">&rarr;</span>
+            <span className="text-[11px] text-[var(--text-primary)] tabular-nums">
               {detail.destination ? detail.destination.iata || detail.destination.icao : '····'}
             </span>
             {/* An unconfirmed destination is a schedule claim, not something the
                 aircraft was seen to do — say so rather than imply certainty. */}
-            <span className="text-[10px] text-[var(--text-muted)] ml-auto">
+            <span className="text-[9px] text-[var(--text-muted)] ml-auto">
               {detail.arrival ? 'landed' : detail.destination ? 'scheduled' : 'destination unknown'}
             </span>
           </div>
         )}
 
         {detail && detail.points > 0 && (
-          <div className="mt-1.5 text-[10px] text-[var(--text-muted)] tabular-nums">
+          <div className="mt-1.5 text-[9px] text-[var(--text-muted)] tabular-nums">
             {detail.points} points this leg
           </div>
         )}
         {!telem && (
-          <div className="mt-1.5 text-[10px] text-[var(--alert-orange)]">
+          <div className="mt-1.5 text-[9px] text-[var(--alert-orange)]">
             No longer in the live feed
           </div>
         )}

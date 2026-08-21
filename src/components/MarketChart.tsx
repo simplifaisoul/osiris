@@ -180,11 +180,11 @@ export default function MarketChart({ symbol, name, onClose, large = false }: Ma
       <div className="flex items-start justify-between mb-1.5">
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-[11px] font-mono font-bold text-[var(--text-primary)] truncate">{name}</span>
-            <span className="text-[10px] font-mono text-[var(--text-muted)]">{symbol}</span>
+            <span className="text-[10px] font-mono font-bold text-[var(--text-primary)] truncate">{name}</span>
+            <span className="text-[9px] font-mono text-[var(--text-muted)]">{symbol}</span>
           </div>
           {rangeChange !== null && (
-            <div className="text-[11px] font-mono tabular-nums" style={{ color: rangeChange >= 0 ? UP : DOWN }}>
+            <div className="text-[10px] font-mono tabular-nums" style={{ color: rangeChange >= 0 ? UP : DOWN }}>
               {rangeChange >= 0 ? '+' : ''}{rangeChange.toFixed(2)}% over {range}
             </div>
           )}
@@ -195,7 +195,7 @@ export default function MarketChart({ symbol, name, onClose, large = false }: Ma
       </div>
 
       {/* OHLC readout — tracks the crosshair, resting on the latest bar */}
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mb-1 text-[10px] font-mono tabular-nums">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mb-1 text-[9px] font-mono tabular-nums">
         {shown ? (
           <>
             <span className="text-[var(--text-muted)]">O <span className="text-[var(--text-secondary)]">{priceFormat(shown.open)}</span></span>
@@ -213,7 +213,7 @@ export default function MarketChart({ symbol, name, onClose, large = false }: Ma
         <div ref={containerRef} className="w-full" style={{ height }} />
 
         {status !== 'ready' && (
-          <div className="absolute inset-0 flex items-center justify-center gap-1.5 bg-black/40 text-[11px] font-mono text-[var(--text-muted)]">
+          <div className="absolute inset-0 flex items-center justify-center gap-1.5 bg-black/40 text-[10px] font-mono text-[var(--text-muted)]">
             {status === 'loading'
               ? <><Loader2 className="w-3 h-3 animate-spin" /> LOADING {range}</>
               : <><AlertTriangle className="w-3 h-3" /> NO {range} DATA FOR {symbol}</>}
@@ -223,7 +223,7 @@ export default function MarketChart({ symbol, name, onClose, large = false }: Ma
 
       {/* Window extremes + range selector */}
       <div className="flex items-center justify-between gap-2 mt-1.5 flex-wrap">
-        <div className="text-[10px] font-mono text-[var(--text-muted)] tabular-nums">
+        <div className="text-[9px] font-mono text-[var(--text-muted)] tabular-nums">
           {high !== null && low !== null && <>H {priceFormat(high)} · L {priceFormat(low)}</>}
         </div>
         {/* Seven ranges will not fit one line in the docked panel — let them wrap. */}
@@ -232,7 +232,7 @@ export default function MarketChart({ symbol, name, onClose, large = false }: Ma
             <button
               key={r}
               onClick={() => setRange(r)}
-              className={`px-1.5 py-0.5 rounded text-[10px] font-mono tracking-wider transition-all ${
+              className={`px-1.5 py-0.5 rounded text-[9px] font-mono tracking-wider transition-all ${
                 range === r
                   ? 'bg-[var(--hover-accent)] text-[var(--gold-primary)] border border-[var(--border-primary)]'
                   : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] border border-transparent'

@@ -341,8 +341,8 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
     if (value === undefined || value === null || value === '') return null;
     return (
       <div className="flex items-start gap-3 py-1.5 border-b border-[var(--border-secondary)]/20 last:border-0">
-        <span className="text-[11px] font-mono text-[var(--text-muted)] uppercase tracking-wider w-[90px] flex-shrink-0 pt-0.5">{label}</span>
-        <span className={`text-[12px] ${mono ? 'font-mono' : ''} break-all flex-1`} style={{ color: color || 'var(--text-primary)' }}>
+        <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-wider w-[90px] flex-shrink-0 pt-0.5">{label}</span>
+        <span className={`text-[11px] ${mono ? 'font-mono' : ''} break-all flex-1`} style={{ color: color || 'var(--text-primary)' }}>
           {String(value)}
         </span>
       </div>
@@ -350,7 +350,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
   };
 
   const StatusBadge = ({ ok, label }: { ok: boolean; label: string }) => (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono font-bold ${ok ? 'bg-green-500/15 text-green-400 border border-green-500/30' : 'bg-red-500/15 text-red-400 border border-red-500/30'}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold ${ok ? 'bg-green-500/15 text-green-400 border border-green-500/30' : 'bg-red-500/15 text-red-400 border border-red-500/30'}`}>
       {ok ? <CheckCircle className="w-2.5 h-2.5" /> : <XCircle className="w-2.5 h-2.5" />}
       {label}
     </span>
@@ -364,12 +364,12 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
       <div className="mb-2 px-2 py-2 rounded border border-red-500/40 bg-red-500/15">
         <div className="flex items-center gap-2 mb-1.5">
           <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
-          <span className="text-[12px] font-mono font-bold text-red-400 tracking-wider">
+          <span className="text-[11px] font-mono font-bold text-red-400 tracking-wider">
             SANCTIONED — {match.source || 'OFAC SDN'}
           </span>
         </div>
         {match.hits.slice(0, 5).map((h: any, i: number) => (
-          <div key={i} className="text-[11px] font-mono text-red-200 break-all leading-tight">
+          <div key={i} className="text-[10px] font-mono text-red-200 break-all leading-tight">
             <span className="text-[var(--text-muted)]">↳ {h.matched_value}:</span>{' '}
             {(h.entries || []).slice(0, 2).map((e: any) => e.name).join('; ')}
           </div>
@@ -386,7 +386,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
       rel="noreferrer"
       className="mt-2 flex items-center justify-between px-2 py-1.5 rounded bg-[#1A1A18] border border-[var(--border-secondary)]/30 hover:border-[#FF1744]/40 transition-colors"
     >
-      <span className="text-[10px] font-mono text-[var(--text-muted)]">
+      <span className="text-[9px] font-mono text-[var(--text-muted)]">
         Data by Hudson Rock Cavalier · free infostealer intelligence
       </span>
       <ExternalLink className="w-2.5 h-2.5 text-[var(--text-muted)]" />
@@ -396,17 +396,17 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
   const SectionHeader = ({ title, icon: Icon, color }: { title: string; icon: any; color: string }) => (
     <div className="flex items-center gap-2 mt-3 mb-1.5 first:mt-0">
       <Icon className="w-3.5 h-3.5" style={{ color }} />
-      <span className="text-[12px] font-mono font-bold tracking-widest" style={{ color }}>{title}</span>
+      <span className="text-[11px] font-mono font-bold tracking-widest" style={{ color }}>{title}</span>
       <div className="flex-1 h-px" style={{ background: `${color}30` }} />
     </div>
   );
 
   const PortRow = ({ port, state, service, version }: { port: number; state: string; service?: string; version?: string }) => (
     <div className="flex items-center gap-2 py-1 px-2 rounded hover:bg-[var(--hover-accent)] transition-colors">
-      <span className="text-[11px] font-mono font-bold text-[var(--cyan-primary)] w-[60px]">{port}</span>
+      <span className="text-[10px] font-mono font-bold text-[var(--cyan-primary)] w-[60px]">{port}</span>
       <StatusBadge ok={state === 'open'} label={state.toUpperCase()} />
-      <span className="text-[12px] font-mono text-[var(--text-secondary)] flex-1">{service || 'unknown'}</span>
-      {version && <span className="text-[11px] font-mono text-[var(--text-muted)]">{version}</span>}
+      <span className="text-[11px] font-mono text-[var(--text-secondary)] flex-1">{service || 'unknown'}</span>
+      {version && <span className="text-[10px] font-mono text-[var(--text-muted)]">{version}</span>}
     </div>
   );
 
@@ -466,11 +466,11 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
               {regularVulns.slice(0, 20).map((v: any, i: number) => (
                 <div key={i} className="p-2 rounded-lg border border-red-500/20 bg-red-500/5 flex flex-col">
                   <div className="flex items-center justify-between">
-                    <span className="text-[12px] font-mono font-bold text-red-400">{v.id || v.cve || v.name}</span>
-                    {v.severity && <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${v.severity === 'CRITICAL' ? 'bg-red-500/20 text-red-400' : v.severity === 'HIGH' ? 'bg-orange-500/20 text-orange-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{v.severity}</span>}
+                    <span className="text-[11px] font-mono font-bold text-red-400">{v.id || v.cve || v.name}</span>
+                    {v.severity && <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ${v.severity === 'CRITICAL' ? 'bg-red-500/20 text-red-400' : v.severity === 'HIGH' ? 'bg-orange-500/20 text-orange-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{v.severity}</span>}
                   </div>
-                  {v.cvss && <div className="text-[11px] font-mono text-[var(--text-muted)] mt-1">CVSS: {v.cvss} ({v.type || 'cve'})</div>}
-                  {v.description && <p className="text-[11px] font-mono text-[var(--text-muted)] mt-1 line-clamp-2">{v.description}</p>}
+                  {v.cvss && <div className="text-[10px] font-mono text-[var(--text-muted)] mt-1">CVSS: {v.cvss} ({v.type || 'cve'})</div>}
+                  {v.description && <p className="text-[10px] font-mono text-[var(--text-muted)] mt-1 line-clamp-2">{v.description}</p>}
                 </div>
               ))}
             </div>
@@ -483,10 +483,10 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
                 {exploits.slice(0, 10).map((e: any, i: number) => (
                   <div key={i} className="p-2 rounded-lg border border-orange-500/30 bg-orange-500/10 flex flex-col">
                     <div className="flex items-center justify-between">
-                      <span className="text-[12px] font-mono font-bold text-orange-400">{e.id}</span>
-                      <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-400">EXPLOIT</span>
+                      <span className="text-[11px] font-mono font-bold text-orange-400">{e.id}</span>
+                      <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-400">EXPLOIT</span>
                     </div>
-                    <div className="text-[11px] font-mono text-[var(--text-muted)] mt-1 flex justify-between">
+                    <div className="text-[10px] font-mono text-[var(--text-muted)] mt-1 flex justify-between">
                       <span>Source: {e.type?.toUpperCase() || 'UNKNOWN'}</span>
                       {e.cvss && <span>CVSS: {e.cvss}</span>}
                     </div>
@@ -550,12 +550,12 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
           {r.tags?.length > 0 && <ResultRow label="Tags" value={r.tags.join(', ')} color="#FF9500" />}
           {r.vulns?.length > 0 && (
             <div className="mt-2 p-2 border border-red-500/30 bg-red-500/10 rounded">
-              <span className="text-[12px] font-mono text-red-400 font-bold mb-1 block">VULNERABILITIES ({r.vulns.length})</span>
+              <span className="text-[11px] font-mono text-red-400 font-bold mb-1 block">VULNERABILITIES ({r.vulns.length})</span>
               <div className="flex flex-wrap gap-1">
                 {r.vulns.slice(0, 10).map((v: string) => (
-                  <a key={v} href={`https://nvd.nist.gov/vuln/detail/${v}`} target="_blank" rel="noreferrer" className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-[#1A1A18] text-[#8A8880] hover:text-[#FF3D3D]">{v}</a>
+                  <a key={v} href={`https://nvd.nist.gov/vuln/detail/${v}`} target="_blank" rel="noreferrer" className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#1A1A18] text-[#8A8880] hover:text-[#FF3D3D]">{v}</a>
                 ))}
-                {r.vulns.length > 10 && <span className="text-[11px] font-mono text-[#8A8880]">+{r.vulns.length - 10} more</span>}
+                {r.vulns.length > 10 && <span className="text-[10px] font-mono text-[#8A8880]">+{r.vulns.length - 10} more</span>}
               </div>
             </div>
           )}
@@ -636,8 +636,8 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
           <div className="flex items-center gap-3 mb-2">
             {r.avatar_url && <img src={r.avatar_url} alt="avatar" className="w-10 h-10 rounded-full border border-[#87CEEB]/30" />}
             <div>
-              <div className="text-[12px] font-mono font-bold text-[#87CEEB]">{r.name || r.username}</div>
-              <div className="text-[11px] font-mono text-[var(--text-muted)]">@{r.username} • {r.followers} followers</div>
+              <div className="text-[11px] font-mono font-bold text-[#87CEEB]">{r.name || r.username}</div>
+              <div className="text-[10px] font-mono text-[var(--text-muted)]">@{r.username} • {r.followers} followers</div>
             </div>
           </div>
           <ResultRow label="Company" value={r.company} />
@@ -648,9 +648,9 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
           <ResultRow label="Bio" value={r.bio} />
           {r.recent_repos?.length > 0 && (
             <div className="mt-2 p-2 border border-[#87CEEB]/20 bg-[#87CEEB]/5 rounded">
-              <span className="text-[11px] font-mono text-[#87CEEB] block mb-1">RECENT REPOS</span>
+              <span className="text-[10px] font-mono text-[#87CEEB] block mb-1">RECENT REPOS</span>
               {r.recent_repos.map((repo: any, i: number) => (
-                <div key={i} className="flex justify-between text-[11px] font-mono mb-0.5">
+                <div key={i} className="flex justify-between text-[10px] font-mono mb-0.5">
                   <span className="text-[#E8E6E0]">{repo.name}</span>
                   <span className="text-[var(--text-muted)]">{repo.language || 'Unknown'}</span>
                 </div>
@@ -678,8 +678,8 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
               { label: 'CHECKED', value: r.checked ?? 0, color: '#87CEEB' },
             ].map((c: any) => (
               <div key={c.label} className="rounded border px-2 py-1.5" style={{ borderColor: `${c.color}33`, background: `${c.color}0d` }}>
-                <div className="text-[10px] font-mono text-[var(--text-muted)]">{c.label}</div>
-                <div className="text-[12px] font-mono font-bold" style={{ color: c.color }}>{c.value}</div>
+                <div className="text-[9px] font-mono text-[var(--text-muted)]">{c.label}</div>
+                <div className="text-[11px] font-mono font-bold" style={{ color: c.color }}>{c.value}</div>
               </div>
             ))}
           </div>
@@ -694,7 +694,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
             <>
               <SectionHeader title={`CONFIRMED ACCOUNTS (${r.found.length})`} icon={CheckCircle} color={ACCENT} />
               {r.found.map((f: any, i: number) => (
-                <div key={i} className="flex items-center gap-2 py-1 text-[12px] font-mono">
+                <div key={i} className="flex items-center gap-2 py-1 text-[11px] font-mono">
                   <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: ACCENT }} />
                   <span className="w-[110px] flex-shrink-0 font-bold" style={{ color: ACCENT }}>{f.site}</span>
                   <a href={f.url} target="_blank" rel="noopener noreferrer"
@@ -712,11 +712,11 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
           {r.inconclusive?.length > 0 && (
             <>
               <SectionHeader title={`UNVERIFIABLE (${r.inconclusive.length})`} icon={AlertTriangle} color="#FF9500" />
-              <div className="text-[11px] font-mono text-[var(--text-secondary)] leading-snug mb-1">
+              <div className="text-[10px] font-mono text-[var(--text-secondary)] leading-snug mb-1">
                 These sites answered &quot;exists&quot; for a random control handle too, so a hit here is not evidence of an account.
               </div>
               {r.inconclusive.map((f: any, i: number) => (
-                <div key={i} className="flex items-center gap-2 py-1 text-[12px] font-mono">
+                <div key={i} className="flex items-center gap-2 py-1 text-[11px] font-mono">
                   <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-[#FF9500]" />
                   <span className="w-[110px] flex-shrink-0 text-[#FF9500]">{f.site}</span>
                   <a href={f.url} target="_blank" rel="noopener noreferrer"
@@ -733,11 +733,11 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
           {r.blocked?.length > 0 && (
             <>
               <SectionHeader title={`BLOCKED — NOT CHECKED (${r.blocked.length})`} icon={ShieldAlert} color="#E040FB" />
-              <div className="text-[11px] font-mono text-[var(--text-secondary)] leading-snug mb-1">
+              <div className="text-[10px] font-mono text-[var(--text-secondary)] leading-snug mb-1">
                 These sites refused the lookup, so nothing was learned either way — an account here is neither confirmed nor ruled out.
               </div>
               {r.blocked.map((f: any, i: number) => (
-                <div key={i} className="flex items-center gap-2 py-0.5 text-[11px] font-mono">
+                <div key={i} className="flex items-center gap-2 py-0.5 text-[10px] font-mono">
                   <span className="w-[110px] flex-shrink-0 text-[#E040FB]">{f.site}</span>
                   <a href={f.url} target="_blank" rel="noopener noreferrer"
                     className="flex-1 break-all text-[var(--text-muted)] hover:text-white hover:underline">
@@ -753,7 +753,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
             <>
               <SectionHeader title={`UNREACHABLE (${r.errors.length})`} icon={XCircle} color="#FF3D3D" />
               {r.errors.slice(0, 10).map((f: any, i: number) => (
-                <div key={i} className="flex items-center gap-2 py-0.5 text-[11px] font-mono">
+                <div key={i} className="flex items-center gap-2 py-0.5 text-[10px] font-mono">
                   <span className="w-[110px] flex-shrink-0 text-[#FF3D3D]">{f.site}</span>
                   <span className="flex-1 text-[var(--text-muted)]">{f.reason}</span>
                 </div>
@@ -764,13 +764,13 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
           {r.skipped?.length > 0 && (
             <>
               <SectionHeader title={`NOT APPLICABLE (${r.skipped.length})`} icon={XCircle} color="#5C5A54" />
-              <div className="text-[11px] font-mono text-[var(--text-muted)] leading-snug">
+              <div className="text-[10px] font-mono text-[var(--text-muted)] leading-snug">
                 {r.skipped.map((s: any) => s.site).join(', ')} — the handle does not meet these sites&apos; username rules.
               </div>
             </>
           )}
 
-          <div className="mt-3 text-[10px] font-mono text-[var(--text-muted)] leading-relaxed">
+          <div className="mt-3 text-[9px] font-mono text-[var(--text-muted)] leading-relaxed">
             {r.verified
               ? 'Every positive re-tested against a random control handle; sites that accepted it are listed as unverifiable. Calibration catches most soft 404s but is not exhaustive — confirm before acting.'
               : 'Calibration disabled — positives are unfiltered and include soft 404s.'}
@@ -804,12 +804,12 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
             <div className="mb-2 px-2 py-2 rounded border border-red-500/40 bg-red-500/15">
               <div className="flex items-center gap-2 mb-1.5">
                 <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
-                <span className="text-[12px] font-mono font-bold text-red-400 tracking-wider">
+                <span className="text-[11px] font-mono font-bold text-red-400 tracking-wider">
                   OFAC SANCTIONED WALLET
                 </span>
               </div>
               {(r.sanctions.entries || []).map((e: any, i: number) => (
-                <div key={i} className="text-[11px] font-mono text-red-200 break-all leading-tight">
+                <div key={i} className="text-[10px] font-mono text-red-200 break-all leading-tight">
                   ↳ {e.name}{e.programs?.length ? ` — ${e.programs.join(', ')}` : ''}
                 </div>
               ))}
@@ -817,11 +817,11 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
           )}
 
           <div className="flex items-center gap-2 mb-2">
-            <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold border"
+            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold border"
               style={{ color: ACCENT, borderColor: `${ACCENT}55`, background: `${ACCENT}18` }}>
               {r.chain_label?.toUpperCase()}
             </span>
-            <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold border"
+            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold border"
               style={{ color: riskColor, borderColor: `${riskColor}55`, background: `${riskColor}18` }}>
               RISK {r.risk?.score} · {String(r.risk?.level || '').toUpperCase()}
             </span>
@@ -849,7 +849,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
           {r.labels?.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">
               {r.labels.map((l: string, i: number) => (
-                <span key={i} className="px-1.5 py-0.5 rounded text-[11px] font-mono border border-white/15 text-[var(--text-secondary)] bg-white/5">
+                <span key={i} className="px-1.5 py-0.5 rounded text-[10px] font-mono border border-white/15 text-[var(--text-secondary)] bg-white/5">
                   {l}
                 </span>
               ))}
@@ -871,14 +871,14 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
               {r.risk.factors.map((f: any, i: number) => (
                 <div key={i} className="py-1.5 border-b border-[var(--border-secondary)]/20 last:border-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-mono font-bold" style={{ color: RISK_COLOR[f.severity] || '#00E676' }}>
+                    <span className="text-[10px] font-mono font-bold" style={{ color: RISK_COLOR[f.severity] || '#00E676' }}>
                       {f.label}
                     </span>
                     {f.weight > 0 && (
-                      <span className="text-[10px] font-mono text-[var(--text-muted)]">+{f.weight}</span>
+                      <span className="text-[9px] font-mono text-[var(--text-muted)]">+{f.weight}</span>
                     )}
                   </div>
-                  <div className="text-[11px] font-mono text-[var(--text-secondary)] leading-snug mt-0.5">{f.detail}</div>
+                  <div className="text-[10px] font-mono text-[var(--text-secondary)] leading-snug mt-0.5">{f.detail}</div>
                 </div>
               ))}
             </>
@@ -888,7 +888,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
             <>
               <SectionHeader title={`TOP COUNTERPARTIES (${r.counterparties.length})`} icon={Network} color={ACCENT} />
               {r.counterparties.slice(0, 10).map((c: any, i: number) => (
-                <div key={i} className="flex items-center gap-2 py-1 text-[11px] font-mono">
+                <div key={i} className="flex items-center gap-2 py-1 text-[10px] font-mono">
                   <span className={`w-[34px] flex-shrink-0 font-bold ${c.direction === 'out' ? 'text-[#FF9500]' : c.direction === 'in' ? 'text-[#00E676]' : 'text-[var(--text-muted)]'}`}>
                     {c.direction === 'out' ? 'OUT' : c.direction === 'in' ? 'IN' : 'BOTH'}
                   </span>
@@ -905,7 +905,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
               <SectionHeader title={`TOKENS (${r.tokens.length})`} icon={Layers} color={ACCENT} />
               <div className="flex flex-wrap gap-1">
                 {r.tokens.slice(0, 20).map((t: any, i: number) => (
-                  <span key={i} className="px-1.5 py-0.5 rounded text-[11px] font-mono border border-white/15 bg-white/5 text-[var(--text-secondary)]">
+                  <span key={i} className="px-1.5 py-0.5 rounded text-[10px] font-mono border border-white/15 bg-white/5 text-[var(--text-secondary)]">
                     {t.symbol}{t.amount != null ? ` ${fmt(t.amount, 2)}` : ''}
                   </span>
                 ))}
@@ -917,7 +917,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
             <>
               <SectionHeader title={`RECENT TRANSACTIONS (${r.transactions.length})`} icon={Clock} color={ACCENT} />
               {r.transactions.slice(0, 12).map((t: any, i: number) => (
-                <div key={i} className="flex items-center gap-2 py-1 text-[11px] font-mono">
+                <div key={i} className="flex items-center gap-2 py-1 text-[10px] font-mono">
                   <span className={`w-[34px] flex-shrink-0 font-bold ${t.direction === 'out' ? 'text-[#FF9500]' : t.direction === 'in' ? 'text-[#00E676]' : 'text-[var(--text-muted)]'}`}>
                     {t.direction === 'unknown' ? '—' : t.direction.toUpperCase()}
                   </span>
@@ -933,14 +933,14 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
           {/* Honesty rail: what this report could not establish. */}
           {r.partial?.length > 0 && (
             <div className="mt-3 px-2 py-1.5 rounded border border-white/10 bg-white/[0.03]">
-              <span className="text-[11px] font-mono text-[var(--text-muted)] block mb-0.5">COVERAGE LIMITS</span>
+              <span className="text-[10px] font-mono text-[var(--text-muted)] block mb-0.5">COVERAGE LIMITS</span>
               {r.partial.map((p: string, i: number) => (
-                <div key={i} className="text-[11px] font-mono text-[var(--text-secondary)] leading-snug">↳ {p}</div>
+                <div key={i} className="text-[10px] font-mono text-[var(--text-secondary)] leading-snug">↳ {p}</div>
               ))}
             </div>
           )}
 
-          <div className="mt-2 text-[10px] font-mono text-[var(--text-muted)]">
+          <div className="mt-2 text-[9px] font-mono text-[var(--text-muted)]">
             Sources: {(r.sources || []).join(' · ')}
             {r.activity && ` · sampled ${r.activity.sample_size} tx${r.activity.history_complete ? ' (full history)' : ' of a longer history'}`}
           </div>
@@ -958,10 +958,10 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
           
           {r.breached && r.data_exposed?.length > 0 && (
             <div className="mt-2 p-2 border border-[#E040FB]/30 bg-[#E040FB]/10 rounded">
-              <span className="text-[12px] font-mono text-[#E040FB] font-bold mb-1 block">EXPOSED DATA POINTS</span>
+              <span className="text-[11px] font-mono text-[#E040FB] font-bold mb-1 block">EXPOSED DATA POINTS</span>
               <div className="flex flex-wrap gap-1">
                 {r.data_exposed.map((dc: string) => (
-                  <span key={dc} className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-[#1A1A18] text-[#E8E6E0] border border-[#E040FB]/20">{dc}</span>
+                  <span key={dc} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#1A1A18] text-[#E8E6E0] border border-[#E040FB]/20">{dc}</span>
                 ))}
               </div>
             </div>
@@ -969,10 +969,10 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
 
           {r.breached && r.breaches?.length > 0 && (
             <div className="mt-2 p-2 border border-red-500/30 bg-red-500/10 rounded">
-              <span className="text-[12px] font-mono text-red-400 font-bold mb-1 block">KNOWN BREACHES ({r.breaches.length})</span>
+              <span className="text-[11px] font-mono text-red-400 font-bold mb-1 block">KNOWN BREACHES ({r.breaches.length})</span>
               <div className="flex flex-col gap-1">
                 {r.breaches.map((b: string) => (
-                  <a key={b} href={`https://haveibeenpwned.com/PwnedWebsites#${b}`} target="_blank" rel="noreferrer" className="text-[11px] font-mono px-2 py-1 rounded bg-[#1A1A18] text-red-300 hover:text-white hover:bg-red-500/30 flex items-center justify-between transition-colors">
+                  <a key={b} href={`https://haveibeenpwned.com/PwnedWebsites#${b}`} target="_blank" rel="noreferrer" className="text-[10px] font-mono px-2 py-1 rounded bg-[#1A1A18] text-red-300 hover:text-white hover:bg-red-500/30 flex items-center justify-between transition-colors">
                     <span>{b}</span>
                     <ExternalLink className="w-2.5 h-2.5" />
                   </a>
@@ -1017,7 +1017,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
                     ['Total machines', r.totalStealers, '#E040FB'],
                   ].map(([label, value, color]: any) => (
                     <div key={label} className="p-2 rounded border border-[var(--border-secondary)]/30 bg-[var(--bg-tertiary)]/30">
-                      <div className="text-[11px] font-mono text-[var(--text-muted)] uppercase tracking-wider">{label}</div>
+                      <div className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-wider">{label}</div>
                       <div className="text-[15px] font-mono font-bold" style={{ color }}>{Number(value || 0).toLocaleString()}</div>
                     </div>
                   ))}
@@ -1029,7 +1029,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
 
                 {pw.has_stats && (
                   <div className="mt-2 p-2 border border-[#FF9500]/30 bg-[#FF9500]/10 rounded">
-                    <span className="text-[12px] font-mono text-[#FF9500] font-bold mb-1 block">
+                    <span className="text-[11px] font-mono text-[#FF9500] font-bold mb-1 block">
                       EMPLOYEE PASSWORD STRENGTH ({Number(pw.totalPass || 0).toLocaleString()})
                     </span>
                     <div className="flex h-2 rounded overflow-hidden mb-1">
@@ -1037,7 +1037,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
                         <div key={k} style={{ width: `${Number(pw[k]?.perc) || 0}%`, background: c }} />
                       ))}
                     </div>
-                    <div className="text-[11px] font-mono text-[var(--text-muted)]">
+                    <div className="text-[10px] font-mono text-[var(--text-muted)]">
                       {weakPct.toFixed(0)}% weak or worse · {(Number(pw.strong?.perc) || 0).toFixed(0)}% strong
                     </div>
                   </div>
@@ -1045,10 +1045,10 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
 
                 {families.length > 0 && (
                   <div className="mt-2 p-2 border border-[#FF1744]/30 bg-[#FF1744]/10 rounded">
-                    <span className="text-[12px] font-mono text-[#FF1744] font-bold mb-1 block">STEALER FAMILIES</span>
+                    <span className="text-[11px] font-mono text-[#FF1744] font-bold mb-1 block">STEALER FAMILIES</span>
                     <div className="flex flex-wrap gap-1">
                       {families.slice(0, 14).map(([name, count]) => (
-                        <span key={name} className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-[#1A1A18] text-[#E8E6E0] border border-[#FF1744]/20">
+                        <span key={name} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#1A1A18] text-[#E8E6E0] border border-[#FF1744]/20">
                           {name} <span className="text-[#FF1744]">{String(count)}</span>
                         </span>
                       ))}
@@ -1058,13 +1058,13 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
 
                 {Array.isArray(r.thirdPartyDomains) && r.thirdPartyDomains.length > 0 && (
                   <div className="mt-2 p-2 border border-[var(--border-secondary)]/30 rounded">
-                    <span className="text-[12px] font-mono text-[var(--text-secondary)] font-bold mb-1 block">
+                    <span className="text-[11px] font-mono text-[var(--text-secondary)] font-bold mb-1 block">
                       TOP THIRD-PARTY DOMAINS ({r.thirdPartyDomains.length})
                     </span>
                     {r.thirdPartyDomains.slice(0, 8).map((d: any) => (
                       <div key={d.domain} className="flex items-center justify-between py-0.5">
-                        <span className="text-[11px] font-mono text-[var(--text-primary)] break-all">{d.domain}</span>
-                        <span className="text-[11px] font-mono text-[var(--text-muted)] flex-shrink-0 ml-2">{d.occurrence}</span>
+                        <span className="text-[10px] font-mono text-[var(--text-primary)] break-all">{d.domain}</span>
+                        <span className="text-[10px] font-mono text-[var(--text-muted)] flex-shrink-0 ml-2">{d.occurrence}</span>
                       </div>
                     ))}
                   </div>
@@ -1093,7 +1093,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
                 <div key={i} className="mt-2 p-2 rounded border border-[#FF1744]/30 bg-[#FF1744]/5">
                   <div className="flex items-center gap-2 mb-1.5">
                     <Monitor className="w-3 h-3 text-[#FF1744]" />
-                    <span className="text-[12px] font-mono font-bold text-[#FF1744] break-all">
+                    <span className="text-[11px] font-mono font-bold text-[#FF1744] break-all">
                       {s.computer_name || 'UNKNOWN MACHINE'}
                     </span>
                   </div>
@@ -1108,16 +1108,16 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
                     <div className="mt-1.5 pt-1.5 border-t border-[#FF1744]/20">
                       <div className="flex items-center gap-1.5 mb-1">
                         <KeyRound className="w-2.5 h-2.5 text-[var(--text-muted)]" />
-                        <span className="text-[11px] font-mono text-[var(--text-muted)] uppercase tracking-wider">
+                        <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-wider">
                           Credentials (redacted by Hudson Rock)
                         </span>
                       </div>
                       <div className="flex flex-wrap gap-1">
                         {(s.top_logins || []).map((l: string, j: number) => (
-                          <span key={`l${j}`} className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-[#1A1A18] text-[#87CEEB] border border-[#87CEEB]/20 break-all">{l}</span>
+                          <span key={`l${j}`} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#1A1A18] text-[#87CEEB] border border-[#87CEEB]/20 break-all">{l}</span>
                         ))}
                         {(s.top_passwords || []).map((p: string, j: number) => (
-                          <span key={`p${j}`} className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-[#1A1A18] text-[#E040FB] border border-[#E040FB]/20 break-all">{p}</span>
+                          <span key={`p${j}`} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#1A1A18] text-[#E040FB] border border-[#E040FB]/20 break-all">{p}</span>
                         ))}
                       </div>
                     </div>
@@ -1127,7 +1127,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
             </>
           )}
           {!hit && r.message && (
-            <div className="mt-2 text-[11px] font-mono text-[var(--text-muted)] leading-relaxed">
+            <div className="mt-2 text-[10px] font-mono text-[var(--text-muted)] leading-relaxed">
               {String(r.message).split('Visit')[0].trim()}
             </div>
           )}
@@ -1235,7 +1235,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
           value={toolFilter}
           onChange={e => setToolFilter(e.target.value)}
           placeholder="Filter tools…"
-          className="w-full bg-[var(--bg-primary)]/60 border border-[var(--border-primary)] rounded-lg pl-8 pr-7 py-2 text-[11px] font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)]/40 focus:outline-none"
+          className="w-full bg-[var(--bg-primary)]/60 border border-[var(--border-primary)] rounded-lg pl-8 pr-7 py-2 text-[10px] font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)]/40 focus:outline-none"
         />
         {toolFilter && (
           <button onClick={() => setToolFilter('')} className="absolute right-5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-white">
@@ -1250,7 +1250,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
           if (!tools.length) return null;
           return (
             <div key={group.id} className="mb-3 last:mb-0">
-              <div className="text-[11px] font-mono tracking-[0.2em] text-[var(--text-muted)]/70 mb-1.5 pt-1">
+              <div className="text-[10px] font-mono tracking-[0.2em] text-[var(--text-muted)]/70 mb-1.5 pt-1">
                 {group.label}
               </div>
               <div className="flex flex-col gap-0.5">
@@ -1272,12 +1272,12 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
                       />
                       <span className="min-w-0">
                         <span
-                          className="block text-[11px] font-mono font-bold tracking-wider leading-tight"
+                          className="block text-[10px] font-mono font-bold tracking-wider leading-tight"
                           style={{ color: active ? tab.color : 'var(--text-secondary)' }}
                         >
                           {tab.label}
                         </span>
-                        <span className="block text-[11px] font-mono text-[var(--text-muted)] leading-snug">
+                        <span className="block text-[10px] font-mono text-[var(--text-muted)] leading-snug">
                           {tab.blurb}
                         </span>
                       </span>
@@ -1289,7 +1289,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
           );
         })}
         {toolFilter && !TABS.some(matchesFilter) && (
-          <div className="text-[12px] font-mono text-[var(--text-muted)] py-3 text-center">
+          <div className="text-[11px] font-mono text-[var(--text-muted)] py-3 text-center">
             No tool matches “{toolFilter}”.
           </div>
         )}
@@ -1303,7 +1303,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
           style={{ borderColor: 'rgba(0, 230, 118, 0.25)' }}
         >
           <LocateFixed className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} style={{ color: '#00E676' }} />
-          <span className="font-mono font-bold tracking-[0.1em] text-[12px]" style={{ color: '#00E676' }}>
+          <span className="font-mono font-bold tracking-[0.1em] text-[11px]" style={{ color: '#00E676' }}>
             {loading ? 'TRACKING…' : 'SELF TRACK'}
           </span>
         </button>
@@ -1331,7 +1331,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
               >
                 <div className="flex items-center gap-3">
                   <tab.icon className="w-5 h-5" style={{ color: tab.color }} />
-                  <span className="font-mono font-bold tracking-[0.1em] text-[11px]" style={{ color: tab.color }}>GLOBAL SWEEP</span>
+                  <span className="font-mono font-bold tracking-[0.1em] text-[10px]" style={{ color: tab.color }}>GLOBAL SWEEP</span>
                 </div>
             </button>
           ))}
@@ -1342,7 +1342,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
           >
             <div className="flex items-center gap-3">
               <LocateFixed className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} style={{ color: '#00E676' }} />
-              <span className="font-mono font-bold tracking-[0.1em] text-[11px]" style={{ color: '#00E676' }}>{loading ? 'TRACKING...' : 'SELF TRACK'}</span>
+              <span className="font-mono font-bold tracking-[0.1em] text-[10px]" style={{ color: '#00E676' }}>{loading ? 'TRACKING...' : 'SELF TRACK'}</span>
             </div>
           </button>
         </div>
@@ -1355,7 +1355,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
               value={toolFilter}
               onChange={e => setToolFilter(e.target.value)}
               placeholder="Filter tools…"
-              className="w-full bg-[var(--bg-primary)]/60 border border-[var(--border-primary)] rounded-lg pl-7 pr-6 py-1.5 text-[11px] font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)]/40 focus:outline-none"
+              className="w-full bg-[var(--bg-primary)]/60 border border-[var(--border-primary)] rounded-lg pl-7 pr-6 py-1.5 text-[10px] font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)]/40 focus:outline-none"
             />
             {toolFilter && (
               <button onClick={() => setToolFilter('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-white">
@@ -1369,12 +1369,12 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
             if (!tools.length) return null;
             return (
               <div key={group.id} className="mb-2 last:mb-0">
-                <div className="text-[10px] font-mono tracking-[0.18em] text-[var(--text-muted)]/60 mb-1">{group.label}</div>
+                <div className="text-[9px] font-mono tracking-[0.18em] text-[var(--text-muted)]/60 mb-1">{group.label}</div>
                 <div className="grid grid-cols-4 gap-1">
                   {tools.map(tab => (
                     <button key={tab.id} onClick={() => selectTool(tab.id)}
                       title={tab.blurb}
-                      className={`flex flex-col items-center gap-1 px-1 py-2 rounded-lg text-[10px] font-mono tracking-wider transition-all border ${activeTab === tab.id ? 'border-opacity-40 bg-opacity-15' : 'border-transparent hover:bg-[var(--hover-accent)]'}`}
+                      className={`flex flex-col items-center gap-1 px-1 py-2 rounded-lg text-[9px] font-mono tracking-wider transition-all border ${activeTab === tab.id ? 'border-opacity-40 bg-opacity-15' : 'border-transparent hover:bg-[var(--hover-accent)]'}`}
                       style={{ borderColor: activeTab === tab.id ? tab.color : 'transparent', backgroundColor: activeTab === tab.id ? `${tab.color}15` : undefined, color: activeTab === tab.id ? tab.color : 'var(--text-muted)' }}>
                       <tab.icon className="w-3.5 h-3.5" />
                       <span className="leading-tight text-center w-full">{tab.label}</span>
@@ -1386,7 +1386,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
           })}
 
           {toolFilter && !TABS.some(t => t.id !== 'sweep' && matchesFilter(t)) && (
-            <div className="text-[11px] font-mono text-[var(--text-muted)] py-2 text-center">
+            <div className="text-[10px] font-mono text-[var(--text-muted)] py-2 text-center">
               No tool matches “{toolFilter}”.
             </div>
           )}
@@ -1403,7 +1403,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
               <button
                 key={id}
                 onClick={() => setChainView(id)}
-                className="px-2 py-1 rounded text-[11px] font-mono font-bold tracking-wider transition-colors"
+                className="px-2 py-1 rounded text-[10px] font-mono font-bold tracking-wider transition-colors"
                 style={{
                   color: chainView === id ? currentTab?.color : 'var(--text-muted)',
                   background: chainView === id ? `${currentTab?.color}1a` : 'transparent',
@@ -1422,11 +1422,11 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)]" />
             <input type="text" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && runLookup()}
               placeholder={currentTab?.placeholder}
-              className="w-full bg-[var(--bg-primary)]/60 border border-[var(--border-primary)] rounded-lg pl-8 pr-3 py-2.5 text-[11px] font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)]/40 focus:outline-none transition-colors"
+              className="w-full bg-[var(--bg-primary)]/60 border border-[var(--border-primary)] rounded-lg pl-8 pr-3 py-2.5 text-[10px] font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)]/40 focus:outline-none transition-colors"
               style={{ borderColor: query ? `${currentTab?.color}40` : undefined }} />
           </div>
           <button onClick={runLookup} disabled={loading || !query.trim()}
-            className="px-4 py-2 rounded-lg text-[12px] font-mono font-bold tracking-wider disabled:opacity-30 transition-all flex items-center justify-center min-w-[70px]"
+            className="px-4 py-2 rounded-lg text-[11px] font-mono font-bold tracking-wider disabled:opacity-30 transition-all flex items-center justify-center min-w-[70px]"
             style={{ backgroundColor: `${currentTab?.color}20`, border: `1px solid ${currentTab?.color}40`, color: currentTab?.color }}>
             {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'SCAN'}
           </button>
@@ -1436,17 +1436,17 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
         {/* Secondary Controls */}
         {activeTab === 'scanner' && (
           <select value={scanType} onChange={e => setScanType(e.target.value)}
-            className="bg-[var(--bg-primary)]/60 border border-[var(--border-primary)] rounded-lg px-2 py-1.5 text-[12px] font-mono text-[var(--text-muted)] outline-none w-full">
+            className="bg-[var(--bg-primary)]/60 border border-[var(--border-primary)] rounded-lg px-2 py-1.5 text-[11px] font-mono text-[var(--text-muted)] outline-none w-full">
             <option value="quick">QUICK SCAN</option><option value="deep">DEEP SCAN</option><option value="ports">TOP 1000 PORTS</option>
           </select>
         )}
         {activeTab === 'sweep' && (
           <div className="flex items-center justify-between bg-[var(--bg-primary)]/60 border border-[var(--border-primary)] rounded-lg p-1">
-            <span className="text-[11px] font-mono text-[var(--text-muted)] pl-2">SUBNET MASK:</span>
+            <span className="text-[10px] font-mono text-[var(--text-muted)] pl-2">SUBNET MASK:</span>
             <div className="flex items-center gap-0.5">
               {[24, 25, 26, 27, 28].map(c => (
                 <button key={c} onClick={() => setSweepCidr(c)}
-                  className={`px-2 py-1 text-[12px] font-mono rounded transition-all ${
+                  className={`px-2 py-1 text-[11px] font-mono rounded transition-all ${
                     sweepCidr === c ? 'bg-[#FF3D3D]/20 text-[#FF3D3D]' : 'text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)]'
                   }`}
                 >/{c}</button>
@@ -1457,7 +1457,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
       </div>
 
       {error && (
-        <div className="p-2.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[11px] font-mono text-red-400 flex items-center gap-2">
+        <div className="p-2.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[10px] font-mono text-red-400 flex items-center gap-2">
           <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />{error}
         </div>
       )}
@@ -1466,8 +1466,8 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
       {sweepProgress && loading && (
         <div className="p-3 rounded-lg border border-[#FF3D3D]/30 bg-[#FF3D3D]/5">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[12px] font-mono tracking-wider text-[#FF3D3D]">SWEEPING SUBNET...</span>
-            <span className="text-[12px] font-mono text-[#E8E6E0]">{sweepProgress.total} hosts</span>
+            <span className="text-[11px] font-mono tracking-wider text-[#FF3D3D]">SWEEPING SUBNET...</span>
+            <span className="text-[11px] font-mono text-[#E8E6E0]">{sweepProgress.total} hosts</span>
           </div>
           <div className="w-full h-1.5 bg-[#1A1A18] rounded-full overflow-hidden">
             <div className="h-full rounded-full" style={{ width: '100%', background: 'linear-gradient(90deg, #FF3D3D, #FF6B00, #FFD700)', animation: 'sweep-pulse 1.5s ease-in-out infinite' }} />
@@ -1482,12 +1482,12 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
           <div className="p-3 border-b border-[#2A2A28]">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <div className="text-[11px] font-mono tracking-wider text-[#E8E6E0]">{sweepResult.subnet}</div>
-                <div className="text-[11px] font-mono text-[#5C5A54]">{sweepResult.center.city}, {sweepResult.center.country} · {sweepResult.center.isp}</div>
+                <div className="text-[10px] font-mono tracking-wider text-[#E8E6E0]">{sweepResult.subnet}</div>
+                <div className="text-[10px] font-mono text-[#5C5A54]">{sweepResult.center.city}, {sweepResult.center.country} · {sweepResult.center.isp}</div>
               </div>
               <div className="text-right">
                 <div className="text-[18px] font-mono font-bold text-[#FF3D3D]">{sweepResult.summary.total_responsive}</div>
-                <div className="text-[10px] font-mono text-[#5C5A54] tracking-wider">DEVICES FOUND</div>
+                <div className="text-[9px] font-mono text-[#5C5A54] tracking-wider">DEVICES FOUND</div>
               </div>
             </div>
             {/* Breakdown Bar */}
@@ -1503,8 +1503,8 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
                 return (
                   <div key={type} className="flex items-center gap-1">
                     <div className="w-2 h-2 rounded-full" style={{ backgroundColor: device?.device_color || '#666' }} />
-                    <span className="text-[11px] font-mono text-[#8A8880]">{type}</span>
-                    <span className="text-[11px] font-mono text-[#E8E6E0] font-bold">{String(count)}</span>
+                    <span className="text-[10px] font-mono text-[#8A8880]">{type}</span>
+                    <span className="text-[10px] font-mono text-[#E8E6E0] font-bold">{String(count)}</span>
                   </div>
                 );
               })}
@@ -1513,7 +1513,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
           {/* Visualize Button */}
           <div className="p-3 border-b border-[#2A2A28]">
             <button onClick={() => onSweepVisualize?.(sweepResult)}
-              className="w-full py-2.5 rounded-lg font-mono text-[11px] tracking-wider font-bold transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
+              className="w-full py-2.5 rounded-lg font-mono text-[10px] tracking-wider font-bold transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
               style={{ background: 'linear-gradient(135deg, rgba(255,61,61,0.2), rgba(255,107,0,0.2))', border: '1px solid rgba(255,61,61,0.5)', color: '#FF3D3D', textShadow: '0 0 10px rgba(255,61,61,0.5)' }}
             >
               <Globe className="w-4 h-4" /> VISUALIZE ON GLOBE
@@ -1543,18 +1543,18 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
                 >
                   <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
                     <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: device.device_color }} />
-                    <span className={`flex-shrink-0 ${isFullScreen ? "text-[14px]" : "text-[11px]"} font-mono font-bold text-[#E8E6E0]`}>{device.ip}</span>
+                    <span className={`flex-shrink-0 ${isFullScreen ? "text-[14px]" : "text-[10px]"} font-mono font-bold text-[#E8E6E0]`}>{device.ip}</span>
                     {device.hostnames.length > 0 && (
-                      <span className={`${isFullScreen ? "text-[11px]" : "text-[11px]"} font-mono text-[#5C5A54] truncate min-w-0`}>{device.hostnames[0]}</span>
+                      <span className={`${isFullScreen ? "text-[10px]" : "text-[10px]"} font-mono text-[#5C5A54] truncate min-w-0`}>{device.hostnames[0]}</span>
                     )}
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {device.vulns.length > 0 && (
-                      <span className={`${isFullScreen ? "text-[12px]" : "text-[10px]"} font-mono px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/30 whitespace-nowrap`}>
+                      <span className={`${isFullScreen ? "text-[11px]" : "text-[9px]"} font-mono px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/30 whitespace-nowrap`}>
                         {device.vulns.length} CVEs
                       </span>
                     )}
-                    <span className={`${isFullScreen ? "text-[12px]" : "text-[10px]"} font-mono px-1.5 py-0.5 rounded whitespace-nowrap`} style={{ backgroundColor: device.device_color + '20', color: device.device_color, border: `1px solid ${device.device_color}40` }}>{device.device_type}</span>
+                    <span className={`${isFullScreen ? "text-[11px]" : "text-[9px]"} font-mono px-1.5 py-0.5 rounded whitespace-nowrap`} style={{ backgroundColor: device.device_color + '20', color: device.device_color, border: `1px solid ${device.device_color}40` }}>{device.device_type}</span>
                     {isFullScreen && (
                       <ChevronDown className={`w-4 h-4 text-[#5C5A54] transition-transform flex-shrink-0 ${isExpanded ? 'rotate-180' : ''}`} />
                     )}
@@ -1564,7 +1564,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
                 {/* Compact info (sidebar mode) */}
                 {!isFullScreen && (
                   <>
-                    <div className="flex items-center gap-2 text-[11px] font-mono text-[#5C5A54]">
+                    <div className="flex items-center gap-2 text-[10px] font-mono text-[#5C5A54]">
                       <span>Ports: {device.ports.slice(0, 8).join(', ')}{device.ports.length > 8 ? ` +${device.ports.length - 8}` : ''}</span>
                       {device.vulns.length > 0 && (
                         <div className="group relative flex items-center gap-1 cursor-help">
@@ -1572,10 +1572,10 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
                             <AlertTriangle className="w-2.5 h-2.5" /> {device.vulns.length} CVEs
                           </span>
                           <div className="absolute bottom-full left-0 mb-1 hidden group-hover:block z-50 p-2 bg-[#1A1A18] border border-[#FF3D3D50] rounded-md shadow-xl min-w-[140px] max-w-[220px] max-h-[150px] overflow-y-auto styled-scrollbar">
-                            <div className="text-[10px] font-mono text-[#FF3D3D] mb-1 tracking-wider uppercase border-b border-[#FF3D3D30] pb-1">Identified Vulnerabilities</div>
+                            <div className="text-[9px] font-mono text-[#FF3D3D] mb-1 tracking-wider uppercase border-b border-[#FF3D3D30] pb-1">Identified Vulnerabilities</div>
                             <div className="flex flex-col gap-0.5">
                               {device.vulns.map((cve: string) => (
-                                <a key={cve} href={`https://nvd.nist.gov/vuln/detail/${cve}`} target="_blank" rel="noreferrer" className="text-[11px] font-mono text-[#E8E6E0] hover:text-[#FF3D3D] transition-colors truncate">
+                                <a key={cve} href={`https://nvd.nist.gov/vuln/detail/${cve}`} target="_blank" rel="noreferrer" className="text-[10px] font-mono text-[#E8E6E0] hover:text-[#FF3D3D] transition-colors truncate">
                                   {cve}
                                 </a>
                               ))}
@@ -1584,7 +1584,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
                         </div>
                       )}
                     </div>
-                    {device.hostnames.length > 0 && <div className="text-[11px] font-mono text-[#8A8880] mt-0.5 truncate">{device.hostnames[0]}</div>}
+                    {device.hostnames.length > 0 && <div className="text-[10px] font-mono text-[#8A8880] mt-0.5 truncate">{device.hostnames[0]}</div>}
                   </>
                 )}
 
@@ -1594,23 +1594,23 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
                     {/* Ports + Hostnames Row */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-[#2A2A28]">
                       <div className="bg-[#0D0D0C] p-4">
-                        <div className="text-[12px] font-mono text-[#5C5A54] tracking-widest uppercase mb-2">Open Ports</div>
+                        <div className="text-[11px] font-mono text-[#5C5A54] tracking-widest uppercase mb-2">Open Ports</div>
                         <div className="flex flex-wrap gap-1.5">
                           {device.ports.map((port: number) => (
-                            <span key={port} className="px-2 py-1 bg-[#1A1A18] border border-[#2A2A28] rounded text-[11px] font-mono text-[var(--cyan-primary)]">{port}</span>
+                            <span key={port} className="px-2 py-1 bg-[#1A1A18] border border-[#2A2A28] rounded text-[10px] font-mono text-[var(--cyan-primary)]">{port}</span>
                           ))}
                         </div>
                       </div>
                       <div className="bg-[#0D0D0C] p-4">
-                        <div className="text-[12px] font-mono text-[#5C5A54] tracking-widest uppercase mb-2">Hostnames</div>
+                        <div className="text-[11px] font-mono text-[#5C5A54] tracking-widest uppercase mb-2">Hostnames</div>
                         {device.hostnames.length > 0 ? (
                           <div className="flex flex-col gap-1">
                             {device.hostnames.map((h: string) => (
-                              <span key={h} className="text-[11px] font-mono text-[#E8E6E0]">{h}</span>
+                              <span key={h} className="text-[10px] font-mono text-[#E8E6E0]">{h}</span>
                             ))}
                           </div>
                         ) : (
-                          <span className="text-[11px] font-mono text-[#3A3A38]">No reverse DNS</span>
+                          <span className="text-[10px] font-mono text-[#3A3A38]">No reverse DNS</span>
                         )}
                       </div>
                     </div>
@@ -1618,7 +1618,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
                     {/* CVE Intelligence */}
                     {device.vulns.length > 0 && (
                       <div className="p-4 border-t border-[#2A2A28]">
-                        <div className="text-[12px] font-mono text-[#5C5A54] tracking-widest uppercase mb-3">Vulnerabilities ({device.vulns.length})</div>
+                        <div className="text-[11px] font-mono text-[#5C5A54] tracking-widest uppercase mb-3">Vulnerabilities ({device.vulns.length})</div>
                         <div className="flex flex-col gap-2">
                           {device.vulns.map((cveId: string) => {
                             const info = cveCache[cveId];
@@ -1632,14 +1632,14 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
                               <div key={cveId} className="bg-[#111] border border-[#2A2A28] rounded-lg p-3">
                                 <div className="flex items-center justify-between mb-2">
                                   <div className="flex items-center gap-2">
-                                    <span className="text-[12px] font-mono font-bold text-[#E8E6E0]">{cveId}</span>
+                                    <span className="text-[11px] font-mono font-bold text-[#E8E6E0]">{cveId}</span>
                                     {info?.cvss != null && (
-                                      <span className="text-[12px] font-mono px-1.5 py-0.5 rounded" style={{ backgroundColor: severityColor + '15', color: severityColor, border: `1px solid ${severityColor}40` }}>CVSS {info.cvss}</span>
+                                      <span className="text-[11px] font-mono px-1.5 py-0.5 rounded" style={{ backgroundColor: severityColor + '15', color: severityColor, border: `1px solid ${severityColor}40` }}>CVSS {info.cvss}</span>
                                     )}
                                   </div>
                                   <div className="flex items-center gap-2">
                                     {info?.severity && (
-                                      <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded" style={{ backgroundColor: severityColor + '15', color: severityColor, border: `1px solid ${severityColor}40` }}>{info.severity}</span>
+                                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded" style={{ backgroundColor: severityColor + '15', color: severityColor, border: `1px solid ${severityColor}40` }}>{info.severity}</span>
                                     )}
                                     <a href={`https://nvd.nist.gov/vuln/detail/${cveId}`} target="_blank" rel="noreferrer" className="text-[#5C5A54] hover:text-[#E8E6E0] transition-colors">
                                       <ExternalLink className="w-3.5 h-3.5" />
@@ -1649,16 +1649,16 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
                                 {isLoading ? (
                                   <div className="flex items-center gap-2 py-1">
                                     <Loader2 className="w-3 h-3 animate-spin text-[#5C5A54]" />
-                                    <span className="text-[12px] font-mono text-[#5C5A54]">Fetching vulnerability intelligence...</span>
+                                    <span className="text-[11px] font-mono text-[#5C5A54]">Fetching vulnerability intelligence...</span>
                                   </div>
                                 ) : (
                                   <>
-                                    <p className="text-[11px] font-mono text-[#8A8880] leading-relaxed">{info.description}</p>
-                                    {info.cwe && <div className="text-[12px] font-mono text-[#5C5A54] mt-2">Weakness: {info.cwe}</div>}
+                                    <p className="text-[10px] font-mono text-[#8A8880] leading-relaxed">{info.description}</p>
+                                    {info.cwe && <div className="text-[11px] font-mono text-[#5C5A54] mt-2">Weakness: {info.cwe}</div>}
                                     {info.affected && info.affected.length > 0 && (
                                       <div className="mt-2 flex flex-wrap gap-1.5">
                                         {info.affected.map((a: any, i: number) => (
-                                          <span key={i} className="text-[11px] font-mono px-1.5 py-0.5 bg-[#1A1A18] border border-[#2A2A28] rounded text-[#8A8880]">
+                                          <span key={i} className="text-[10px] font-mono px-1.5 py-0.5 bg-[#1A1A18] border border-[#2A2A28] rounded text-[#8A8880]">
                                             {a.vendor}/{a.product}
                                           </span>
                                         ))}
@@ -1679,7 +1679,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
             })}
           </div>
           <div className="px-3 py-2 border-t border-[#2A2A28]">
-            <div className="text-[10px] font-mono text-[#5C5A54] tracking-wider">SWEPT {sweepResult.summary.total_hosts} HOSTS IN {(sweepResult.sweep_time_ms / 1000).toFixed(1)}s · ASN {sweepResult.center.asn}</div>
+            <div className="text-[9px] font-mono text-[#5C5A54] tracking-wider">SWEPT {sweepResult.summary.total_hosts} HOSTS IN {(sweepResult.sweep_time_ms / 1000).toFixed(1)}s · ASN {sweepResult.center.asn}</div>
           </div>
         </div>
       )}
@@ -1687,8 +1687,8 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
       {(results || (activeTab === 'crypto' && chainView === 'brief')) && !(sweepResult && !loading) && (
         <div className="bg-[var(--bg-primary)]/40 border border-[var(--border-primary)] rounded-lg p-3 max-h-[50vh] overflow-y-auto styled-scrollbar">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-mono tracking-widest" style={{ color: currentTab?.color }}>{currentTab?.label} RESULTS</span>
-            <span className="text-[10px] font-mono text-[var(--text-muted)] flex items-center gap-1"><Clock className="w-2.5 h-2.5" />{new Date().toLocaleTimeString()}</span>
+            <span className="text-[10px] font-mono tracking-widest" style={{ color: currentTab?.color }}>{currentTab?.label} RESULTS</span>
+            <span className="text-[9px] font-mono text-[var(--text-muted)] flex items-center gap-1"><Clock className="w-2.5 h-2.5" />{new Date().toLocaleTimeString()}</span>
           </div>
           {renderStructuredResults()}
         </div>
@@ -1696,15 +1696,15 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
 
       {history.length > 0 && !results && (
         <div className="space-y-1">
-          <span className="text-[11px] font-mono tracking-widest text-[var(--text-muted)]">RECENT SCANS</span>
+          <span className="text-[10px] font-mono tracking-widest text-[var(--text-muted)]">RECENT SCANS</span>
           {history.slice(0, 5).map((h, i) => (
             <button key={i} onClick={() => { setActiveTab(h.tab); setQuery(h.query); }}
               className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-[var(--hover-accent)] transition-colors text-left">
               <div className="flex items-center gap-2">
-                <span className="text-[11px] font-mono" style={{ color: TABS.find(t => t.id === h.tab)?.color }}>{TABS.find(t => t.id === h.tab)?.label}</span>
-                <span className="text-[12px] font-mono text-[var(--text-secondary)]">{h.query}</span>
+                <span className="text-[10px] font-mono" style={{ color: TABS.find(t => t.id === h.tab)?.color }}>{TABS.find(t => t.id === h.tab)?.label}</span>
+                <span className="text-[11px] font-mono text-[var(--text-secondary)]">{h.query}</span>
               </div>
-              <span className="text-[10px] font-mono text-[var(--text-muted)]">{h.time}</span>
+              <span className="text-[9px] font-mono text-[var(--text-muted)]">{h.time}</span>
             </button>
           ))}
         </div>
@@ -1725,13 +1725,13 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
             <div className="flex items-center gap-3 min-w-0">
               <Radar className="w-5 h-5 text-[var(--cyan-primary)] flex-shrink-0" />
               <span className="hud-text text-[16px] text-[var(--text-primary)]">OSIRIS RECON TOOLKIT</span>
-              <span className="gotham-tag gotham-tag--classified" style={{ fontSize: '10px' }}>{TABS.length} MODULES</span>
+              <span className="gotham-tag gotham-tag--classified" style={{ fontSize: '9px' }}>{TABS.length} MODULES</span>
               {currentTab && (
                 <>
                   <span className="text-[var(--text-muted)]/40">/</span>
                   <span className="flex items-center gap-1.5 min-w-0">
                     <currentTab.icon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: currentTab.color }} />
-                    <span className="text-[12px] font-mono font-bold tracking-wider truncate" style={{ color: currentTab.color }}>
+                    <span className="text-[11px] font-mono font-bold tracking-wider truncate" style={{ color: currentTab.color }}>
                       {currentTab.label}
                     </span>
                   </span>
@@ -1758,7 +1758,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
                         {currentTab.label}
                       </h2>
                     </div>
-                    <p className="text-[12px] font-mono text-[var(--text-muted)]">{currentTab.blurb}</p>
+                    <p className="text-[11px] font-mono text-[var(--text-muted)]">{currentTab.blurb}</p>
                   </div>
                 )}
                 {renderContent()}
@@ -1776,8 +1776,8 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
       <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-[rgba(255,255,255,0.05)] bg-[rgba(0,0,0,0.3)] hover:bg-[var(--hover-accent)] transition-colors">
         <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-2 flex-1">
           <Radar className="w-3.5 h-3.5 text-[var(--cyan-primary)]" />
-          <span className="hud-text text-[12px] text-[var(--text-primary)]">RECON TOOLKIT</span>
-          <span className="gotham-tag gotham-tag--info" style={{ fontSize: '10px', padding: '1px 5px' }}>{TABS.length} TOOLS</span>
+          <span className="hud-text text-[11px] text-[var(--text-primary)]">RECON TOOLKIT</span>
+          <span className="gotham-tag gotham-tag--info" style={{ fontSize: '9px', padding: '1px 5px' }}>{TABS.length} TOOLS</span>
         </button>
         <div className="flex items-center gap-3">
           <button onClick={() => setIsFullScreen(true)} className="p-1.5 -m-0.5 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/10 transition-colors" title="Full Screen">

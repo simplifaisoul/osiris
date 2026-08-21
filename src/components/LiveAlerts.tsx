@@ -131,9 +131,9 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed }: LiveAlertsPr
       >
         <div className="flex items-center gap-2">
           <Radio className="w-3.5 h-3.5 text-[#FF4081]" />
-          <span className="hud-text text-[12px] text-[var(--text-primary)]">LIVE ALERTS</span>
-          <span className="gotham-tag gotham-tag--high" style={{ fontSize: '10px', padding: '1px 5px' }}>{alerts.filter(a => a.type === 'news' || a.type === 'quake').length}</span>
-          <span className="gotham-tag gotham-tag--info" style={{ fontSize: '10px', padding: '1px 4px' }}>{BUILTIN_FEEDS.length} FEEDS</span>
+          <span className="hud-text text-[11px] text-[var(--text-primary)]">LIVE ALERTS</span>
+          <span className="gotham-tag gotham-tag--high" style={{ fontSize: '9px', padding: '1px 5px' }}>{alerts.filter(a => a.type === 'news' || a.type === 'quake').length}</span>
+          <span className="gotham-tag gotham-tag--info" style={{ fontSize: '9px', padding: '1px 4px' }}>{BUILTIN_FEEDS.length} FEEDS</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full bg-[#FF4081] animate-osiris-pulse" />
@@ -159,7 +159,7 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed }: LiveAlertsPr
                 <button
                   key={f}
                   onClick={() => setFilter(f)}
-                  className={`px-3 py-1.5 rounded text-[12px] font-mono tracking-wider transition-all ${filter === f ? 'bg-[var(--cyan-primary)]/20 text-[var(--cyan-primary)] border border-[var(--cyan-primary)]/50' : 'text-[#8A8880] border border-transparent hover:text-[#E8E6E0] hover:bg-[#2A2A28]'}`}
+                  className={`px-3 py-1.5 rounded text-[11px] font-mono tracking-wider transition-all ${filter === f ? 'bg-[var(--cyan-primary)]/20 text-[var(--cyan-primary)] border border-[var(--cyan-primary)]/50' : 'text-[#8A8880] border border-transparent hover:text-[#E8E6E0] hover:bg-[#2A2A28]'}`}
                 >
                   {f.toUpperCase()}
                 </button>
@@ -199,15 +199,15 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed }: LiveAlertsPr
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start gap-1.5 mb-2">
                           <Icon className="w-3.5 h-3.5 flex-shrink-0 mt-[2px]" style={{ color: sevColor }} />
-                          <span className={`text-[12px] font-mono text-[#E8E6E0] leading-relaxed ${alert.type === 'news' ? 'line-clamp-3' : 'truncate'}`}>
+                          <span className={`text-[11px] font-mono text-[#E8E6E0] leading-relaxed ${alert.type === 'news' ? 'line-clamp-3' : 'truncate'}`}>
                             {(alert.description || alert.title || '').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')}
                           </span>
                         </div>
                         <div className="flex items-center justify-between border-t border-[#2A2A28]/50 pt-1.5 mt-1.5">
                           <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-mono text-[#8A8880] uppercase tracking-wider">{alert.source}</span>
+                            <span className="text-[10px] font-mono text-[#8A8880] uppercase tracking-wider">{alert.source}</span>
                             {alert.time && (
-                              <span className="text-[11px] font-mono text-[#5C5A54] flex items-center gap-1 border-l border-[#2A2A28] pl-2">
+                              <span className="text-[10px] font-mono text-[#5C5A54] flex items-center gap-1 border-l border-[#2A2A28] pl-2">
                                 <Clock className="w-2.5 h-2.5" />
                                 {new Date(alert.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </span>
@@ -218,7 +218,7 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed }: LiveAlertsPr
                               href={alert.url} 
                               target="_blank" 
                               rel="noopener noreferrer" 
-                              className="inline-flex items-center py-1.5 px-1.5 -mx-1 rounded text-[10px] font-mono text-[var(--cyan-primary)] hover:underline hover:bg-[var(--cyan-primary)]/10"
+                              className="inline-flex items-center py-1.5 px-1.5 -mx-1 rounded text-[9px] font-mono text-[var(--cyan-primary)] hover:underline hover:bg-[var(--cyan-primary)]/10"
                               onClick={(e) => e.stopPropagation()}
                             >
                               SOURCE
@@ -237,7 +237,7 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed }: LiveAlertsPr
               })}
               </div>
               {filtered.length === 0 && (
-                <div className="text-center py-4 text-[12px] font-mono text-[var(--text-muted)]">
+                <div className="text-center py-4 text-[11px] font-mono text-[var(--text-muted)]">
                   No alerts for this filter
                 </div>
               )}

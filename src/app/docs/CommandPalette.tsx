@@ -132,16 +132,16 @@ export default function CommandPalette({
             onKeyDown={onKeyDown}
             placeholder="Search sections and endpoints…"
             aria-label="Search documentation"
-            className="flex-1 bg-transparent text-[13px] font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
+            className="flex-1 bg-transparent text-[12px] font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
           />
-          <kbd className="text-[11px] font-mono px-1.5 py-0.5 rounded border border-white/10 text-[var(--text-muted)]">
+          <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-white/10 text-[var(--text-muted)]">
             ESC
           </kbd>
         </div>
 
         <div ref={listRef} className="max-h-[52vh] overflow-y-auto styled-scrollbar py-1.5">
           {results.length === 0 && (
-            <div className="px-4 py-8 text-center text-[12px] font-mono text-[var(--text-muted)]">
+            <div className="px-4 py-8 text-center text-[11px] font-mono text-[var(--text-muted)]">
               No matches for “{query}”
             </div>
           )}
@@ -156,7 +156,7 @@ export default function CommandPalette({
               }`}
             >
               <span
-                className={`text-[10px] font-mono tracking-widest uppercase px-1.5 py-0.5 rounded border shrink-0 ${
+                className={`text-[9px] font-mono tracking-widest uppercase px-1.5 py-0.5 rounded border shrink-0 ${
                   it.kind === 'Endpoint'
                     ? 'text-[var(--cyan-primary)] border-[var(--cyan-primary)]/25'
                     : 'text-[var(--gold-primary)] border-[var(--gold-primary)]/25'
@@ -165,11 +165,11 @@ export default function CommandPalette({
                 {it.kind === 'Endpoint' ? 'API' : 'Doc'}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block font-mono text-[12px] text-[var(--text-primary)] truncate">{it.label}</span>
-                <span className="block text-[11px] text-[var(--text-muted)] truncate">{it.hint}</span>
+                <span className="block font-mono text-[11px] text-[var(--text-primary)] truncate">{it.label}</span>
+                <span className="block text-[10px] text-[var(--text-muted)] truncate">{it.hint}</span>
               </span>
               {i === cursor && (
-                <kbd className="text-[11px] font-mono px-1.5 py-0.5 rounded border border-white/10 text-[var(--text-muted)] shrink-0">
+                <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-white/10 text-[var(--text-muted)] shrink-0">
                   ↵
                 </kbd>
               )}
@@ -177,7 +177,7 @@ export default function CommandPalette({
           ))}
         </div>
 
-        <div className="flex items-center gap-4 px-4 h-9 border-t border-white/[0.07] text-[11px] font-mono text-[var(--text-muted)]">
+        <div className="flex items-center gap-4 px-4 h-9 border-t border-white/[0.07] text-[10px] font-mono text-[var(--text-muted)]">
           <span className="flex items-center gap-1">
             <kbd className="px-1 py-0.5 rounded border border-white/10">↑</kbd>
             <kbd className="px-1 py-0.5 rounded border border-white/10">↓</kbd> navigate
