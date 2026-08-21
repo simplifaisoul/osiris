@@ -9,7 +9,15 @@ const RTSP_BLOCKED = /temporarily limited|Top up/i;
 export async function GET(req: Request) {
   const url = new URL(req.url).searchParams.get('url');
 
-  if (!url || !/rtsp\.me\/embed/i.test(url)) {
+  // Check the host, not the string. "https://evil.com/?x=rtsp.me/embed"
+  // satisfies a substring test, which turned this into a fetch-anything route.
+  // safeFetch still refused private ranges, so it was never an internal-network
+  // hole, but the host is what should have been gating it.
+  let host = '';
+  try { host = new URL(url || '').hostname.toLowerCase(); } catch { /* not a URL */ }
+  const isRtspMe = host === 'rtsp.me' || host.endsWith('.rtsp.me');
+
+  if (!url || !isRtspMe || !/\/embed/i.test(url)) {
     return NextResponse.json({ available: false, blocked: false, reason: 'not_rtsp_me' });
   }
 

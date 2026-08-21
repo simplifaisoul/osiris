@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: `Upstream ${result.status}` }, { status: result.status });
     }
 
-    return new NextResponse(result.data, {
+    return new NextResponse(new Uint8Array(result.data), {
       status: 200,
       headers: {
         'Content-Type': result.contentType,

@@ -8,7 +8,7 @@ export async function GET(req: Request) {
 
   try {
     // We will call the breach-analytics endpoint to get deep details on what exactly was leaked.
-    const res = await fetch(`https://api.xposedornot.com/v1/breach-analytics?email=${encodeURIComponent(email)}`, {
+    const res = await fetch(`https://api.xposedornot.com/v1/breach-analytics?email=${encodeURIComponent(email)}`, { signal: AbortSignal.timeout(15000),
       headers: { 
         'Accept': 'application/json',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 OSIRIS/1.0'

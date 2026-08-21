@@ -4,8 +4,12 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   serverExternalPackages: ['ws'],
   transpilePackages: ['react-map-gl', 'mapbox-gl', 'maplibre-gl'],
+  // Type errors block the build again. They were suppressed while 17 stood
+  // unfixed; those are cleared, so the gate can do its job — the AstraPanel
+  // crash (createPortal used without an import) shipped precisely because
+  // nothing stopped it.
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   images: {
     remotePatterns: [

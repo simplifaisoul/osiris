@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden domain' }, { status: 403 });
     }
 
-    const response = await fetch(targetUrl.toString(), {
+    const response = await fetch(targetUrl.toString(), { signal: AbortSignal.timeout(15000),
       headers: {
         'Accept': '*/*',
         'User-Agent': 'Osiris-Tile-Proxy/1.0',

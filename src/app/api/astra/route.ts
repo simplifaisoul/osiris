@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
 
     console.log(`[ASTRA] Forwarding image to GPU server at ${gpuUrl}/geolocate...`);
 
-    const response = await fetch(`${gpuUrl}/geolocate`, {
+    const response = await fetch(`${gpuUrl}/geolocate`, { signal: AbortSignal.timeout(30000),
       method: 'POST',
       body: proxyFormData as any, // Node types sometimes complain about fetch FormData
       // Disable timeout or set very high if using a custom fetch agent, 

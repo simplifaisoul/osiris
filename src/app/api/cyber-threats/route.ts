@@ -9,7 +9,7 @@ export async function GET() {
 
     // 1. CISA Known Exploited Vulnerabilities (authoritative US govt source)
     try {
-      const res = await fetch('https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json', {
+      const res = await fetch('https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json', { signal: AbortSignal.timeout(15000),
         
       });
       if (res.ok) {
@@ -38,7 +38,7 @@ export async function GET() {
 
     // 2. Shadowserver honeypot stats (global attack surface)
     try {
-      const res = await fetch('https://dashboard.shadowserver.org/statistics/combined/map/', {
+      const res = await fetch('https://dashboard.shadowserver.org/statistics/combined/map/', { signal: AbortSignal.timeout(15000),
         
         headers: { 'Accept': 'application/json' },
       });

@@ -1193,7 +1193,7 @@ export default function Dashboard() {
           <AnimatePresence>
             {showIntel && (
               <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="absolute right-12 top-1/2 -translate-y-1/2 w-80">
-                <OsintPanel theme={osirisTheme} setTheme={setOsirisTheme} onSweepVisualize={setSweepData} onScanGeolocate={(target, data) => {
+                <OsintPanel onSweepVisualize={setSweepData} onScanGeolocate={(target, data) => {
                   setScanTargets(prev => {
                     const existing = prev.filter(t => t.id !== target);
                     return [{ id: target, timestamp: Date.now(), ...data }, ...existing].slice(0, 10);
