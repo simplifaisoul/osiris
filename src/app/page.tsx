@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Layers, BarChart3, Newspaper, Search, X, Globe, MapPinned, Route, Radar, Satellite, Moon, ExternalLink, AlertTriangle, Activity, Database, Wifi, Play, Network, Crosshair, Bluetooth, Pentagon, Radio } from 'lucide-react';
+import { Layers, BarChart3, Newspaper, Search, X, Globe, MapPinned, Route, Radar, Satellite, Moon, ExternalLink, AlertTriangle, Activity, Database, Wifi, Play, Network, Crosshair, Bluetooth, Pentagon, Radio , PenLine } from 'lucide-react';
 import IntelFeed from '@/components/IntelFeed';
 import MarketsPanel from '@/components/MarketsPanel';
 import ScmPanel from '@/components/ScmPanel';
@@ -26,7 +26,15 @@ const LayerPanel = dynamic(() => import('@/components/LayerPanel'));
 const SpaceCam = dynamic(() => import('@/components/SpaceCam'), { ssr: false });
 const CameraViewer = dynamic(() => import('@/components/CameraViewer'));
 const OsintPanel = dynamic(() => import('@/components/OsintPanel'));
-const EntityGraphPanel = dynamic(() => import('@/components/EntityGraphPanel'));
+const DrawingToolbar = dynamic(() => import('@/components/DrawingToolbar'), { ssr: false });
+const DrawHud = dynamic(() => import('@/components/DrawHud'), { ssr: false });
+// The measurement helpers are pure functions — importing them directly keeps
+// them out of the lazy chunk, so a finished polygon can be measured whether or
+// not the toolbar has loaded yet.
+import { toShape, queryRing, type DrawMode, type DrawnShape, type DrawProgress, type DrawResult } from '@/lib/draw';
+import { selectInPolygon } from '@/lib/aoi';
+import { diffSweep, appendEvents, type WatchBaseline, type WatchEvent } from '@/lib/watch';
+import { STORAGE_KEY, serializeShapes, deserializeShapes, shapesToGeoJSON, downloadFile } from '@/lib/aoi-export';
 const TokenPanel = dynamic(() => import('@/components/TokenPanel'));
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(false);
@@ -112,7 +120,18 @@ export default function Dashboard() {
   const [showSpaceCam, setShowSpaceCam] = useState(false);
   const [showScmPanel, setShowScmPanel] = useState(true);
   const [showIntel, setShowIntel] = useState(false);
-  const [showEntityGraph, setShowEntityGraph] = useState(false);
+  const [showDrawing, setShowDrawing] = useState(false);
+  const [drawMode, setDrawMode] = useState<DrawMode | null>(null);
+  const [drawProgress, setDrawProgress] = useState<DrawProgress | null>(null);
+  const [drawCommand, setDrawCommand] = useState<{ action: 'undo' | 'finish' | 'cancel'; seq: number } | null>(null);
+  const sendDraw = useCallback((action: 'undo' | 'finish' | 'cancel') => {
+    setDrawCommand(c => ({ action, seq: (c?.seq ?? 0) + 1 }));
+  }, []);
+  /** AOIs whose contents are being watched for arrivals and departures. */
+  const [watched, setWatched] = useState<Set<string>>(new Set());
+  const [watchEvents, setWatchEvents] = useState<WatchEvent[]>([]);
+  const watchBaselines = useRef<Record<string, WatchBaseline>>({});
+  const [selectedPolygon, setSelectedPolygon] = useState<string | null>(null);
   const [showDesktopSearch, setShowDesktopSearch] = useState(false);
   const [showDirections, setShowDirections] = useState(false);
   const [activeRoute, setActiveRoute] = useState<
@@ -207,7 +226,7 @@ export default function Dashboard() {
   const [mapStyle, setMapStyle] = useState<'dark'|'satellite'>('dark');
   const [sweepData, setSweepData] = useState<any>(null);
   const [scanTargets, setScanTargets] = useState<any[]>([]);
-  const [entityGraphTarget, setEntityGraphTarget] = useState<{ type: string; id: string; label?: string; properties?: Record<string, any> } | null>(null);
+  const [drawnPolygons, setDrawnPolygons] = useState<DrawnShape[]>([]);
   const [demoMode, setDemoMode] = useState(false);
   const [osirisTheme, setOsirisTheme] = useState<'core'|'ghost'>('core');
 
@@ -402,25 +421,73 @@ export default function Dashboard() {
     }
   }, []);
 
-  // Global handler for map popups to manually open the Intel Graph
+  // ── Drawing / AOI ──
+  // OsirisMap already owns the draw interaction and the polygon rendering;
+  // this only turns a finished ring into a measured, named, coloured record.
+  // Restore drawn areas on load. Work that vanishes on refresh is work the
+  // operator will not trust the tool with.
   useEffect(() => {
-    (window as any).openOsirisIntel = (entity: any) => {
-      if (entity?.callsign || entity?.icao24) {
-        setEntityGraphTarget({ type: 'aircraft', id: entity.callsign?.trim() || entity.icao24, label: entity.callsign?.trim() || entity.icao24, properties: { model: entity.model, registration: entity.registration, icao24: entity.icao24 } });
-        setShowEntityGraph(true);
-      } else if (entity?.type === 'vessel' || entity?.mmsi || entity?.imo) {
-        setEntityGraphTarget({ type: 'vessel', id: entity.imo || entity.mmsi || entity.name, label: entity.name || entity.imo, properties: { flag: entity.flag, speed: entity.speed, destination: entity.destination } });
-        setShowEntityGraph(true);
-      } else if (entity?.type === 'ip' && entity?.ip) {
-        setEntityGraphTarget({ type: 'ip', id: entity.ip, label: entity.ip, properties: { threat_type: entity.threat_type, status: entity.status } });
-        setShowEntityGraph(true);
-      } else if (entity?.type === 'country' && entity?.country) {
-        setEntityGraphTarget({ type: 'country', id: entity.country, label: entity.country, properties: {} });
-        setShowEntityGraph(true);
-      }
-    };
-    return () => { delete (window as any).openOsirisIntel; };
+    try {
+      const restored = deserializeShapes(localStorage.getItem(STORAGE_KEY));
+      if (restored.length) setDrawnPolygons(restored);
+    } catch { /* storage unavailable — start empty */ }
   }, []);
+
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_KEY, serializeShapes(drawnPolygons)); } catch { /* quota or private mode */ }
+  }, [drawnPolygons]);
+
+  // ── Tripwires ──
+  // Re-sweep every watched AOI whenever live data refreshes and record what
+  // changed. Keyed off dataVersion rather than `data` so this runs once per
+  // refresh instead of once per render.
+  useEffect(() => {
+    if (watched.size === 0) return;
+    const now = Date.now();
+    const fresh: WatchEvent[] = [];
+    for (const shape of drawnPolygons) {
+      if (!watched.has(shape.id)) continue;
+      const ring = queryRing(shape);
+      if (!ring) continue;
+      const report = selectInPolygon(ring, dataRef.current as any);
+      const prev = watchBaselines.current[shape.id] ?? null;
+      const { baseline, events } = diffSweep(shape.id, report, prev, now);
+      watchBaselines.current[shape.id] = baseline;
+      fresh.push(...events);
+    }
+    if (fresh.length) setWatchEvents(log => appendEvents(log, fresh));
+  }, [dataVersion, watched, drawnPolygons]);
+
+  const toggleWatch = useCallback((id: string) => {
+    setWatched(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+        // Drop the baseline too, so re-arming starts clean rather than
+        // reporting everything that moved while the watch was off.
+        delete watchBaselines.current[id];
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleDrawComplete = useCallback((result: DrawResult) => {
+    setDrawnPolygons(prev => [toShape(result, prev, prev.length), ...prev]);
+    // One shape per arming: staying armed after a finish is how you end up
+    // with an accidental second AOI from the click that dismisses the first.
+    setDrawMode(null);
+    setDrawProgress(null);
+  }, []);
+
+  const handleExportGeoJSON = useCallback(() => {
+    downloadFile(
+      `osiris-aoi-${new Date().toISOString().slice(0, 10)}.geojson`,
+      JSON.stringify(shapesToGeoJSON(drawnPolygons), null, 2),
+      'application/geo+json',
+    );
+  }, [drawnPolygons]);
 
   // ── SHARED FETCH UTILITY (Fixes #107 — single definition, not 3 copies) ──
   /* `skipWhenHidden` is for background polling only — skipping a *user-initiated*
@@ -952,6 +1019,12 @@ export default function Dashboard() {
           followUser={followUser}
           onFollowInterrupt={() => setFollowUser(false)}
           navigating={Boolean(navSession)}
+          drawMode={drawMode}
+          onDrawProgress={setDrawProgress}
+          drawCommand={drawCommand}
+          onDrawCancel={() => { setDrawMode(null); setDrawProgress(null); }}
+          onDrawComplete={handleDrawComplete}
+          drawnPolygons={drawnPolygons}
           aircraftAirports={aircraftAirports}
         />
       </ErrorBoundary>
@@ -1234,7 +1307,7 @@ export default function Dashboard() {
         </div>
 
         <div className="relative group">
-          <button onClick={() => { setShowAlerts(!showAlerts); setShowIntel(false); setShowMarkets(false); setShowEntityGraph(false); }} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${showAlerts ? 'bg-[#FF3D3D]/20' : 'hover:bg-white/10'}`} title="Live Alerts — earthquakes, conflicts, breaking news">
+          <button onClick={() => { setShowAlerts(!showAlerts); setShowIntel(false); setShowMarkets(false); setShowDrawing(false); }} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${showAlerts ? 'bg-[#FF3D3D]/20' : 'hover:bg-white/10'}`} title="Live Alerts — earthquakes, conflicts, breaking news">
             <AlertTriangle className={`w-4 h-4 ${showAlerts ? 'text-[#FF3D3D]' : 'text-white/60'}`} />
           </button>
           <span className="absolute right-11 top-1/2 -translate-y-1/2 px-2 py-1 text-[9px] font-mono tracking-wider text-white/80 bg-black/80 backdrop-blur-sm rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">ALERTS</span>
@@ -1248,21 +1321,21 @@ export default function Dashboard() {
         </div>
 
         <div className="relative group">
-          <button onClick={() => { setShowEntityGraph(!showEntityGraph); setShowIntel(false); setShowMarkets(false); setShowAlerts(false); setShowSpaceCam(false); }} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${showEntityGraph ? 'bg-[#D4AF37]/20' : 'hover:bg-white/10'}`} title="Entity Graph — link analysis between tracked entities">
-            <Network className={`w-4 h-4 ${showEntityGraph ? 'text-[var(--gold-primary)]' : 'text-white/60'}`} />
+          <button onClick={() => { setShowDrawing(!showDrawing); setShowIntel(false); setShowMarkets(false); setShowAlerts(false); setShowSpaceCam(false); }} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${showDrawing ? 'bg-[#00E5FF]/20' : 'hover:bg-white/10'}`} title="Draw — measure areas of interest on the map">
+            <PenLine className={`w-4 h-4 ${showDrawing ? 'text-[#00E5FF]' : 'text-white/60'}`} />
           </button>
-          <span className="absolute right-11 top-1/2 -translate-y-1/2 px-2 py-1 text-[9px] font-mono tracking-wider text-white/80 bg-black/80 backdrop-blur-sm rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">GRAPH</span>
+          <span className="absolute right-11 top-1/2 -translate-y-1/2 px-2 py-1 text-[9px] font-mono tracking-wider text-white/80 bg-black/80 backdrop-blur-sm rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">DRAW</span>
         </div>
 
         <div className="relative group">
-          <button onClick={() => { setShowDirections(!showDirections); if (showDirections) { setActiveRoute(null); } setShowDesktopSearch(false); setShowIntel(false); setShowMarkets(false); setShowAlerts(false); setShowSpaceCam(false); setShowEntityGraph(false); }} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${showDirections ? 'bg-[var(--gold-primary)]/20' : 'hover:bg-white/10'}`} title="Directions — turn-by-turn routing">
+          <button onClick={() => { setShowDirections(!showDirections); if (showDirections) { setActiveRoute(null); } setShowDesktopSearch(false); setShowIntel(false); setShowMarkets(false); setShowAlerts(false); setShowSpaceCam(false); setShowDrawing(false); }} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${showDirections ? 'bg-[var(--gold-primary)]/20' : 'hover:bg-white/10'}`} title="Directions — turn-by-turn routing">
             <Route className={`w-4 h-4 ${showDirections ? 'text-[var(--gold-primary)]' : 'text-white/60'}`} />
           </button>
           <span className="absolute right-11 top-1/2 -translate-y-1/2 px-2 py-1 text-[9px] font-mono tracking-wider text-white/80 bg-black/80 backdrop-blur-sm rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">ROUTE</span>
         </div>
 
         <div className="relative group">
-          <button onClick={() => { setShowDesktopSearch(!showDesktopSearch); setShowIntel(false); setShowMarkets(false); setShowAlerts(false); setShowSpaceCam(false); setShowEntityGraph(false); }} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${showDesktopSearch ? 'bg-[var(--gold-primary)]/20' : 'hover:bg-white/10'}`} title="Search — find locations, cities, coordinates">
+          <button onClick={() => { setShowDesktopSearch(!showDesktopSearch); setShowIntel(false); setShowMarkets(false); setShowAlerts(false); setShowSpaceCam(false); setShowDrawing(false); }} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${showDesktopSearch ? 'bg-[var(--gold-primary)]/20' : 'hover:bg-white/10'}`} title="Search — find locations, cities, coordinates">
             <Search className={`w-4 h-4 ${showDesktopSearch ? 'text-[var(--gold-primary)]' : 'text-white/60'}`} />
           </button>
           <span className="absolute right-11 top-1/2 -translate-y-1/2 px-2 py-1 text-[9px] font-mono tracking-wider text-white/80 bg-black/80 backdrop-blur-sm rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">SEARCH</span>
@@ -1308,7 +1381,7 @@ export default function Dashboard() {
 
         {/* ── WORLD REMOTE ── */}
         <div className="relative group">
-          <button onClick={() => { setShowRemote(!showRemote); setShowArcGIS(false); setShowIntel(false); setShowMarkets(false); setShowAlerts(false); setShowSpaceCam(false); setShowEntityGraph(false); setShowDesktopSearch(false); }} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${showRemote ? 'bg-[var(--cyan-primary)]/20' : 'hover:bg-white/10'}`} title="World Remote — control nearby Bluetooth devices (TVs, speakers, AC)">
+          <button onClick={() => { setShowRemote(!showRemote); setShowArcGIS(false); setShowIntel(false); setShowMarkets(false); setShowAlerts(false); setShowSpaceCam(false); setShowDrawing(false); setShowDesktopSearch(false); }} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${showRemote ? 'bg-[var(--cyan-primary)]/20' : 'hover:bg-white/10'}`} title="World Remote — control nearby Bluetooth devices (TVs, speakers, AC)">
             <Bluetooth className={`w-4 h-4 ${showRemote ? 'text-[var(--cyan-primary)]' : 'text-white/60'}`} />
           </button>
           <span className="absolute right-11 top-1/2 -translate-y-1/2 px-2 py-1 text-[9px] font-mono tracking-wider text-white/80 bg-black/80 backdrop-blur-sm rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">REMOTE</span>
@@ -1604,11 +1677,37 @@ export default function Dashboard() {
       />
 
       {/* ── Entity Graph Panel ── */}
-      {showEntityGraph && (
-        <EntityGraphPanel
-          entity={entityGraphTarget}
-          onClose={() => setShowEntityGraph(false)}
+      {/* Guidance belongs over the map, where the clicking happens. */}
+      {drawMode && (
+        <DrawHud
+          mode={drawMode}
+          progress={drawProgress}
+          onUndo={() => sendDraw('undo')}
+          onFinish={() => sendDraw('finish')}
+          onCancel={() => { sendDraw('cancel'); setDrawMode(null); setDrawProgress(null); }}
         />
+      )}
+
+      {showDrawing && (
+        <div className="absolute right-12 top-1/2 -translate-y-1/2 z-[400] w-80 pointer-events-auto">
+          <DrawingToolbar
+            drawMode={drawMode}
+            onSetDrawMode={setDrawMode}
+            progress={drawProgress}
+            polygons={drawnPolygons}
+            onDeletePolygon={(id) => setDrawnPolygons(p => p.filter(x => x.id !== id))}
+            onClearAll={() => { setDrawnPolygons([]); setSelectedPolygon(null); }}
+            onExportGeoJSON={handleExportGeoJSON}
+            selectedPolygon={selectedPolygon}
+            onSelectPolygon={setSelectedPolygon}
+            onRenamePolygon={(id, name) => setDrawnPolygons(p => p.map(x => x.id === id ? { ...x, name } : x))}
+            data={data}
+            onLocateEntity={(lat, lng) => setFlyToLocation({ lat, lng, zoom: 12, ts: Date.now() })}
+            watched={watched}
+            onToggleWatch={toggleWatch}
+            watchEvents={watchEvents}
+          />
+        </div>
       )}
 
       {/* ── OVERLAYS ── */}

@@ -1,3 +1,4 @@
+import { buildGeometry, closeRing, drawReducer, initialDrawState, measure, type DrawAction, type DrawMode, type DrawProgress, type DrawResult, type DrawState } from '@/lib/draw';
 'use client';
 
 import { useEffect, useRef, useState, useCallback, memo } from 'react';
@@ -18,10 +19,18 @@ interface OsirisMapProps {
   scanTargets?: any[];
   demoMode?: boolean;
   theme?: 'core' | 'ghost';
-  drawnPolygons?: Array<{ id: string; name: string; geojson: GeoJSON.Feature<GeoJSON.Polygon>; color: string }>;
+  drawnPolygons?: Array<{ id: string; name: string; geojson: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString>; color: string }>;
   arcgisLayers?: Array<{ id: string; title: string; geojson: any; color?: string; opacity?: number }>;
-  drawingMode?: boolean;
-  onDrawComplete?: (coords: number[][]) => void;
+  /** Active draw mode, or null when not drawing. */
+  drawMode?: DrawMode | null;
+  onDrawProgress?: (p: DrawProgress | null) => void;
+  onDrawCancel?: () => void;
+  /**
+   * Undo / finish / cancel driven from a button rather than the keyboard.
+   * Carries a seq so pressing the same button twice still registers.
+   */
+  drawCommand?: { action: DrawAction["type"]; seq: number } | null;
+  onDrawComplete?: (result: DrawResult) => void;
   onMapCenter?: (coords: { lat: number; lng: number; bounds?: { west: number; south: number; east: number; north: number } }) => void;
   /** Active turn-by-turn route drawn as a line with origin/destination pins. */
   route?: {
@@ -67,7 +76,7 @@ function computeSolarTerminator(): [number, number][] {
 
 const EMPTY_FC = { type: 'FeatureCollection' as const, features: [] };
 
-function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, flyToLocation, projection = 'globe', mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', drawnPolygons = [], arcgisLayers = [], drawingMode = false, onDrawComplete, onMapCenter, route = null, userLocation = null, followUser = false, onFollowInterrupt, navigating = false, aircraftAirports = {} }: OsirisMapProps) {
+function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, flyToLocation, projection = 'globe', mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', drawnPolygons = [], arcgisLayers = [], drawMode = null, onDrawComplete, onDrawProgress, onDrawCancel, drawCommand = null, onMapCenter, route = null, userLocation = null, followUser = false, onFollowInterrupt, navigating = false, aircraftAirports = {} }: OsirisMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
@@ -650,6 +659,9 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
 
 
       setMapReady(true);
+      // Dev-only handle. The map is otherwise unreachable from the console,
+      // which makes interaction bugs guesswork rather than diagnosis.
+      if (process.env.NODE_ENV === 'development') (window as any).__osirisMap = map;
     });
 
     // Events
@@ -721,7 +733,6 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
             <a href="https://globe.adsbexchange.com/?icao=${encodeURIComponent(p.icao24||'')}" target="_blank" style="${linkStyle}color:#78909C;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);">ADS-B</a>
             <a href="https://www.radarbox.com/data/flights/${encodeURIComponent(cs)}" target="_blank" style="${linkStyle}color:#78909C;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);">RADARBOX</a>
           </div>
-          <button onclick="window.openOsirisIntel({ callsign: '${idSafe(cs)}', icao24: '${idSafe(p.icao24||'')}', model: '${idSafe(p.model||'')}', registration: '${idSafe(p.registration||'')}' })" style="width:100%;margin-top:6px;padding:5px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);color:#B0BEC5;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:bold;letter-spacing:0.1em;border-radius:4px;cursor:pointer;">DEEP DIVE INTEL</button>
         </div>`);
 
         // The transponder only reports a type code (often nothing at all), so
@@ -883,7 +894,6 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         <div style="display:flex;gap:6px;">
           <a href="https://feodotracker.abuse.ch/browse/" target="_blank" style="${linkStyle}flex:1;text-align:center;color:#E8E6E0;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.05);">THREAT INTEL ↗</a>
         </div>
-        <button onclick="window.openOsirisIntel({ type: 'ip', ip: '${idSafe(p.ip)}', threat_type: '${idSafe(p.malware || p.threat_type || '')}', status: '${idSafe(p.status || '')}' })" style="width:100%;margin-top:8px;padding:8px 12px;background:linear-gradient(90deg, rgba(255,23,68,0.1) 0%, rgba(255,23,68,0.2) 100%);border:1px solid rgba(255,23,68,0.6);color:#FF1744;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:bold;letter-spacing:0.15em;border-radius:4px;cursor:pointer;transition:all 0.2s;">DEEP DIVE ANALYTICS</button>
       </div>`);
     });
 
@@ -1096,7 +1106,6 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
           <div><span style="color:#5C5A54;">TYPE</span><br/><span style="color:#00E5FF;">${(p.type || 'UNKNOWN').toUpperCase()}</span></div>
           <div><span style="color:#5C5A54;">COORDS</span><br/><span style="color:#E8E6E0;">${coords[1].toFixed(3)}°, ${coords[0].toFixed(3)}°</span></div>
         </div>
-        <button onclick="window.openOsirisIntel({ type: 'ip', ip: '${idSafe(p.id)}' })" style="width:100%;margin-top:8px;padding:6px 12px;background:rgba(255,109,0,0.15);border:1px solid rgba(255,109,0,0.5);color:#FF6D00;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:bold;letter-spacing:0.1em;border-radius:4px;cursor:pointer;">[ IP INTEL DEEP DIVE ]</button>
       </div>`);
     });
 
@@ -1144,7 +1153,6 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         </div>
         <div style="font-size:9px;color:#8A8880;margin-bottom:6px;">Open: ${ports.slice(0, 12).join(', ')}${ports.length > 12 ? ' ...' : ''}</div>
         ${vulns.length > 0 ? `<div style="font-size:9px;color:#FF3D3D;margin-bottom:6px;">⚠ CVEs: ${vulns.slice(0, 5).join(', ')}${vulns.length > 5 ? ` +${vulns.length - 5} more` : ''}</div>` : ''}
-        <button onclick="window.openOsirisIntel({ type: 'ip', ip: '${p.ip}' })" style="width:100%;margin-top:6px;padding:6px 12px;background:rgba(255,109,0,0.15);border:1px solid rgba(255,109,0,0.5);color:#FF6D00;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:bold;letter-spacing:0.1em;border-radius:4px;cursor:pointer;">[ IP INTEL DEEP DIVE ]</button>
       </div>`);
     });
 
@@ -2015,8 +2023,11 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       const lineLayerId = `drawn-polygon-line-${poly.id}`;
       const labelLayerId = `drawn-polygon-label-${poly.id}`;
 
-      // Build a centroid point feature for the label
-      const ring = poly.geojson.geometry?.coordinates?.[0] || [];
+      // Build a centroid point feature for the label. A Polygon nests its ring
+      // one level deeper than a LineString, so the label of a path would sit at
+      // 0,0 if both were read the same way.
+      const geom: any = poly.geojson.geometry;
+      const ring: number[][] = geom?.type === 'LineString' ? (geom.coordinates || []) : (geom?.coordinates?.[0] || []);
       const centroid = ring.length > 0 ? [
         ring.reduce((s: number, c: number[]) => s + c[0], 0) / ring.length,
         ring.reduce((s: number, c: number[]) => s + c[1], 0) / ring.length,
@@ -2035,7 +2046,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       }
 
       if (!map.getLayer(fillLayerId)) {
-        map.addLayer({ id: fillLayerId, type: 'fill', source: sourceId, paint: { 'fill-color': poly.color, 'fill-opacity': 0.12 } });
+        map.addLayer({ id: fillLayerId, type: 'fill', source: sourceId, filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': poly.color, 'fill-opacity': 0.12 } });
       }
       if (!map.getLayer(lineLayerId)) {
         map.addLayer({ id: lineLayerId, type: 'line', source: sourceId, paint: { 'line-color': poly.color, 'line-width': 2.5, 'line-dasharray': [6, 3] } });
@@ -2416,18 +2427,41 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     });
   }, [mapReady, arcgisLayers]);
 
+  const drawCbRef = useRef({ onDrawComplete, onDrawProgress, onDrawCancel });
+  /** Set by the drawing effect so on-screen buttons can dispatch into it. */
+  const drawApplyRef = useRef<((a: DrawAction) => void) | null>(null);
+  drawCbRef.current = { onDrawComplete, onDrawProgress, onDrawCancel };
+
   // ── DRAWING MODE ──
+  // A four-mode state machine over one set of map handlers.
+  //
+  // Every mode collects points; what differs is how many are needed and what
+  // geometry they produce. Rectangle and circle are two-click shapes, so the
+  // cursor stands in for their second point until it is committed — which is
+  // what makes the preview and the final shape come from the same code path
+  // instead of two that can disagree.
+  //
+  // Escape cancels, Backspace removes the last vertex, Enter or a double click
+  // finishes. Drawing without an undo is the difference between a tool and a
+  // demo: a misplaced vertex twenty clicks in should not cost the whole shape.
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
     const map = mapRef.current;
-    
-    if (!drawingMode) {
-      map.doubleClickZoom.enable();
-      if (map.getLayer('draw-line-temp')) map.removeLayer('draw-line-temp');
-      if (map.getLayer('draw-points-temp')) map.removeLayer('draw-points-temp');
-      if (map.getSource('draw-temp-source')) map.removeSource('draw-temp-source');
+
+    const SRC = 'draw-temp-source';
+    const IDS = ['draw-fill-temp', 'draw-line-temp', 'draw-points-temp'];
+
+    const teardown = () => {
+      IDS.forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
+      if (map.getSource(SRC)) map.removeSource(SRC);
       drawingCoordsRef.current = [];
       map.getCanvas().style.cursor = '';
+      map.doubleClickZoom.enable();
+    };
+
+    if (!drawMode) {
+      teardown();
+      drawCbRef.current.onDrawProgress?.(null);
       return;
     }
 
@@ -2435,66 +2469,123 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     map.getCanvas().style.cursor = 'crosshair';
     drawingCoordsRef.current = [];
 
-    if (!map.getSource('draw-temp-source')) {
-      map.addSource('draw-temp-source', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-      map.addLayer({ id: 'draw-line-temp', type: 'line', source: 'draw-temp-source', paint: { 'line-color': '#00E5FF', 'line-width': 2, 'line-dasharray': [4, 4] } });
-      map.addLayer({ id: 'draw-points-temp', type: 'circle', source: 'draw-temp-source', paint: { 'circle-color': '#00E5FF', 'circle-radius': 4, 'circle-stroke-width': 1, 'circle-stroke-color': '#000' } });
+    if (!map.getSource(SRC)) {
+      map.addSource(SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.addLayer({
+        id: 'draw-fill-temp', type: 'fill', source: SRC,
+        filter: ['==', ['geometry-type'], 'Polygon'],
+        paint: { 'fill-color': '#00E5FF', 'fill-opacity': 0.12 },
+      });
+      map.addLayer({
+        id: 'draw-line-temp', type: 'line', source: SRC,
+        filter: ['match', ['geometry-type'], ['LineString', 'Polygon'], true, false],
+        paint: { 'line-color': '#00E5FF', 'line-width': 2, 'line-dasharray': [3, 2] },
+      });
+      map.addLayer({
+        id: 'draw-points-temp', type: 'circle', source: SRC,
+        filter: ['==', ['geometry-type'], 'MultiPoint'],
+        paint: { 'circle-color': '#00E5FF', 'circle-radius': 4, 'circle-stroke-width': 1.5, 'circle-stroke-color': '#04040A' },
+      });
     }
 
-    const updateTempGeoJSON = () => {
-      const coords = drawingCoordsRef.current;
-      const src = map.getSource('draw-temp-source') as maplibregl.GeoJSONSource;
+    // Declared before paint(), which closes over it. Leaving it below would
+    // work only while no call happens in between — a temporal-dead-zone crash
+    // waiting for someone to add one.
+    let state: DrawState = initialDrawState(drawMode);
+
+    /** Redraw the preview from committed points plus an optional cursor point. */
+    const paint = (cursor?: [number, number]) => {
+      const committed = state.points;
+      const pts = cursor ? [...committed, cursor] : committed;
+      const src = map.getSource(SRC) as maplibregl.GeoJSONSource;
       if (!src) return;
-      if (coords.length === 0) {
+
+      drawCbRef.current.onDrawProgress?.(pts.length ? measure(drawMode, pts) : null);
+
+      if (pts.length === 0) {
         src.setData({ type: 'FeatureCollection', features: [] });
         return;
       }
-      const features: any[] = [{ type: 'Feature', geometry: { type: 'MultiPoint', coordinates: coords }, properties: {} }];
-      if (coords.length > 1) {
-        features.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: [...coords, coords[0]] }, properties: {} });
+
+      const features: any[] = [
+        { type: 'Feature', properties: {}, geometry: { type: 'MultiPoint', coordinates: committed } },
+      ];
+
+      const geom = buildGeometry(drawMode, pts);
+      if (drawMode === 'line') {
+        if (pts.length > 1) {
+          features.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: geom } });
+        }
+      } else if (geom.length >= 3) {
+        // Show the enclosed area as it will be, not just its outline.
+        features.push({ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [closeRing(geom)] } });
+      } else if (geom.length === 2) {
+        features.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: geom } });
       }
+
       src.setData({ type: 'FeatureCollection', features });
     };
 
-    let dblClickGuard = false;
-
-    const handleClick = (e: any) => {
-      // Skip clicks that are part of a double-click
-      if (dblClickGuard) return;
-      drawingCoordsRef.current.push([e.lngLat.lng, e.lngLat.lat]);
-      updateTempGeoJSON();
+    // The interaction lives in drawReducer, which is unit tested. This is the
+    // adapter: map events in, reducer out, preview repainted.
+    const apply = (action: DrawAction) => {
+      const t = drawReducer(state, action);
+      state = t.state;
+      drawingCoordsRef.current = state.points;
+      if (t.result) drawCbRef.current.onDrawComplete?.(t.result);
+      if (t.cancelled) drawCbRef.current.onDrawCancel?.();
+      paint();
     };
 
-    const handleDblClick = (e: any) => {
+    let dblGuard = false;
+
+    const onClick = (e: any) => {
+      if (dblGuard) return;
+      apply({ type: 'click', at: [e.lngLat.lng, e.lngLat.lat] });
+    };
+
+    const onMove = (e: any) => {
+      if (state.points.length === 0) return;
+      paint([e.lngLat.lng, e.lngLat.lat]);
+    };
+
+    const onDblClick = (e: any) => {
       e.preventDefault();
-      dblClickGuard = true;
-      setTimeout(() => { dblClickGuard = false; }, 300);
-
-      // Remove the duplicate point that the click handler added for the first click of the double-click
-      if (drawingCoordsRef.current.length > 0) drawingCoordsRef.current.pop();
-
-      const coords = [...drawingCoordsRef.current];
-      if (coords.length >= 3) {
-        // Don't close the ring here — page.tsx's onDrawComplete already adds coords[0]
-        onDrawComplete?.(coords);
-      }
-      drawingCoordsRef.current = [];
-      updateTempGeoJSON();
-
-      // Clean up temp layers
-      if (map.getLayer('draw-line-temp')) map.removeLayer('draw-line-temp');
-      if (map.getLayer('draw-points-temp')) map.removeLayer('draw-points-temp');
-      if (map.getSource('draw-temp-source')) map.removeSource('draw-temp-source');
+      dblGuard = true;
+      setTimeout(() => { dblGuard = false; }, 300);
+      apply({ type: 'dblclick' });
     };
 
-    map.on('click', handleClick);
-    map.on('dblclick', handleDblClick);
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') { ev.preventDefault(); apply({ type: 'cancel' }); }
+      else if (ev.key === 'Backspace' || ev.key === 'Delete') { ev.preventDefault(); apply({ type: 'undo' }); }
+      else if (ev.key === 'Enter') { ev.preventDefault(); apply({ type: 'finish' }); }
+    };
+    drawApplyRef.current = apply;
+
+    map.on('click', onClick);
+    map.on('mousemove', onMove);
+    map.on('dblclick', onDblClick);
+    window.addEventListener('keydown', onKey);
 
     return () => {
-      map.off('click', handleClick);
-      map.off('dblclick', handleDblClick);
+      map.off('click', onClick);
+      map.off('mousemove', onMove);
+      map.off('dblclick', onDblClick);
+      window.removeEventListener('keydown', onKey);
+      drawApplyRef.current = null;
+      teardown();
     };
-  }, [mapReady, drawingMode, onDrawComplete]);
+  }, [mapReady, drawMode]);
+
+  // Buttons dispatch into the same reducer the map events use, so a shape
+  // finished by clicking "Finish" is identical to one finished by Enter.
+  const lastCmdSeq = useRef(-1);
+  useEffect(() => {
+    if (!drawCommand || drawCommand.seq === lastCmdSeq.current) return;
+    lastCmdSeq.current = drawCommand.seq;
+    drawApplyRef.current?.({ type: drawCommand.action } as DrawAction);
+  }, [drawCommand]);
 
   // ── MAP CENTER REPORTING ──
   useEffect(() => {
