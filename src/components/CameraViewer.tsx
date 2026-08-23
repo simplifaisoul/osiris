@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ExternalLink, RefreshCw, MapPin, Camera, Maximize2 } from 'lucide-react';
 import Hls from 'hls.js';
+import { isHostedOffPlatform, needsResolution, offPlatformView } from '@/lib/skyline';
 
 interface CameraViewerProps {
   camera: any | null;
@@ -33,9 +34,43 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
 
-  const streamType = camera?.stream_type || 'jpg';
   const externalFeedUrl = camera?.external_url || camera?.feed_url;
-  const externalOnly = Boolean(camera?.external_url && !camera?.feed_url && !camera?.stream_url);
+  const hostedOffPlatform = isHostedOffPlatform(camera);
+
+  /**
+   * A SkylineWebcams page is usually a wrapper around a public YouTube
+   * livestream published by the camera's actual operator, so it can play here
+   * rather than sending the viewer off-platform. Resolved live rather than
+   * baked into the camera data: a livestream that restarts comes back under a
+   * new video id, and a baked id would work until it silently didn't.
+   *
+   * The answer is stored against the URL it belongs to. Keying it that way is
+   * what makes switching cameras safe: a reply that arrives late carries the
+   * previous key, so it is simply not read rather than painting the last
+   * camera's stream into the current one. It also means neither `resolving`
+   * nor the reset needs to be written back into state — both fall out of the
+   * key comparison at render.
+   */
+  const resolveKey: string | null = needsResolution(camera) ? camera.external_url : null;
+  const [resolution, setResolution] = useState<{ key: string; embed: string | null } | null>(null);
+  const resolvedEmbed = resolution && resolution.key === resolveKey ? resolution.embed : null;
+  const resolving = Boolean(resolveKey) && resolution?.key !== resolveKey;
+
+  useEffect(() => {
+    if (!resolveKey) return;
+    let live = true;
+    fetch(`/api/cctv/resolve?url=${encodeURIComponent(resolveKey)}`)
+      .then(r => r.json())
+      .then(d => { if (live) setResolution({ key: resolveKey, embed: d?.embeddable ? d.embedUrl : null }); })
+      // A resolver failure is not a broken camera — it falls back to the link.
+      .catch(() => { if (live) setResolution({ key: resolveKey, embed: null }); });
+    return () => { live = false; };
+  }, [resolveKey]);
+
+  const streamType = resolvedEmbed ? 'iframe' : (camera?.stream_type || 'jpg');
+  const streamUrl: string | undefined = resolvedEmbed || camera?.stream_url;
+  const view = offPlatformView({ hostedOffPlatform, resolving, resolvedEmbed });
+  const externalOnly = view !== 'inline';
 
   useEffect(() => {
     if (!camera) return;
@@ -82,7 +117,7 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
       return;
     }
 
-    if ((streamType === 'iframe' || streamType === 'mp4') && camera.stream_url) {
+    if ((streamType === 'iframe' || streamType === 'mp4') && streamUrl) {
       setLoading(false);
       return;
     }
@@ -96,7 +131,7 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
       setError(true);
       setLoading(false);
     }
-  }, [camera, streamType, externalOnly, retryCount]);
+  }, [camera, streamType, streamUrl, externalOnly, retryCount]);
 
   // Auto-refresh for JPGs
   useEffect(() => {
@@ -211,7 +246,13 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
               </div>
             )}
 
-            {externalOnly ? (
+            {view === 'resolving' ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-30 backdrop-blur-sm p-4 text-center">
+                <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin mb-3" style={{ borderColor: 'var(--gold-dim)', borderTopColor: 'transparent' }} />
+                <p className="text-[11px] font-mono uppercase tracking-widest" style={{ color: 'var(--gold-primary)' }}>ACQUIRING UPLINK</p>
+                <p className="text-[9px] font-mono text-[var(--text-muted)] mt-2 uppercase">Locating a direct feed</p>
+              </div>
+            ) : view === 'external' ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-30 backdrop-blur-sm p-4 text-center">
                 <ExternalLink className="w-6 h-6 mb-3 opacity-50" style={{ color: 'var(--gold-primary)' }} />
                 <p className="text-[11px] font-mono uppercase tracking-widest" style={{ color: 'var(--gold-primary)' }}>SECURE FEED ENCRYPTED</p>
@@ -262,9 +303,9 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
                 playsInline
                 loop
               />
-            ) : streamType === 'iframe' && camera.stream_url ? (
+            ) : streamType === 'iframe' && streamUrl ? (
               <iframe
-                src={camera.stream_url}
+                src={streamUrl}
                 className="w-full h-full border-0"
                 allow="autoplay; fullscreen"
                 allowFullScreen
@@ -305,7 +346,7 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
                 <div className="flex flex-col">
                   <span className="text-[9px] text-[var(--text-muted)] font-mono tracking-widest">FEED TYPE</span>
                   <span className="text-[9px] text-white font-mono tracking-widest uppercase">
-                    {externalOnly ? 'EXTERNAL' : streamType}
+                    {externalOnly ? 'EXTERNAL' : resolvedEmbed ? 'YOUTUBE LIVE' : streamType}
                   </span>
                 </div>
                 <div className="flex flex-col border-l border-white/10 pl-4">
