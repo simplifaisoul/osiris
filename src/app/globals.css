@@ -2306,3 +2306,101 @@ input[type="range"]::-moz-range-thumb {
   box-shadow: 0 0 8px rgba(212,175,55,0.4);
   border: 2px solid rgba(0,0,0,0.3);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   INSTRUMENT PANEL
+   Shared chrome for the tool panels — route planner, markets, and
+   anything else that should read as an instrument rather than a form.
+   Kept here rather than in each component so the panels cannot drift
+   apart, which is what makes a set of tools feel assembled instead of
+   designed.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Faint engineering grid. Sits under the content at very low contrast —
+   readable as texture, never as lines competing with the data. */
+/* Deliberately does NOT set `position`. These rules are appended after the
+   Tailwind utilities, so a `position: relative` here would beat a `fixed`
+   utility on the same element at equal specificity — which is exactly how the
+   markets panel stopped going fullscreen. The consumer owns positioning; this
+   only needs *some* positioned ancestor, which every panel already has. */
+.instrument-grid::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(var(--gold-rgb), 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--gold-rgb), 0.045) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), transparent 65%);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), transparent 65%);
+  border-radius: inherit;
+}
+
+/* Corner brackets. Four hairlines that frame a panel the way a sight or a
+   viewfinder does, without the cost of a full border. */
+.instrument-corners::after,
+.instrument-corners::before {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+  border-color: rgba(var(--gold-rgb), 0.45);
+}
+.instrument-corners::before {
+  top: 6px;
+  left: 6px;
+  border-top: 1px solid;
+  border-left: 1px solid;
+}
+.instrument-corners::after {
+  bottom: 6px;
+  right: 6px;
+  border-bottom: 1px solid;
+  border-right: 1px solid;
+}
+
+/* Header treatment: an accent bar and a hairline rule that reads as a
+   masthead rather than a title. */
+.instrument-title {
+  font-family: var(--font-hud);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-heading);
+}
+
+.instrument-rule {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    rgba(var(--gold-rgb), 0.35) 0%,
+    rgba(var(--gold-rgb), 0.10) 40%,
+    transparent 100%
+  );
+}
+
+/* Small state chip — STANDBY / READY / LIVE. */
+.instrument-chip {
+  font-family: var(--font-hud);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid currentColor;
+  opacity: 0.85;
+}
+
+/* Monospace sample of an accepted input format, for empty states that would
+   otherwise just say "type something". */
+.instrument-sample {
+  font-family: var(--font-hud);
+  font-size: 10px;
+  color: var(--text-secondary);
+  background: rgba(var(--gold-rgb), 0.06);
+  border: 1px solid rgba(var(--gold-rgb), 0.12);
+  border-radius: 4px;
+  padding: 1px 5px;
+}

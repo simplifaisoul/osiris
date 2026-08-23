@@ -301,14 +301,30 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
   );
 
   const content = (
-    <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.6, duration: 0.6 }} className={`glass-panel p-3 pointer-events-auto transition-all duration-300 flex flex-col ${maximized ? 'fixed inset-3 z-[9999] bg-[#0a0a09]/95 backdrop-blur-3xl' : ''}`}>
+    // The entry slide is opacity-only. A translateX here leaves a transform on
+    // the element, and when the panel goes fullscreen that transform offsets a
+    // `fixed` box away from its inset — the panel was landing 20px off the left
+    // edge of the viewport, because the animation had never settled back to 0.
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6, duration: 0.6 }} className={`glass-panel instrument-grid instrument-corners p-3 pointer-events-auto transition-all duration-300 flex flex-col ${
+      // `relative` and `fixed` are both position utilities, so listing them
+      // together lets CSS order decide the winner rather than the state —
+      // which is what stopped the panel going fullscreen.
+      maximized ? 'fixed inset-3 z-[9999] bg-[#0a0a09]/95 backdrop-blur-3xl' : 'relative'
+    }`}>
       {/* Header controls sit side by side, not nested — a button inside a
           button is invalid HTML and React fails hydration on it. */}
       <div className="flex items-center justify-between w-full mb-2">
-        <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-2">
+        <button onClick={() => setExpanded(!expanded)} className="relative flex items-center gap-2 pl-2">
+          {/* Same lit accent bar as the route planner, so the two panels read
+              as one instrument set rather than two unrelated widgets. */}
+          <span
+            aria-hidden="true"
+            className="absolute left-[-10px] top-1/2 -translate-y-1/2 h-4 w-[2px] rounded-r"
+            style={{ background: 'var(--gold-primary)', boxShadow: '0 0 8px rgba(var(--gold-rgb),0.6)' }}
+          />
           <BarChart3 className="w-3.5 h-3.5 text-[var(--gold-primary)]" />
-          <span className="hud-text text-[11px] text-[var(--text-primary)]">MARKETS & INTEL</span>
-          <span className="gotham-tag gotham-tag--low" style={{ fontSize: '9px', padding: '1px 4px' }}>LIVE</span>
+          <span className="instrument-title">Markets &amp; Intel</span>
+          <span className="instrument-chip" style={{ color: 'var(--alert-green)' }}>Live</span>
         </button>
         <div className="flex items-center gap-2">
           {age && <span className="text-[9px] font-mono text-[var(--text-muted)]">{age}</span>}
@@ -321,6 +337,7 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
           </button>
         </div>
       </div>
+      <div className="instrument-rule mb-2 flex-shrink-0" />
 
       {/* Fades rather than animating height. Fullscreen makes this a flex child
           and docked lets it size to content; animating height across that

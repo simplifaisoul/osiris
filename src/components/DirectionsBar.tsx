@@ -623,18 +623,28 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
 
   return (
     <div
-      className="glass-panel overflow-hidden flex flex-col max-h-[min(78vh,640px)]"
+      className="glass-panel instrument-grid instrument-corners relative overflow-hidden flex flex-col max-h-[min(78vh,640px)]"
       style={{ boxShadow: '0 18px 56px rgba(0,0,0,0.7), 0 0 0 1px rgba(var(--gold-rgb),0.04)' }}
     >
       {/* ── header ── */}
-      <header className="flex items-center gap-2 px-3 h-9 border-b border-[var(--border-secondary)] flex-shrink-0">
+      <header className="relative flex items-center gap-2 px-3 h-10 flex-shrink-0">
+        {/* A lit accent bar reads as an instrument being powered, where a
+            plain heading just reads as a form label. */}
+        <span
+          aria-hidden="true"
+          className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-[2px] rounded-r"
+          style={{ background: 'var(--gold-primary)', boxShadow: '0 0 8px rgba(var(--gold-rgb),0.6)' }}
+        />
         <Route className="w-3.5 h-3.5 text-[var(--gold-primary)]" />
-        <h2 className="text-[11px] tracking-[0.18em] text-[var(--text-secondary)] uppercase flex-1">Route</h2>
-        {route && (
-          <span className="text-[10px] text-[var(--text-muted)] tabular-nums">
-            {route.steps.length} steps
-          </span>
-        )}
+        <h2 className="instrument-title flex-1">Route</h2>
+
+        {/* State at a glance: standby until both ends are set, then the leg. */}
+        <span
+          className="instrument-chip"
+          style={{ color: route ? 'var(--alert-green)' : 'var(--text-muted)' }}
+        >
+          {route ? `${route.steps.length} STEPS` : ready ? 'PLOTTING' : 'STANDBY'}
+        </span>
 
         <button
           onClick={toggleTracking}
@@ -673,6 +683,7 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
           </button>
         )}
       </header>
+      <div className="instrument-rule flex-shrink-0" />
 
       {/* ── origin / destination rail ── */}
       <div className="flex items-stretch gap-2.5 px-3 py-2">
@@ -749,14 +760,24 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
                 role="tab"
                 aria-selected={on}
                 onClick={() => pickMode(id)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-[6px] text-[11px] transition-all ${
+                className={`relative flex-1 flex items-center justify-center gap-1.5 py-2 rounded-[6px] text-[11px] tracking-[0.12em] uppercase transition-all ${
                   on
-                    ? 'bg-[rgba(var(--gold-rgb),0.14)] text-[var(--gold-primary)] shadow-[inset_0_0_0_1px_rgba(var(--gold-rgb),0.25)]'
-                    : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                    ? 'bg-[rgba(var(--gold-rgb),0.14)] text-[var(--gold-primary)] shadow-[inset_0_0_0_1px_rgba(var(--gold-rgb),0.30),0_0_14px_rgba(var(--gold-rgb),0.10)]'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-white/[0.03]'
                 }`}
+                style={on ? { fontFamily: 'var(--font-hud)' } : undefined}
               >
                 <Icon className="w-3.5 h-3.5" />
                 {label}
+                {/* A lit underline on the selected mode — the fill alone is
+                    subtle enough to miss against a bright basemap. */}
+                {on && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute bottom-[3px] left-1/2 -translate-x-1/2 h-[2px] w-5 rounded-full"
+                    style={{ background: 'var(--gold-primary)', boxShadow: '0 0 8px rgba(var(--gold-rgb),0.7)' }}
+                  />
+                )}
               </button>
             );
           })}
@@ -836,11 +857,25 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
         )}
 
         {!loading && !error && !route && (
-          <p className="px-3 py-4 text-[11px] text-[var(--text-muted)] leading-relaxed">
-            {ready
-              ? 'Calculating…'
-              : 'Enter a start and destination. Place names, addresses and lat,lng all work.'}
-          </p>
+          <div className="px-3 py-4">
+            {ready ? (
+              <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">Calculating…</p>
+            ) : (
+              <>
+                <p className="hud-label mb-2">Accepted input</p>
+                {/* Showing the formats beats describing them: the sample is the
+                    documentation, and it is scannable at a glance. */}
+                <div className="flex flex-wrap gap-1.5">
+                  <span className="instrument-sample">Heathrow</span>
+                  <span className="instrument-sample">10 Downing St</span>
+                  <span className="instrument-sample">51.5074,-0.1278</span>
+                </div>
+                <p className="mt-2.5 text-[11px] text-[var(--text-muted)] leading-relaxed">
+                  Set a start and a destination to plot a route.
+                </p>
+              </>
+            )}
+          </div>
         )}
 
         {!loading && route && (
