@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ExternalLink, RefreshCw, MapPin, Camera, Maximize2 } from 'lucide-react';
+import { X, ExternalLink, RefreshCw, MapPin, Camera, CameraOff, Maximize2, PlayCircle } from 'lucide-react';
 import Hls from 'hls.js';
-import { isHostedOffPlatform, needsResolution, offPlatformView } from '@/lib/skyline';
+import { isHostedOffPlatform, liveFeedAtSource, localEmbed, needsResolution, offPlatformView } from '@/lib/camera-feed';
 
 interface CameraViewerProps {
   camera: any | null;
@@ -51,25 +51,36 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
    * nor the reset needs to be written back into state — both fall out of the
    * key comparison at render.
    */
-  const resolveKey: string | null = needsResolution(camera) ? camera.external_url : null;
-  const [resolution, setResolution] = useState<{ key: string; embed: string | null } | null>(null);
-  const resolvedEmbed = resolution && resolution.key === resolveKey ? resolution.embed : null;
+  // A link that already names the video needs no lookup at all.
+  const directEmbed = localEmbed(camera);
+  // Snapshot cameras are checked too, in the background: the picture shows
+  // immediately and is withdrawn only if the source says the camera is gone.
+  const resolveKey: string | null =
+    (needsResolution(camera) ? camera.external_url : null) ?? liveFeedAtSource(camera);
+  const [resolution, setResolution] = useState<{ key: string; embed: string | null; offline: boolean; kind?: string } | null>(null);
+  const resolvedEmbed = directEmbed ?? (resolution && resolution.key === resolveKey ? resolution.embed : null);
   const resolving = Boolean(resolveKey) && resolution?.key !== resolveKey;
+  const offline = resolution?.key === resolveKey && resolution.offline;
+  const gone = resolution?.key === resolveKey && resolution.kind === 'missing';
+
+  // Live video exists at the source but cannot be replayed here, so offer the
+  // way through to it and stop calling the still image a live feed.
+  const watchLiveUrl = liveFeedAtSource(camera);
 
   useEffect(() => {
     if (!resolveKey) return;
     let live = true;
     fetch(`/api/cctv/resolve?url=${encodeURIComponent(resolveKey)}`)
       .then(r => r.json())
-      .then(d => { if (live) setResolution({ key: resolveKey, embed: d?.embeddable ? d.embedUrl : null }); })
+      .then(d => { if (live) setResolution({ key: resolveKey, embed: d?.embeddable ? d.embedUrl : null, offline: d?.kind === 'offline' || d?.kind === 'missing', kind: d?.kind }); })
       // A resolver failure is not a broken camera — it falls back to the link.
-      .catch(() => { if (live) setResolution({ key: resolveKey, embed: null }); });
+      .catch(() => { if (live) setResolution({ key: resolveKey, embed: null, offline: false }); });
     return () => { live = false; };
   }, [resolveKey]);
 
   const streamType = resolvedEmbed ? 'iframe' : (camera?.stream_type || 'jpg');
   const streamUrl: string | undefined = resolvedEmbed || camera?.stream_url;
-  const view = offPlatformView({ hostedOffPlatform, resolving, resolvedEmbed });
+  const view = offPlatformView({ hostedOffPlatform, resolving, resolvedEmbed, offline });
   const externalOnly = view !== 'inline';
 
   useEffect(() => {
@@ -252,6 +263,14 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
                 <p className="text-[11px] font-mono uppercase tracking-widest" style={{ color: 'var(--gold-primary)' }}>ACQUIRING UPLINK</p>
                 <p className="text-[9px] font-mono text-[var(--text-muted)] mt-2 uppercase">Locating a direct feed</p>
               </div>
+            ) : view === 'offline' ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-30 backdrop-blur-sm p-4 text-center">
+                <CameraOff className="w-6 h-6 mb-3 opacity-50 text-[var(--text-muted)]" />
+                <p className="text-[11px] font-mono uppercase tracking-widest text-[var(--text-secondary)]">{gone ? 'CAMERA WITHDRAWN' : 'CAMERA OFFLINE'}</p>
+                <p className="text-[9px] font-mono text-[var(--text-muted)] mt-2 max-w-[80%] uppercase">{gone ? 'No longer published at source' : 'The operator has this feed off air'}</p>
+                {/* No ACCESS TERMINAL button: the page it would open is either
+                    showing the same 'offline' banner we just read, or a 404. */}
+              </div>
             ) : view === 'external' ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-30 backdrop-blur-sm p-4 text-center">
                 <ExternalLink className="w-6 h-6 mb-3 opacity-50" style={{ color: 'var(--gold-primary)' }} />
@@ -325,9 +344,23 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
               <div className="absolute top-3 left-3 flex items-center gap-2 bg-black/80 border border-[var(--gold-primary)]/50 px-2 py-1 shadow-[0_0_10px_rgba(0,0,0,0.8)]">
                 <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_#ef4444]" />
                 <span className="text-[9px] font-mono text-white tracking-[0.2em]">
-                  {streamType === 'jpg' ? 'LIVE SAT-LINK' : 'LIVE FEED'}
+                  {watchLiveUrl ? 'SNAPSHOT' : streamType === 'jpg' ? 'LIVE SAT-LINK' : 'LIVE FEED'}
                 </span>
               </div>
+            )}
+
+            {/* Live video is on the operator's own page; this is the way to it. */}
+            {watchLiveUrl && !error && !externalOnly && (
+              <a
+                href={watchLiveUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="absolute bottom-3 right-3 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-sm border text-[10px] font-mono font-bold tracking-widest transition-all hover:bg-[var(--gold-primary)]/25"
+                style={{ borderColor: 'var(--gold-primary)', color: 'var(--gold-primary)', background: 'rgba(0,0,0,0.75)' }}
+                title="Live video is hosted by the camera operator — opens their page"
+              >
+                <PlayCircle className="w-3 h-3" /> WATCH LIVE
+              </a>
             )}
 
             {/* Tactical Crosshairs */}
@@ -346,19 +379,21 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
                 <div className="flex flex-col">
                   <span className="text-[9px] text-[var(--text-muted)] font-mono tracking-widest">FEED TYPE</span>
                   <span className="text-[9px] text-white font-mono tracking-widest uppercase">
-                    {externalOnly ? 'EXTERNAL' : resolvedEmbed ? 'YOUTUBE LIVE' : streamType}
+                    {view === 'offline' ? (gone ? 'WITHDRAWN' : 'OFFLINE') : watchLiveUrl ? 'SNAPSHOT' : externalOnly ? 'EXTERNAL' : resolvedEmbed ? 'YOUTUBE LIVE' : streamType}
                   </span>
                 </div>
                 <div className="flex flex-col border-l border-white/10 pl-4">
                   <span className="text-[9px] text-[var(--text-muted)] font-mono tracking-widest">STATUS</span>
                   {/* Nothing is being received locally for an external feed — don't claim otherwise. */}
                   <span className={`text-[9px] font-mono tracking-widest ${externalOnly ? 'text-[var(--gold-primary)]' : 'text-[var(--alert-green)]'}`}>
-                    {externalOnly ? 'HOSTED OFF-PLATFORM' : 'ACTIVE / RECORDING'}
+                    {view === 'offline' ? (gone ? 'REMOVED BY SOURCE' : 'OFF AIR AT SOURCE') : watchLiveUrl ? 'LIVE VIDEO AT SOURCE' : externalOnly ? 'HOSTED OFF-PLATFORM' : 'ACTIVE / RECORDING'}
                   </span>
                 </div>
               </div>
               <div className="flex gap-3">
-                {(camera.feed_url || camera.external_url || (streamType === 'iframe' && camera.stream_url)) && (
+                {/* A withdrawn camera's page is a 404 — the big button is already
+                    hidden for it, and this link would lead to the same dead page. */}
+                {!gone && (camera.feed_url || camera.external_url || (streamType === 'iframe' && camera.stream_url)) && (
                   <a href={camera.external_url || camera.feed_url || (streamType === 'iframe' ? camera.stream_url : undefined)} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-1.5 px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-[9px] font-mono text-[var(--gold-primary)] tracking-widest">
                     <ExternalLink className="w-2.5 h-2.5" /> RAW FEED
