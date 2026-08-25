@@ -3,6 +3,19 @@ import { buildGeometry, closeRing, drawReducer, initialDrawState, measure, type 
 
 import { useEffect, useRef, useState, useCallback, memo } from 'react';
 import maplibregl from 'maplibre-gl';
+import { createSatelliteLayer, parseColor, type SatPoint } from '@/lib/satellite-layer';
+
+/** The catalogue fields the satellite layer and its popup actually read. */
+interface SatelliteRow {
+  name: string;
+  lat: number;
+  lng: number;
+  alt: number;
+  color?: string;
+  mission?: string;
+  category?: string;
+  noradId?: string;
+}
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 interface OsirisMapProps {
@@ -84,6 +97,13 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
   const prevStyleRef = useRef(mapStyle);
   const prevDrawnPolygonsRef = useRef<string[]>([]);
   const prevArcgisLayersRef = useRef<string[]>([]);
+  const satLayerRef = useRef<ReturnType<typeof createSatelliteLayer> | null>(null);
+  // pick() returns an index into the array last handed to setPoints, so the
+  // matching catalogue rows are kept in the same order to resolve it.
+  const satRowsRef = useRef<SatelliteRow[]>([]);
+  /** Index of the satellite whose orbit is on screen, so a late reply for a
+   *  previous selection can be discarded. */
+  const satPickedRef = useRef<number | null>(null);
   const drawingCoordsRef = useRef<number[][]>([]);
 
   // Create aircraft icon on canvas (for WebGL symbol layer)
@@ -176,11 +196,12 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     // Select basemap style
     const styleUrl = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 
-    const map = new maplibregl.Map({
-      container: containerRef.current,
+    const container = containerRef.current;
+    const baseOptions = {
+      container,
       style: styleUrl,
-      center: [25.48, 42.70], zoom: 6.5, minZoom: 1.5, maxZoom: 18,
-      attributionControl: false,
+      center: [25.48, 42.70] as [number, number], zoom: 6.5, minZoom: 1.5, maxZoom: 18,
+      attributionControl: false as const,
       maxPitch: 85,
       transformRequest: (url: string) => {
         // Route all CARTO CDN requests through the internal Next.js proxy API
@@ -190,7 +211,33 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         }
         return { url };
       },
-    });
+    };
+
+    // MapLibre asks for a high-performance WebGL2 context and throws outright if it
+    // cannot get one. Some machines refuse that exact request while still granting a
+    // plainer context — a blocklisted discrete GPU, a driver Chrome only trusts for
+    // WebGL1 — so walk down to weaker requests before giving up.
+    const attributeFallbacks: maplibregl.MapOptions['canvasContextAttributes'][] = [
+      undefined,
+      { powerPreference: 'low-power', failIfMajorPerformanceCaveat: false },
+      { contextType: 'webgl', powerPreference: 'low-power', failIfMajorPerformanceCaveat: false },
+    ];
+
+    let map: maplibregl.Map | undefined;
+    for (const canvasContextAttributes of attributeFallbacks) {
+      try {
+        map = new maplibregl.Map(
+          canvasContextAttributes ? { ...baseOptions, canvasContextAttributes } : baseOptions
+        );
+        break;
+      } catch (e) {
+        // A failed constructor leaves its canvas behind; the next attempt needs a clean container.
+        container.innerHTML = '';
+        if (canvasContextAttributes === attributeFallbacks[attributeFallbacks.length - 1]) throw e;
+        console.warn('[OSIRIS] WebGL context rejected, retrying with weaker attributes:', e instanceof Error ? e.message : e);
+      }
+    }
+    if (!map) return;
 
     map.on('load', () => {
       mapRef.current = map;
@@ -455,13 +502,25 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'text-offset': [0, 2], 'text-max-width': 14, 'text-allow-overlap': false,
       }, paint: { 'text-color': ['case', ['in', 'SEISMIC RISK', ['get', 'status']], '#E65100', '#26A69A'], 'text-halo-color': '#000', 'text-halo-width': 1, 'text-opacity': 0.7 }});
 
-      // Satellites
-      map.addLayer({ id: 'sat-glow', type: 'circle', source: 'satellites', paint: {
+      // Satellites.
+      // Every satellite is drawn once, by the custom 3D layer below, at its
+      // altitude. These two circle layers are kept defined — the source feeds
+      // the 3D layer and other code refers to them — but hidden: drawing the
+      // same satellite both flat on the ground and again up at altitude is
+      // what made the map read as half 2D and half 3D.
+      // Hit-testing is handled by the 3D layer's own GPU pick pass, since
+      // queryRenderedFeatures cannot see into a custom WebGL layer.
+      map.addLayer({ id: 'sat-glow', type: 'circle', source: 'satellites', layout: { visibility: 'none' }, paint: {
         'circle-radius': ['interpolate',['linear'],['zoom'], 1,3, 5,6], 'circle-color': ['get','color'], 'circle-opacity': 0.3, 'circle-blur': 1,
       }});
-      map.addLayer({ id: 'sat-dots', type: 'circle', source: 'satellites', paint: {
+      map.addLayer({ id: 'sat-dots', type: 'circle', source: 'satellites', layout: { visibility: 'none' }, paint: {
         'circle-radius': ['interpolate',['linear'],['zoom'], 1,1.5, 5,3], 'circle-color': ['get','color'], 'circle-opacity': 1.0,
       }});
+      // The spacecraft themselves, lifted to their orbit.
+      if (!map.getLayer('sat-3d')) {
+        satLayerRef.current = createSatelliteLayer('sat-3d');
+        map.addLayer(satLayerRef.current as any);
+      }
 
       // Maritime — ports & naval bases — ocean teal
       map.addLayer({ id: 'maritime-glow', type: 'circle', source: 'maritime', paint: {
@@ -843,19 +902,84 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     });
 
     // ── Satellites (SatNOGS powered) ──
-    map.on('click', 'sat-dots', e => {
-      if (!e.features?.length) return;
-      const p = e.features[0].properties as any;
-      const coords = (e.features[0].geometry as any).coordinates;
-      popup(coords, `<div style="${pStyle}border:1px solid rgba(212,175,55,0.3);">
+    // Layers with their own click handlers. The satellite pick defers to
+    // these, and to nothing else — the basemap is not a click target.
+    const CLICKABLE_LAYERS = new Set(['conflict-icons','cctv-dots','eq-circles','fires-heat',
+      'gdelt-dots','weather-dots','infra-dots','maritime-dots','choke-dots','news-dots',
+      'balloon-dots','rad-dots','ship-dots','sweep-device-dots','scan-targets-dots',
+      'sdk-sea','sdk-air','sdk-intel','malware-dots','cyber-heads','gdelt-events-dots',
+      'cf-outage-dots','cf-attack-dots','flight-dots','military-dots','jet-dots','private-dots']);
+
+    // Satellites are picked on the GPU: the pick pass runs the same vertex
+    // shader as the visible one, so the target is always exactly where the
+    // marker was drawn — including its altitude. A ground-projected hit test
+    // would put the target under the satellite instead of on it.
+    map.on('click', e => {
+      const layer = satLayerRef.current;
+      if (!layer) return;
+      // Defer to any layer that has its own click handler, so a camera or an
+      // aircraft under the cursor is not stolen by a satellite behind it.
+      // Only those layers count: querying every feature matches the basemap
+      // land and water fills at essentially any point on the globe, which
+      // made this bail out every single time.
+      const hits = map.queryRenderedFeatures(e.point);
+      if (hits.some(f => f.layer?.id && CLICKABLE_LAYERS.has(f.layer.id))) return;
+      const idx = layer.pick(e.point.x, e.point.y);
+      if (idx == null) return;
+      const p = satRowsRef.current[idx];
+      if (!p) return;
+
+      // Draw the selected satellite's orbit. Fetched per click rather than
+      // bundled with the catalogue: that payload is already megabytes, and an
+      // operator looks at one orbit at a time.
+      layer.setOrbit(null);
+      layer.setSelected(null);
+      if (p.noradId) {
+        const wanted = p.noradId;
+        fetch(`/api/satellites/orbit?id=${encodeURIComponent(wanted)}`)
+          .then(r => (r.ok ? r.json() : null))
+          .then(d => {
+            // A slower reply for a satellite the operator has already moved on
+            // from must not draw over the one they are looking at now.
+            if (!d?.segments || satRowsRef.current[satPickedRef.current ?? -1]?.noradId !== wanted) return;
+            layer.setOrbit(
+              d.segments.map((seg: number[][]) => seg.map(([lng, lat, altKm]) => ({ lng, lat, altKm }))),
+              parseColor(p.color),
+            );
+          })
+          .catch(() => { /* no track is fine; the satellite still shows */ });
+      }
+      satPickedRef.current = idx;
+      layer.setSelected(idx);
+      popup([p.lng, p.lat], `<div style="${pStyle}border:1px solid rgba(212,175,55,0.3);">
         <div style="color:#D4AF37;font-size:12px;font-weight:700;letter-spacing:0.1em;margin-bottom:4px;">🛰️ ${htmlEsc(p.name)}</div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;font-size:9px;margin-bottom:8px;">
           <div><span style="color:#5C5A54;">MISSION</span><br/><span style="color:${colorSafe(p.color)};">${htmlEsc(p.mission||'Unknown')}</span></div>
           <div><span style="color:#5C5A54;">ALT</span><br/><span style="color:#00E5FF;">${p.alt ? p.alt+' km' : '—'}</span></div>
-          <div><span style="color:#5C5A54;">POS</span><br/><span style="color:#E8E6E0;">${coords[1].toFixed(2)}°, ${coords[0].toFixed(2)}°</span></div>
+          <div><span style="color:#5C5A54;">POS</span><br/><span style="color:#E8E6E0;">${p.lat.toFixed(2)}°, ${p.lng.toFixed(2)}°</span></div>
         </div>
         ${p.noradId ? `<a href="https://www.n2yo.com/satellite/?s=${p.noradId}" target="_blank" style="display:block;text-align:center;padding:4px;margin-top:6px;font-size:8px;font-family:monospace;letter-spacing:0.1em;text-decoration:none;color:#00E5FF;border:1px solid rgba(0,229,255,0.4);background:rgba(0,229,255,0.1);border-radius:2px;cursor:pointer;">📡 TRACK ON N2YO</a>` : ''}
       </div>`);
+    });
+
+    // The cursor should say a satellite is clickable, like every other layer.
+    // Throttled to one test per frame: mousemove fires far faster than the
+    // screen updates, and each pick is a full offscreen re-render of the
+    // whole catalogue — measured at 1-2 ms with ~19,000 satellites.
+    let hoverQueued = false;
+    map.on('mousemove', e => {
+      const layer = satLayerRef.current;
+      if (!layer || hoverQueued) return;
+      hoverQueued = true;
+      requestAnimationFrame(() => {
+        hoverQueued = false;
+        const canvas = map.getCanvas();
+        // Never fight another layer that has already claimed the cursor.
+        if (canvas.style.cursor && canvas.style.cursor !== 'pointer') return;
+        const over = layer.pick(e.point.x, e.point.y) != null;
+        if (over) canvas.style.cursor = 'pointer';
+        else if (canvas.style.cursor === 'pointer') canvas.style.cursor = '';
+      });
     });
 
     // ── Fires (with NASA FIRMS link) ──
@@ -1089,7 +1213,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     });
 
     // ── Generic hover for clickables ──
-    ['conflict-icons','cctv-dots','eq-circles','sat-dots','fires-heat','gdelt-dots','weather-dots','infra-dots','maritime-dots','choke-dots','news-dots','balloon-dots','rad-dots','ship-dots','sweep-device-dots','scan-targets-dots','sdk-sea','sdk-sea-glow','sdk-sea-atmo','sdk-air','sdk-air-glow','sdk-air-atmo','sdk-intel','sdk-intel-glow','sdk-intel-atmo','malware-dots','cyber-heads','gdelt-events-dots','cf-outage-dots','cf-attack-dots'].forEach(layer => {
+    ['conflict-icons','cctv-dots','eq-circles','fires-heat','gdelt-dots','weather-dots','infra-dots','maritime-dots','choke-dots','news-dots','balloon-dots','rad-dots','ship-dots','sweep-device-dots','scan-targets-dots','sdk-sea','sdk-sea-glow','sdk-sea-atmo','sdk-air','sdk-air-glow','sdk-air-atmo','sdk-intel','sdk-intel-glow','sdk-intel-atmo','malware-dots','cyber-heads','gdelt-events-dots','cf-outage-dots','cf-attack-dots'].forEach(layer => {
       map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
       map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
     });
@@ -1409,6 +1533,17 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     setGeo('earthquakes', activeLayers.earthquakes && data.earthquakes ? data.earthquakes.map((eq: any) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [eq.lng, eq.lat] }, properties: { id: eq.id, magnitude: eq.magnitude, place: eq.place, depth: eq.depth, source: eq.source } })) : []);
   }, [mapReady, data.earthquakes, activeLayers.earthquakes, setGeo]);
 
+  /** Catalogue rows -> the packed form the 3D layer draws. */
+  const toSatPoints = useCallback((rows: SatelliteRow[]): SatPoint[] => rows.map((s) => ({
+    lng: s.lng,
+    lat: s.lat,
+    altKm: s.alt,
+    color: parseColor(s.color),
+    // Stations are the ones an operator is usually looking for, so they get
+    // to be findable in a field of several hundred identical dots.
+    size: s.category === 'science' || /ISS|TIANGONG/i.test(s.name || '') ? 2.2 : 1,
+  })), []);
+
   useEffect(() => {
     if (!mapReady) return;
     const sats = data.satellites || [];
@@ -1417,6 +1552,8 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     // If 'All Satellites' is on, show everything
     if (al.satellites) {
       setGeo('satellites', sats.map((s: any) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [s.lng, s.lat] }, properties: { name: s.name, color: s.color, mission: s.mission, alt: s.alt, noradId: s.noradId, category: s.category } })));
+      satRowsRef.current = sats;
+      satLayerRef.current?.setPoints(toSatPoints(sats));
       return;
     }
     
@@ -1430,11 +1567,15 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     
     if (enabledCategories.length === 0) {
       setGeo('satellites', []);
+      satRowsRef.current = [];
+      satLayerRef.current?.setPoints([]);
       return;
     }
     
     const filtered = sats.filter((s: any) => enabledCategories.includes(s.category));
     setGeo('satellites', filtered.map((s: any) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [s.lng, s.lat] }, properties: { name: s.name, color: s.color, mission: s.mission, alt: s.alt, noradId: s.noradId, category: s.category } })));
+    satRowsRef.current = filtered;
+    satLayerRef.current?.setPoints(toSatPoints(filtered));
   }, [mapReady, data.satellites, activeLayers.satellites, (activeLayers as any).sat_comms, (activeLayers as any).sat_military, (activeLayers as any).sat_navigation, (activeLayers as any).sat_earth, (activeLayers as any).sat_science, setGeo]);
 
   useEffect(() => {
@@ -1751,7 +1892,12 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     if (!mapReady) return;
     setVis(['eq-circles','eq-label'], activeLayers.earthquakes);
     const anySat = activeLayers.satellites || (activeLayers as any).sat_comms || (activeLayers as any).sat_military || (activeLayers as any).sat_navigation || (activeLayers as any).sat_earth || (activeLayers as any).sat_science;
-    setVis(['sat-glow','sat-dots'], anySat);
+    // The circle layers stay hidden whatever the toggles say — the 3D layer
+    // is the single representation, and showing both drew every satellite
+    // twice, once flat on the ground and once at altitude.
+    setVis(['sat-glow','sat-dots'], false);
+    // Clearing the 3D layer is what actually turns satellites off.
+    if (!anySat) { satRowsRef.current = []; satLayerRef.current?.setPoints([]); }
     setVis(['gdelt-dots'], activeLayers.global_incidents);
     setVis(['gdelt-events-dots'], (activeLayers as any).gdelt_events);
     setVis(['cf-outage-halo','cf-outage-dots','cf-outage-label'], (activeLayers as any).cf_outages);
