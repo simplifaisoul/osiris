@@ -575,7 +575,11 @@ export default function Dashboard() {
     // Satellites (any satellite sub-layer triggers fetch)
     const anySatLayer = activeLayers.satellites || activeLayers.sat_comms || activeLayers.sat_military || activeLayers.sat_navigation || activeLayers.sat_earth || activeLayers.sat_science;
     if (anySatLayer && !layerFetchedRef.current.has('satellites')) {
-      fetchEndpoint('/api/satellites');
+      // Keep the moment the positions were propagated for. The catalogue is
+      // fetched once and never re-polled, so by the time an orbit is requested
+      // these markers can be a long way out of date — the orbit route needs the
+      // marker's epoch to draw a track that still passes through it.
+      fetchEndpoint('/api/satellites', d => ({ ...d, satellites_at: d.timestamp }));
       layerFetchedRef.current.add('satellites');
     }
     // Fires

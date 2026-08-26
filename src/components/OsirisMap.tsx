@@ -4,6 +4,7 @@ import { buildGeometry, closeRing, drawReducer, initialDrawState, measure, type 
 import { useEffect, useRef, useState, useCallback, memo } from 'react';
 import maplibregl from 'maplibre-gl';
 import { createSatelliteLayer, parseColor, type SatPoint } from '@/lib/satellite-layer';
+import SatelliteCard, { type SatelliteDetail } from '@/components/SatelliteCard';
 
 /** The catalogue fields the satellite layer and its popup actually read. */
 interface SatelliteRow {
@@ -101,9 +102,28 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
   // pick() returns an index into the array last handed to setPoints, so the
   // matching catalogue rows are kept in the same order to resolve it.
   const satRowsRef = useRef<SatelliteRow[]>([]);
-  /** Index of the satellite whose orbit is on screen, so a late reply for a
-   *  previous selection can be discarded. */
+  /** Index of the selected satellite in the array last handed to setPoints. */
   const satPickedRef = useRef<number | null>(null);
+  /** The selection's NORAD id. The index moves whenever the catalogue is
+   *  re-polled and re-filtered; the id does not, so it is what identifies the
+   *  selection across a refresh and what discards a late orbit reply. */
+  const satSelectedIdRef = useRef<string | null>(null);
+  /** When the catalogue positions were propagated for, so an orbit can be drawn
+   *  around the marker rather than around the moment it was clicked. */
+  const satEpochRef = useRef<number | null>(null);
+  const [selectedSat, setSelectedSat] = useState<SatelliteDetail | null>(null);
+
+  /** Drops the selection: the ring, the orbit track and the readout together.
+   *  Leaving any one of them behind is what made a closed popup look like a
+   *  still-selected satellite. */
+  const clearSat = useCallback(() => {
+    if (satPickedRef.current === null && satSelectedIdRef.current === null) return;
+    satPickedRef.current = null;
+    satSelectedIdRef.current = null;
+    satLayerRef.current?.setSelected(null);
+    satLayerRef.current?.setOrbit(null);
+    setSelectedSat(null);
+  }, []);
   const drawingCoordsRef = useRef<number[][]>([]);
 
   // Create aircraft icon on canvas (for WebGL symbol layer)
@@ -747,7 +767,6 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     const htmlEsc = (s: any): string => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     const idSafe = (s: any): string => String(s ?? '').replace(/[^a-zA-Z0-9_\.\-]/g, '');
     const urlSafe = (s: any): string => { const u = String(s ?? ''); return /^https?:\/\//i.test(u) ? u : '#'; };
-    const colorSafe = (s: any): string => /^#[0-9a-fA-F]{3,8}$/.test(String(s ?? '')) ? String(s) : '#aaa';
 
     const formatTime = (iso: string | null) => {
       if (!iso) return '—';
@@ -925,41 +944,49 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       const hits = map.queryRenderedFeatures(e.point);
       if (hits.some(f => f.layer?.id && CLICKABLE_LAYERS.has(f.layer.id))) return;
       const idx = layer.pick(e.point.x, e.point.y);
-      if (idx == null) return;
-      const p = satRowsRef.current[idx];
-      if (!p) return;
+      const p = idx == null ? null : satRowsRef.current[idx];
+      // Clicking past every satellite is how a selection is dismissed, so an
+      // empty click has to clear the ring and the track rather than leave them
+      // lit over nothing.
+      if (idx == null || !p) { clearSat(); return; }
+
+      // The readout is a panel, not a MapLibre popup: a popup can only anchor
+      // to a ground coordinate, and these markers are drawn at altitude. Any
+      // other layer's popup is still welcome to the screen, but not on top of
+      // this selection.
+      popupRef.current?.remove();
+      layer.setOrbit(null);
+      satPickedRef.current = idx;
+      satSelectedIdRef.current = p.noradId ?? null;
+      layer.setSelected(idx);
+      setSelectedSat({ ...p, periodMinutes: null, track: p.noradId ? 'loading' : 'unavailable' });
 
       // Draw the selected satellite's orbit. Fetched per click rather than
       // bundled with the catalogue: that payload is already megabytes, and an
       // operator looks at one orbit at a time.
-      layer.setOrbit(null);
-      layer.setSelected(null);
       if (p.noradId) {
         const wanted = p.noradId;
-        fetch(`/api/satellites/orbit?id=${encodeURIComponent(wanted)}`)
+        // A slower reply for a satellite the operator has already moved on
+        // from must not draw over the one they are looking at now.
+        const stale = () => satSelectedIdRef.current !== wanted;
+        const mark = (track: SatelliteDetail['track'], periodMinutes: number | null = null) =>
+          setSelectedSat(prev => (prev && prev.noradId === wanted ? { ...prev, track, periodMinutes } : prev));
+        const at = satEpochRef.current;
+        fetch(`/api/satellites/orbit?id=${encodeURIComponent(wanted)}${at ? `&t=${at}` : ''}`)
           .then(r => (r.ok ? r.json() : null))
           .then(d => {
-            // A slower reply for a satellite the operator has already moved on
-            // from must not draw over the one they are looking at now.
-            if (!d?.segments || satRowsRef.current[satPickedRef.current ?? -1]?.noradId !== wanted) return;
+            if (stale()) return;
+            if (!d?.segments?.length) { mark('unavailable'); return; }
             layer.setOrbit(
               d.segments.map((seg: number[][]) => seg.map(([lng, lat, altKm]) => ({ lng, lat, altKm }))),
               parseColor(p.color),
             );
+            mark('ready', typeof d.periodMinutes === 'number' ? d.periodMinutes : null);
           })
-          .catch(() => { /* no track is fine; the satellite still shows */ });
+          // No track is fine; the satellite still shows — but the readout says so
+          // rather than sitting on 'plotting' forever.
+          .catch(() => { if (!stale()) mark('unavailable'); });
       }
-      satPickedRef.current = idx;
-      layer.setSelected(idx);
-      popup([p.lng, p.lat], `<div style="${pStyle}border:1px solid rgba(212,175,55,0.3);">
-        <div style="color:#D4AF37;font-size:12px;font-weight:700;letter-spacing:0.1em;margin-bottom:4px;">🛰️ ${htmlEsc(p.name)}</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;font-size:9px;margin-bottom:8px;">
-          <div><span style="color:#5C5A54;">MISSION</span><br/><span style="color:${colorSafe(p.color)};">${htmlEsc(p.mission||'Unknown')}</span></div>
-          <div><span style="color:#5C5A54;">ALT</span><br/><span style="color:#00E5FF;">${p.alt ? p.alt+' km' : '—'}</span></div>
-          <div><span style="color:#5C5A54;">POS</span><br/><span style="color:#E8E6E0;">${p.lat.toFixed(2)}°, ${p.lng.toFixed(2)}°</span></div>
-        </div>
-        ${p.noradId ? `<a href="https://www.n2yo.com/satellite/?s=${p.noradId}" target="_blank" style="display:block;text-align:center;padding:4px;margin-top:6px;font-size:8px;font-family:monospace;letter-spacing:0.1em;text-decoration:none;color:#00E5FF;border:1px solid rgba(0,229,255,0.4);background:rgba(0,229,255,0.1);border-radius:2px;cursor:pointer;">📡 TRACK ON N2YO</a>` : ''}
-      </div>`);
     });
 
     // The cursor should say a satellite is clickable, like every other layer.
@@ -1544,16 +1571,40 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     size: s.category === 'science' || /ISS|TIANGONG/i.test(s.name || '') ? 2.2 : 1,
   })), []);
 
+  /**
+   * Re-points the selection at the same satellite after a refresh.
+   *
+   * pick() returns an index into the last setPoints() array, and every poll
+   * rebuilds that array — a filtered one changes length as well as order. Left
+   * as a bare index the highlight ring quietly slides onto whichever satellite
+   * now sits at that slot, taking the readout with it.
+   */
+  const resyncSatSelection = useCallback((rows: SatelliteRow[]) => {
+    const id = satSelectedIdRef.current;
+    if (!id) return;
+    const i = rows.findIndex(r => r.noradId === id);
+    // Filtered out, or gone from the catalogue: there is nothing to point at.
+    if (i < 0) { clearSat(); return; }
+    satPickedRef.current = i;
+    satLayerRef.current?.setSelected(i);
+    // The satellite has moved since it was clicked; the readout should say where
+    // it is now, not where it was.
+    setSelectedSat(prev => (prev ? { ...prev, lat: rows[i].lat, lng: rows[i].lng, alt: rows[i].alt } : prev));
+  }, [clearSat]);
+
   useEffect(() => {
     if (!mapReady) return;
     const sats = data.satellites || [];
     const al = activeLayers as any;
+    const at = Date.parse(data.satellites_at ?? '');
+    satEpochRef.current = Number.isFinite(at) ? at : null;
     
     // If 'All Satellites' is on, show everything
     if (al.satellites) {
       setGeo('satellites', sats.map((s: any) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [s.lng, s.lat] }, properties: { name: s.name, color: s.color, mission: s.mission, alt: s.alt, noradId: s.noradId, category: s.category } })));
       satRowsRef.current = sats;
       satLayerRef.current?.setPoints(toSatPoints(sats));
+      resyncSatSelection(sats);
       return;
     }
     
@@ -1569,6 +1620,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       setGeo('satellites', []);
       satRowsRef.current = [];
       satLayerRef.current?.setPoints([]);
+      clearSat();
       return;
     }
     
@@ -1576,7 +1628,8 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     setGeo('satellites', filtered.map((s: any) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [s.lng, s.lat] }, properties: { name: s.name, color: s.color, mission: s.mission, alt: s.alt, noradId: s.noradId, category: s.category } })));
     satRowsRef.current = filtered;
     satLayerRef.current?.setPoints(toSatPoints(filtered));
-  }, [mapReady, data.satellites, activeLayers.satellites, (activeLayers as any).sat_comms, (activeLayers as any).sat_military, (activeLayers as any).sat_navigation, (activeLayers as any).sat_earth, (activeLayers as any).sat_science, setGeo]);
+    resyncSatSelection(filtered);
+  }, [mapReady, data.satellites, activeLayers.satellites, (activeLayers as any).sat_comms, (activeLayers as any).sat_military, (activeLayers as any).sat_navigation, (activeLayers as any).sat_earth, (activeLayers as any).sat_science, data.satellites_at, setGeo, toSatPoints, resyncSatSelection, clearSat]);
 
   useEffect(() => {
     if (!mapReady) return;
@@ -2755,7 +2808,21 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     return () => { map.off('moveend', reportCenter); };
   }, [mapReady, onMapCenter]);
 
-  return <div ref={containerRef} className="absolute inset-0 w-full h-full" />;
+  // Escape clears the selection, the way it cancels a draw — an overlay that
+  // can only be dismissed by hitting a 14px target is one that stays open.
+  useEffect(() => {
+    if (!selectedSat) return;
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') clearSat(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedSat, clearSat]);
+
+  return (
+    <>
+      <div ref={containerRef} className="absolute inset-0 w-full h-full" />
+      {selectedSat && <SatelliteCard sat={selectedSat} onClose={clearSat} />}
+    </>
+  );
 }
 
 export default memo(OsirisMap);

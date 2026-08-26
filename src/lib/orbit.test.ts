@@ -105,6 +105,28 @@ describe('orbitPath', () => {
   it('returns nothing for a TLE it cannot read', () => {
     expect(orbitPath('', '', 10, AT)).toEqual([]);
   });
+
+  it('brackets a moment when started half a period before it', () => {
+    // What the orbit route relies on to put the satellite in the middle of its
+    // own track instead of at one end. Started at the moment itself, the marker
+    // sits on the first sample, and any staleness hangs it off the end of the
+    // line entirely.
+    const period = orbitalPeriodMinutes(ISS_2)!;
+    const path = orbitPath(ISS_1, ISS_2, 180, new Date(AT.getTime() - (period * 60_000) / 2));
+    const now = propagateTLE(ISS_1, ISS_2, AT)!;
+
+    let best = Infinity;
+    let bestIndex = -1;
+    path.forEach((p, i) => {
+      // Great-circle-ish separation is enough to find the closest sample.
+      const d = Math.hypot(p.lat - now.lat, wrapLongitude(p.lng - now.lng));
+      if (d < best) { best = d; bestIndex = i; }
+    });
+
+    const along = bestIndex / (path.length - 1);
+    expect(along).toBeGreaterThan(0.45);
+    expect(along).toBeLessThan(0.55);
+  });
 });
 
 describe('splitAtAntimeridian', () => {

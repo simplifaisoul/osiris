@@ -49,8 +49,30 @@ function catalogue(): Map<string, Tle> {
   return byNorad;
 }
 
+/**
+ * The moment the track is drawn around.
+ *
+ * It defaults to now, but now is usually the wrong answer. The marker on the
+ * map was propagated when /api/satellites was fetched, and that happens once,
+ * when the layer is switched on — it is never re-polled. Twenty minutes later
+ * the marker is where the satellite was twenty minutes ago, and a track
+ * propagated from now starts nine thousand kilometres away from it. The maths
+ * was right in both places and the two answers still did not meet.
+ *
+ * So the caller passes the epoch its marker came from. Anything absurd is
+ * ignored rather than trusted: a far-future `t` would propagate a TLE well
+ * outside the window it is accurate in, and quietly draw a wrong orbit.
+ */
+function anchorTime(raw: string | null): Date {
+  const ms = Number(raw);
+  if (!Number.isFinite(ms) || ms <= 0) return new Date();
+  const drift = Math.abs(ms - Date.now());
+  return drift > 7 * 24 * 3600_000 ? new Date() : new Date(ms);
+}
+
 export async function GET(req: Request) {
-  const id = new URL(req.url).searchParams.get('id')?.trim();
+  const params = new URL(req.url).searchParams;
+  const id = params.get('id')?.trim();
   if (!id || !/^\d{1,6}$/.test(id)) {
     return NextResponse.json({ error: 'numeric NORAD id required' }, { status: 400 });
   }
@@ -61,7 +83,15 @@ export async function GET(req: Request) {
   }
 
   const periodMinutes = orbitalPeriodMinutes(tle.line2);
-  const path = orbitPath(tle.line1, tle.line2, 180);
+  const anchor = anchorTime(params.get('t'));
+  // Half a revolution either side, so the satellite sits in the middle of its
+  // own track rather than at one end of it. Starting the path at the satellite
+  // showed where it was going and nothing of where it came from, and left any
+  // residual timing error hanging the marker off the end of the line.
+  const from = periodMinutes
+    ? new Date(anchor.getTime() - (periodMinutes * 60_000) / 2)
+    : anchor;
+  const path = orbitPath(tle.line1, tle.line2, 180, from);
   if (path.length < 2) {
     return NextResponse.json({ error: 'could not propagate', noradId: id }, { status: 422 });
   }
@@ -70,6 +100,8 @@ export async function GET(req: Request) {
     noradId: id,
     name: tle.name,
     periodMinutes,
+    /** Epoch the track is centred on, so a caller can tell it was honoured. */
+    anchoredAt: anchor.toISOString(),
     // Split at the antimeridian so each run draws as one continuous line
     // instead of one segment sweeping back across the whole world.
     segments: splitAtAntimeridian(path).map(run =>
