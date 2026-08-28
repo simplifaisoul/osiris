@@ -27,18 +27,18 @@ Open <http://localhost:3000>.
 
 What the compose file does:
 
-- **`build:`** — compose builds the image locally from the `Dockerfile`, so
+- **`build:`** - compose builds the image locally from the `Dockerfile`, so
   you always run the code you just cloned. To run the prebuilt registry image
   instead, add `image: ghcr.io/simplifaisoul/osiris:latest` to the `osiris`
   service and drop the `build:` block.
-- **`env_file: .env` (`required: false`)** — if a `.env` file exists its
+- **`env_file: .env` (`required: false`)** - if a `.env` file exists its
   values are injected into the container; if it's missing, OSIRIS still starts
   with the keyless feeds.
-- **`ports: ${OSIRIS_PORT:-3000}:3000`** — the web UI. The container always
+- **`ports: ${OSIRIS_PORT:-3000}:3000`** - the web UI. The container always
   listens on 3000; the published **host** port is `OSIRIS_PORT` (default
   `3000`). Set `OSIRIS_PORT` in `.env` to remap it, e.g. `OSIRIS_PORT=3005`
-  when 3000 is already in use — no need to edit the compose file.
-- **`restart: unless-stopped`** — survives reboots.
+  when 3000 is already in use - no need to edit the compose file.
+- **`restart: unless-stopped`** - survives reboots.
 
 Common commands:
 
@@ -61,7 +61,7 @@ docker run -d --name osiris \
   ghcr.io/simplifaisoul/osiris:latest
 ```
 
-The package is public — no `docker login` is required to pull it.
+The package is public - no `docker login` is required to pull it.
 
 ### Plain `docker run`
 
@@ -124,17 +124,17 @@ rest of OSIRIS works normally. Generate a key with `openssl rand -hex 32`.
 ### Optional keys (reserved / for higher rate limits)
 
 These are documented for completeness and forward-compatibility. The current
-data routes use **keyless** public feeds, so these are not consumed yet — set
+data routes use **keyless** public feeds, so these are not consumed yet - set
 them only if you extend the relevant route or hit rate limits.
 
 | Variable | Service | How to get it (all free) |
 |----------|---------|--------------------------|
-| `FIRMS_API_KEY` | NASA FIRMS active fires | Enter an email at <https://firms.modaps.eosdis.nasa.gov/api/map_key/> — the `MAP_KEY` is emailed instantly. Limit 5000 req / 10 min. |
+| `FIRMS_API_KEY` | NASA FIRMS active fires | Enter an email at <https://firms.modaps.eosdis.nasa.gov/api/map_key/> - the `MAP_KEY` is emailed instantly. Limit 5000 req / 10 min. |
 | `OPENSKY_CLIENT_ID` / `OPENSKY_CLIENT_SECRET` | OpenSky aviation | Create an account at <https://opensky-network.org/>, open **Account → API client**, create a client and copy id/secret. **OAuth2 only since March 2025** (username/password auth removed). |
 | `N2YO_API_KEY` | N2YO satellites | Register at <https://www.n2yo.com/login/register/>, then **Profile → generate API key**. Limit 1000 req / hour; key can't be regenerated. |
 | `AIS_API_KEY` | aisstream.io maritime | Sign up at <https://aisstream.io/>, create a key on the **API Keys** page. Used over `wss://stream.aisstream.io/v0/stream`. |
 
-> Keep `.env` out of version control — it is already in `.gitignore`. Only
+> Keep `.env` out of version control - it is already in `.gitignore`. Only
 > `.env.template` (no secrets) is committed.
 
 ### Optional runtime overrides
