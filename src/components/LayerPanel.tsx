@@ -115,6 +115,7 @@ const LAYER_GROUPS: LayerGroupDef[] = [
     layers: [
       { key: 'malware', label: 'Live Malware', dataKey: 'malware_threats' },
       { key: 'cyber_attacks', label: 'Live Attacks', dataKey: 'cyber_attacks' },
+      { key: 'lattice', label: 'Lattice Tracks', dataKey: 'lattice_entities', requires: 'lattice' },
     ],
   },
   {

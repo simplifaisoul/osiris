@@ -286,7 +286,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       createDot(map, 'dot-fire', isGhost ? phantomPurple : '#E65100', 10);
       createDot(map, 'dot-cctv', cameraColor, 10);
 
-      const sources = ['flights','military','jets','private-fl','satellites','earthquakes','gdelt','day-night','cctv','fires','weather','infrastructure','maritime','maritime-choke','maritime-ships','live-news','conflict-zones', 'war-alerts-targets', 'war-alerts-lines', 'balloons', 'radiation', 'ip-sweep-devices', 'ip-sweep-pulse', 'ip-sweep-connections', 'scan-targets', 'sdk-entities', 'sdk-links', 'malware-nodes', 'network-mesh', 'cyber-arcs', 'cyber-heads', 'cyber-impacts', 'gdelt-events', 'cf-outages', 'cf-attacks'];
+      const sources = ['flights','military','jets','private-fl','satellites','earthquakes','gdelt','day-night','cctv','fires','weather','infrastructure','maritime','maritime-choke','maritime-ships','live-news','conflict-zones', 'war-alerts-targets', 'war-alerts-lines', 'balloons', 'radiation', 'ip-sweep-devices', 'ip-sweep-pulse', 'ip-sweep-connections', 'scan-targets', 'sdk-entities', 'sdk-links', 'malware-nodes', 'network-mesh', 'cyber-arcs', 'cyber-heads', 'cyber-impacts', 'gdelt-events', 'cf-outages', 'cf-attacks', 'lattice'];
       sources.forEach(s => map.addSource(s, { type: 'geojson', data: EMPTY_FC }));
 
       // ── FLIGHT ROUTE VISUALIZATION SOURCES & LAYERS ──
@@ -484,6 +484,17 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'text-size': 9, 'text-font': ['JetBrains Mono Bold', 'Open Sans Bold'],
         'text-offset': [0, 1.6], 'text-allow-overlap': false,
       }, paint: { 'text-color': '#FF6B6B', 'text-halo-color': '#000', 'text-halo-width': 1.5, 'text-opacity': 0.9 }});
+
+      /* Optional Lattice tracks. Hidden until LATTICE_ENABLED=1. Ontology fields stay on the feature. */
+      map.addLayer({ id: 'lattice-glow', type: 'circle', source: 'lattice', paint: {
+        'circle-radius': ['interpolate',['linear'],['zoom'], 1,10, 5,16, 10,24],
+        'circle-color': '#00d4ff', 'circle-opacity': 0.12, 'circle-blur': 1,
+      }});
+      map.addLayer({ id: 'lattice-dots', type: 'circle', source: 'lattice', paint: {
+        'circle-radius': ['interpolate',['linear'],['zoom'], 1,4, 5,6, 10,9],
+        'circle-color': '#00d4ff', 'circle-opacity': 0.9,
+        'circle-stroke-width': 1.5, 'circle-stroke-color': '#000000', 'circle-stroke-opacity': 0.7,
+      }});
 
       // Weather Events (NASA EONET) — deep violet
       map.addLayer({ id: 'weather-glow', type: 'circle', source: 'weather', paint: {
@@ -928,7 +939,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       'gdelt-dots','weather-dots','infra-dots','maritime-dots','choke-dots','news-dots',
       'balloon-dots','rad-dots','ship-dots','sweep-device-dots','scan-targets-dots',
       'sdk-sea','sdk-air','sdk-intel','malware-dots','cyber-heads','gdelt-events-dots',
-      'cf-outage-dots','cf-attack-dots','flight-dots','military-dots','jet-dots','private-dots']);
+      'cf-outage-dots','cf-attack-dots','lattice-dots','flight-dots','military-dots','jet-dots','private-dots']);
 
     // Satellites are picked on the GPU: the pick pass runs the same vertex
     // shader as the visible one, so the target is always exactly where the
@@ -1129,6 +1140,26 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       </div>`);
     });
 
+    map.on('click', 'lattice-dots', e => {
+      if (!e.features?.length) return;
+      const p = e.features[0].properties as any;
+      const coords = (e.features[0].geometry as any).coordinates;
+      const closed = p.failClosedClass ? htmlEsc(p.failClosedClass) : 'unknown (fail closed)';
+      popup(coords, `
+      <div style="${pStyle}border:1px solid rgba(0,212,255,0.35);min-width:240px;">
+        <div style="color:#00d4ff;font-size:10px;font-weight:700;letter-spacing:0.15em;margin-bottom:8px;">LATTICE</div>
+        <div style="color:#E8E6E0;font-size:12px;font-weight:700;margin-bottom:8px;">${htmlEsc(p.name || p.id)}</div>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:10px;color:#9B978E;">
+          <span style="opacity:0.6;">Platform</span><span style="color:#E8E6E0;">${htmlEsc(p.platformType || '—')}</span>
+          <span style="opacity:0.6;">Specific</span><span style="color:#E8E6E0;">${htmlEsc(p.specificType || '—')}</span>
+          <span style="opacity:0.6;">Disposition</span><span style="color:#E8E6E0;">${htmlEsc(p.disposition || '—')}</span>
+          <span style="opacity:0.6;">Environment</span><span style="color:#E8E6E0;">${htmlEsc(p.environment || '—')}</span>
+          <span style="opacity:0.6;">Class</span><span style="color:#E8E6E0;">${closed}</span>
+        </div>
+        <div style="margin-top:8px;font-size:9px;color:#5C5A54;">Optional Lattice layer · ontology passed through</div>
+      </div>`);
+    });
+
     // ── GDELT Conflicts (with source article) ──
     map.on('click', 'gdelt-dots', e => {
       if (!e.features?.length) return;
@@ -1241,7 +1272,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     });
 
     // ── Generic hover for clickables ──
-    ['conflict-icons','cctv-dots','eq-circles','fires-heat','gdelt-dots','weather-dots','infra-dots','maritime-dots','choke-dots','news-dots','balloon-dots','rad-dots','ship-dots','sweep-device-dots','scan-targets-dots','sdk-sea','sdk-sea-glow','sdk-sea-atmo','sdk-air','sdk-air-glow','sdk-air-atmo','sdk-intel','sdk-intel-glow','sdk-intel-atmo','malware-dots','cyber-heads','gdelt-events-dots','cf-outage-dots','cf-attack-dots'].forEach(layer => {
+    ['conflict-icons','cctv-dots','eq-circles','fires-heat','gdelt-dots','weather-dots','infra-dots','maritime-dots','choke-dots','news-dots','balloon-dots','rad-dots','ship-dots','sweep-device-dots','scan-targets-dots','sdk-sea','sdk-sea-glow','sdk-sea-atmo','sdk-air','sdk-air-glow','sdk-air-atmo','sdk-intel','sdk-intel-glow','sdk-intel-atmo','malware-dots','cyber-heads','gdelt-events-dots','cf-outage-dots','cf-attack-dots','lattice-dots'].forEach(layer => {
       map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
       map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
     });
@@ -1680,6 +1711,12 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     })) : []);
   }, [mapReady, data.cf_attack_origins, (activeLayers as any).cf_attacks, setGeo]);
 
+  useEffect(() => {
+    if (!mapReady) return;
+    const al = activeLayers as any;
+    setGeo('lattice', al.lattice && Array.isArray(data.lattice_entities) ? data.lattice_entities : []);
+  }, [mapReady, data.lattice_entities, (activeLayers as any).lattice, setGeo]);
+
   // Malware Threats
   useEffect(() => {
     if (!mapReady) return;
@@ -1956,6 +1993,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     setVis(['gdelt-events-dots'], (activeLayers as any).gdelt_events);
     setVis(['cf-outage-halo','cf-outage-dots','cf-outage-label'], (activeLayers as any).cf_outages);
     setVis(['cf-attack-dots','cf-attack-label'], (activeLayers as any).cf_attacks);
+    setVis(['lattice-glow','lattice-dots'], (activeLayers as any).lattice);
 
     setVis(['malware-glow','malware-dots','malware-label'], activeLayers.malware);
     setVis(['network-mesh-atmo', 'network-mesh-glow', 'network-mesh-core'], activeLayers.internet_outages || activeLayers.malware);

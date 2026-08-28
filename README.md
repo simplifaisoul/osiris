@@ -40,6 +40,19 @@ Osiris is a production-grade OSINT platform that provides situational awareness 
 | **Crypto** | BTC + ETH Wallet Tracing, OFAC SDN Match | blockstream.info, Blockscout, OpenSanctions |
 | **Sanctions** | Person / Org / Vessel SDN Search | OpenSanctions (US OFAC SDN mirror) |
 | **Telegram OSINT** | Geoparsed Posts from Public Channels | `t.me/s/<channel>` web preview |
+| **Lattice (optional)** | Typed live tracks + ontology | Anduril Lattice env or mock; default off |
+
+---
+
+## Optional: Lattice ontology layer
+
+Stock Osiris is untyped OSINT (public dots). With env opt-in, Osiris can also display **Anduril Lattice** entities **without throwing away type**.
+
+Lattice already stores `platformType`, `specificType`, disposition, environment, and provenance. That is an operational ontology: a shared catalog of what each object is, including explicit unknown. Osiris becomes a Lattice-capable COP: inspect those fields on the map, fail closed (do not invent combat class), connect and disconnect without killing the rest of the dashboard.
+
+It does not clone Lattice C2 and it does not engage. Details, capabilities, and limits: **[docs/LATTICE.md](docs/LATTICE.md)**. Connector source: [osiris-lattice](https://github.com/Polybolos-Institute/osiris-lattice).
+
+---
 
 ---
 
@@ -62,6 +75,7 @@ Osiris is a production-grade OSINT platform that provides situational awareness 
 │  /api/gdelt           /api/satellites           │
 │  /api/weather         /api/scanner              │
 │  /api/sentinel        /api/telegram-feed        │
+│  /api/lattice         (optional; default off)   │
 │  /api/osint/*  (whois, dns, ip, cve, sanctions, │
 │                 crypto, sweep, threats, …)      │
 ├─────────────────────────────────────────────────┤
@@ -187,6 +201,14 @@ OPENSKY_CLIENT_ID=            # OpenSky OAuth2 (since Mar 2025) — opensky-netw
 OPENSKY_CLIENT_SECRET=
 N2YO_API_KEY=                 # N2YO satellites — n2yo.com (Profile → API key)
 AIS_API_KEY=                 # aisstream.io maritime
+
+# Optional Anduril Lattice tracks (default off). Hidden until LATTICE_ENABLED=1.
+# See .env.example. Connector: https://github.com/Polybolos-Institute/osiris-lattice
+# LATTICE_ENABLED=0
+# LATTICE_ENDPOINT=
+# LATTICE_CLIENT_ID=
+# LATTICE_CLIENT_SECRET=
+# LATTICE_ENV_TOKEN=
 ```
 
 > Without `SCANNER_URL`/`SCANNER_KEY` the RECON toolkit returns `503`; every

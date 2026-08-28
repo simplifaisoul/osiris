@@ -312,6 +312,7 @@ export default function Dashboard() {
     gdelt_events: false,
     cf_outages: false,
     cf_attacks: false,
+    lattice: false,
   });
   // Server-side capability flags — gate layers that need credentials.
   const [capabilities, setCapabilities] = useState<Record<string, boolean>>({});
@@ -346,6 +347,11 @@ export default function Dashboard() {
     fetch('/api/cloudflare-radar?probe=1')
       .then(r => (r.ok ? r.json() : null))
       .then(p => { if (p) setCapabilities(c => ({ ...c, cloudflare: !!p.configured })); })
+      .catch(() => { /* leave the layer hidden */ });
+
+    fetch('/api/lattice?probe=1')
+      .then(r => (r.ok ? r.json() : null))
+      .then(p => { if (p) setCapabilities(c => ({ ...c, lattice: !!p.configured })); })
       .catch(() => { /* leave the layer hidden */ });
 
     // Delay geolocation until map is ready (after splash screen clears)
@@ -719,6 +725,10 @@ export default function Dashboard() {
       }));
     }
 
+    if ((activeLayers as any).lattice) {
+      loadLayerOnce('lattice', '/api/lattice', d => ({ lattice_entities: d.features ?? [] }));
+    }
+
 
   }, [activeLayers]);
 
@@ -744,6 +754,9 @@ export default function Dashboard() {
         fetchEndpoint('/api/cyber-attacks', d => ({ cyber_attacks: d.attacks }));
         layerFetchedRef.current.add('cyber_attacks');
       }, 10000)); // 10s — rapid refresh
+    }
+    if ((activeLayers as any).lattice) {
+      intervals.push(setInterval(() => fetchEndpoint('/api/lattice', d => ({ lattice_entities: d.features ?? [] })), 30000));
     }
     return () => intervals.forEach(clearInterval);
   }, [activeLayers, fetchEndpoint]);
