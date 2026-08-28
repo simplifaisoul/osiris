@@ -70,9 +70,9 @@ function colorSafe(value: string | undefined): string {
 function Field({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
     <div className="min-w-0">
-      <div className="text-[9px] font-mono tracking-[0.15em] text-[var(--text-muted)]">{label}</div>
+      <div className="text-[8px] font-mono tracking-[0.15em] text-[var(--text-muted)]">{label}</div>
       <div
-        className="truncate text-[12px] font-mono tabular-nums text-[var(--text-primary)]"
+        className="truncate text-[11px] font-mono tabular-nums text-[var(--text-primary)]"
         style={color ? { color } : undefined}
         title={value}
       >
@@ -88,21 +88,21 @@ export default function SatelliteCard({ sat, onClose }: { sat: SatelliteDetail; 
 
   return (
     <div
-      className="pointer-events-auto absolute left-2 right-2 top-16 z-[350] overflow-hidden rounded-xl border bg-[var(--bg-panel)] shadow-[0_10px_40px_rgba(0,0,0,0.6)] backdrop-blur-2xl md:left-[72px] md:right-auto md:top-[88px] md:w-[300px]"
-      style={{ borderColor: `${accent}55` }}
+      className="pointer-events-auto absolute left-2 right-2 top-16 z-[350] overflow-hidden rounded-lg border bg-[var(--bg-panel)] shadow-[0_6px_20px_rgba(0,0,0,0.45)] backdrop-blur-2xl md:left-[72px] md:right-auto md:top-[88px] md:w-[248px]"
+      style={{ borderColor: `${accent}33` }}
       role="dialog"
       aria-label={`Satellite ${sat.name}`}
     >
       {/* A rule in the satellite's own colour, matching its marker and its track. */}
-      <div className="h-[2px] w-full" style={{ background: accent }} />
+      <div className="h-px w-full" style={{ background: `${accent}99` }} />
 
-      <div className="flex items-start gap-2 px-3 pt-3">
-        <Satellite className="mt-[2px] h-4 w-4 flex-shrink-0" style={{ color: accent }} />
+      <div className="flex items-start gap-2 px-2.5 pt-2.5">
+        <Satellite className="mt-[2px] h-3.5 w-3.5 flex-shrink-0" style={{ color: accent }} />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] font-bold leading-tight tracking-wide text-[var(--text-heading)]" title={sat.name}>
+          <div className="truncate text-[12px] font-bold leading-tight tracking-wide text-[var(--text-heading)]" title={sat.name}>
             {sat.name}
           </div>
-          <div className="truncate text-[10px] font-mono tracking-[0.12em] text-[var(--text-secondary)]">
+          <div className="truncate text-[9px] font-mono tracking-[0.12em] text-[var(--text-secondary)]">
             {sat.mission || 'Unknown mission'}
           </div>
         </div>
@@ -112,11 +112,11 @@ export default function SatelliteCard({ sat, onClose }: { sat: SatelliteDetail; 
           aria-label="Clear satellite selection"
           title="Clear selection (Esc)"
         >
-          <X className="h-3.5 w-3.5" />
+          <X className="h-3 w-3" />
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 px-3 py-3">
+      <div className="grid grid-cols-2 gap-x-2.5 gap-y-2 px-2.5 py-2.5">
         <Field label="ALTITUDE" value={`${Math.round(sat.alt).toLocaleString()} km`} color="var(--cyan-primary)" />
         <Field label="ORBIT" value={shell.label} color={accent} />
         <Field
@@ -135,8 +135,8 @@ export default function SatelliteCard({ sat, onClose }: { sat: SatelliteDetail; 
 
       {/* What the globe is showing, so a missing track reads as a known state
           rather than as the selection having silently failed. */}
-      <div className="flex items-center gap-1.5 border-t border-[var(--border-secondary)] px-3 py-2 text-[9px] font-mono tracking-[0.12em] text-[var(--text-muted)]">
-        <Orbit className="h-3 w-3" />
+      <div className="flex items-center gap-1.5 border-t border-[var(--border-secondary)] px-2.5 py-1.5 text-[8px] font-mono tracking-[0.12em] text-[var(--text-muted)]">
+        <Orbit className="h-2.5 w-2.5" />
         {sat.track === 'loading' && <span>PLOTTING ORBIT…</span>}
         {sat.track === 'ready' && <span style={{ color: accent }}>ORBIT TRACK ON GLOBE</span>}
         {sat.track === 'unavailable' && <span>NO TRACK — TLE UNAVAILABLE</span>}
@@ -147,10 +147,10 @@ export default function SatelliteCard({ sat, onClose }: { sat: SatelliteDetail; 
           href={`https://www.n2yo.com/satellite/?s=${encodeURIComponent(sat.noradId)}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center justify-center gap-1.5 border-t px-3 py-2.5 text-[10px] font-mono tracking-[0.15em] transition-colors"
-          style={{ borderColor: 'var(--border-secondary)', color: accent, background: `${accent}12` }}
+          className="flex items-center justify-center gap-1.5 border-t px-2.5 py-2 text-[9px] font-mono tracking-[0.15em] transition-colors"
+          style={{ borderColor: 'var(--border-secondary)', color: accent, background: `${accent}0a` }}
         >
-          TRACK ON N2YO <ExternalLink className="h-3 w-3" />
+          TRACK ON N2YO <ExternalLink className="h-2.5 w-2.5" />
         </a>
       )}
     </div>

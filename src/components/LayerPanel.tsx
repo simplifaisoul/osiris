@@ -5,8 +5,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plane, Satellite, Sun, AlertTriangle, Camera,
   CloudLightning, Ship, Network, Database, Ghost,
-  Flame, Tv, Radio, Mountain, Anchor, Megaphone
+  Flame, Tv, Radio, Mountain, Anchor, Megaphone, SlidersHorizontal
 } from 'lucide-react';
+import StyleStudio from './StyleStudio';
 
 interface LayerPanelProps {
   data: any;
@@ -180,6 +181,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
    * far edge closes the thing you were reaching for.
    */
   const [pinnedGroup, setPinnedGroup] = useState<string | null>(null);
+  const [studioOpen, setStudioOpen] = useState(false);
 
   useEffect(() => {
     if (!pinnedGroup) return;
@@ -259,9 +261,28 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
           </div>
         ))}
 
+        {/* MOBILE STYLE STUDIO */}
+        <div className="flex items-center justify-between mt-2 pt-3 border-t border-white/[0.06] px-1">
+          <span className="text-[10px] font-mono tracking-[0.2em] text-white/25 uppercase">Style Studio</span>
+          <button
+            onClick={() => setStudioOpen(o => !o)}
+            aria-pressed={studioOpen}
+            className="w-8 h-8 rounded-full flex items-center justify-center transition-all"
+            style={{
+              background: studioOpen ? 'var(--hover-accent)' : 'transparent',
+              boxShadow: studioOpen ? '0 0 12px var(--gold-glow)' : 'none',
+            }}
+          >
+            <SlidersHorizontal className="w-4 h-4" style={{ color: studioOpen ? 'var(--gold-primary)' : 'rgba(255,255,255,0.25)' }} />
+          </button>
+        </div>
+        <AnimatePresence>
+          {studioOpen && <StyleStudio isMobile onClose={() => setStudioOpen(false)} />}
+        </AnimatePresence>
+
         {/* MOBILE GHOST TOGGLE */}
         {setTheme && (
-          <div className="flex items-center justify-between mt-2 pt-3 border-t border-white/[0.06] px-1">
+          <div className="flex items-center justify-between pt-3 border-t border-white/[0.06] px-1">
             <span className="text-[10px] font-mono tracking-[0.2em] text-white/25 uppercase">Ghost Protocol</span>
             <button
               onClick={() => setTheme(theme === 'core' ? 'ghost' : 'core')}
@@ -428,6 +449,28 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
 
       {/* Subtle separator */}
       <div className="w-5 h-px bg-white/[0.06] my-2" />
+
+      {/* Style Studio */}
+      <button
+        onClick={() => setStudioOpen(o => !o)}
+        aria-pressed={studioOpen}
+        className="w-10 h-10 flex items-center justify-center rounded-lg transition-all duration-500 cursor-pointer"
+        style={{ background: studioOpen ? 'var(--hover-accent)' : 'transparent' }}
+        title="Style Studio"
+      >
+        <SlidersHorizontal
+          className="transition-all duration-500"
+          style={{
+            width: 15,
+            height: 15,
+            color: studioOpen ? 'var(--gold-primary)' : 'rgba(255,255,255,0.15)',
+            filter: studioOpen ? 'drop-shadow(0 0 6px var(--gold-glow))' : 'none',
+          }}
+        />
+      </button>
+      <AnimatePresence>
+        {studioOpen && <StyleStudio onClose={() => setStudioOpen(false)} />}
+      </AnimatePresence>
 
       {/* Ghost Protocol Toggle */}
       {setTheme && (

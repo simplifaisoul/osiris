@@ -14,6 +14,7 @@ import FlightWatchPanel, { type WatchedFlight, type FlightTelemetry, type Aircra
 import type { NavProgress } from '@/lib/navigation';
 import ScaleBar from '@/components/ScaleBar';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import { applySettings, loadSavedSettings } from '@/lib/style-tokens';
 import SharePanel from '@/components/SharePanel';
 import ViewPresets from '@/components/ViewPresets';
 import KeyboardShortcuts from '@/components/KeyboardShortcuts';
@@ -263,6 +264,13 @@ export default function Dashboard() {
   useEffect(() => {
     document.body.className = osirisTheme === 'core' ? '' : `theme-${osirisTheme}`;
   }, [osirisTheme]);
+
+  /* Style Studio overrides are inline on <body>, so they survive the theme
+     swap above and only need reapplying once per load. */
+  useEffect(() => {
+    const saved = loadSavedSettings();
+    if (saved) applySettings(saved);
+  }, []);
 
   const isMobile = useIsMobile();
   const startTime = useRef(Date.now());
@@ -1150,7 +1158,7 @@ export default function Dashboard() {
         style={{ left: isMobile ? '12px' : '120px' }}
       >
         {/* Unified Control Strip */}
-        <div className="flex items-center gap-[3px] p-[3px] pointer-events-auto rounded-[10px] border border-[var(--border-primary)] bg-[var(--bg-panel)] backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.55)]">
+        <div className="flex items-center gap-[3px] p-[3px] pointer-events-auto rounded-xl border border-[var(--border-primary)] bg-[var(--bg-panel)] backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.55)]">
           <ViewSegment layoutId="view-projection" active={mapProjection === 'globe'} onClick={() => setMapProjection('globe')} title="3D Globe" icon={Globe} label="3D" />
           <ViewSegment layoutId="view-projection" active={mapProjection === 'mercator'} onClick={() => setMapProjection('mercator')} title="2D Map" icon={MapPinned} label="2D" />
           <div className="w-px h-5 mx-1 bg-[var(--border-secondary)]" />
