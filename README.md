@@ -44,16 +44,6 @@ Osiris is a production-grade OSINT platform that provides situational awareness 
 
 ---
 
-## Optional: Lattice ontology layer
-
-Stock Osiris is untyped OSINT (public dots). With env opt-in, Osiris can also display **Anduril Lattice** entities **without throwing away type**.
-
-Lattice already stores `platformType`, `specificType`, disposition, environment, and provenance. That is an operational ontology: a shared catalog of what each object is, including explicit unknown. Osiris becomes a Lattice-capable COP: inspect those fields on the map, fail closed (do not invent combat class), connect and disconnect without killing the rest of the dashboard.
-
-It does not clone Lattice C2 and it does not engage. Details, capabilities, and limits: **[docs/LATTICE.md](docs/LATTICE.md)**. Connector source: [osiris-lattice](https://github.com/Polybolos-Institute/osiris-lattice).
-
----
-
 ## Architecture
 
 ```
