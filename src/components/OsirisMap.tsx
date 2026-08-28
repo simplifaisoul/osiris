@@ -485,7 +485,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'text-offset': [0, 1.6], 'text-allow-overlap': false,
       }, paint: { 'text-color': '#FF6B6B', 'text-halo-color': '#000', 'text-halo-width': 1.5, 'text-opacity': 0.9 }});
 
-      /* Optional Lattice tracks. Hidden until LATTICE_ENABLED=1. Ontology fields stay on the feature. */
+      /* Optional Lattice tracks. Hidden until LATTICE_ENABLED=1. */
       map.addLayer({ id: 'lattice-glow', type: 'circle', source: 'lattice', paint: {
         'circle-radius': ['interpolate',['linear'],['zoom'], 1,10, 5,16, 10,24],
         'circle-color': '#00d4ff', 'circle-opacity': 0.12, 'circle-blur': 1,

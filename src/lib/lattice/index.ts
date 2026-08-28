@@ -12,9 +12,7 @@ export type SnapshotOptions = {
 };
 
 /**
- * One-shot COP snapshot: token + short entity stream + GeoJSON.
- * If disabled or unconfigured, returns an empty collection (disconnect).
- * Does not map Lattice types into any engagement ICD.
+ * Token, short entity stream, GeoJSON. Empty collection if disabled or unconfigured.
  */
 export async function snapshotLattice(options: SnapshotOptions = {}): Promise<LatticeFeatureCollection> {
   const config = options.config === undefined ? configFromEnv() : options.config;

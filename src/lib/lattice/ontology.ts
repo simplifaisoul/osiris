@@ -1,4 +1,4 @@
-/** Lattice ontology helpers. Not an engagement ICD. Do not invent combat class. */
+/** Lattice platformType / specificType helpers. Unknown stays unknown. */
 
 export type LatticeOntology = {
   template?: string;
@@ -69,10 +69,7 @@ export function resolveOntologyClassLabel(ontology?: LatticeOntology): string {
   return platform;
 }
 
-/**
- * Fail closed: empty or unknown labels return null.
- * Never substitute SMALL_UAS or any combat class.
- */
+/** Empty or unknown labels return null. */
 export function failClosedClassLabel(ontology?: LatticeOntology): string | null {
   const label = resolveOntologyClassLabel(ontology);
   if (!label || isUnknownClassLabel(label)) return null;
