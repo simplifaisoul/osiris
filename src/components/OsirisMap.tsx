@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useCallback, memo } from 'react';
 import maplibregl from 'maplibre-gl';
 import { createSatelliteLayer, parseColor, type SatPoint } from '@/lib/satellite-layer';
 import SatelliteCard, { type SatelliteDetail } from '@/components/SatelliteCard';
+import CctvPreviews, { type PreviewCamera } from '@/components/CctvPreviews';
 
 /** The catalogue fields the satellite layer and its popup actually read. */
 interface SatelliteRow {
@@ -2820,6 +2821,13 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
   return (
     <>
       <div ref={containerRef} className="absolute inset-0 w-full h-full" />
+      {mapReady && mapRef.current && (
+        <CctvPreviews
+          mapRef={mapRef}
+          active={!!activeLayers.cctv}
+          onOpen={(cam: PreviewCamera) => onEntityClick?.({ type: 'cctv', ...cam })}
+        />
+      )}
       {selectedSat && <SatelliteCard sat={selectedSat} onClose={clearSat} />}
     </>
   );
