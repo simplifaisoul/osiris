@@ -187,7 +187,9 @@ N2YO_API_KEY=                 # N2YO satellites - n2yo.com (Profile → API key)
 AIS_API_KEY=                 # aisstream.io maritime
 
 # Optional Anduril Lattice tracks (default off). Hidden until LATTICE_ENABLED=1.
-# See .env.example. Connector: https://github.com/Polybolos-Institute/osiris-lattice
+# If you want a live Lattice sandbox, join the developer program:
+#   https://www.anduril.com/lattice/lattice-sdk
+# See docs/LATTICE.md and .env.example. Connector: https://github.com/Polybolos-Institute/osiris-lattice
 # LATTICE_ENABLED=0
 # LATTICE_ENDPOINT=
 # LATTICE_CLIENT_ID=

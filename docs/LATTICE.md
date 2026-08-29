@@ -15,6 +15,8 @@ NETWORK INTEL then shows **Lattice Tracks**. Probe: `GET /api/lattice?probe=1`. 
 
 Local mock: [anduril-mock-lattice](https://github.com/Polybolos-Institute/anduril-mock-lattice).
 
+If you want a live Anduril Lattice sandbox, join the Lattice developer program here: [https://www.anduril.com/lattice/lattice-sdk](https://www.anduril.com/lattice/lattice-sdk). Osiris does not require that. The local mock works without it.
+
 ## Disable
 
 `LATTICE_ENABLED=0` or unset credentials. Probe returns `configured: false`. Toggle stays hidden.
