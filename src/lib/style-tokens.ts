@@ -15,6 +15,14 @@
  * and rewrite every backdrop blur to a single value.
  */
 
+import {
+  MAP_DEFAULTS,
+  MAP_PALETTE_KEYS,
+  MAP_VARS,
+  readMapPalette,
+  type MapPalette,
+} from './map-palette';
+
 const STORAGE_KEY = 'osiris:style-studio';
 const STYLE_TAG_ID = 'osiris-style-studio';
 
@@ -44,6 +52,10 @@ export interface StyleSettings {
   radius: number;
   motion: number;
   scanlines: number;
+  vignette: number;
+  grain: number;
+  /** Colours the map itself draws with — see ./map-palette. */
+  map: MapPalette;
 }
 
 export const FONT_UI = [
@@ -86,6 +98,9 @@ export const DEFAULTS: StyleSettings = {
   radius: 1,
   motion: 1,
   scanlines: 0,
+  vignette: 0,
+  grain: 0,
+  map: MAP_DEFAULTS,
 };
 
 export type Preset = { label: string; patch: Partial<StyleSettings> };
@@ -185,7 +200,18 @@ export function sanitize(input: unknown, base: StyleSettings): StyleSettings {
     radius: normNum(o.radius, base.radius, 0, 2.5),
     motion: normNum(o.motion, base.motion, 0, 2),
     scanlines: normNum(o.scanlines, base.scanlines, 0, 0.2),
+    vignette: normNum(o.vignette, base.vignette, 0, 1),
+    grain: normNum(o.grain, base.grain, 0, 0.3),
+    map: normMap(o.map, base.map),
   };
+}
+
+/** Same treatment as every other colour: these reach body.style as text. */
+function normMap(v: unknown, base: MapPalette): MapPalette {
+  const o = (v ?? {}) as Record<string, unknown>;
+  const out = {} as MapPalette;
+  for (const key of MAP_PALETTE_KEYS) out[key] = normHex(o[key], base[key]);
+  return out;
 }
 
 /** Every design token the studio drives, derived from the settings. */
@@ -225,6 +251,7 @@ export function buildVars(s: StyleSettings): Record<string, string> {
     '--text-heading': s.textHeading,
     '--font-body': s.fontUi,
     '--font-hud': s.fontMono,
+    ...Object.fromEntries(MAP_PALETTE_KEYS.map(k => [MAP_VARS[k], s.map[k]])),
   };
 }
 
@@ -267,11 +294,28 @@ ${at} .rounded-full { border-radius: 9999px; }`,
     blocks.push(`${at} *, ${at} *::before, ${at} *::after { transition-duration: ${Math.round(600 * s.motion)}ms !important; }`);
   }
 
+  /* Scanlines, vignette and grain share one pseudo-element: a second ::after
+     would replace the first rather than stack with it. Each layer is added
+     only when its own knob is up, so an unused one composes to nothing. */
+  const overlays: string[] = [];
   if (s.scanlines > 0) {
+    overlays.push(`repeating-linear-gradient(0deg, rgba(255,255,255,${s.scanlines}) 0px, rgba(255,255,255,${s.scanlines}) 1px, transparent 1px, transparent 3px)`);
+  }
+  if (s.grain > 0) {
+    /* An SVG turbulence tile, repeated. No request, and the browser rasterises
+       it once; a canvas would have to be regenerated on every edit. */
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/></filter><rect width='140' height='140' filter='url(%23n)' opacity='${s.grain}'/></svg>`;
+    overlays.push(`url("data:image/svg+xml,${encodeURIComponent(svg).replace(/'/g, '%27')}")`);
+  }
+  if (s.vignette > 0) {
+    overlays.push(`radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,${s.vignette}) 100%)`);
+  }
+
+  if (overlays.length) {
     blocks.push(
       `${at}::after {
   content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 9998;
-  background-image: repeating-linear-gradient(0deg, rgba(255,255,255,${s.scanlines}) 0px, rgba(255,255,255,${s.scanlines}) 1px, transparent 1px, transparent 3px);
+  background-image: ${overlays.join(', ')};
 }`,
     );
   }
@@ -324,7 +368,22 @@ export function readTheme(): StyleSettings {
     textMuted: hex('--text-muted', DEFAULTS.textMuted),
     textHeading: hex('--text-heading', DEFAULTS.textHeading),
     glow: parseAlpha(v('--gold-glow', ''), DEFAULTS.glow),
+    map: readMapPalette(name => cs.getPropertyValue(name)),
   };
+}
+
+/**
+ * Fired after the tokens on <body> change.
+ *
+ * The map draws in WebGL from paint properties, not from CSS, so a custom
+ * property landing on <body> means nothing to it until something re-reads the
+ * palette and pushes it in. An event keeps that one-way: the token engine has
+ * no idea the map exists.
+ */
+export const STYLE_EVENT = 'osiris:style';
+
+function announce() {
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(STYLE_EVENT));
 }
 
 /** Push settings onto <body>, or strip every trace when passed null. */
@@ -334,19 +393,21 @@ export function applySettings(s: StyleSettings | null) {
     for (const name of VAR_NAMES) body.style.removeProperty(name);
     body.removeAttribute('data-studio');
     document.getElementById(STYLE_TAG_ID)?.remove();
+    announce();
     return;
   }
   for (const [name, value] of Object.entries(buildVars(s))) body.style.setProperty(name, value);
   body.setAttribute('data-studio', 'on');
   const css = buildCss(s);
   let tag = document.getElementById(STYLE_TAG_ID);
-  if (!css) { tag?.remove(); return; }
+  if (!css) { tag?.remove(); announce(); return; }
   if (!tag) {
     tag = document.createElement('style');
     tag.id = STYLE_TAG_ID;
     document.head.appendChild(tag);
   }
   tag.textContent = css;
+  announce();
 }
 
 /** Persist the current customisation. Silently a no-op in private mode. */

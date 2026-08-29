@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildCss, buildVars, DEFAULTS, sanitize, type StyleSettings } from './style-tokens';
+import { MAP_DEFAULTS, MAP_PALETTE_KEYS, MAP_VARS } from './map-palette';
 
 const settings = (o: Partial<StyleSettings> = {}): StyleSettings => ({ ...DEFAULTS, ...o });
 
@@ -164,5 +165,68 @@ describe('buildVars', () => {
     ]) {
       expect(names).toContain(required);
     }
+  });
+});
+
+describe('map palette', () => {
+  it('emits every map property so the map can read them back', () => {
+    const v = buildVars(settings());
+    for (const key of MAP_PALETTE_KEYS) {
+      expect(v[MAP_VARS[key]]).toBe(MAP_DEFAULTS[key]);
+    }
+  });
+
+  it('carries an edited layer colour through to its property', () => {
+    const v = buildVars(settings({ map: { ...MAP_DEFAULTS, cctv: '#ff00ff' } }));
+    expect(v['--map-cctv']).toBe('#ff00ff');
+    expect(v['--map-sat-military']).toBe(MAP_DEFAULTS.satMilitary);
+  });
+
+  it('sanitises map colours like every other colour', () => {
+    // These land on body.style as text, so the same injection rules apply.
+    const hostile = { map: { cctv: 'red; } body { display: none } .x {', satEarth: '#0f0' } };
+    const out = sanitize(hostile, DEFAULTS);
+    expect(out.map.cctv).toBe(MAP_DEFAULTS.cctv);
+    expect(out.map.satEarth).toBe('#00ff00');
+    expect(JSON.stringify(out)).not.toContain('display');
+  });
+
+  it('survives a stored theme written before the map section existed', () => {
+    const out = sanitize({ accent: '#ffffff' }, DEFAULTS);
+    expect(out.map).toEqual(MAP_DEFAULTS);
+  });
+});
+
+describe('screen overlays', () => {
+  it('emits nothing while scanlines, vignette and grain are all off', () => {
+    expect(buildCss(settings())).not.toContain('::after');
+  });
+
+  it('stacks them into one pseudo-element rather than overwriting', () => {
+    // Two ::after rules would not compose — the later one simply wins.
+    const css = buildCss(settings({ scanlines: 0.04, vignette: 0.5, grain: 0.1 }));
+    expect(css.match(/::after/g)).toHaveLength(1);
+    expect(css).toContain('repeating-linear-gradient');
+    expect(css).toContain('radial-gradient');
+    expect(css).toContain('data:image/svg+xml');
+  });
+
+  it('leaves out the layers that are off', () => {
+    const css = buildCss(settings({ vignette: 0.4 }));
+    expect(css).toContain('radial-gradient');
+    expect(css).not.toContain('repeating-linear-gradient');
+    expect(css).not.toContain('data:image/svg+xml');
+  });
+
+  it('percent-encodes the grain tile so it cannot break out of the url()', () => {
+    const css = buildCss(settings({ grain: 0.2 }));
+    expect(css).not.toContain('<svg');
+    expect(css).toContain('%3Csvg');
+  });
+
+  it('clamps the new knobs', () => {
+    const out = sanitize({ vignette: 12, grain: -3 }, DEFAULTS);
+    expect(out.vignette).toBe(1);
+    expect(out.grain).toBe(0);
   });
 });

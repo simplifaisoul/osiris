@@ -38,6 +38,22 @@
   --accent-weather: #E040FB;
   --accent-nuclear: #76FF03;
 
+  /* ── Map Layers ──
+     What the map itself draws with. Mirrored in src/lib/map-palette.ts, which
+     reads these back; the two copies are pinned together by its tests. */
+  --map-cctv: #00e676;
+  --map-sat-comms: #00e676;
+  --map-sat-military: #ff3d3d;
+  --map-sat-navigation: #448aff;
+  --map-sat-earth: #90ee90;
+  --map-sat-science: #ffd700;
+  --map-sat-other: #00e5ff;
+  --map-flight-civil: #00e5ff;
+  --map-flight-private: #ffd700;
+  --map-flight-gov: #ff9500;
+  --map-flight-military: #ff0000;
+  --map-flight-unknown: #546e7a;
+
   /* ── Borders ── */
   --border-primary: rgba(var(--gold-rgb), 0.15);
   --border-secondary: rgba(var(--gold-rgb), 0.08);
@@ -115,6 +131,15 @@ body.theme-ghost {
   --scrollbar-thumb: rgba(179, 136, 255, 0.25);
   --scrollbar-thumb-hover: rgba(179, 136, 255, 0.5);
   --hover-accent: rgba(179, 136, 255, 0.1);
+
+  /* Phantom pulls the map's own layers into the violet range too. The
+     satellite entries are deliberately left alone: they are the signal that
+     nobody has overridden that category, so the feed's mission colours show. */
+  --map-cctv: #b388ff;
+  --map-flight-civil: #b388ff;
+  --map-flight-private: #ce93d8;
+  --map-flight-gov: #d500f9;
+  --map-flight-unknown: #b388ff;
 }
 
 @theme inline {
@@ -599,6 +624,33 @@ html:has(.docs-root) body {
 .pulse-ring--alert::before,
 .pulse-ring--alert::after {
   border-color: var(--alert-red);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   CCTV MAP PREVIEWS
+   The live frames pinned to camera markers past zoom 13.
+   ───────────────────────────────────────────────────────────── */
+.cctv-tile {
+  transform-origin: 50% 100%;
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), filter 0.18s ease;
+}
+.cctv-tile:hover,
+.cctv-tile:focus-visible {
+  /* Lifting rather than scaling: a scaled tile resamples the frame inside it,
+     and at this size that reads as the camera going soft. */
+  transform: translateY(-3px);
+  filter: brightness(1.12) drop-shadow(0 0 10px color-mix(in srgb, var(--map-cctv) 30%, transparent));
+}
+
+/* `place()` writes data-flip on the wrapper once it knows whether the tile
+   had room above its marker. Only the stem on the marker's side is drawn. */
+[data-flip="above"] .cctv-stem-up,
+[data-flip="below"] .cctv-stem-down,
+[data-flip="none"] .cctv-stem { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cctv-tile { transition: none; }
+  .cctv-tile:hover, .cctv-tile:focus-visible { transform: none; }
 }
 
 /* ─────────────────────────────────────────────────────────────

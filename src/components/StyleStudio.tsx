@@ -3,7 +3,8 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
-import { X, RotateCcw, Copy, Check, ClipboardPaste } from 'lucide-react';
+import { X, RotateCcw, Copy, Check, ClipboardPaste, Undo2 } from 'lucide-react';
+import { MAP_DEFAULTS, type MapPaletteKey } from '@/lib/map-palette';
 import {
   applySettings,
   FONT_MONO,
@@ -28,7 +29,7 @@ import {
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 py-1.5">
-      <span className="text-[10px] font-mono tracking-[0.15em] uppercase text-white/40 shrink-0">{label}</span>
+      <span className="text-[10px] font-mono tracking-[0.15em] uppercase text-white/40 truncate">{label}</span>
       {children}
     </div>
   );
@@ -63,7 +64,7 @@ function Slider({ label, value, min, max, step, onChange, format }: {
         type="range" min={min} max={max} step={step} value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
         aria-label={label}
-        className="flex-1 h-1 appearance-none rounded-full bg-white/10 accent-[var(--gold-primary)] cursor-pointer"
+        className="min-w-0 flex-1 h-1 appearance-none rounded-full bg-white/10 accent-[var(--gold-primary)] cursor-pointer"
       />
       <span className="text-[10px] font-mono tabular-nums text-white/40 w-9 text-right">
         {format ? format(value) : value}
@@ -101,7 +102,7 @@ function AutoSlider({ label, value, min, max, step, whenEnabled, onChange, forma
         disabled={auto}
         onChange={(e) => onChange(parseFloat(e.target.value))}
         aria-label={label}
-        className={`flex-1 h-1 appearance-none rounded-full bg-white/10 accent-[var(--gold-primary)] ${auto ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}`}
+        className={`min-w-0 flex-1 h-1 appearance-none rounded-full bg-white/10 accent-[var(--gold-primary)] ${auto ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}`}
       />
       <span className="text-[10px] font-mono tabular-nums text-white/40 w-9 text-right">
         {auto ? 'auto' : format(value)}
@@ -129,6 +130,44 @@ function Segmented({ label, options, value, onChange }: {
           {o.label}
         </button>
       ))}
+    </div>
+  );
+}
+
+/** Groups rows inside a section without starting a new one. */
+function SubHead({ label, note }: { label: string; note?: string }) {
+  return (
+    <div className="pt-2.5 pb-0.5">
+      <div className="text-[9px] font-mono tracking-[0.2em] uppercase text-white/30">{label}</div>
+      {note && <div className="text-[8px] font-mono leading-snug text-white/20 pt-0.5">{note}</div>}
+    </div>
+  );
+}
+
+/**
+ * A colour with a default it can be sent back to.
+ *
+ * The satellite swatches need this more than most: sitting on the default is
+ * not just a colour, it is what keeps each satellite's own mission colour, so
+ * getting back to it has to be possible without resetting the whole theme.
+ */
+function ResettableSwatch({ label, value, fallback, onChange }: {
+  label: string; value: string; fallback: string; onChange: (v: string) => void;
+}) {
+  const changed = value.toLowerCase() !== fallback.toLowerCase();
+  return (
+    <div className="flex items-center gap-1.5">
+      <button
+        onClick={() => onChange(fallback)}
+        title={`Restore the default ${label.toLowerCase()}`}
+        aria-label={`Restore default ${label}`}
+        className={`w-5 h-5 rounded flex items-center justify-center transition-opacity ${
+          changed ? 'text-white/35 hover:text-white/80 hover:bg-white/5' : 'opacity-0 pointer-events-none'
+        }`}
+      >
+        <Undo2 className="w-3 h-3" />
+      </button>
+      <Swatch label={label} value={value} onChange={onChange} />
     </div>
   );
 }
@@ -182,16 +221,22 @@ function StyleStudio({ onClose, isMobile }: { onClose: () => void; isMobile?: bo
 
   /* While clean, re-seed from the live theme so edits made after a theme
      switch start from what is actually on screen. */
-  const edit = useCallback((patch: Partial<StyleSettings>) => {
+  const edit = useCallback((patch: Partial<StyleSettings> | ((base: StyleSettings) => Partial<StyleSettings>)) => {
     setS(prev => {
       const base = dirty.current && prev ? prev : readTheme();
-      return { ...base, ...patch };
+      return { ...base, ...(typeof patch === 'function' ? patch(base) : patch) };
     });
     dirty.current = true;
   }, []);
 
   const set = useCallback(<K extends keyof StyleSettings>(key: K, value: StyleSettings[K]) => {
     edit({ [key]: value } as Partial<StyleSettings>);
+  }, [edit]);
+
+  /* One layer colour at a time — the rest of the palette has to come from the
+     seeded base, not from a render-time copy that may predate a theme switch. */
+  const setMap = useCallback((key: MapPaletteKey, value: string) => {
+    edit(base => ({ map: { ...base.map, [key]: value } }));
   }, [edit]);
 
   /* The surface ramp follows the background unless a preset supplies its own. */
@@ -294,6 +339,26 @@ function StyleStudio({ onClose, isMobile }: { onClose: () => void; isMobile?: bo
           <Row label="Info"><Swatch label="Info colour" value={s.alertBlue} onChange={v => set('alertBlue', v)} /></Row>
         </Section>
 
+        <Section title="Map layers">
+          <SubHead label="Cameras" />
+          <Row label="Dots &amp; labels"><ResettableSwatch label="Camera colour" value={s.map.cctv} fallback={MAP_DEFAULTS.cctv} onChange={v => setMap('cctv', v)} /></Row>
+
+          <SubHead label="Satellites" note="Default keeps each satellite's own mission colour. Change one and it takes over that whole category." />
+          <Row label="Comms"><ResettableSwatch label="Comms satellites" value={s.map.satComms} fallback={MAP_DEFAULTS.satComms} onChange={v => setMap('satComms', v)} /></Row>
+          <Row label="Military"><ResettableSwatch label="Military satellites" value={s.map.satMilitary} fallback={MAP_DEFAULTS.satMilitary} onChange={v => setMap('satMilitary', v)} /></Row>
+          <Row label="Navigation"><ResettableSwatch label="Navigation satellites" value={s.map.satNavigation} fallback={MAP_DEFAULTS.satNavigation} onChange={v => setMap('satNavigation', v)} /></Row>
+          <Row label="Earth obs"><ResettableSwatch label="Earth observation satellites" value={s.map.satEarth} fallback={MAP_DEFAULTS.satEarth} onChange={v => setMap('satEarth', v)} /></Row>
+          <Row label="Science"><ResettableSwatch label="Science satellites" value={s.map.satScience} fallback={MAP_DEFAULTS.satScience} onChange={v => setMap('satScience', v)} /></Row>
+          <Row label="Other"><ResettableSwatch label="Other satellites" value={s.map.satOther} fallback={MAP_DEFAULTS.satOther} onChange={v => setMap('satOther', v)} /></Row>
+
+          <SubHead label="Aircraft" />
+          <Row label="Civil"><ResettableSwatch label="Civil aircraft" value={s.map.flightCivil} fallback={MAP_DEFAULTS.flightCivil} onChange={v => setMap('flightCivil', v)} /></Row>
+          <Row label="Private"><ResettableSwatch label="Private aircraft" value={s.map.flightPrivate} fallback={MAP_DEFAULTS.flightPrivate} onChange={v => setMap('flightPrivate', v)} /></Row>
+          <Row label="Government"><ResettableSwatch label="Government aircraft" value={s.map.flightGov} fallback={MAP_DEFAULTS.flightGov} onChange={v => setMap('flightGov', v)} /></Row>
+          <Row label="Military"><ResettableSwatch label="Military aircraft" value={s.map.flightMilitary} fallback={MAP_DEFAULTS.flightMilitary} onChange={v => setMap('flightMilitary', v)} /></Row>
+          <Row label="Unknown"><ResettableSwatch label="Unknown aircraft" value={s.map.flightUnknown} fallback={MAP_DEFAULTS.flightUnknown} onChange={v => setMap('flightUnknown', v)} /></Row>
+        </Section>
+
         <Section title="Surface">
           <Row label="Background"><Swatch label="Background colour" value={s.bg} onChange={setBg} /></Row>
           <Row label="Panel"><Slider label="Panel opacity" value={s.panelAlpha} min={0.2} max={1} step={0.01} onChange={v => set('panelAlpha', v)} format={v => `${Math.round(v * 100)}%`} /></Row>
@@ -318,10 +383,13 @@ function StyleStudio({ onClose, isMobile }: { onClose: () => void; isMobile?: bo
         <Section title="Motion & FX">
           <Row label="Speed"><Slider label="Motion speed" value={s.motion} min={0} max={2} step={0.05} onChange={v => set('motion', v)} format={v => (v === 0 ? 'off' : `${v.toFixed(2)}x`)} /></Row>
           <Row label="Scanlines"><Slider label="Scanline overlay" value={s.scanlines} min={0} max={0.2} step={0.005} onChange={v => set('scanlines', v)} format={v => (v === 0 ? 'off' : `${Math.round(v * 500)}%`)} /></Row>
+          <Row label="Grain"><Slider label="Film grain overlay" value={s.grain} min={0} max={0.3} step={0.005} onChange={v => set('grain', v)} format={v => (v === 0 ? 'off' : `${Math.round(v * 333)}%`)} /></Row>
+          <Row label="Vignette"><Slider label="Edge vignette" value={s.vignette} min={0} max={1} step={0.01} onChange={v => set('vignette', v)} format={v => (v === 0 ? 'off' : `${Math.round(v * 100)}%`)} /></Row>
         </Section>
 
         <p className="text-[9px] font-mono leading-relaxed text-white/20 pt-1 pb-1">
-          Saved to this browser. AUTO leaves the app&apos;s own styling alone. Reset restores the active theme.
+          Saved to this browser. AUTO leaves the app&apos;s own styling alone, and presets do not touch the map
+          layers &mdash; those carry meaning, not just a look. Reset restores the active theme.
         </p>
       </div>
     </motion.div>,

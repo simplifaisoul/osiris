@@ -4,6 +4,8 @@ import { buildGeometry, closeRing, drawReducer, initialDrawState, measure, type 
 import { useEffect, useRef, useState, useCallback, memo } from 'react';
 import maplibregl from 'maplibre-gl';
 import { createSatelliteLayer, parseColor, type SatPoint } from '@/lib/satellite-layer';
+import { MAP_DEFAULTS, MAP_PALETTE_KEYS, readMapPalette, satColorFor, type MapPalette } from '@/lib/map-palette';
+import { STYLE_EVENT } from '@/lib/style-tokens';
 import SatelliteCard, { type SatelliteDetail } from '@/components/SatelliteCard';
 import CctvPreviews, { type PreviewCamera } from '@/components/CctvPreviews';
 
@@ -96,6 +98,15 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
   const mapRef = useRef<maplibregl.Map | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  /**
+   * What the map's own layers draw with, mirrored out of the `--map-*` custom
+   * properties. Held in state rather than read at each use so a change re-runs
+   * the recolour effects; held in a ref as well for the click handlers, which
+   * are registered once on load and would otherwise close over the first value.
+   */
+  const [palette, setPalette] = useState<MapPalette>(MAP_DEFAULTS);
+  const paletteRef = useRef(palette);
+  useEffect(() => { paletteRef.current = palette; }, [palette]);
   const prevStyleRef = useRef(mapStyle);
   const prevDrawnPolygonsRef = useRef<string[]>([]);
   const prevArcgisLayersRef = useRef<string[]>([]);
@@ -267,18 +278,24 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       const isGhost = theme === 'ghost';
       const phantomPurple = '#B388FF';
       const phantomDark = '#1A0040';
-      const cameraColor = isGhost ? '#B388FF' : '#00E676';
-      const flightCom = isGhost ? phantomPurple : '#00E5FF';
-      const flightPriv = isGhost ? phantomPurple : '#FFD700';
-      const flightGov = isGhost ? phantomPurple : '#FF9500';
-      const flightMil = isGhost ? phantomPurple : '#FF3D3D';
+      /* The first paint reads the same `--map-*` properties the recolour
+         effects below push in later. Deriving them from `theme` here as well
+         is what let the two drift: the effect's ghost palette was four
+         distinct violets, this block's was one, and whichever ran last won. */
+      const bootStyle = getComputedStyle(document.body);
+      const boot = readMapPalette(name => bootStyle.getPropertyValue(name));
+      const cameraColor = boot.cctv;
+      const flightCom = boot.flightCivil;
+      const flightPriv = boot.flightPrivate;
+      const flightGov = boot.flightGov;
+      const flightMil = boot.flightMilitary;
 
       // Create icons — OSIRIS Unified Palette
       createIcon(map, 'plane-cyan', flightCom, 24);   
       createIcon(map, 'plane-green', flightPriv, 24);   
       createIcon(map, 'plane-pink', flightGov, 24);    
       createIcon(map, 'plane-red', flightMil, 24);     
-      createIcon(map, 'plane-grey', isGhost ? phantomPurple : '#546E7A', 24);    
+      createIcon(map, 'plane-grey', boot.flightUnknown, 24);
       createDot(map, 'dot-gold', isGhost ? phantomPurple : '#D4AF37', 8);
       createDot(map, 'dot-red', isGhost ? phantomPurple : '#D32F2F', 10);
       createDot(map, 'dot-orange', isGhost ? phantomPurple : '#E65100', 10);
@@ -980,7 +997,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
             if (!d?.segments?.length) { mark('unavailable'); return; }
             layer.setOrbit(
               d.segments.map((seg: number[][]) => seg.map(([lng, lat, altKm]) => ({ lng, lat, altKm }))),
-              parseColor(p.color),
+              parseColor(satColorFor(p.category, p.color, paletteRef.current)),
             );
             mark('ready', typeof d.periodMinutes === 'number' ? d.periodMinutes : null);
           })
@@ -1509,20 +1526,34 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     setGeo('military', activeLayers.military ? toFeatures(data.military_flights) : []);
   }, [mapReady, data.commercial_flights, data.private_flights, data.private_jets, data.military_flights, activeLayers.flights, activeLayers.private, activeLayers.jets, activeLayers.military]);
 
+  /**
+   * Pull the palette out of the document whenever it can have changed.
+   *
+   * Two triggers, and they need different timing. The Style Studio writes the
+   * properties and then dispatches, so reading straight away is correct. A
+   * theme switch flips a class on <body> from an effect in the page component
+   * — a parent, so it runs *after* this one — and reading now would return the
+   * outgoing theme. The extra frame covers that case.
+   */
+  useEffect(() => {
+    const read = () => {
+      const cs = getComputedStyle(document.body);
+      const next = readMapPalette(name => cs.getPropertyValue(name));
+      setPalette(prev => (MAP_PALETTE_KEYS.every(k => prev[k] === next[k]) ? prev : next));
+    };
+    read();
+    const raf = requestAnimationFrame(read);
+    window.addEventListener(STYLE_EVENT, read);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener(STYLE_EVENT, read);
+    };
+  }, [theme]);
+
     // Update aircraft icon colors dynamically on theme switch
     useEffect(() => {
       if (!mapReady || !mapRef.current) return;
       const map = mapRef.current;
-      
-      const isGhost = theme === 'ghost';
-      const phantomPurple = '#B388FF';
-      const ghostPriv = '#CE93D8';
-      const ghostGov = '#D500F9';
-
-      const flightCom = isGhost ? phantomPurple : '#00E5FF';
-      const flightPriv = isGhost ? ghostPriv : '#FFD700';
-      const flightGov = isGhost ? ghostGov : '#FF9500';
-      const flightMil = '#FF0000';
 
       const updateMapIcon = (id: string, color: string, size: number) => {
         if (!map.hasImage(id)) return;
@@ -1547,12 +1578,21 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         map.updateImage(id, { width: size, height: size, data: new Uint8Array(ctx.getImageData(0, 0, size, size).data) });
       };
 
-      updateMapIcon('plane-cyan', flightCom, 24);
-      updateMapIcon('plane-green', flightPriv, 24);
-      updateMapIcon('plane-pink', flightGov, 24);
-      updateMapIcon('plane-red', flightMil, 24);
-      updateMapIcon('plane-grey', isGhost ? phantomPurple : '#546E7A', 24);
-    }, [mapReady, theme]);
+      updateMapIcon('plane-cyan', palette.flightCivil, 24);
+      updateMapIcon('plane-green', palette.flightPrivate, 24);
+      updateMapIcon('plane-pink', palette.flightGov, 24);
+      updateMapIcon('plane-red', palette.flightMilitary, 24);
+      updateMapIcon('plane-grey', palette.flightUnknown, 24);
+    }, [mapReady, palette]);
+
+    /* Cameras are circles and a label, so no image to rebuild — the colour is
+       a paint property on each. */
+    useEffect(() => {
+      if (!mapReady || !mapRef.current) return;
+      const map = mapRef.current;
+      if (map.getLayer('cctv-dots')) map.setPaintProperty('cctv-dots', 'circle-color', palette.cctv);
+      if (map.getLayer('cctv-label')) map.setPaintProperty('cctv-label', 'text-color', palette.cctv);
+    }, [mapReady, palette.cctv]);
 
   // ── DECOUPLED LAYER RENDERERS (Performance Optimized) ──
 
@@ -1566,11 +1606,11 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     lng: s.lng,
     lat: s.lat,
     altKm: s.alt,
-    color: parseColor(s.color),
+    color: parseColor(satColorFor(s.category, s.color, palette)),
     // Stations are the ones an operator is usually looking for, so they get
     // to be findable in a field of several hundred identical dots.
     size: s.category === 'science' || /ISS|TIANGONG/i.test(s.name || '') ? 2.2 : 1,
-  })), []);
+  })), [palette]);
 
   /**
    * Re-points the selection at the same satellite after a refresh.
@@ -1602,7 +1642,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     
     // If 'All Satellites' is on, show everything
     if (al.satellites) {
-      setGeo('satellites', sats.map((s: any) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [s.lng, s.lat] }, properties: { name: s.name, color: s.color, mission: s.mission, alt: s.alt, noradId: s.noradId, category: s.category } })));
+      setGeo('satellites', sats.map((s: any) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [s.lng, s.lat] }, properties: { name: s.name, color: satColorFor(s.category, s.color, palette), mission: s.mission, alt: s.alt, noradId: s.noradId, category: s.category } })));
       satRowsRef.current = sats;
       satLayerRef.current?.setPoints(toSatPoints(sats));
       resyncSatSelection(sats);
@@ -1626,7 +1666,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     }
     
     const filtered = sats.filter((s: any) => enabledCategories.includes(s.category));
-    setGeo('satellites', filtered.map((s: any) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [s.lng, s.lat] }, properties: { name: s.name, color: s.color, mission: s.mission, alt: s.alt, noradId: s.noradId, category: s.category } })));
+    setGeo('satellites', filtered.map((s: any) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [s.lng, s.lat] }, properties: { name: s.name, color: satColorFor(s.category, s.color, palette), mission: s.mission, alt: s.alt, noradId: s.noradId, category: s.category } })));
     satRowsRef.current = filtered;
     satLayerRef.current?.setPoints(toSatPoints(filtered));
     resyncSatSelection(filtered);
