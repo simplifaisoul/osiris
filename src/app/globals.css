@@ -654,6 +654,39 @@ html:has(.docs-root) body {
 }
 
 /* ─────────────────────────────────────────────────────────────
+   LIVE TV NEWS PREVIEWS
+   The same tile as the CCTV previews, but pinned to broadcast
+   feeds and drawn at every zoom — see components/LiveNewsPreviews.
+   ───────────────────────────────────────────────────────────── */
+.news-tile {
+  transform-origin: 50% 100%;
+  transition: filter 0.18s ease;
+}
+.news-tile:hover {
+  filter: brightness(1.1) drop-shadow(0 0 12px color-mix(in srgb, #EC407A 32%, transparent));
+}
+
+[data-flip="above"] .news-stem-up,
+[data-flip="below"] .news-stem-down,
+[data-flip="none"] .news-stem { display: none; }
+
+/* The on-air dot, blinking like the malware arrival beacon so that "live"
+   reads the same way wherever it appears on the map. */
+.news-live-dot {
+  animation: news-live-blink 1.6s ease-in-out infinite;
+}
+@keyframes news-live-blink {
+  0%, 100% { opacity: 1;   box-shadow: 0 0 6px #EC407A; }
+  50%      { opacity: 0.3; box-shadow: 0 0 2px #EC407A; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .news-tile { transition: none; }
+  .news-tile:hover { filter: none; }
+  .news-live-dot { animation: none; }
+}
+
+/* ─────────────────────────────────────────────────────────────
    4. SCANNING LINE — Vertical sweep for splash/loading screens
    ───────────────────────────────────────────────────────────── */
 @keyframes scan-line-sweep {

@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Maximize2 } from 'lucide-react';
 import { freshen, previewMedia, refreshInterval, VIDEO_KINDS, type PreviewKind } from '@/lib/camera-preview';
+import { layoutTile, tileHeight, tilesOverlap, type TileGeometry } from '@/lib/map-tile-layout';
 import type { Map as MlMap } from 'maplibre-gl';
 
 /**
@@ -26,52 +27,20 @@ import type { Map as MlMap } from 'maplibre-gl';
 
 const MIN_ZOOM = 13;
 const MAX_TILES = 8;
-const TILE_W = 176;
-/** 16:9, so a frame is not letterboxed inside its own container. */
-const IMG_H = 99;
-const LABEL_H = 20;
-/** Clearance between the bottom of a tile and the marker it belongs to — the
- *  connector that ties the two together is drawn across it. */
-const GAP = 26;
-const TILE_H = IMG_H + LABEL_H;
 /** Simultaneously decoding tiles. Snapshots fill whatever is left of MAX_TILES. */
 const MAX_VIDEO_TILES = 4;
-/** Keeps a tile clear of the viewport edge, and of the layer rail on the left. */
-const EDGE = 60;
-/** More at the top and bottom, where the app's own chrome is: the header at one
- *  end, the view controls and the ticker at the other. All of it draws over the
- *  previews, so a tile placed underneath is simply hidden. */
-const EDGE_TOP = 96;
-const EDGE_BOTTOM = 156;
 
-/**
- * Where the tile for a marker at `pt` ends up.
- *
- * Shared by the two passes deliberately. Which cameras get a tile is decided
- * when the map settles and the tiles are then repositioned on every frame of a
- * pan, and if those two disagreed about where a tile lands, the overlap check
- * would be run against coordinates nothing is ever drawn at — which is what let
- * a tile clamped back inside the viewport come to rest on top of its neighbour.
- */
+/** 16:9 frame, so nothing is letterboxed inside its own container. */
+const GEOM: TileGeometry = { width: 176, imageHeight: 99, labelHeight: 20, gap: 26 };
+const TILE_W = GEOM.width;
+const IMG_H = GEOM.imageHeight;
+const LABEL_H = GEOM.labelHeight;
+const GAP = GEOM.gap;
+const TILE_H = tileHeight(GEOM);
+
+/** Placement lives in lib/map-tile-layout — the live-news tiles share it. */
 function layout(pt: { x: number; y: number }, width: number, height: number) {
-  const maxX = width - TILE_W - EDGE;
-  const maxY = height - TILE_H - EDGE_BOTTOM;
-  /* Above the marker by default; below it when there is no room, so a camera
-     near the top of the screen still gets a visible tile. */
-  const above = pt.y - TILE_H - GAP;
-  const flipped = above < EDGE_TOP;
-  const wantX = pt.x - TILE_W / 2;
-  const wantY = flipped ? pt.y + GAP : above;
-  const x = Math.min(Math.max(wantX, EDGE), Math.max(EDGE, maxX));
-  const y = Math.min(Math.max(wantY, EDGE_TOP), Math.max(EDGE_TOP, maxY));
-  return {
-    x,
-    y,
-    flipped,
-    /* The connector is drawn straight down (or up) from the middle of the tile,
-       which is only where the marker is if the tile sits where it wanted to. */
-    anchored: Math.abs(x - wantX) < 1 && Math.abs(y - wantY) < 1,
-  };
+  return layoutTile(pt, { width, height }, GEOM);
 }
 
 /** Whatever the camera layer is currently drawn in — see lib/map-palette. */
@@ -424,7 +393,7 @@ function CctvPreviews({ mapRef, active, onOpen }: {
          ending the search: the snapshot behind it can still have the slot. */
       const isVideo = VIDEO_KINDS.has(c.cam.media.kind);
       if (isVideo && videos >= MAX_VIDEO_TILES) continue;
-      const clash = picked.some(p => Math.abs(p.box.x - c.box.x) < TILE_W + 8 && Math.abs(p.box.y - c.box.y) < TILE_H + GAP);
+      const clash = picked.some(p => tilesOverlap(p.box, c.box, GEOM));
       if (clash) continue;
       picked.push(c);
       if (isVideo) videos++;

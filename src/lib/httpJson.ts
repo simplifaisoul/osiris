@@ -1,5 +1,6 @@
 import https from 'https';
 import zlib from 'zlib';
+import type { IncomingHttpHeaders } from 'http';
 import type { Readable } from 'stream';
 
 /**
@@ -17,11 +18,27 @@ import type { Readable } from 'stream';
 
 export const OSIRIS_UA = 'OSIRIS-OSINT/1.0 (+https://github.com/simplifaisoul/osiris)';
 
-export function httpJson<T>(
-  url: string,
-  { timeoutMs = 20000, headers = {} }: { timeoutMs?: number; headers?: Record<string, string> } = {},
-): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
+export interface RequestOptions {
+  timeoutMs?: number;
+  headers?: Record<string, string>;
+}
+
+interface RawResponse {
+  status: number;
+  headers: IncomingHttpHeaders;
+  body: string;
+}
+
+/**
+ * One request, decoded but not interpreted.
+ *
+ * Everything public here is a thin wrapper over this, so the connection
+ * handling — identifying UA, timeout, content-encoding decode — is written
+ * once. A 304 resolves with an empty body rather than throwing: it is a
+ * successful answer to a conditional request, not an error.
+ */
+function request(url: string, { timeoutMs = 20000, headers = {} }: RequestOptions): Promise<RawResponse> {
+  return new Promise<RawResponse>((resolve, reject) => {
     const req = https.get(
       url,
       {
@@ -29,11 +46,21 @@ export function httpJson<T>(
         timeout: timeoutMs,
       },
       (res) => {
-        if (res.statusCode && res.statusCode >= 400) {
+        const status = res.statusCode ?? 0;
+
+        if (status >= 400) {
           res.resume();
-          reject(new Error(`HTTP ${res.statusCode}`));
+          reject(new Error(`HTTP ${status}`));
           return;
         }
+
+        // 304 carries no body, and no content-encoding to decode.
+        if (status === 304) {
+          res.resume();
+          resolve({ status, headers: res.headers, body: '' });
+          return;
+        }
+
         // Some hosts serve pre-compressed static JSON and set Content-Encoding
         // regardless of what we asked for — adsb.lol's trace files do exactly
         // that — so decode by the header rather than by what we requested.
@@ -47,14 +74,65 @@ export function httpJson<T>(
         stream.setEncoding('utf8');
         stream.on('data', (chunk: string) => { body += chunk; });
         stream.on('error', reject);
-        stream.on('end', () => {
-          try { resolve(JSON.parse(body) as T); } catch (e) { reject(e); }
-        });
+        stream.on('end', () => resolve({ status, headers: res.headers, body }));
       },
     );
     req.on('timeout', () => req.destroy(new Error('Upstream timed out')));
     req.on('error', reject);
   });
+}
+
+/** The transport, stopping short of the JSON parse — for CSV and plain text. */
+export async function httpText(url: string, opts: RequestOptions = {}): Promise<string> {
+  return (await request(url, opts)).body;
+}
+
+export async function httpJson<T>(url: string, opts: RequestOptions = {}): Promise<T> {
+  return JSON.parse(await httpText(url, opts)) as T;
+}
+
+/** Validators from a previous response, replayed to ask whether it has changed. */
+export interface Validators {
+  etag?: string;
+  lastModified?: string;
+}
+
+export interface ConditionalResult extends Validators {
+  /** False when the upstream answered 304 — the caller's copy is still current. */
+  changed: boolean;
+  /** Null on 304. */
+  body: string | null;
+}
+
+/**
+ * A conditional GET, for polling a large dump that changes rarely.
+ *
+ * Re-downloading a multi-megabyte file on a fast poll to discover it is
+ * byte-identical is the expensive way to learn nothing. Replaying the previous
+ * `ETag`/`Last-Modified` lets the upstream answer 304 with an empty body
+ * instead, which turns the common case into a few hundred bytes of headers.
+ *
+ * Pass the validators from the previous call; store the ones this returns.
+ * With none supplied it degrades to an ordinary GET, so the first call and any
+ * upstream that ignores validators both still work.
+ */
+export async function httpConditional(
+  url: string,
+  { etag, lastModified, ...opts }: RequestOptions & Validators = {},
+): Promise<ConditionalResult> {
+  const conditional: Record<string, string> = {};
+  if (etag) conditional['If-None-Match'] = etag;
+  if (lastModified) conditional['If-Modified-Since'] = lastModified;
+
+  const res = await request(url, { ...opts, headers: { ...opts.headers, ...conditional } });
+
+  const next: Validators = {
+    etag: typeof res.headers.etag === 'string' ? res.headers.etag : etag,
+    lastModified: typeof res.headers['last-modified'] === 'string' ? res.headers['last-modified'] : lastModified,
+  };
+
+  if (res.status === 304) return { changed: false, body: null, ...next };
+  return { changed: true, body: res.body, ...next };
 }
 
 /** Resolve a promise to null instead of throwing — for optional enrichment calls. */

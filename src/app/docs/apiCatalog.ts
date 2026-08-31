@@ -349,8 +349,15 @@ export const API_GROUPS: ApiGroup[] = [
       {
         path: '/api/malware',
         method: 'GET',
-        summary: 'Malware indicators from public trackers.',
-        returns: ['threats', 'total', 'source', 'timestamp'],
+        summary: 'Live malware hosts from abuse.ch URLhaus, geolocated per address.',
+        returns: ['threats', 'total', 'cursor', 'last_poll', 'stream', 'source', 'timestamp'],
+      },
+      {
+        path: '/api/malware/stream',
+        method: 'GET',
+        summary:
+          'Server-sent events for the malware layer: a snapshot on connect, then new detections as URLhaus reports them.',
+        returns: ['snapshot', 'detections', 'status', 'heartbeat'],
       },
     ],
   },

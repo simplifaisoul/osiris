@@ -12,6 +12,7 @@ import DirectionsBar, { type RouteResult, type LiveLocation } from '@/components
 import NavigationView from '@/components/NavigationView';
 import FlightWatchPanel, { type WatchedFlight, type FlightTelemetry, type AircraftDetail, type Airport } from '@/components/FlightWatchPanel';
 import type { NavProgress } from '@/lib/navigation';
+import type { LiveDetection } from '@/lib/malware-intel';
 import ScaleBar from '@/components/ScaleBar';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { applySettings, loadSavedSettings } from '@/lib/style-tokens';
@@ -683,11 +684,7 @@ export default function Dashboard() {
     }
 
 
-    // Live Malware (abuse.ch)
-    if (activeLayers.malware && !layerFetchedRef.current.has('malware')) {
-      fetchEndpoint('/api/malware', d => ({ malware_threats: d.threats }));
-      layerFetchedRef.current.add('malware');
-    }
+    // Live Malware (abuse.ch) is pushed, not fetched — see the SSE subscription below.
 
     // Live Cyber Attacks (animated arcs)
     if ((activeLayers as any).cyber_attacks && !layerFetchedRef.current.has('cyber_attacks')) {
@@ -747,6 +744,72 @@ export default function Dashboard() {
     }
     return () => intervals.forEach(clearInterval);
   }, [activeLayers, fetchEndpoint]);
+
+  /* ── LIVE MALWARE — pushed over SSE while the layer is on ──
+     Detections arrive when URLhaus reports them rather than on a timer, so
+     there is no poll interval to tune and no request that re-downloads the
+     same rows to discover nothing changed. The connection also carries the
+     progressive geolocation fill, which is why a cold server paints the map in
+     batches instead of staying empty and then snapping to full. */
+  useEffect(() => {
+    if (!activeLayers.malware) return;
+
+    const source = new EventSource('/api/malware/stream');
+    // Keyed by address: a host re-reported with a new payload updates its node
+    // rather than stacking a second dot on the same coordinates.
+    const byIp = new Map<string, LiveDetection>();
+    // The server sends `status` at the end of every poll, so the first one
+    // marks the end of the initial fill — anything after it is genuinely new
+    // and worth drawing attention to.
+    let filled = false;
+
+    const commit = () => {
+      dataRef.current = { ...dataRef.current, malware_threats: [...byIp.values()] };
+      setDataVersion(v => v + 1);
+    };
+
+    source.onmessage = ev => {
+      try {
+        const event = JSON.parse(ev.data);
+        if (event.type === 'snapshot') {
+          byIp.clear();
+          for (const d of event.detections) byIp.set(d.ip, d);
+          commit();
+        } else if (event.type === 'detections') {
+          // Only a first sighting is an arrival. An existing host that served
+          // another payload arrives with fresh:false and keeps whatever beacon
+          // state it already had, so it does not re-flag itself as new.
+          const beacon = filled && event.fresh;
+          for (const d of event.detections) {
+            byIp.set(d.ip, beacon ? { ...d, detected_at: Date.now() } : { ...d, detected_at: byIp.get(d.ip)?.detected_at });
+          }
+          commit();
+        } else if (event.type === 'status') {
+          filled = true;
+          // Hosts that have gone dark since the last poll. The store prunes
+          // these; without mirroring it here the map would only ever grow.
+          if (event.retired?.length) {
+            for (const ip of event.retired) byIp.delete(ip);
+            commit();
+          }
+        }
+        setBackendStatus('connected');
+      } catch {
+        // One malformed frame must not tear down the subscription.
+      }
+    };
+
+    /* EventSource reconnects on its own, firing `error` on each attempt, and
+       the store replays a snapshot on connect so a drop self-heals. Only a
+       readyState of CLOSED means it has given up — reporting the transient
+       ones would flag the backend as down every time a connection recycles. */
+    source.onopen = () => setBackendStatus('connected');
+    source.onerror = () => {
+      if (source.readyState === EventSource.CLOSED) setBackendStatus('error');
+    };
+
+    return () => source.close();
+  }, [activeLayers.malware]);
 
   // CCTV: loaded once on layer toggle via layerFetchedRef (no viewport polling)
 

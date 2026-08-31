@@ -6,8 +6,10 @@ import maplibregl from 'maplibre-gl';
 import { createSatelliteLayer, parseColor, type SatPoint } from '@/lib/satellite-layer';
 import { MAP_DEFAULTS, MAP_PALETTE_KEYS, readMapPalette, satColorFor, type MapPalette } from '@/lib/map-palette';
 import { STYLE_EVENT } from '@/lib/style-tokens';
+import { arrivalBeacons } from '@/lib/malware-intel';
 import SatelliteCard, { type SatelliteDetail } from '@/components/SatelliteCard';
 import CctvPreviews, { type PreviewCamera } from '@/components/CctvPreviews';
+import LiveNewsPreviews, { type PreviewFeed } from '@/components/LiveNewsPreviews';
 
 /** The catalogue fields the satellite layer and its popup actually read. */
 interface SatelliteRow {
@@ -303,7 +305,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       createDot(map, 'dot-fire', isGhost ? phantomPurple : '#E65100', 10);
       createDot(map, 'dot-cctv', cameraColor, 10);
 
-      const sources = ['flights','military','jets','private-fl','satellites','earthquakes','gdelt','day-night','cctv','fires','weather','infrastructure','maritime','maritime-choke','maritime-ships','live-news','conflict-zones', 'war-alerts-targets', 'war-alerts-lines', 'balloons', 'radiation', 'ip-sweep-devices', 'ip-sweep-pulse', 'ip-sweep-connections', 'scan-targets', 'sdk-entities', 'sdk-links', 'malware-nodes', 'network-mesh', 'cyber-arcs', 'cyber-heads', 'cyber-impacts', 'gdelt-events', 'cf-outages', 'cf-attacks'];
+      const sources = ['flights','military','jets','private-fl','satellites','earthquakes','gdelt','day-night','cctv','fires','weather','infrastructure','maritime','maritime-choke','maritime-ships','live-news','conflict-zones', 'war-alerts-targets', 'war-alerts-lines', 'balloons', 'radiation', 'ip-sweep-devices', 'ip-sweep-pulse', 'ip-sweep-connections', 'scan-targets', 'sdk-entities', 'sdk-links', 'malware-nodes', 'malware-new', 'network-mesh', 'cyber-arcs', 'cyber-heads', 'cyber-impacts', 'gdelt-events', 'cf-outages', 'cf-attacks'];
       sources.forEach(s => map.addSource(s, { type: 'geojson', data: EMPTY_FC }));
 
       // ── FLIGHT ROUTE VISUALIZATION SOURCES & LAYERS ──
@@ -391,11 +393,32 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'circle-radius': ['interpolate',['linear'],['zoom'], 1,6, 5,12, 10,20],
         'circle-color': '#D32F2F', 'circle-opacity': 0.06, 'circle-blur': 0.5,
       }});
+      /* Sized by how many live malicious URLs the host serves. A box running
+         forty payloads and one running a single sample were the same dot
+         before, and they are not the same thing. */
       map.addLayer({ id: 'malware-dots', type: 'circle', source: 'malware-nodes', paint: {
-        'circle-radius': ['interpolate',['linear'],['zoom'], 1,2, 5,4, 10,6],
+        /* A zoom expression has to be the top-level input to the interpolate,
+           so the activity scaling lives in the output stops rather than
+           multiplying two curves together. sqrt keeps a host serving 80 URLs
+           from dwarfing the map — it reads about three times the single-URL
+           dot, not eighty. */
+        'circle-radius': ['interpolate',['linear'],['zoom'],
+          1,  ['interpolate',['linear'],['sqrt',['max',['get','url_count'],1]], 1,1.6, 3,2.4, 9,4],
+          5,  ['interpolate',['linear'],['sqrt',['max',['get','url_count'],1]], 1,3.2, 3,4.8, 9,8],
+          10, ['interpolate',['linear'],['sqrt',['max',['get','url_count'],1]], 1,4.8, 3,7.2, 9,12],
+        ],
         'circle-color': '#D32F2F',
         'circle-opacity': 0.9,
         'circle-stroke-width': 1, 'circle-stroke-color': '#000000', 'circle-stroke-opacity': 0.8,
+      }});
+      /* Arrival beacon — expands and fades over the minute after a detection
+         is pushed, then the feature drops out of the source entirely. */
+      map.addLayer({ id: 'malware-new-ring', type: 'circle', source: 'malware-new', paint: {
+        'circle-radius': 8,
+        'circle-color': 'transparent',
+        'circle-stroke-color': '#FF1744',
+        'circle-stroke-width': 2,
+        'circle-stroke-opacity': ['interpolate',['linear'],['get','age'], 0,0.9, 1,0],
       }});
       map.addLayer({ id: 'malware-label', type: 'symbol', source: 'malware-nodes', minzoom: 5, layout: {
         'text-field': ['get','malware'], 'text-size': 8, 'text-font': ['JetBrains Mono Bold', 'Open Sans Bold'],
@@ -1047,21 +1070,31 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       if (!e.features?.length) return;
       const p = e.features[0].properties as any;
       const coords = (e.features[0].geometry as any).coordinates;
-      const tType = (p.threat_type || 'MALWARE').toUpperCase();
+      const tType = (p.threat_type || 'malware').replace(/_/g, ' ').toUpperCase();
       const statusColor = p.status === 'online' ? '#39FF14' : '#FF1744';
-      
-      popup(coords, `<div style="${pStyle}border:1px solid rgba(255,23,68,0.4);box-shadow:inset 0 0 12px rgba(255,23,68,0.1);">
+      const place = [p.city, p.country].filter(Boolean).join(', ') || 'UNKNOWN';
+      const host = p.as_name ? `AS${p.asn} ${p.as_name}` : '';
+      const urls = Number(p.url_count) || 1;
+      // Every field below is observed. Where the old popup linked to a generic
+      // browse page, this links to the specific URLhaus report behind the node.
+      const ref = urlSafe(p.reference);
+
+      popup(coords, `<div style="${pStyle}border:1px solid rgba(255,23,68,0.4);box-shadow:inset 0 0 12px rgba(255,23,68,0.1);min-width:250px;">
         <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,23,68,0.3);padding-bottom:6px;margin-bottom:8px;">
           <div style="color:#FF1744;font-size:12px;font-weight:700;letter-spacing:0.1em;text-shadow:0 0 4px rgba(255,23,68,0.5);">[ ${htmlEsc(tType)} ]</div>
-          <div style="color:#5C5A54;font-size:9px;">${htmlEsc(p.country || 'UNKNOWN')}</div>
+          <div style="color:#5C5A54;font-size:9px;">${htmlEsc(place)}</div>
         </div>
-        <div style="color:#E8E6E0;font-size:11px;font-weight:bold;margin-bottom:10px;">${htmlEsc(p.malware || 'Unidentified Threat Payload')}</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:9px;margin-bottom:12px;background:rgba(0,0,0,0.3);padding:6px;border-radius:4px;">
-          <div><span style="color:#5C5A54;">TARGET IP</span><br/><span style="color:#00E5FF;font-family:monospace;">${htmlEsc(p.ip)}</span></div>
-          <div><span style="color:#5C5A54;">STATUS</span><br/><span style="color:${statusColor};">${(p.status||'UNKNOWN').toUpperCase()}</span></div>
+        <div style="color:#E8E6E0;font-size:11px;font-weight:bold;margin-bottom:2px;">${htmlEsc(p.malware || 'Unclassified payload')}</div>
+        ${host ? `<div style="color:#5C5A54;font-size:9px;margin-bottom:10px;">${htmlEsc(host)}</div>` : '<div style="margin-bottom:10px;"></div>'}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:9px;margin-bottom:8px;background:rgba(0,0,0,0.3);padding:6px;border-radius:4px;">
+          <div><span style="color:#5C5A54;">HOST</span><br/><span style="color:#00E5FF;font-family:monospace;">${htmlEsc(p.ip)}:${htmlEsc(String(p.port ?? 0))}</span></div>
+          <div><span style="color:#5C5A54;">STATUS</span><br/><span style="color:${statusColor};">${htmlEsc((p.status||'unknown').toUpperCase())}</span></div>
+          <div><span style="color:#5C5A54;">LIVE URLS</span><br/><span style="color:#E8E6E0;">${urls}</span></div>
+          <div><span style="color:#5C5A54;">LAST REPORT</span><br/><span style="color:#E8E6E0;">${htmlEsc((p.last_seen || '').split(' ')[0] || '—')}</span></div>
         </div>
+        <div style="color:#5C5A54;font-size:9px;margin-bottom:10px;">First seen ${htmlEsc((p.first_seen || '').split(' ')[0] || '—')}${p.reporter ? ` · reported by ${htmlEsc(p.reporter)}` : ''}</div>
         <div style="display:flex;gap:6px;">
-          <a href="https://feodotracker.abuse.ch/browse/" target="_blank" style="${linkStyle}flex:1;text-align:center;color:#E8E6E0;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.05);">THREAT INTEL ↗</a>
+          ${ref ? `<a href="${ref}" target="_blank" style="${linkStyle}flex:1;text-align:center;color:#E8E6E0;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.05);">URLHAUS REPORT ↗</a>` : ''}
         </div>
       </div>`);
     });
@@ -1723,7 +1756,63 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
   // Malware Threats
   useEffect(() => {
     if (!mapReady) return;
-    setGeo('malware-nodes', activeLayers.malware && data.malware_threats ? data.malware_threats.map((t: any) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [t.lng, t.lat] }, properties: { ip: t.ip, malware: t.malware, status: t.status, threat_type: t.threat_type, country: t.country } })) : []);
+    setGeo('malware-nodes', activeLayers.malware && data.malware_threats ? data.malware_threats.map((t: any) => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [t.lng, t.lat] },
+      properties: {
+        ip: t.ip, malware: t.malware, status: t.status, threat_type: t.threat_type,
+        country: t.country, city: t.city, port: t.port,
+        asn: t.asn, as_name: t.as_name,
+        // How many live malicious URLs this host serves — the dot is sized by
+        // it, so a box distributing forty payloads reads bigger than one.
+        url_count: t.url_count ?? 1,
+        first_seen: t.first_seen, last_seen: t.last_seen,
+        reference: t.reference, reporter: t.reporter,
+        detected_at: t.detected_at ?? 0,
+      },
+    })) : []);
+  }, [mapReady, data.malware_threats, activeLayers.malware, setGeo]);
+
+  /* Detections that landed while the operator was watching get a ring for a
+     minute. Without it a pushed feed is indistinguishable from a static one —
+     nodes simply appear, and the thing that makes it live goes unseen. */
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !activeLayers.malware) return;
+    const map = mapRef.current;
+
+    /* Arrivals are rare — a handful an hour — so the common case is that there
+       is nothing to draw. Tracking whether the last tick drew anything keeps
+       this from pushing an empty collection into the source five times a
+       second for the entire time the layer is on. */
+    let drawing = false;
+
+    const tick = () => {
+      const now = Date.now();
+      const beacons = arrivalBeacons(data.malware_threats ?? [], now);
+
+      if (beacons.length === 0) {
+        if (drawing) { setGeo('malware-new', []); drawing = false; }
+        return;
+      }
+
+      setGeo('malware-new', beacons.map(b => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [b.lng, b.lat] },
+        properties: { age: b.age },
+      })));
+      drawing = true;
+
+      try {
+        // One shared pulse, so the ring reads as a beacon rather than each
+        // node breathing on its own schedule.
+        map.setPaintProperty('malware-new-ring', 'circle-radius',
+          ['interpolate', ['linear'], ['get', 'age'], 0, 6 + Math.sin(now / 200) * 2, 1, 26]);
+      } catch { /* style not settled yet */ }
+    };
+
+    tick();
+    const timer = setInterval(tick, 200);
+    return () => { clearInterval(timer); setGeo('malware-new', []); };
   }, [mapReady, data.malware_threats, activeLayers.malware, setGeo]);
 
   // Network Mesh Generation (Nearest Neighbor Lattice)
@@ -1997,7 +2086,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     setVis(['cf-outage-halo','cf-outage-dots','cf-outage-label'], (activeLayers as any).cf_outages);
     setVis(['cf-attack-dots','cf-attack-label'], (activeLayers as any).cf_attacks);
 
-    setVis(['malware-glow','malware-dots','malware-label'], activeLayers.malware);
+    setVis(['malware-glow','malware-dots','malware-label','malware-new-ring'], activeLayers.malware);
     setVis(['network-mesh-atmo', 'network-mesh-glow', 'network-mesh-core'], activeLayers.internet_outages || activeLayers.malware);
     setVis(['cyber-arcs-atmo','cyber-arcs-glow','cyber-arcs-core','cyber-arcs-flow','cyber-heads','cyber-impacts','cyber-labels'], (activeLayers as any).cyber_attacks);
     setVis(['day-night-fill'], activeLayers.day_night);
@@ -2866,6 +2955,22 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
           mapRef={mapRef}
           active={!!activeLayers.cctv}
           onOpen={(cam: PreviewCamera) => onEntityClick?.({ type: 'cctv', ...cam })}
+        />
+      )}
+      {mapReady && (
+        <LiveNewsPreviews
+          mapRef={mapRef}
+          active={!!activeLayers.live_news}
+          feeds={data.live_feeds}
+          onOpen={(feed: PreviewFeed) => onEntityClick?.({
+            type: 'live_news',
+            name: feed.name,
+            city: feed.city,
+            country: feed.country,
+            url: feed.url,
+            category: feed.category,
+            embed_allowed: true,
+          })}
         />
       )}
       {selectedSat && <SatelliteCard sat={selectedSat} onClose={clearSat} />}
