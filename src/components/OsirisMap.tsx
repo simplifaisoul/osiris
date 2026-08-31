@@ -2953,7 +2953,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       {mapReady && mapRef.current && (
         <CctvPreviews
           mapRef={mapRef}
-          active={!!activeLayers.cctv}
+          active={!!activeLayers.cctv && !!activeLayers.cctv_previews}
           onOpen={(cam: PreviewCamera) => onEntityClick?.({ type: 'cctv', ...cam })}
         />
       )}

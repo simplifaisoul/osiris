@@ -1,5 +1,9 @@
 import { stealthFetch } from '@/lib/stealthFetch';
 import type { CctvCamera } from './types';
+/* Shared with Nevada — both states run the same IBI 511 platform. */
+import { buildQuery, parseWkt } from './ibi511';
+
+export { buildQuery, parseWkt };
 
 /**
  * OSIRIS — Utah CCTV Cameras (UDOT Traffic / udottraffic.utah.gov)
@@ -29,34 +33,6 @@ export interface UtahCameraRecord {
     disabled?: boolean;
     videoDisabled?: boolean;
   }> | null;
-}
-
-/** Build the URL-encoded DataTables `query` parameter for a given page. */
-export function buildQuery(start: number, length: number): string {
-  const query = {
-    columns: [
-      { data: null, name: '' },
-      { name: 'sortOrder', s: true },
-      { name: 'roadway', s: true },
-      { data: 3, name: '' },
-    ],
-    order: [{ column: 1, dir: 'asc' }],
-    start,
-    length,
-    search: { value: '' },
-  };
-  return encodeURIComponent(JSON.stringify(query));
-}
-
-/** Parse a `POINT (lng lat)` WKT string into coordinates. */
-export function parseWkt(wkt?: string | null): { lat: number; lng: number } | null {
-  if (!wkt) return null;
-  const m = wkt.match(/POINT\s*\(\s*(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*\)/i);
-  if (!m) return null;
-  const lng = parseFloat(m[1]);
-  const lat = parseFloat(m[2]);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  return { lat, lng };
 }
 
 /** Map a raw record to a CctvCamera, or null if it should be skipped. */

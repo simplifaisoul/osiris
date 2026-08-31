@@ -294,6 +294,8 @@ export default function Dashboard() {
     sat_science: false,
     balloons: false,
     cctv: true,
+    /* The live preview tiles over the camera dots — see CctvPreviews. */
+    cctv_previews: true,
     live_news: true,
     earthquakes: true,
     fires: false,

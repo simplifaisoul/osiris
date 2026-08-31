@@ -29,6 +29,9 @@ interface LayerDef {
   catKey?: string;
   /** Capability that must be configured server-side for this layer to appear. */
   requires?: string;
+  /** Key of the layer this one modifies. Renders indented beneath it, and reads
+   *  as inert while that parent is off — it has nothing to act on. */
+  parent?: string;
 }
 
 interface LayerGroupDef {
@@ -85,6 +88,7 @@ const LAYER_GROUPS: LayerGroupDef[] = [
     icon: Camera,
     layers: [
       { key: 'cctv', label: 'CCTV Cameras', dataKey: 'cameras' },
+      { key: 'cctv_previews', label: 'Live Previews', dataKey: '', parent: 'cctv' },
       { key: 'live_news', label: 'Live News Feeds', dataKey: 'live_feeds' },
     ],
   },
@@ -173,6 +177,19 @@ function ToggleSwitch({ active }: { active: boolean }) {
   );
 }
 
+/**
+ * The elbow that ties a sub-layer row to the layer above it. Indentation alone
+ * reads as a typo at this size; the line is what says "this belongs to that".
+ */
+function SubLayerStem() {
+  return (
+    <span
+      aria-hidden
+      className="pointer-events-none absolute left-[6px] top-0 h-1/2 w-[8px] rounded-bl-[3px] border-b border-l border-white/[0.14]"
+    />
+  );
+}
+
 function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'core', setTheme, capabilities = {} }: LayerPanelProps) {
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
   /**
@@ -238,13 +255,15 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
               {group.layers.map((layer) => {
                 const isLayerActive = activeLayers[layer.key];
                 const count = getCount(layer.dataKey, layer.catKey);
+                const dormant = !!layer.parent && !activeLayers[layer.parent];
                 return (
                   <button
                     key={layer.key}
                     onClick={() => toggle(layer.key)}
                     aria-pressed={!!isLayerActive}
-                    className="w-full flex items-center gap-3 px-1 py-2 rounded-md text-left hover:bg-white/[0.04] transition-colors"
+                    className={`relative w-full flex items-center gap-3 py-2 rounded-md text-left hover:bg-white/[0.04] transition-colors ${layer.parent ? 'pl-[22px] pr-1' : 'px-1'} ${dormant ? 'opacity-40' : ''}`}
                   >
+                    {layer.parent && <SubLayerStem />}
                     <ToggleSwitch active={!!isLayerActive} />
                     <span className={`text-[11px] font-mono uppercase tracking-wider flex-1 transition-colors ${isLayerActive ? 'text-white/80' : 'text-white/40'}`}>
                       {layer.label}
@@ -315,11 +334,14 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
     >
       <div className="flex-1 flex flex-col items-center gap-1">
         {visibleGroups.map((group) => {
-          const groupActive = group.layers.some(l => activeLayers[l.key]);
+          /* Sub-layers modify a parent rather than draw anything of their own,
+             so they do not count towards the rail's reading. */
+          const counted = group.layers.filter(l => !l.parent);
+          const groupActive = counted.some(l => activeLayers[l.key]);
           const isHovered = hoveredGroup === group.label;
           const Icon = group.icon;
 
-          const activeCount = group.layers.filter(l => activeLayers[l.key]).length;
+          const activeCount = counted.filter(l => activeLayers[l.key]).length;
           const isPinned = pinnedGroup === group.label;
           const isOpen = isHovered || isPinned;
 
@@ -418,14 +440,17 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                       {group.layers.map((layer) => {
                         const isLayerActive = activeLayers[layer.key];
                         const count = getCount(layer.dataKey, layer.catKey);
+                        const dormant = !!layer.parent && !activeLayers[layer.parent];
 
                         return (
                           <button
                             key={layer.key}
                             onClick={() => toggle(layer.key)}
                             aria-pressed={!!isLayerActive}
-                            className="w-full flex items-center gap-3 px-1 py-1.5 rounded-md hover:bg-white/[0.05] transition-colors cursor-pointer text-left focus:outline-none focus-visible:ring-1 focus-visible:ring-white/30"
+                            title={dormant ? 'Turn the layer above on to use this' : undefined}
+                            className={`relative w-full flex items-center gap-3 py-1.5 rounded-md hover:bg-white/[0.05] transition-colors cursor-pointer text-left focus:outline-none focus-visible:ring-1 focus-visible:ring-white/30 ${layer.parent ? 'pl-[22px] pr-1' : 'px-1'} ${dormant ? 'opacity-40' : ''}`}
                           >
+                            {layer.parent && <SubLayerStem />}
                             <ToggleSwitch active={!!isLayerActive} />
                             <span className={`text-[11px] font-mono uppercase tracking-wider flex-1 transition-colors duration-200 ${isLayerActive ? 'text-white/70' : 'text-white/35'}`}>
                               {layer.label}

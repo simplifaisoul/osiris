@@ -29,6 +29,8 @@ import { fetchAsiaLiveCameras } from './asia-live';
 import { fetchNewZealandCameras } from './newzealand';
 import { fetchOregonCameras } from './oregon';
 import { fetchMichiganCameras } from './michigan';
+import { fetchIndianaCameras } from './indiana';
+import { fetchNevadaCameras } from './nevada';
 import {
   fetchLatamLiveCameras,
   fetchAfricaLiveCameras,
@@ -456,6 +458,8 @@ const REGION_FETCHERS: Record<string, () => Promise<any[]>> = {
   'newzealand': fetchNewZealandCameras,
   'oregon': fetchOregonCameras,
   'michigan': fetchMichiganCameras,
+  'indiana': fetchIndianaCameras,
+  'nevada': fetchNevadaCameras,
   'latam-live': fetchLatamLiveCameras,
   'africa-live': fetchAfricaLiveCameras,
   'europe-live': fetchEuropeLiveCameras,
@@ -474,10 +478,14 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   if (lat > 36.9 && lat < 42.1 && lng > -114.2 && lng < -108.9) regions.push('utah');
   // Oregon (ODOT) — explicit, since us-west only covers WA + CA
   if (lat > 41.9 && lat < 46.3 && lng > -124.6 && lng < -116.4) regions.push('oregon');
+  // Nevada (NDOT) — explicit, since us-west only covers WA + CA
+  if (lat > 34.9 && lat < 42.1 && lng > -120.1 && lng < -113.9) regions.push('nevada');
   // US-Central
   if (lat > 24 && lat < 49 && lng > -105 && lng < -80) regions.push('us-central');
   // Michigan (MDOT) — explicit, since us-central only covers Illinois
   if (lat > 41.6 && lat < 48.3 && lng > -90.5 && lng < -82.1) regions.push('michigan');
+  // Indiana (INDOT TrafficWise) — explicit, since us-central only covers Illinois
+  if (lat > 37.7 && lat < 41.9 && lng > -88.2 && lng < -84.6) regions.push('indiana');
   // Canada
   if (lat > 42 && lat < 70 && lng > -141 && lng < -52) regions.push('canada');
   // Europe
