@@ -115,6 +115,7 @@ const LAYER_GROUPS: LayerGroupDef[] = [
     layers: [
       { key: 'malware', label: 'Live Malware', dataKey: 'malware_threats' },
       { key: 'cyber_attacks', label: 'Live Attacks', dataKey: 'cyber_attacks' },
+      { key: 'lattice', label: 'Lattice Tracks', dataKey: 'lattice_entities', requires: 'lattice' },
     ],
   },
   {
@@ -140,7 +141,7 @@ const LAYER_GROUPS: LayerGroupDef[] = [
 /* ── Minimal Toggle Switch ── */
 /**
  * Presentational only. The row around it is the button, and a button inside a
- * button is invalid HTML — the browser reparents it, which breaks hydration and
+ * button is invalid HTML - the browser reparents it, which breaks hydration and
  * silently drops the click handler on the inner control.
  */
 function ToggleSwitch({ active }: { active: boolean }) {
@@ -177,7 +178,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
   /**
    * A pinned group stays open when the pointer leaves. Hover-only flyouts are
-   * fine to glance at and impossible to work in — reaching for a toggle at the
+   * fine to glance at and impossible to work in - reaching for a toggle at the
    * far edge closes the thing you were reaching for.
    */
   const [pinnedGroup, setPinnedGroup] = useState<string | null>(null);
@@ -192,7 +193,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
 
   const toggle = (key: string) => setActiveLayers((prev: any) => ({ ...prev, [key]: !prev[key] }));
 
-  /** Switch a whole group at once — off if any are on, otherwise all on. */
+  /** Switch a whole group at once - off if any are on, otherwise all on. */
   const toggleGroup = (layers: LayerDef[]) => {
     const anyOn = layers.some(l => activeLayers[l.key]);
     setActiveLayers((prev: any) => {
@@ -336,7 +337,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
               <button
                 onClick={() => setPinnedGroup(isPinned ? null : group.label)}
                 aria-expanded={isOpen}
-                aria-label={`${group.fullLabel}${activeCount ? ` — ${activeCount} active` : ''}`}
+                aria-label={`${group.fullLabel}${activeCount ? ` - ${activeCount} active` : ''}`}
                 title={group.fullLabel}
                 className="relative w-10 h-10 flex items-center justify-center cursor-pointer rounded-lg transition-all duration-300 focus:outline-none focus-visible:ring-1 focus-visible:ring-white/40"
                 style={{
