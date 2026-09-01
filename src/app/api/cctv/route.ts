@@ -32,6 +32,7 @@ import { fetchOregonCameras } from './oregon';
 import { fetchMichiganCameras } from './michigan';
 import { fetchIndianaCameras } from './indiana';
 import { fetchNevadaCameras } from './nevada';
+import { fetchEastAsiaCameras, fetchSeAsiaCameras, fetchWestAsiaCameras } from './opencctv';
 import {
   fetchLatamLiveCameras,
   fetchAfricaLiveCameras,
@@ -465,6 +466,9 @@ const RAW_REGION_FETCHERS: Record<string, RegionFetcher> = {
   'michigan': fetchMichiganCameras,
   'indiana': fetchIndianaCameras,
   'nevada': fetchNevadaCameras,
+  'eastasia': fetchEastAsiaCameras,
+  'seasia': fetchSeAsiaCameras,
+  'westasia': fetchWestAsiaCameras,
   'latam-live': fetchLatamLiveCameras,
   'africa-live': fetchAfricaLiveCameras,
   'europe-live': fetchEuropeLiveCameras,
@@ -589,6 +593,11 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
 
   // Asia (includes Middle East, SE Asia, overriding parts of china but that's ok they can both load)
   if ((lat > -10 && lat < 60 && lng > 60 && lng < 150)) regions.push('asia');
+  // OpenCCTV across Asia — the countries with no open traffic-authority index
+  // of their own. Split so a viewport over Jakarta does not also pay for Japan.
+  if (lat > 18 && lat < 46 && lng > 73.5 && lng < 146) regions.push('eastasia');
+  if (lat > -11 && lat < 24 && lng > 92 && lng < 130) regions.push('seasia');
+  if (lat > 5 && lat < 56 && lng > 25 && lng < 92) regions.push('westasia');
   // Australia explicitly
   if (lat > -45 && lat < -10 && lng > 110 && lng < 155) regions.push('asia');
   // New Zealand (NZTA)
