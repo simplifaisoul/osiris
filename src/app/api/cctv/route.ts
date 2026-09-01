@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { stealthFetch } from '@/lib/stealthFetch';
+import { cachedSource } from '@/lib/sourceCache';
 
 export const maxDuration = 60;
 import { fetchAsfinagCameras } from './asfinag';
@@ -423,7 +424,11 @@ async function fetchMiddleEastCameras(): Promise<any[]> {
 }
 
 // ═══ REGION MAPPING ═══
-const REGION_FETCHERS: Record<string, () => Promise<any[]>> = {
+/** Camera records are shaped per source; only `source` is read back here. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type RegionFetcher = () => Promise<any[]>;
+
+const RAW_REGION_FETCHERS: Record<string, RegionFetcher> = {
   'middle-east': fetchMiddleEastCameras,
   'uk': fetchTfLCameras,
   'us-west': async () => { const [w, c] = await Promise.all([fetchWSDOTCameras(), fetchCaltransCameras()]); return [...w, ...c]; },
@@ -464,6 +469,43 @@ const REGION_FETCHERS: Record<string, () => Promise<any[]>> = {
   'africa-live': fetchAfricaLiveCameras,
   'europe-live': fetchEuropeLiveCameras,
 };
+
+/**
+ * Every region is served from the shared source cache.
+ *
+ * Six of these modules cached themselves and thirty-three did not, which meant
+ * a request with no `region` refetched thirty-three upstreams live — several of
+ * them megabytes, two of them long dead. Under real traffic that is one
+ * outbound fetch storm per visitor. Caching here rather than in each module
+ * means a source added later cannot forget to do it.
+ */
+const REGION_FETCHERS: Record<string, RegionFetcher> = Object.fromEntries(
+  Object.entries(RAW_REGION_FETCHERS).map(([region, fetcher]) => [
+    region,
+    cachedSource(`cctv:${region}`, fetcher),
+  ]),
+);
+
+/**
+ * A region that will not answer must not hold the other thirty-eight hostage.
+ * The abandoned fetch keeps running inside the cache, so the frame it was
+ * fetching lands in time for the next request rather than being thrown away —
+ * this drops a slow region from the current response, not from the map.
+ */
+const REGION_BUDGET_MS = 12_000;
+
+function withBudget(region: string, fetcher: RegionFetcher): ReturnType<RegionFetcher> {
+  let timer: ReturnType<typeof setTimeout>;
+  return Promise.race([
+    fetcher().finally(() => clearTimeout(timer)),
+    new Promise<Awaited<ReturnType<RegionFetcher>>>(resolve => {
+      timer = setTimeout(() => {
+        console.warn(`[OSIRIS] cctv:${region} over ${REGION_BUDGET_MS}ms — returning without it`);
+        resolve([]);
+      }, REGION_BUDGET_MS);
+    }),
+  ]);
+}
 
 // Determine which regions to fetch based on viewport bounds
 function getRegionsForBounds(lat: number, lng: number, radius: number): string[] {
@@ -585,7 +627,7 @@ export async function GET(request: Request) {
     }
 
     const results = await Promise.allSettled(
-      regionsToFetch.map(r => REGION_FETCHERS[r]())
+      regionsToFetch.map(r => withBudget(r, REGION_FETCHERS[r]))
     );
 
     const allCameras: any[] = [];
