@@ -9,6 +9,7 @@ import { STYLE_EVENT } from '@/lib/style-tokens';
 import { arrivalBeacons } from '@/lib/malware-intel';
 import SatelliteCard, { type SatelliteDetail } from '@/components/SatelliteCard';
 import CctvPreviews, { type PreviewCamera } from '@/components/CctvPreviews';
+import MapControls from '@/components/MapControls';
 import LiveNewsPreviews, { type PreviewFeed } from '@/components/LiveNewsPreviews';
 
 /** The catalogue fields the satellite layer and its popup actually read. */
@@ -2974,6 +2975,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         />
       )}
       {selectedSat && <SatelliteCard sat={selectedSat} onClose={clearSat} />}
+      {mapReady && <MapControls mapRef={mapRef} onInteract={onFollowInterrupt} />}
     </>
   );
 }

@@ -134,6 +134,8 @@ function Segmented({ label, options, value, onChange }: {
   );
 }
 
+const ON_OFF = [{ label: 'ON', value: 'on' }, { label: 'OFF', value: 'off' }];
+
 /** Groups rows inside a section without starting a new one. */
 function SubHead({ label, note }: { label: string; note?: string }) {
   return (
@@ -337,6 +339,17 @@ function StyleStudio({ onClose, isMobile }: { onClose: () => void; isMobile?: bo
           <Row label="Warning"><Swatch label="Warning colour" value={s.alertOrange} onChange={v => set('alertOrange', v)} /></Row>
           <Row label="Nominal"><Swatch label="Nominal colour" value={s.alertGreen} onChange={v => set('alertGreen', v)} /></Row>
           <Row label="Info"><Swatch label="Info colour" value={s.alertBlue} onChange={v => set('alertBlue', v)} /></Row>
+        </Section>
+
+        <Section title="Map controls">
+          <Row label="Pan/zoom pad">
+            <Segmented
+              label="On-screen pan and zoom pad"
+              options={ON_OFF}
+              value={s.mapControls ? 'on' : 'off'}
+              onChange={v => set('mapControls', v === 'on')}
+            />
+          </Row>
         </Section>
 
         <Section title="Map layers">

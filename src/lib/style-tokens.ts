@@ -54,6 +54,8 @@ export interface StyleSettings {
   scanlines: number;
   vignette: number;
   grain: number;
+  /** The map's on-screen pan/zoom pad. Off leaves the wheel and drag alone. */
+  mapControls: boolean;
   /** Colours the map itself draws with — see ./map-palette. */
   map: MapPalette;
 }
@@ -100,6 +102,7 @@ export const DEFAULTS: StyleSettings = {
   scanlines: 0,
   vignette: 0,
   grain: 0,
+  mapControls: true,
   map: MAP_DEFAULTS,
 };
 
@@ -202,8 +205,13 @@ export function sanitize(input: unknown, base: StyleSettings): StyleSettings {
     scanlines: normNum(o.scanlines, base.scanlines, 0, 0.2),
     vignette: normNum(o.vignette, base.vignette, 0, 1),
     grain: normNum(o.grain, base.grain, 0, 0.3),
+    mapControls: normBool(o.mapControls, base.mapControls),
     map: normMap(o.map, base.map),
   };
+}
+
+function normBool(v: unknown, fallback: boolean) {
+  return typeof v === 'boolean' ? v : fallback;
 }
 
 /** Same treatment as every other colour: these reach body.style as text. */
@@ -292,6 +300,12 @@ ${at} .rounded-full { border-radius: 9999px; }`,
 
   if (s.motion !== 1) {
     blocks.push(`${at} *, ${at} *::before, ${at} *::after { transition-duration: ${Math.round(600 * s.motion)}ms !important; }`);
+  }
+
+  if (!s.mapControls) {
+    /* Hidden by rule rather than unmounted: flipping it back on costs no
+       remount, and a held button cannot be orphaned mid-press. */
+    blocks.push(`${at} [data-map-controls] { display: none !important; }`);
   }
 
   /* Scanlines, vignette and grain share one pseudo-element: a second ::after
