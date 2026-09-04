@@ -116,15 +116,62 @@ async function fetchCaltransCameras(): Promise<any[]> {
   }
 }
 
+/**
+ * One sub-source of a multi-source region, fetched with a single retry.
+ *
+ * These blocks swallowed every failure. A region returns whatever it managed
+ * to collect, and sourceCache stores a non-empty result as a success — so one
+ * blip on one source cached the region without it for the full TTL, with
+ * nothing in the log to say which one went missing. Quebec disappeared from
+ * Canada that way for half an hour while its own endpoint was answering in
+ * 300ms. The retry catches the blip; the warning means a real outage is
+ * visible instead of silent.
+ */
+async function subSource(label: string, url: string, timeoutMs: number) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const res = await stealthFetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+      if (res.ok) return await res.json();
+      /* A 4xx is a decision, not a blip: a retired endpoint answers 404 just
+         as fast the second time. Retrying them only spent the region's budget
+         — Montreal (403) and Alberta (400) between them pushed Canada past
+         12s, so the whole country came back empty on a cold cache. */
+      if (res.status >= 400 && res.status < 500) {
+        console.warn(`[OSIRIS] ${label} returned ${res.status} — absent from this refresh, not retried`);
+        return null;
+      }
+      if (attempt === 2) console.warn(`[OSIRIS] ${label} returned ${res.status} — absent from this refresh`);
+    } catch (e) {
+      if (attempt === 2) console.warn(`[OSIRIS] ${label} failed — absent from this refresh:`, e instanceof Error ? e.message : e);
+    }
+  }
+  return null;
+}
+
 // ── CANADA: Ottawa, Toronto, Montreal, Quebec ──
 async function fetchCanadaCameras(): Promise<any[]> {
   const cams: any[] = [];
 
+  /* All seven run at once. Awaited one after another their timeouts summed
+     to well over the 12s the route allows a region, so Canada kept coming
+     back empty and only filled in on a later poll — the whole country
+     looked like it was failing to load. They share nothing, so there was
+     never a reason to queue them. */
+  const [ottawa, quebec, ontario, montreal, alberta, toronto, drivebc] = await Promise.all([
+    subSource('City of Ottawa', 'https://traffic.ottawa.ca/beta/camera_list', 12000),
+    subSource('Quebec 511', 'https://ws.mapserver.transports.gouv.qc.ca/swtq?service=wfs&version=2.0.0&request=getfeature&typename=ms:infos_cameras&outfile=Camera&srsname=EPSG:4326&outputformat=geojson', 10000),
+    subSource('511 Ontario', 'https://511on.ca/api/v2/get/cameras', 10000),
+    subSource('Ville MTL', 'https://ville.montreal.qc.ca/circulation/sites/ville.montreal.qc.ca.circulation/files/cameras.json', 8000),
+    subSource('511 Alberta', 'https://511.alberta.ca/api/v2/get/cameras', 10000),
+    subSource('City of Toronto', 'https://ckan0.cf.opendata.inter.prod-toronto.ca/dataset/a3309088-5fd4-4d34-8297-77c8301840ac/resource/4a568300-c7f8-496d-b150-dff6f5dc6d4f/download/traffic-camera-list-4326.geojson', 10000),
+    subSource('DriveBC', 'https://drivebc.ca/api/webcams', 10000),
+  ]);
+
+
   // Ottawa Municipal Cameras (Comprehensive)
-  try {
-    const res = await stealthFetch('https://traffic.ottawa.ca/beta/camera_list', { signal: AbortSignal.timeout(12000) });
-    if (res.ok) {
-      const data = await res.json();
+  {
+    const data = ottawa;
+    if (data) {
       for (const cam of (data || [])) {
         if (!cam.latitude || !cam.longitude) continue;
         cams.push({
@@ -134,13 +181,12 @@ async function fetchCanadaCameras(): Promise<any[]> {
         });
       }
     }
-  } catch (e) { /* silent */ }
+  }
 
   // Quebec 511 (Comprehensive - covers Montreal, Quebec City, highways)
-  try {
-    const res = await stealthFetch('https://ws.mapserver.transports.gouv.qc.ca/swtq?service=wfs&version=2.0.0&request=getfeature&typename=ms:infos_cameras&outfile=Camera&srsname=EPSG:4326&outputformat=geojson', { signal: AbortSignal.timeout(10000) });
-    if (res.ok) {
-      const data = await res.json();
+  {
+    const data = quebec;
+    if (data) {
       for (const feature of (data.features || [])) {
         const coords = feature.geometry?.coordinates;
         const p = feature.properties;
@@ -155,29 +201,32 @@ async function fetchCanadaCameras(): Promise<any[]> {
         });
       }
     }
-  } catch (e) { /* silent */ }
+  }
 
   // Ontario 511 (MTO Highway Cameras)
-  try {
-    const res = await stealthFetch('https://511on.ca/api/v2/get/cameras', { signal: AbortSignal.timeout(10000) });
-    if (res.ok) {
-      const data = await res.json();
+  {
+    const data = ontario;
+    if (data) {
+      /* MTO capitalises its field names. Reading `cam.latitude` skipped all
+         944 rows, so the only Ontario markers on the map were the three
+         curated Toronto ones below — the province has been empty this whole
+         time. A view's Url serves the JPEG itself, no rewriting needed. */
       for (const cam of (data || [])) {
-        if (!cam.latitude || !cam.longitude) continue;
+        const view = cam.Views?.find((v: { Status?: string; Url?: string }) => v.Status === 'Enabled') ?? cam.Views?.[0];
+        if (!cam.Latitude || !cam.Longitude || !view?.Url) continue;
         cams.push({
-          id: `on-${cam.id || cams.length}`, lat: cam.latitude, lng: cam.longitude,
-          name: cam.description || cam.name || 'Ontario Camera', city: 'Ontario', country: 'Canada',
-          feed_url: cam.imageUrl || cam.url || '', source: '511 Ontario',
+          id: `on-${cam.Id}`, lat: cam.Latitude, lng: cam.Longitude,
+          name: cam.Location || cam.Roadway || 'Ontario Camera', city: 'Ontario', country: 'Canada',
+          feed_url: view.Url, source: '511 Ontario',
         });
       }
     }
-  } catch (e) { /* silent */ }
+  }
 
   // Ville de Montréal municipal cameras
-  try {
-    const res = await stealthFetch('https://ville.montreal.qc.ca/circulation/sites/ville.montreal.qc.ca.circulation/files/cameras.json', { signal: AbortSignal.timeout(8000) });
-    if (res.ok) {
-      const data = await res.json();
+  {
+    const data = montreal;
+    if (data) {
       for (const cam of (data || [])) {
         cams.push({
           id: `mtl-muni-${cams.length}`, lat: cam.latitude || cam.lat, lng: cam.longitude || cam.lng,
@@ -186,7 +235,7 @@ async function fetchCanadaCameras(): Promise<any[]> {
         });
       }
     }
-  } catch (e) { /* silent */ }
+  }
 
   // Curated Toronto cameras (fallback if 511ON fails)
   const curated = [
@@ -197,10 +246,9 @@ async function fetchCanadaCameras(): Promise<any[]> {
   cams.push(...curated);
 
   // Alberta 511
-  try {
-    const res = await stealthFetch('https://511.alberta.ca/api/v2/get/cameras', { signal: AbortSignal.timeout(10000) });
-    if (res.ok) {
-      const data = await res.json();
+  {
+    const data = alberta;
+    if (data) {
       for (const cam of (data || [])) {
         if (!cam.Latitude || !cam.Longitude || !cam.Views?.[0]?.Url) continue;
         cams.push({
@@ -210,14 +258,13 @@ async function fetchCanadaCameras(): Promise<any[]> {
         });
       }
     }
-  } catch (e) { /* silent */ }
+  }
 
 
   // Toronto Open Data Municipal Traffic Cameras
-  try {
-    const res = await stealthFetch('https://ckan0.cf.opendata.inter.prod-toronto.ca/dataset/a3309088-5fd4-4d34-8297-77c8301840ac/resource/4a568300-c7f8-496d-b150-dff6f5dc6d4f/download/traffic-camera-list-4326.geojson', { signal: AbortSignal.timeout(10000) });
-    if (res.ok) {
-      const data = await res.json();
+  {
+    const data = toronto;
+    if (data) {
       for (const feature of (data.features || [])) {
         let coords = feature.geometry?.coordinates;
         if (Array.isArray(coords) && Array.isArray(coords[0])) coords = coords[0];
@@ -230,13 +277,12 @@ async function fetchCanadaCameras(): Promise<any[]> {
         });
       }
     }
-  } catch (e) { /* silent */ }
+  }
 
   // British Columbia HighwayCams (Live JSON API)
-  try {
-    const res = await stealthFetch('https://drivebc.ca/api/webcams', { signal: AbortSignal.timeout(10000) });
-    if (res.ok) {
-      const data = await res.json();
+  {
+    const data = drivebc;
+    if (data) {
       for (const cam of (data || [])) {
         if (!cam.location?.coordinates || !cam.links?.imageDisplay) continue;
         const [lng, lat] = cam.location.coordinates;
@@ -247,7 +293,7 @@ async function fetchCanadaCameras(): Promise<any[]> {
         });
       }
     }
-  } catch (e) { /* silent */ }
+  }
 
   return cams.filter((c: any) => c.lat && c.lng);
 }
@@ -256,11 +302,15 @@ async function fetchCanadaCameras(): Promise<any[]> {
 async function fetchUSCentralCameras(): Promise<any[]> {
   const cams: any[] = [];
   // Illinois DOT
-  try {
-    const res = await stealthFetch('https://www.travelmidwest.com/lmiga/cameraReport.json', { signal: AbortSignal.timeout(8000) });
-    if (res.ok) {
-      const data = await res.json();
-      for (const cam of (data?.cameraReports || data || []).slice(0, 800)) {
+  {
+    const data = await subSource('IDOT', 'https://www.travelmidwest.com/lmiga/cameraReport.json', 8000);
+    if (data) {
+      /* travelmidwest answers 200 with {updatedMessage, noDataMessage} and no
+         cameras at all — an object, not the array this assumed. That threw a
+         TypeError the old silent catch quietly absorbed; now it would take
+         us-central down with it, so the shape is checked. */
+      const rows = Array.isArray(data?.cameraReports) ? data.cameraReports : Array.isArray(data) ? data : [];
+      for (const cam of rows.slice(0, 800)) {
         if (!cam.latitude || !cam.longitude) continue;
         cams.push({
           id: `ildot-${cams.length}`, lat: cam.latitude, lng: cam.longitude,
@@ -269,7 +319,7 @@ async function fetchUSCentralCameras(): Promise<any[]> {
         });
       }
     }
-  } catch (e) { /* silent */ }
+  }
 
   return cams.filter((c: any) => c.lat && c.lng);
 }
@@ -311,21 +361,11 @@ async function fetchUSEastCameras(): Promise<any[]> {
       source: 'Cincinnati, OH',
     },
   );
-  // Florida 511
-  try {
-    const res = await stealthFetch('https://fl511.com/api/v2/cameras', { signal: AbortSignal.timeout(8000) });
-    if (res.ok) {
-      const data = await res.json();
-      for (const cam of (data || []).slice(0, 800)) {
-        if (!cam.latitude || !cam.longitude) continue;
-        cams.push({
-          id: `fl-${cams.length}`, lat: cam.latitude, lng: cam.longitude,
-          name: cam.description || 'FL-511 Camera', city: 'Florida', country: 'US',
-          feed_url: cam.imageUrl || '', source: 'FL-511',
-        });
-      }
-    }
-  } catch (e) { /* silent */ }
+  /* Florida used to be fetched here from fl511.com/api/v2/cameras. That
+     endpoint has returned 404 for some time — and because the block tested
+     `res.ok` before doing anything, it failed without even reaching a catch.
+     ./florida now serves the state from the working IBI index; this is left
+     out rather than kept as a source that can only ever contribute nothing. */
 
 
   return cams.filter((c: any) => c.lat && c.lng);
@@ -336,11 +376,10 @@ async function fetchEuropeCameras(): Promise<any[]> {
   const cams: any[] = [];
 
   // Netherlands Rijkswaterstaat
-  try {
-    const res = await stealthFetch('https://opendata.ndw.nu/cameras.json', { signal: AbortSignal.timeout(8000) });
-    if (res.ok) {
-      const data = await res.json();
-      for (const cam of (data || []).slice(0, 1000)) {
+  {
+    const data = await subSource('NDW Netherlands', 'https://opendata.ndw.nu/cameras.json', 8000);
+    if (data) {
+      for (const cam of (Array.isArray(data) ? data : []).slice(0, 1000)) {
         if (!cam.lat || !cam.lng) continue;
         cams.push({
           id: `nl-${cams.length}`, lat: cam.lat, lng: cam.lng,
@@ -349,7 +388,7 @@ async function fetchEuropeCameras(): Promise<any[]> {
         });
       }
     }
-  } catch (e) { /* silent */ }
+  }
 
   cams.push(...await fetchAsfinagCameras());
 
@@ -361,10 +400,9 @@ async function fetchAsiaCameras(): Promise<any[]> {
   const cams: any[] = [];
 
   // Singapore Live Traffic Images
-  try {
-    const res = await stealthFetch('https://api.data.gov.sg/v1/transport/traffic-images', { signal: AbortSignal.timeout(10000) });
-    if (res.ok) {
-      const data = await res.json();
+  {
+    const data = await subSource('LTA Singapore', 'https://api.data.gov.sg/v1/transport/traffic-images', 10000);
+    if (data) {
       const items = data.items?.[0]?.cameras || [];
       for (const cam of items) {
         if (!cam.location?.latitude || !cam.location?.longitude || !cam.image) continue;
@@ -380,7 +418,7 @@ async function fetchAsiaCameras(): Promise<any[]> {
         });
       }
     }
-  } catch (e) { /* silent */ }
+  }
 
   return cams;
 }
