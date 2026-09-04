@@ -33,6 +33,10 @@ import { fetchMichiganCameras } from './michigan';
 import { fetchIndianaCameras } from './indiana';
 import { fetchNevadaCameras } from './nevada';
 import { fetchLouisianaCameras } from './louisiana';
+import { fetchFloridaCameras } from './florida';
+import { fetchGeorgiaCameras } from './georgia';
+import { fetchNorthCarolinaCameras } from './northcarolina';
+import { fetchArizonaCameras } from './arizona';
 import { fetchEastAsiaCameras, fetchSeAsiaCameras, fetchWestAsiaCameras } from './opencctv';
 import {
   fetchLatamLiveCameras,
@@ -468,6 +472,10 @@ const RAW_REGION_FETCHERS: Record<string, RegionFetcher> = {
   'indiana': fetchIndianaCameras,
   'nevada': fetchNevadaCameras,
   'louisiana': fetchLouisianaCameras,
+  'florida': fetchFloridaCameras,
+  'georgia': fetchGeorgiaCameras,
+  'northcarolina': fetchNorthCarolinaCameras,
+  'arizona': fetchArizonaCameras,
   'eastasia': fetchEastAsiaCameras,
   'seasia': fetchSeAsiaCameras,
   'westasia': fetchWestAsiaCameras,
@@ -536,6 +544,13 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   if (lat > 37.7 && lat < 41.9 && lng > -88.2 && lng < -84.6) regions.push('indiana');
   // Louisiana (LADOTD 511) — explicit, since neither us-central nor us-east reaches the Gulf coast
   if (lat > 28.8 && lat < 33.1 && lng > -94.2 && lng < -88.6) regions.push('louisiana');
+  /* The rest of the southern tier, all on the same IBI 511 stack. Each is
+     listed explicitly for the same reason Louisiana is: the broad us-east and
+     us-central boxes cover the latitudes but carry none of these agencies. */
+  if (lat > 24.4 && lat < 31.1 && lng > -87.7 && lng < -79.9) regions.push('florida');
+  if (lat > 30.3 && lat < 35.1 && lng > -85.7 && lng < -80.8) regions.push('georgia');
+  if (lat > 33.8 && lat < 36.6 && lng > -84.4 && lng < -75.4) regions.push('northcarolina');
+  if (lat > 31.3 && lat < 37.1 && lng > -115.0 && lng < -109.0) regions.push('arizona');
   // Canada
   if (lat > 42 && lat < 70 && lng > -141 && lng < -52) regions.push('canada');
   // Europe
