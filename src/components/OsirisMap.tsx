@@ -1467,7 +1467,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       const p = e.features[0].properties as any;
       const coords = (e.features[0].geometry as any).coordinates;
 
-      // Same classification the panel and the dot colours use.
+      // Same classification the dot colours use, so the badge and the pin agree.
       const style = nuclearStyle(p.status || '');
       const mag = seismicMagnitude(p.status || '');
       const c = style.color;
@@ -1477,32 +1477,36 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
          than a zero that would look like a fault. */
       const cell = (label: string, value: string, color = '#E8E6E0') => `
         <div style="min-width:0;">
-          <div style="color:#5C5A54;font-size:8px;letter-spacing:0.14em;margin-bottom:3px;">${label}</div>
-          <div style="color:${color};font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${value}</div>
+          <div style="color:#5C5A54;font-size:8px;letter-spacing:0.14em;margin-bottom:4px;">${label}</div>
+          <div style="color:${color};font-size:11px;line-height:1.35;overflow-wrap:anywhere;">${value}</div>
         </div>`;
 
-      popup(coords, `<div style="${pStyle}padding:0;overflow:hidden;border:1px solid ${c}59;min-width:250px;">
+      const place = [p.city, p.country].filter(Boolean).map(htmlEsc).join(', ') || '—';
 
-        <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:linear-gradient(90deg,${c}26,transparent);border-bottom:1px solid ${c}33;">
+      popup(coords, `<div style="${pStyle}padding:0;overflow:hidden;border:1px solid ${c}59;width:min(78vw,264px);">
+
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 34px 10px 12px;background:linear-gradient(90deg,${c}26,transparent);border-bottom:1px solid ${c}33;">
           <span style="width:8px;height:8px;border-radius:50%;background:${c};box-shadow:0 0 8px ${c};flex-shrink:0;"></span>
           <div style="min-width:0;flex:1;">
-            <div style="color:#E8E6E0;font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name || 'Nuclear Facility'}</div>
-            <div style="color:#8A8880;font-size:9px;margin-top:2px;">${p.city || '—'}${p.country ? ', ' + p.country : ''}</div>
+            <div style="color:#E8E6E0;font-size:12px;font-weight:700;line-height:1.3;overflow-wrap:anywhere;">${htmlEsc(p.name || 'Nuclear Facility')}</div>
+            <div style="color:#8A8880;font-size:9px;margin-top:3px;">${place}</div>
           </div>
-          <span style="flex-shrink:0;font-size:8px;letter-spacing:0.1em;padding:2px 6px;border-radius:4px;color:${c};border:1px solid ${c}4D;background:${c}1A;">${style.label}${mag !== null ? ' M' + mag : ''}</span>
         </div>
 
         <div style="padding:10px 12px;">
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px;">
-            ${cell('REACTORS', p.reactors ? String(p.reactors) : '—', c)}
+          <div style="display:inline-block;font-size:8px;letter-spacing:0.1em;padding:2px 6px;margin-bottom:10px;border-radius:4px;color:${c};border:1px solid ${c}4D;background:${c}1A;">${style.label}${mag !== null ? ' · M' + mag : ''}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            ${cell('REACTORS', p.reactors ? htmlEsc(p.reactors) : '—', c)}
             ${cell('CAPACITY', formatCapacity(Number(p.capacityMW) || 0))}
-            ${cell('COORDS', `${coords[1].toFixed(2)}°, ${coords[0].toFixed(2)}°`)}
           </div>
-          <div style="display:grid;grid-template-columns:1fr;gap:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);">
-            ${cell('STATUS', p.status || '—', c)}
-            ${cell('OPERATOR', p.owner || '—')}
+          <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.06);">
+            ${cell('STATUS', htmlEsc(p.status || '—'), c)}
           </div>
-          ${p.sourceUrl ? `<a href="${p.sourceUrl}" target="_blank" rel="noopener noreferrer" style="${linkStyle}display:block;text-align:center;margin-top:10px;color:${c};border:1px solid ${c}66;background:${c}1A;">SOURCE</a>` : ''}
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+            ${cell('OPERATOR', htmlEsc(p.owner || '—'))}
+            ${cell('COORDS', `${coords[1].toFixed(3)}°, ${coords[0].toFixed(3)}°`)}
+          </div>
+          ${p.sourceUrl ? `<a href="${urlSafe(p.sourceUrl)}" target="_blank" rel="noopener noreferrer" style="${linkStyle}display:block;text-align:center;margin-top:12px;color:${c};border:1px solid ${c}66;background:${c}1A;">SOURCE</a>` : ''}
         </div>
       </div>`);
     });
