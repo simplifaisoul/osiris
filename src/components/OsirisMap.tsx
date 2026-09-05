@@ -7,6 +7,7 @@ import { createSatelliteLayer, parseColor, type SatPoint } from '@/lib/satellite
 import { MAP_DEFAULTS, MAP_PALETTE_KEYS, readMapPalette, satColorFor, type MapPalette } from '@/lib/map-palette';
 import { STYLE_EVENT } from '@/lib/style-tokens';
 import { arrivalBeacons } from '@/lib/malware-intel';
+import { nuclearStyle, seismicMagnitude, formatCapacity } from '@/lib/nuclear';
 import SatelliteCard, { type SatelliteDetail } from '@/components/SatelliteCard';
 import CctvPreviews, { type PreviewCamera } from '@/components/CctvPreviews';
 import MapControls from '@/components/MapControls';
@@ -542,27 +543,50 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'text-offset': [0, 2], 'text-max-width': 14, 'text-allow-overlap': false,
       }, paint: { 'text-color': '#7E57C2', 'text-halo-color': '#000', 'text-halo-width': 1, 'text-opacity': 0.8 }});
 
-      // Nuclear Infrastructure — teal / amber risk
+      /* Nuclear Infrastructure — one colour per operational state.
+         This mirrors nuclearState() in @/lib/nuclear; the panel legend, the
+         popup and these dots have to agree or the colours mean nothing.
+         Expression matching is case-sensitive, so these track the exact
+         status strings /api/infrastructure emits. */
+      const INFRA_COLOR: any = ['case',
+        ['in', 'SEISMIC', ['get', 'status']], '#FF9500',
+        ['in', 'Conflict', ['get', 'status']], '#FF1744',
+        ['in', 'Construction', ['get', 'status']], '#00E5FF',
+        ['any',
+          ['in', 'Decommission', ['get', 'status']],
+          ['in', 'Destroyed', ['get', 'status']],
+          ['in', 'Shutdown', ['get', 'status']],
+          ['in', 'Suspended', ['get', 'status']],
+        ], '#8A8880',
+        '#76FF03',
+      ];
+      /* Conflict and seismic sites are the reason to look at this layer, so
+         they carry a wider halo and a heavier ring than a healthy plant. */
+      const INFRA_URGENT: any = ['any',
+        ['in', 'SEISMIC', ['get', 'status']],
+        ['in', 'Conflict', ['get', 'status']],
+      ];
+
       map.addLayer({ id: 'infra-glow', type: 'circle', source: 'infrastructure', paint: {
-        'circle-radius': ['interpolate',['linear'],['zoom'], 1,8, 5,14, 10,22],
-        'circle-color': ['case', ['in', 'SEISMIC RISK', ['get', 'status']], '#E65100', '#26A69A'],
-        'circle-opacity': 0.08, 'circle-blur': 1,
+        'circle-radius': ['interpolate',['linear'],['zoom'],
+          1, ['case', INFRA_URGENT, 14, 8],
+          5, ['case', INFRA_URGENT, 22, 14],
+          10, ['case', INFRA_URGENT, 34, 22]],
+        'circle-color': INFRA_COLOR,
+        'circle-opacity': ['case', INFRA_URGENT, 0.18, 0.08], 'circle-blur': 1,
       }});
       map.addLayer({ id: 'infra-dots', type: 'circle', source: 'infrastructure', paint: {
         'circle-radius': ['interpolate',['linear'],['zoom'], 1,4, 5,6, 10,10],
-        'circle-color': ['case', 
-          ['in', 'SEISMIC RISK', ['get', 'status']], '#E65100',
-          ['==', ['get','status'], 'Active Conflict Zone'], '#D32F2F', 
-          ['==', ['get','status'], 'Destroyed / Decommissioning'], '#546E7A', 
-          '#26A69A'
-        ],
-        'circle-opacity': 0.75,
-        'circle-stroke-width': 1.5, 'circle-stroke-color': ['case', ['in', 'SEISMIC RISK', ['get', 'status']], '#E65100', '#26A69A'], 'circle-stroke-opacity': 0.35,
+        'circle-color': INFRA_COLOR,
+        'circle-opacity': 0.85,
+        'circle-stroke-width': ['case', INFRA_URGENT, 2.5, 1.5],
+        'circle-stroke-color': INFRA_COLOR,
+        'circle-stroke-opacity': ['case', INFRA_URGENT, 0.6, 0.35],
       }});
       map.addLayer({ id: 'infra-label', type: 'symbol', source: 'infrastructure', minzoom: 5, layout: {
         'text-field': ['get','name'], 'text-size': 9, 'text-font': ['Open Sans Regular'],
         'text-offset': [0, 2], 'text-max-width': 14, 'text-allow-overlap': false,
-      }, paint: { 'text-color': ['case', ['in', 'SEISMIC RISK', ['get', 'status']], '#E65100', '#26A69A'], 'text-halo-color': '#000', 'text-halo-width': 1, 'text-opacity': 0.7 }});
+      }, paint: { 'text-color': INFRA_COLOR, 'text-halo-color': '#000', 'text-halo-width': 1, 'text-opacity': 0.8 }});
 
       // Satellites.
       // Every satellite is drawn once, by the custom 3D layer below, at its
@@ -1442,18 +1466,44 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       if (!e.features?.length) return;
       const p = e.features[0].properties as any;
       const coords = (e.features[0].geometry as any).coordinates;
-      const statusColor = p.status.includes('SEISMIC RISK') ? '#FF9500' : p.status === 'Active Conflict Zone' ? '#FF1744' : p.status === 'Operational' ? '#76FF03' : '#757575';
-      popup(coords, `<div style="${pStyle}border:1px solid rgba(118,255,3,0.3);">
-        <div style="color:#76FF03;font-size:14px;font-weight:700;margin-bottom:4px;">☢️ ${p.name || 'Nuclear Facility'}</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:9px;margin-bottom:8px;">
-          <div><span style="color:#5C5A54;">STATUS</span><br/><span style="color:${statusColor};">${p.status || '—'}</span></div>
-          <div><span style="color:#5C5A54;">CITY</span><br/><span style="color:#E8E6E0;">${p.city || '—'}, ${p.country || ''}</span></div>
-          <div><span style="color:#5C5A54;">REACTORS</span><br/><span style="color:#76FF03;">${p.reactors || '—'}</span></div>
-          <div><span style="color:#5C5A54;">CAPACITY</span><br/><span style="color:#E8E6E0;">${p.capacityMW ? p.capacityMW.toLocaleString() + ' MW' : '—'}</span></div>
-          <div><span style="color:#5C5A54;">OWNER</span><br/><span style="color:#E8E6E0;">${p.owner || '—'}</span></div>
-          <div><span style="color:#5C5A54;">COORDS</span><br/><span style="color:#E8E6E0;">${coords[1].toFixed(3)}°, ${coords[0].toFixed(3)}°</span></div>
+
+      // Same classification the panel and the dot colours use.
+      const style = nuclearStyle(p.status || '');
+      const mag = seismicMagnitude(p.status || '');
+      const c = style.color;
+
+      /* A research reactor or a waste store has no electrical output, and an
+         enrichment plant has no reactor at all — those cells read "—" rather
+         than a zero that would look like a fault. */
+      const cell = (label: string, value: string, color = '#E8E6E0') => `
+        <div style="min-width:0;">
+          <div style="color:#5C5A54;font-size:8px;letter-spacing:0.14em;margin-bottom:3px;">${label}</div>
+          <div style="color:${color};font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${value}</div>
+        </div>`;
+
+      popup(coords, `<div style="${pStyle}padding:0;overflow:hidden;border:1px solid ${c}59;min-width:250px;">
+
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:linear-gradient(90deg,${c}26,transparent);border-bottom:1px solid ${c}33;">
+          <span style="width:8px;height:8px;border-radius:50%;background:${c};box-shadow:0 0 8px ${c};flex-shrink:0;"></span>
+          <div style="min-width:0;flex:1;">
+            <div style="color:#E8E6E0;font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name || 'Nuclear Facility'}</div>
+            <div style="color:#8A8880;font-size:9px;margin-top:2px;">${p.city || '—'}${p.country ? ', ' + p.country : ''}</div>
+          </div>
+          <span style="flex-shrink:0;font-size:8px;letter-spacing:0.1em;padding:2px 6px;border-radius:4px;color:${c};border:1px solid ${c}4D;background:${c}1A;">${style.label}${mag !== null ? ' M' + mag : ''}</span>
         </div>
-        <a href="https://www.google.com/maps/@${coords[1]},${coords[0]},14z/data=!3m1!1e3" target="_blank" style="${linkStyle}color:#76FF03;border:1px solid rgba(118,255,3,0.4);background:rgba(118,255,3,0.1);">SATELLITE VIEW</a>
+
+        <div style="padding:10px 12px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px;">
+            ${cell('REACTORS', p.reactors ? String(p.reactors) : '—', c)}
+            ${cell('CAPACITY', formatCapacity(Number(p.capacityMW) || 0))}
+            ${cell('COORDS', `${coords[1].toFixed(2)}°, ${coords[0].toFixed(2)}°`)}
+          </div>
+          <div style="display:grid;grid-template-columns:1fr;gap:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);">
+            ${cell('STATUS', p.status || '—', c)}
+            ${cell('OPERATOR', p.owner || '—')}
+          </div>
+          ${p.sourceUrl ? `<a href="${p.sourceUrl}" target="_blank" rel="noopener noreferrer" style="${linkStyle}display:block;text-align:center;margin-top:10px;color:${c};border:1px solid ${c}66;background:${c}1A;">SOURCE</a>` : ''}
+        </div>
       </div>`);
     });
 
@@ -1941,7 +1991,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
 
   useEffect(() => {
     if (!mapReady) return;
-    setGeo('infrastructure', activeLayers.infrastructure && data.infrastructure ? data.infrastructure.map((i: any) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [i.lng, i.lat] }, properties: { name: i.name, city: i.city, country: i.country, status: i.status, reactors: i.reactors, capacityMW: i.capacityMW, owner: i.owner } })) : []);
+    setGeo('infrastructure', activeLayers.infrastructure && data.infrastructure ? data.infrastructure.map((i: any) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [i.lng, i.lat] }, properties: { name: i.name, city: i.city, country: i.country, status: i.status, reactors: i.reactors, capacityMW: i.capacityMW, owner: i.owner, sourceUrl: i.sourceUrl } })) : []);
   }, [mapReady, data.infrastructure, activeLayers.infrastructure, setGeo]);
 
   useEffect(() => {
