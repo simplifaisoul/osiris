@@ -4,6 +4,7 @@ import { cachedSource } from '@/lib/sourceCache';
 
 export const maxDuration = 60;
 import { fetchAsfinagCameras } from './asfinag';
+import { fetchNetherlandsCameras } from './netherlands';
 import { fetchBulgariaCameras } from './bulgaria';
 import { fetchGreeceCameras } from './greece';
 import { fetchSerbiaCameras } from './serbia';
@@ -375,19 +376,13 @@ async function fetchUSEastCameras(): Promise<any[]> {
 async function fetchEuropeCameras(): Promise<any[]> {
   const cams: any[] = [];
 
-  // Netherlands Rijkswaterstaat
-  {
-    const data = await subSource('NDW Netherlands', 'https://opendata.ndw.nu/cameras.json', 8000);
-    if (data) {
-      for (const cam of (Array.isArray(data) ? data : []).slice(0, 1000)) {
-        if (!cam.lat || !cam.lng) continue;
-        cams.push({
-          id: `nl-${cams.length}`, lat: cam.lat, lng: cam.lng,
-          name: cam.name || 'NL Camera', city: 'Netherlands', country: 'NL',
-          feed_url: cam.imageUrl || '', source: 'RWS',
-        });
-      }
-    }
+  /* The Netherlands used to be fetched here from opendata.ndw.nu/cameras.json.
+     NDW retired that dataset and it 404s; ./netherlands now serves the country
+     from the Rijkswaterstaat feed, which is still published. */
+  try {
+    cams.push(...await fetchNetherlandsCameras());
+  } catch (e) {
+    console.warn('[OSIRIS] Netherlands cameras failed — absent from this refresh:', e instanceof Error ? e.message : e);
   }
 
   cams.push(...await fetchAsfinagCameras());
@@ -480,6 +475,7 @@ const RAW_REGION_FETCHERS: Record<string, RegionFetcher> = {
   'us-central': fetchUSCentralCameras,
   'canada': fetchCanadaCameras,
   'europe': fetchEuropeCameras,
+  'netherlands': fetchNetherlandsCameras,
   'asia': fetchAsiaCameras,
   'bulgaria': fetchBulgariaCameras,
   'greece': fetchGreeceCameras,
