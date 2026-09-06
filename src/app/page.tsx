@@ -25,7 +25,6 @@ import WorldRemote from '@/components/WorldRemote';
 import ArcGISPanel from '@/components/ArcGISPanel';
 const OsirisMap = dynamic(() => import('@/components/OsirisMap'), { ssr: false });
 const LayerPanel = dynamic(() => import('@/components/LayerPanel'));
-const NuclearPanel = dynamic(() => import('@/components/NuclearPanel'), { ssr: false });
 const SpaceCam = dynamic(() => import('@/components/SpaceCam'), { ssr: false });
 const CameraViewer = dynamic(() => import('@/components/CameraViewer'));
 const OsintPanel = dynamic(() => import('@/components/OsintPanel'));
@@ -1216,24 +1215,6 @@ export default function Dashboard() {
           />
         </motion.div>
       )}
-
-      {/* ── NUCLEAR WATCH ── rides the infrastructure layer being switched on ── */}
-      <AnimatePresence>
-        {activeLayers.infrastructure && (
-          <motion.div
-            key="nuclear-watch"
-            initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 16 }}
-            /* Clear of the status bar, which runs the full width up top. */
-            className="absolute z-[380] w-[min(92vw,320px)] pointer-events-auto"
-            style={{ right: isMobile ? '12px' : '64px', top: isMobile ? '56px' : '80px' }}
-          >
-            <NuclearPanel
-              facilities={data.infrastructure || []}
-              onLocate={(lat, lng) => setFlyToLocation({ lat, lng, zoom: 9, ts: Date.now() })}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* ── MAP VIEW CONTROLS ── */}
       <motion.div

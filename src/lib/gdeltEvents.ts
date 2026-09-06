@@ -1,6 +1,5 @@
 import { inflateRawSync } from 'zlib';
 import { get as httpGet } from 'http';
-import { get as httpsGet } from 'https';
 
 /**
  * ═══════════════════════════════════════════════════════════════
@@ -18,38 +17,24 @@ import { get as httpsGet } from 'https';
 
 const LASTUPDATE_URL = 'http://data.gdeltproject.org/gdeltv2/lastupdate.txt';
 
-/** A redirect chain longer than this is a loop, not a route to the archive. */
-const MAX_REDIRECTS = 5;
-
 /**
- * GDELT's file host answers plain HTTP with a 301 to HTTPS, so a request that
- * starts on `http:` finishes on `https:`. The client has to be picked from the
- * URL in hand rather than the one we started with — handing an `https:` location
- * to Node's http client is what raised ERR_INVALID_PROTOCOL and took the whole
- * events feed down. lastupdate.txt still advertises `http://` archive URLs, so
- * the redirect is on the path whatever we point the first request at.
+ * GDELT's file host is plain HTTP only — its HTTPS certificate belongs to
+ * Google Cloud Storage and does not cover the domain, so TLS is not an option.
  *
- * The host also lists AAAA records ahead of A records. Hosts without working
+ * It also advertises AAAA records ahead of A records. Hosts without working
  * IPv6 egress see the platform fetch() pick the first address and stall until
- * its connect timeout, so we go through Node's own client with family: 4 to pin
- * the request to IPv4 rather than depend on Happy Eyeballs behaviour we do not
- * control.
- *
- * Exported for tests.
+ * its connect timeout, so we go through Node's http client with family: 4 to
+ * pin the request to IPv4 instead of depending on Happy Eyeballs behaviour we
+ * do not control.
  */
-export function httpGetBufferIPv4(url: string, timeoutMs: number, redirectsLeft = MAX_REDIRECTS): Promise<Buffer> {
+function httpGetBufferIPv4(url: string, timeoutMs: number): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const get = new URL(url).protocol === 'https:' ? httpsGet : httpGet;
-    const req = get(url, { family: 4, timeout: timeoutMs }, res => {
+    const req = httpGet(url, { family: 4, timeout: timeoutMs }, res => {
       const status = res.statusCode ?? 0;
 
       if (status >= 300 && status < 400 && res.headers.location) {
         res.resume();
-        if (redirectsLeft <= 0) {
-          reject(new Error(`${url} exceeded ${MAX_REDIRECTS} redirects`));
-          return;
-        }
-        resolve(httpGetBufferIPv4(new URL(res.headers.location, url).toString(), timeoutMs, redirectsLeft - 1));
+        resolve(httpGetBufferIPv4(new URL(res.headers.location, url).toString(), timeoutMs));
         return;
       }
       if (status !== 200) {
