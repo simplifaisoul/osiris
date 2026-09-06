@@ -9,7 +9,7 @@ import {
   ChevronDown, ChevronUp, Loader2, AlertTriangle, Server,
   Wifi, Lock, MapPin, Bug, Code, Layers, Network, Fingerprint,
   CheckCircle, XCircle, Clock, ExternalLink, Crosshair,
-  Maximize2, Minimize2, Gavel, Bitcoin, Phone, Terminal, ShieldAlert, User
+  Maximize2, Minimize2, Gavel, Bitcoin, Phone, Terminal, ShieldAlert, User, Skull, Monitor, KeyRound
 } from 'lucide-react';
 import { ipToNumber, numberToIp, calculateSubnetStart, classifyDevice, assessRisk, batchFetch, ShodanInternetDBResponse, SweepDevice } from '@/lib/osint-utils';
 import ChainBrief from '@/components/ChainBrief';
@@ -62,6 +62,7 @@ const TABS: ToolDef[] = [
 
   { id: 'threats', label: 'THREATS', icon: AlertTriangle, placeholder: 'IP, domain, or hash', color: '#FF9500', group: 'threat', blurb: 'Reputation across feeds' },
   { id: 'leaks', label: 'DATA LEAKS', icon: ShieldAlert, placeholder: 'Email address', color: '#E040FB', group: 'threat', blurb: 'Breach exposure for an address' },
+  { id: 'infostealer', label: 'INFOSTEALER', icon: Skull, placeholder: 'Email, domain, username or phone', color: '#FF1744', group: 'threat', blurb: 'Hudson Rock malware-compromised assets' },
 
   { id: 'crypto', label: 'CHAIN INTEL', icon: Bitcoin, placeholder: 'BTC, ETH or SOL wallet address', color: '#F7931A', group: 'chain', blurb: 'Wallet forensics and daily brief' },
 ];
@@ -258,6 +259,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
         case 'mac': url = `/api/osint/mac?mac=${encodeURIComponent(query)}`; break;
         case 'phone': url = `/api/osint/phone?number=${encodeURIComponent(query)}`; break;
         case 'leaks': url = `https://api.xposedornot.com/v1/breach-analytics?email=${encodeURIComponent(query)}`; break;
+        case 'infostealer': url = `/api/osint/hudsonrock?query=${encodeURIComponent(query)}`; break;
         case 'crypto': url = `/api/osint/crypto?address=${encodeURIComponent(query)}`; break;
         case 'username': url = `/api/osint/username?username=${encodeURIComponent(query)}`; break;
         case 'github': url = `/api/osint/github?user=${encodeURIComponent(query)}`; break;
@@ -313,7 +315,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
           if (data.lat && data.lng && onScanGeolocate) {
              onScanGeolocate(query, { lat: data.lat, lng: data.lng, type: 'phone', region: data.region });
           }
-        } else if (activeTab !== 'sweep' && activeTab !== 'vuln' && activeTab !== 'crypto' && activeTab !== 'username' && activeTab !== 'mac' && activeTab !== 'bgp' && activeTab !== 'github' && activeTab !== 'leaks' && activeTab !== 'phone') {
+        } else if (activeTab !== 'sweep' && activeTab !== 'vuln' && activeTab !== 'crypto' && activeTab !== 'username' && activeTab !== 'mac' && activeTab !== 'bgp' && activeTab !== 'github' && activeTab !== 'leaks' && activeTab !== 'phone' && activeTab !== 'infostealer') {
           fetch(`/api/osint/ip?ip=${encodeURIComponent(query)}`)
             .then(r => r.json())
             .then(locData => {
@@ -375,6 +377,21 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
       </div>
     );
   };
+
+  // Cavalier's data is complimentary; the terms ask that it be credited.
+  const HudsonRockCredit = () => (
+    <a
+      href="https://www.hudsonrock.com/free-tools"
+      target="_blank"
+      rel="noreferrer"
+      className="mt-2 flex items-center justify-between px-2 py-1.5 rounded bg-[#1A1A18] border border-[var(--border-secondary)]/30 hover:border-[#FF1744]/40 transition-colors"
+    >
+      <span className="text-[9px] font-mono text-[var(--text-muted)]">
+        Data by Hudson Rock Cavalier · free infostealer intelligence
+      </span>
+      <ExternalLink className="w-2.5 h-2.5 text-[var(--text-muted)]" />
+    </a>
+  );
 
   const SectionHeader = ({ title, icon: Icon, color }: { title: string; icon: any; color: string }) => (
     <div className="flex items-center gap-2 mt-3 mb-1.5 first:mt-0">
@@ -963,6 +980,158 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
               </div>
             </div>
           )}
+        </div>
+      );
+    }
+
+    // ── INFOSTEALER (Hudson Rock) ──
+    if (activeTab === 'infostealer') {
+      const hit = r.compromised;
+      const accent = hit ? '#FF1744' : '#00E676';
+      const TYPE_LABEL: Record<string, string> = {
+        email: 'EMAIL ADDRESS', domain: 'DOMAIN', username: 'USERNAME', phone: 'PHONE NUMBER',
+      };
+
+      // Domain lookups answer a different question — how much of an
+      // organisation is exposed — so they get their own view rather than an
+      // empty version of the per-machine one.
+      if (r.type === 'domain') {
+        const families = Object.entries(r.stealerFamilies || {})
+          .filter(([k, v]) => k !== 'total' && Number(v) > 0)
+          .sort((a, b) => Number(b[1]) - Number(a[1]));
+        const pw = r.employeePasswords || {};
+        const weakPct = (Number(pw.too_weak?.perc) || 0) + (Number(pw.weak?.perc) || 0);
+
+        return (
+          <div>
+            <SectionHeader title="INFOSTEALER EXPOSURE" icon={Skull} color={accent} />
+            <ResultRow label="Domain" value={r.query} color={accent} />
+            <ResultRow label="Status" value={hit ? 'COMPROMISED MACHINES FOUND' : 'NO RECORDS'} color={accent} />
+            {hit && (
+              <>
+                <div className="grid grid-cols-2 gap-1.5 mt-2">
+                  {[
+                    ['Employees', r.employees, '#FF1744'],
+                    ['Users', r.users, '#FF9500'],
+                    ['Third parties', r.third_parties, '#FFD500'],
+                    ['Total machines', r.totalStealers, '#E040FB'],
+                  ].map(([label, value, color]: any) => (
+                    <div key={label} className="p-2 rounded border border-[var(--border-secondary)]/30 bg-[var(--bg-tertiary)]/30">
+                      <div className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-wider">{label}</div>
+                      <div className="text-[15px] font-mono font-bold" style={{ color }}>{Number(value || 0).toLocaleString()}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <ResultRow label="Last employee" value={r.last_employee_compromised?.slice(0, 10)} />
+                <ResultRow label="Last user" value={r.last_user_compromised?.slice(0, 10)} />
+                <ResultRow label="Exposed URLs" value={Number(r.totalUrls || 0).toLocaleString()} />
+
+                {pw.has_stats && (
+                  <div className="mt-2 p-2 border border-[#FF9500]/30 bg-[#FF9500]/10 rounded">
+                    <span className="text-[11px] font-mono text-[#FF9500] font-bold mb-1 block">
+                      EMPLOYEE PASSWORD STRENGTH ({Number(pw.totalPass || 0).toLocaleString()})
+                    </span>
+                    <div className="flex h-2 rounded overflow-hidden mb-1">
+                      {[['too_weak', '#FF1744'], ['weak', '#FF9500'], ['medium', '#FFD500'], ['strong', '#00E676']].map(([k, c]) => (
+                        <div key={k} style={{ width: `${Number(pw[k]?.perc) || 0}%`, background: c }} />
+                      ))}
+                    </div>
+                    <div className="text-[10px] font-mono text-[var(--text-muted)]">
+                      {weakPct.toFixed(0)}% weak or worse · {(Number(pw.strong?.perc) || 0).toFixed(0)}% strong
+                    </div>
+                  </div>
+                )}
+
+                {families.length > 0 && (
+                  <div className="mt-2 p-2 border border-[#FF1744]/30 bg-[#FF1744]/10 rounded">
+                    <span className="text-[11px] font-mono text-[#FF1744] font-bold mb-1 block">STEALER FAMILIES</span>
+                    <div className="flex flex-wrap gap-1">
+                      {families.slice(0, 14).map(([name, count]) => (
+                        <span key={name} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#1A1A18] text-[#E8E6E0] border border-[#FF1744]/20">
+                          {name} <span className="text-[#FF1744]">{String(count)}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {Array.isArray(r.thirdPartyDomains) && r.thirdPartyDomains.length > 0 && (
+                  <div className="mt-2 p-2 border border-[var(--border-secondary)]/30 rounded">
+                    <span className="text-[11px] font-mono text-[var(--text-secondary)] font-bold mb-1 block">
+                      TOP THIRD-PARTY DOMAINS ({r.thirdPartyDomains.length})
+                    </span>
+                    {r.thirdPartyDomains.slice(0, 8).map((d: any) => (
+                      <div key={d.domain} className="flex items-center justify-between py-0.5">
+                        <span className="text-[10px] font-mono text-[var(--text-primary)] break-all">{d.domain}</span>
+                        <span className="text-[10px] font-mono text-[var(--text-muted)] flex-shrink-0 ml-2">{d.occurrence}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+            <HudsonRockCredit />
+          </div>
+        );
+      }
+
+      // email / username / phone — one card per compromised machine.
+      const stealers: any[] = Array.isArray(r.stealers) ? r.stealers : [];
+      return (
+        <div>
+          <SectionHeader title="INFOSTEALER EXPOSURE" icon={Skull} color={accent} />
+          <ResultRow label={TYPE_LABEL[r.type] || 'TARGET'} value={r.query} color={accent} />
+          <ResultRow label="Status" value={hit ? 'COMPROMISED' : 'NOT FOUND IN CORPUS'} color={accent} />
+          {hit && (
+            <>
+              <ResultRow label="Machines" value={stealers.length} color="#FF1744" />
+              <ResultRow label="Corporate svcs" value={r.total_corporate_services} />
+              <ResultRow label="User svcs" value={r.total_user_services} />
+
+              {stealers.map((s: any, i: number) => (
+                <div key={i} className="mt-2 p-2 rounded border border-[#FF1744]/30 bg-[#FF1744]/5">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Monitor className="w-3 h-3 text-[#FF1744]" />
+                    <span className="text-[11px] font-mono font-bold text-[#FF1744] break-all">
+                      {s.computer_name || 'UNKNOWN MACHINE'}
+                    </span>
+                  </div>
+                  <ResultRow label="Compromised" value={s.date_compromised?.slice(0, 10)} color="#FF9500" />
+                  <ResultRow label="Stealer" value={s.stealer_family} color="#FF9500" />
+                  <ResultRow label="OS" value={s.operating_system} />
+                  <ResultRow label="IP" value={s.ip} />
+                  <ResultRow label="Antivirus" value={(s.antiviruses || []).join(', ')} />
+                  <ResultRow label="Malware path" value={s.malware_path} />
+
+                  {(s.top_logins?.length > 0 || s.top_passwords?.length > 0) && (
+                    <div className="mt-1.5 pt-1.5 border-t border-[#FF1744]/20">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <KeyRound className="w-2.5 h-2.5 text-[var(--text-muted)]" />
+                        <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-wider">
+                          Credentials (redacted by Hudson Rock)
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {(s.top_logins || []).map((l: string, j: number) => (
+                          <span key={`l${j}`} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#1A1A18] text-[#87CEEB] border border-[#87CEEB]/20 break-all">{l}</span>
+                        ))}
+                        {(s.top_passwords || []).map((p: string, j: number) => (
+                          <span key={`p${j}`} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#1A1A18] text-[#E040FB] border border-[#E040FB]/20 break-all">{p}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </>
+          )}
+          {!hit && r.message && (
+            <div className="mt-2 text-[10px] font-mono text-[var(--text-muted)] leading-relaxed">
+              {String(r.message).split('Visit')[0].trim()}
+            </div>
+          )}
+          <HudsonRockCredit />
         </div>
       );
     }

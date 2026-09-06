@@ -14,8 +14,6 @@ const ALLOWED_HOSTS = [
   'cdn2.skylinewebcams.com',
   's3-eu-west-1.amazonaws.com',
   'voyage.aprr.fr',
-  // Rijkswaterstaat motorway frames — 401 without a Referer.
-  'stream.inmoves.nl',
   'thb.gov.tw',
   'etraffic.dgt.es',
 ];
