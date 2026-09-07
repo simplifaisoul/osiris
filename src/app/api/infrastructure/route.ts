@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server';
  * Comprehensive coverage including all Russian, Chinese, and strategically important facilities
  */
 
-const NUCLEAR_FACILITIES = [
+export const NUCLEAR_FACILITIES = [
   // ═══ EUROPE ═══
   // Ukraine
   { id: 'nuc-ua-zaporizhzhia', name: 'Zaporizhzhia NPP', city: 'Enerhodar', country: 'Ukraine', lat: 47.5113, lng: 34.5861, status: 'Active Conflict Zone', reactors: 6, capacityMW: 5700, owner: 'Energoatom (Russian controlled)' },
@@ -24,6 +24,19 @@ const NUCLEAR_FACILITIES = [
   // UK
   { id: 'nuc-uk-sizewell', name: 'Sizewell B NPP', city: 'Leiston', country: 'UK', lat: 52.2131, lng: 1.6186, status: 'Operational', reactors: 1, capacityMW: 1198, owner: 'EDF Energy' },
   { id: 'nuc-uk-hinkley', name: 'Hinkley Point C', city: 'Somerset', country: 'UK', lat: 51.2081, lng: -3.1319, status: 'Under Construction', reactors: 2, capacityMW: 3200, owner: 'EDF Energy' },
+
+  // Netherlands — the seven installations licensed by the ANVS.
+  // COVRA and Urenco hold no reactor, so `reactors`/`capacityMW` stay 0 and the
+  // popup renders them as "—". The research reactors are rated in thermal MW,
+  // which is not the electrical figure this column carries, so they are left at
+  // 0 too rather than sitting next to Borssele's 485 MWe as if they compared.
+  { id: 'nuc-nl-borssele', name: 'Borssele NPP', city: 'Borssele', country: 'Netherlands', lat: 51.4308, lng: 3.7183, status: 'Operational', reactors: 1, capacityMW: 485, owner: 'EPZ', sourceUrl: 'https://en.wikipedia.org/wiki/Borssele_Nuclear_Power_Station' },
+  { id: 'nuc-nl-covra', name: 'COVRA (Waste Storage)', city: 'Nieuwdorp', country: 'Netherlands', lat: 51.4450, lng: 3.7160, status: 'Operational', reactors: 0, capacityMW: 0, owner: 'COVRA N.V.', sourceUrl: 'https://en.wikipedia.org/wiki/COVRA' },
+  { id: 'nuc-nl-hfr', name: 'High Flux Reactor (HFR)', city: 'Petten', country: 'Netherlands', lat: 52.7860, lng: 4.6810, status: 'Operational', reactors: 1, capacityMW: 0, owner: 'NRG', sourceUrl: 'https://en.wikipedia.org/wiki/Petten_nuclear_reactor' },
+  { id: 'nuc-nl-pallas', name: 'PALLAS (HFR Successor)', city: 'Petten', country: 'Netherlands', lat: 52.7860, lng: 4.6830, status: 'Under Construction', reactors: 1, capacityMW: 0, owner: 'PALLAS Foundation', sourceUrl: 'https://en.wikipedia.org/wiki/Petten_nuclear_reactor' },
+  { id: 'nuc-nl-urenco', name: 'Urenco Nederland (Enrichment)', city: 'Almelo', country: 'Netherlands', lat: 52.3300, lng: 6.6500, status: 'Operational', reactors: 0, capacityMW: 0, owner: 'Urenco', sourceUrl: 'https://en.wikipedia.org/wiki/Urenco_Group' },
+  { id: 'nuc-nl-hor-delft', name: 'HOR (Reactor Institute Delft)', city: 'Delft', country: 'Netherlands', lat: 51.9900, lng: 4.3770, status: 'Operational', reactors: 1, capacityMW: 0, owner: 'TU Delft', sourceUrl: 'https://en.wikipedia.org/wiki/Reactor_Institute_Delft' },
+  { id: 'nuc-nl-dodewaard', name: 'Dodewaard NPP (Decommissioned)', city: 'Dodewaard', country: 'Netherlands', lat: 51.9010, lng: 5.6410, status: 'Decommissioned / Safe Enclosure', reactors: 1, capacityMW: 0, owner: 'GKN', sourceUrl: 'https://en.wikipedia.org/wiki/Dodewaard_nuclear_power_plant' },
 
   // Other Europe
   { id: 'nuc-se-ringhals', name: 'Ringhals NPP', city: 'Varberg', country: 'Sweden', lat: 57.2639, lng: 12.1128, status: 'Operational', reactors: 3, capacityMW: 3156, owner: 'Vattenfall' },
