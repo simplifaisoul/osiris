@@ -553,7 +553,8 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'circle-color': ['case', 
           ['in', 'SEISMIC RISK', ['get', 'status']], '#E65100',
           ['==', ['get','status'], 'Active Conflict Zone'], '#D32F2F', 
-          ['==', ['get','status'], 'Destroyed / Decommissioning'], '#546E7A', 
+          ['in', 'Decommission', ['get', 'status']], '#546E7A', 
+          ['==', ['get','status'], 'Under Construction'], '#FFA726', 
           '#26A69A'
         ],
         'circle-opacity': 0.75,
@@ -1442,18 +1443,43 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       if (!e.features?.length) return;
       const p = e.features[0].properties as any;
       const coords = (e.features[0].geometry as any).coordinates;
-      const statusColor = p.status.includes('SEISMIC RISK') ? '#FF9500' : p.status === 'Active Conflict Zone' ? '#FF1744' : p.status === 'Operational' ? '#76FF03' : '#757575';
-      popup(coords, `<div style="${pStyle}border:1px solid rgba(118,255,3,0.3);">
-        <div style="color:#76FF03;font-size:14px;font-weight:700;margin-bottom:4px;">☢️ ${p.name || 'Nuclear Facility'}</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:9px;margin-bottom:8px;">
-          <div><span style="color:#5C5A54;">STATUS</span><br/><span style="color:${statusColor};">${p.status || '—'}</span></div>
-          <div><span style="color:#5C5A54;">CITY</span><br/><span style="color:#E8E6E0;">${p.city || '—'}, ${p.country || ''}</span></div>
-          <div><span style="color:#5C5A54;">REACTORS</span><br/><span style="color:#76FF03;">${p.reactors || '—'}</span></div>
-          <div><span style="color:#5C5A54;">CAPACITY</span><br/><span style="color:#E8E6E0;">${p.capacityMW ? p.capacityMW.toLocaleString() + ' MW' : '—'}</span></div>
-          <div><span style="color:#5C5A54;">OWNER</span><br/><span style="color:#E8E6E0;">${p.owner || '—'}</span></div>
-          <div><span style="color:#5C5A54;">COORDS</span><br/><span style="color:#E8E6E0;">${coords[1].toFixed(3)}°, ${coords[0].toFixed(3)}°</span></div>
+      const status = String(p.status ?? '');
+
+      // Same order and colours as the infra-dots paint expression above, so the
+      // popup's accent always matches the dot the user just clicked.
+      const accent =
+        status.includes('SEISMIC RISK') ? '#E65100' :
+        status === 'Active Conflict Zone' ? '#D32F2F' :
+        status.includes('Decommission') ? '#546E7A' :
+        status === 'Under Construction' ? '#FFA726' :
+        '#26A69A';
+
+      // A facility with no reactor (waste storage, enrichment) and a research
+      // reactor rated in thermal MW both carry 0 here — neither is an electrical
+      // figure, so both render as "—" rather than as a real 0 MWe.
+      const row = (label: string, value: string, color = '#E8E6E0') =>
+        `<div><span style="color:#5C5A54;">${label}</span><br/><span style="color:${color};">${value}</span></div>`;
+
+      const ref = p.sourceUrl
+        ? `<a href="${htmlEsc(p.sourceUrl)}" target="_blank" rel="noopener noreferrer" style="${linkStyle}color:${accent};border:1px solid ${accent}66;background:${accent}1A;">REFERENCE</a>`
+        : '';
+
+      popup(coords, `<div style="${pStyle}border:1px solid ${accent}4D;">
+        <div style="color:${accent};font-size:14px;font-weight:700;margin-bottom:2px;">☢️ ${htmlEsc(p.name || 'Nuclear Facility')}</div>
+        <div style="color:#5C5A54;font-size:9px;letter-spacing:0.1em;margin-bottom:10px;">${htmlEsc([p.city, p.country].filter(Boolean).join(', ')) || '—'}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 6px;font-size:9px;">
+          ${row('STATUS', htmlEsc(status) || '—', accent)}
+          ${row('OWNER', htmlEsc(p.owner) || '—')}
+          ${row('REACTORS', p.reactors ? htmlEsc(p.reactors) : '—', accent)}
+          ${row('CAPACITY', p.capacityMW ? `${Number(p.capacityMW).toLocaleString()} MWe` : '—')}
         </div>
-        <a href="https://www.google.com/maps/@${coords[1]},${coords[0]},14z/data=!3m1!1e3" target="_blank" style="${linkStyle}color:#76FF03;border:1px solid rgba(118,255,3,0.4);background:rgba(118,255,3,0.1);">SATELLITE VIEW</a>
+        <div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08);font-size:9px;color:#5C5A54;">
+          ${coords[1].toFixed(3)}°, ${coords[0].toFixed(3)}°
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          ${ref}
+          <a href="https://www.google.com/maps/@${coords[1]},${coords[0]},14z/data=!3m1!1e3" target="_blank" rel="noopener noreferrer" style="${linkStyle}color:#8A8880;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.04);">SATELLITE</a>
+        </div>
       </div>`);
     });
 
@@ -1941,7 +1967,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
 
   useEffect(() => {
     if (!mapReady) return;
-    setGeo('infrastructure', activeLayers.infrastructure && data.infrastructure ? data.infrastructure.map((i: any) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [i.lng, i.lat] }, properties: { name: i.name, city: i.city, country: i.country, status: i.status, reactors: i.reactors, capacityMW: i.capacityMW, owner: i.owner } })) : []);
+    setGeo('infrastructure', activeLayers.infrastructure && data.infrastructure ? data.infrastructure.map((i: any) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [i.lng, i.lat] }, properties: { name: i.name, city: i.city, country: i.country, status: i.status, reactors: i.reactors, capacityMW: i.capacityMW, owner: i.owner, sourceUrl: i.sourceUrl ?? null } })) : []);
   }, [mapReady, data.infrastructure, activeLayers.infrastructure, setGeo]);
 
   useEffect(() => {
