@@ -215,12 +215,27 @@ async function fetchVesselApiFallback() {
   // Mock data removed per user request. We only rely on real live stream data.
 }
 
-export async function GET() {
-  // Trigger Hybrid Fallback
-  await fetchVesselApiFallback();
+/* ── Response snapshot cache ──────────────────────────────────────────────
+   The AIS websocket writes into shipsCache continuously, so a GET is pure
+   aggregation over whatever that map happens to hold. Rebuilding it per
+   request is what pins the CPU once the maritime layer gets popular: 58 ports
+   and 10 chokepoints scanned against up to 20,000 ships is ~1.4M distance
+   calculations, and the reply then serialises every one of those ships — a
+   multi-megabyte JSON.stringify. At ~30 req/s that whole job runs thirty
+   times a second to produce a byte-identical answer.
 
+   Building it once per SNAPSHOT_TTL_MS and handing every caller the same
+   pre-serialised string makes the cost independent of how many people are
+   watching. The window sits well under the 10s the client polls at, so
+   nothing reaches the map staler than it already was. */
+const SNAPSHOT_TTL_MS = 5_000;
+
+const globalForSnapshot = globalThis as unknown as {
+  maritimeSnapshot?: { body: string; builtAt: number };
+};
+
+function buildSnapshot(now: number): string {
   // Clean up stale ships (older than 10 minutes)
-  const now = Date.now();
   for (const [mmsi, ship] of shipsCache.entries()) {
     if (now - ship.timestamp > 10 * 60 * 1000) {
       shipsCache.delete(mmsi);
@@ -290,18 +305,43 @@ export async function GET() {
     };
   });
 
-  return NextResponse.json({
+  return JSON.stringify({
     ports: dynamicPorts,
     chokepoints: dynamicChokepoints,
     ships: ships,
     total_ports: dynamicPorts.length,
     total_chokepoints: dynamicChokepoints.length,
     total_ships: ships.length,
-    timestamp: new Date().toISOString(),
-  }, {
-    headers: { 
-      'Cache-Control': 'no-store, no-cache, must-revalidate',
-      'Pragma': 'no-cache'
+    timestamp: new Date(now).toISOString(),
+  });
+}
+
+/** Test seam — forces the next GET to rebuild. */
+export function clearMaritimeSnapshot(): void {
+  delete globalForSnapshot.maritimeSnapshot;
+}
+
+export async function GET() {
+  // Trigger Hybrid Fallback
+  await fetchVesselApiFallback();
+
+  const now = Date.now();
+  const cached = globalForSnapshot.maritimeSnapshot;
+
+  const snapshot = cached && now - cached.builtAt < SNAPSHOT_TTL_MS
+    ? cached
+    : { body: buildSnapshot(now), builtAt: now };
+  globalForSnapshot.maritimeSnapshot = snapshot;
+
+  const maxAgeSeconds = Math.floor(SNAPSHOT_TTL_MS / 1000);
+
+  return new NextResponse(snapshot.body, {
+    headers: {
+      'Content-Type': 'application/json',
+      // The server would not have produced anything newer inside this window
+      // either, so let the browser and any CDN in front of it skip the round
+      // trip entirely rather than re-asking every 10s per open tab.
+      'Cache-Control': `public, max-age=${maxAgeSeconds}, s-maxage=${maxAgeSeconds}, stale-while-revalidate=15`,
     },
   });
 }
