@@ -29,7 +29,7 @@ Osiris is a production-grade OSINT platform that provides situational awareness 
 |--------|------------|---------|
 | **Aviation** | Commercial, Private, Military, Jets | OpenSky Network |
 | **Maritime** | 39 Global Ports, 10 Chokepoints | Static Naval Intel |
-| **CCTV** | 17,000+ Cameras | TfL, WSDOT, Caltrans, ODOT, MDOT, HK Transport Dept, Taiwan THB, NZTA + more |
+| **CCTV** | 17,000+ Cameras | TfL, WSDOT, Caltrans, ODOT, MDOT, HK Transport Dept, Taiwan THB, NZTA, Rijkswaterstaat, [Public Webcams](#acknowledgements) + more |
 | **Seismic** | Real-time M2.5+ | USGS Earthquake API |
 | **Fires** | Active Hotspots | NASA FIRMS |
 | **News** | 24/7 Live Streams | 25+ Global Broadcasters |
@@ -217,6 +217,22 @@ AIS_API_KEY=                 # aisstream.io maritime
 | `S` | Toggle satellites |
 | `D` | Toggle day/night cycle |
 | `Escape` | Close panels |
+
+---
+
+## Acknowledgements
+
+**Public webcams** — the cameras in this layer are open data: each one is broadcast
+publicly by whoever runs it, on their own site or their own channel. What the web
+lacked was a catalogue of them.
+
+[bekijkhet.nu](https://www.bekijkhet.nu/) is that catalogue, and it is the basis for
+every camera in the layer. Bram and Annelies have kept it by hand since 2012, and
+without their index these cameras would still be scattered across several hundred
+unrelated sites with no way to find them.
+
+OSIRIS links every one of them straight through to the operator who runs it, which is
+also how bekijkhet.nu asks to be read.
 
 ---
 
