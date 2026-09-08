@@ -44,6 +44,12 @@ import {
   fetchAfricaLiveCameras,
   fetchEuropeLiveCameras,
 } from './world-live';
+import {
+  fetchBekijkhetNlCameras,
+  fetchBekijkhetEuropeCameras,
+  fetchBekijkhetAmericasCameras,
+  fetchBekijkhetRestCameras,
+} from './bekijkhetnu';
 
 /**
  * OSIRIS — Worldwide CCTV Camera API v2
@@ -516,6 +522,13 @@ const RAW_REGION_FETCHERS: Record<string, RegionFetcher> = {
   'latam-live': fetchLatamLiveCameras,
   'africa-live': fetchAfricaLiveCameras,
   'europe-live': fetchEuropeLiveCameras,
+  /* Operator-published webcams from the bekijkhet.nu index. Registered here
+     only — fetchEuropeCameras must not call these too, or every one of them
+     lands on the map twice (GET concatenates regions without deduping on id). */
+  'bekijkhet-nl': fetchBekijkhetNlCameras,
+  'bekijkhet-europe': fetchBekijkhetEuropeCameras,
+  'bekijkhet-americas': fetchBekijkhetAmericasCameras,
+  'bekijkhet-rest': fetchBekijkhetRestCameras,
 };
 
 /**
@@ -663,6 +676,14 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   if (lat > -35 && lat < 36 && lng > -26 && lng < 57) regions.push('africa-live');
   // European gaps (Azores in the west through northern Norway)
   if (lat > 35 && lat < 72 && lng > -32 && lng < 32) regions.push('europe-live');
+
+  /* bekijkhet.nu. The Dutch box is the one netherlands.ts filters on; the other
+     three are drawn round what those arrays actually hold, Canaries and Nordkapp
+     included, rather than round the continents in the abstract. */
+  if (lat > 50.7 && lat < 53.7 && lng > 3.3 && lng < 7.3) regions.push('bekijkhet-nl');
+  if (lat > 27 && lat < 72 && lng > -18 && lng < 31) regions.push('bekijkhet-europe');
+  if (lat > 11 && lat < 52 && lng > -124 && lng < -59) regions.push('bekijkhet-americas');
+  if (lat > -35 && lat < 62 && lng > 30 && lng < 152) regions.push('bekijkhet-rest');
 
   return regions.length > 0 ? regions : ['uk', 'us-east']; // Default fallback
 }
