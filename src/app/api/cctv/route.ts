@@ -377,13 +377,11 @@ async function fetchEuropeCameras(): Promise<any[]> {
   const cams: any[] = [];
 
   /* The Netherlands used to be fetched here from opendata.ndw.nu/cameras.json.
-     NDW retired that dataset and it 404s; ./netherlands now serves the country
-     from the Rijkswaterstaat feed, which is still published. */
-  try {
-    cams.push(...await fetchNetherlandsCameras());
-  } catch (e) {
-    console.warn('[OSIRIS] Netherlands cameras failed — absent from this refresh:', e instanceof Error ? e.message : e);
-  }
+     NDW retired that dataset, ./netherlands took the country over from the
+     Rijkswaterstaat feed, and it is registered under its own region key — so
+     fetching it here as well handed every Dutch camera to the response twice.
+     It is reached through 'netherlands', in RAW_REGION_FETCHERS below and in
+     getRegionsForBounds. */
 
   cams.push(...await fetchAsfinagCameras());
 
@@ -603,6 +601,11 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   const inPoland = lat > 49.0 && lat < 55.0 && lng > 14.1 && lng < 24.1;
   const inFinland = lat > 59.5 && lat < 70.1 && lng > 20 && lng < 31.6;
   const inIceland = lat > 63.0 && lat < 67.0 && lng > -25.0 && lng < -13.0;
+  /* Rijkswaterstaat. Explicit, like Utah and Oregon are: the broad europe box
+     covers these latitudes but no longer carries the Dutch feed, so without
+     this a viewport over the Netherlands would answer with no Dutch cameras
+     at all. Same box netherlands.ts filters the feed on. */
+  const inNetherlands = lat > 50.7 && lat < 53.7 && lng > 3.3 && lng < 7.3;
   const inBalkans = inBulgaria || inGreece || inSerbia || inMacedonia || inRomania || inTurkey;
   const inWesternEurope = inItaly || inCzechia || inSlovakia || inGermany || inFrance || inSpain || inPoland || inFinland || inIceland;
 
@@ -624,6 +627,7 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   if (inPoland) regions.push('poland');
   if (inFinland) regions.push('finland');
   if (inIceland) regions.push('iceland');
+  if (inNetherlands) regions.push('netherlands');
 
   // Middle East
   const inMiddleEast = lat > 29 && lat < 34.5 && lng > 34 && lng < 36.5;
@@ -695,9 +699,19 @@ export async function GET(request: Request) {
     const allCameras: any[] = [];
     const sources: Record<string, number> = {};
 
+    /* Regions overlap by design — a bounding box can name both 'europe' and a
+       country inside it — so the same camera can arrive from two fetchers. It
+       is one camera either way, and shipping it twice draws two pins on one
+       spot and inflates every count in `sources`. */
+    const seen = new Set<string>();
+
     for (const result of results) {
       if (result.status === 'fulfilled') {
         for (const cam of result.value) {
+          if (cam.id) {
+            if (seen.has(cam.id)) continue;
+            seen.add(cam.id);
+          }
           allCameras.push(cam);
           sources[cam.source] = (sources[cam.source] || 0) + 1;
         }
