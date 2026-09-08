@@ -40,6 +40,10 @@ scanner/
 # Data files
 threatfox.json
 
+# Intermediate scrape of somebody else's index — regenerate it with
+# scratch/scrape_bekijkhetnu.js harvest rather than keeping a copy here.
+scratch/bekijkhetnu-harvest.json
+
 # Dev scripts (one-time migration helpers)
 scripts/
 
