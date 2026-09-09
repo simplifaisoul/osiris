@@ -34,6 +34,17 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     return [
+      /* The worker path carries the MapLibre version, so a given URL never
+         changes contents — a version bump moves it. Next serves public/ with
+         max-age=0, which made every page load refetch half a megabyte before
+         the map could start. Immutable is safe here precisely because the
+         version is in the path. */
+      {
+        source: '/vendor/maplibre/:version/:file*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
       {
         source: '/(.*)',
         headers: [
