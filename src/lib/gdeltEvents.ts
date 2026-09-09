@@ -1,5 +1,6 @@
 import { inflateRawSync } from 'zlib';
 import { get as httpGet } from 'http';
+import { get as httpsGet } from 'https';
 
 /**
  * ═══════════════════════════════════════════════════════════════
@@ -18,8 +19,11 @@ import { get as httpGet } from 'http';
 const LASTUPDATE_URL = 'http://data.gdeltproject.org/gdeltv2/lastupdate.txt';
 
 /**
- * GDELT's file host is plain HTTP only — its HTTPS certificate belongs to
- * Google Cloud Storage and does not cover the domain, so TLS is not an option.
+ * GDELT's file host now serves a valid certificate and 301s every plain-HTTP
+ * request to the HTTPS origin — including the http:// archive URLs it prints
+ * in its own lastupdate.txt. Node's http.get throws outright on an https:
+ * target, so following that redirect means switching clients, not recursing
+ * back into the same one.
  *
  * It also advertises AAAA records ahead of A records. Hosts without working
  * IPv6 egress see the platform fetch() pick the first address and stall until
@@ -29,7 +33,8 @@ const LASTUPDATE_URL = 'http://data.gdeltproject.org/gdeltv2/lastupdate.txt';
  */
 function httpGetBufferIPv4(url: string, timeoutMs: number): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const req = httpGet(url, { family: 4, timeout: timeoutMs }, res => {
+    const request = url.startsWith('https:') ? httpsGet : httpGet;
+    const req = request(url, { family: 4, timeout: timeoutMs }, res => {
       const status = res.statusCode ?? 0;
 
       if (status >= 300 && status < 400 && res.headers.location) {
