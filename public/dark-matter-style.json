@@ -1,15 +1,24 @@
 {
   "version": 8,
   "name": "Dark Matter",
+  "projection": { "type": ["interpolate", ["linear"], ["zoom"], 7, "vertical-perspective", 9, "mercator"] },
   "metadata": { "maputnik:renderer": "mbgljs" },
   "sources": {
     "carto": {
       "type": "vector",
-      "url": "/cartocdn-tiles/vector/carto.streets/v1/tiles.json"
+      "tiles": [
+        "https://tiles-a.basemaps.cartocdn.com/vectortiles/carto.streets/v1/{z}/{x}/{y}.mvt",
+        "https://tiles-b.basemaps.cartocdn.com/vectortiles/carto.streets/v1/{z}/{x}/{y}.mvt",
+        "https://tiles-c.basemaps.cartocdn.com/vectortiles/carto.streets/v1/{z}/{x}/{y}.mvt",
+        "https://tiles-d.basemaps.cartocdn.com/vectortiles/carto.streets/v1/{z}/{x}/{y}.mvt"
+      ],
+      "minzoom": 0,
+      "maxzoom": 14,
+      "attribution": "© CARTO, © OpenStreetMap contributors"
     }
   },
-  "sprite": "/cartocdn-tiles/gl/dark-matter-gl-style/sprite",
-  "glyphs": "/cartocdn-tiles/fonts/{fontstack}/{range}.pbf",
+  "sprite": "https://tiles.basemaps.cartocdn.com/gl/dark-matter-gl-style/sprite",
+  "glyphs": "https://tiles.basemaps.cartocdn.com/fonts/{fontstack}/{range}.pbf",
   "layers": [
     {
       "id": "background",

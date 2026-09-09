@@ -542,14 +542,14 @@ const REGION_FETCHERS: Record<string, RegionFetcher> = Object.fromEntries(
  */
 const REGION_BUDGET_MS = 12_000;
 
-function withBudget(region: string, fetcher: RegionFetcher): ReturnType<RegionFetcher> {
+function withBudget(region: string, fetcher: RegionFetcher): Promise<{ cameras: Awaited<ReturnType<RegionFetcher>>; pending: boolean }> {
   let timer: ReturnType<typeof setTimeout>;
   return Promise.race([
-    fetcher().finally(() => clearTimeout(timer)),
-    new Promise<Awaited<ReturnType<RegionFetcher>>>(resolve => {
+    fetcher().then(cameras => ({ cameras, pending: cameras.length === 0 })).finally(() => clearTimeout(timer)),
+    new Promise<{ cameras: Awaited<ReturnType<RegionFetcher>>; pending: boolean }>(resolve => {
       timer = setTimeout(() => {
         console.warn(`[OSIRIS] cctv:${region} over ${REGION_BUDGET_MS}ms — returning without it`);
-        resolve([]);
+        resolve({ cameras: [], pending: true });
       }, REGION_BUDGET_MS);
     }),
   ]);
@@ -694,17 +694,19 @@ export async function GET(request: Request) {
 
     const allCameras: any[] = [];
     const sources: Record<string, number> = {};
+    const pendingRegions: string[] = [];
 
-    for (const result of results) {
+    for (const [index, result] of results.entries()) {
+      if (result.status === 'rejected' || result.value.pending) pendingRegions.push(regionsToFetch[index]);
       if (result.status === 'fulfilled') {
-        for (const cam of result.value) {
+        for (const cam of result.value.cameras) {
           allCameras.push(cam);
           sources[cam.source] = (sources[cam.source] || 0) + 1;
         }
       }
     }
 
-    const cacheControl = allCameras.length < 50 
+    const cacheControl = pendingRegions.length > 0 || allCameras.length < 50
       ? 'no-store, max-age=0' 
       : 'public, s-maxage=300, stale-while-revalidate=600';
 
@@ -713,6 +715,7 @@ export async function GET(request: Request) {
       total: allCameras.length,
       sources,
       regions: regionsToFetch,
+      pendingRegions,
       timestamp: new Date().toISOString(),
     }, {
       headers: { 'Cache-Control': cacheControl },

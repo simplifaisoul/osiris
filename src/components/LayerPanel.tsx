@@ -8,6 +8,7 @@ import {
   Flame, Tv, Radio, Mountain, Anchor, Megaphone, SlidersHorizontal
 } from 'lucide-react';
 import StyleStudio from './StyleStudio';
+import { TERRAIN_MIN_ZOOM, type TerrainStatus } from '@/lib/map-terrain';
 
 interface LayerPanelProps {
   data: any;
@@ -19,12 +20,17 @@ interface LayerPanelProps {
   /** Server-side capabilities, e.g. { cloudflare: true }. Layers declaring a
    *  `requires` key stay hidden until the matching capability is present. */
   capabilities?: Record<string, boolean>;
+  terrainStatus?: TerrainStatus;
+  onTerrainRetry?: () => void;
+  onTerrainFocus?: () => void;
+  on3DModeSelected?: () => void;
 }
 
 interface LayerDef {
   key: string;
   label: string;
   dataKey: string;
+  description?: string;
   /** Reads a bucket out of data.category_counts instead of a top-level array. */
   catKey?: string;
   /** Capability that must be configured server-side for this layer to appear. */
@@ -136,7 +142,8 @@ const LAYER_GROUPS: LayerGroupDef[] = [
     icon: Sun,
     layers: [
       { key: 'day_night', label: 'Day / Night Cycle', dataKey: '' },
-      { key: 'terrain_3d', label: '3D Terrain & Buildings', dataKey: '' },
+      { key: 'terrain_3d', label: '3D Buildings', description: 'City detail · zoom 14.5+', dataKey: '' },
+      { key: 'terrain_elevation', label: '3D Terrain', description: 'Mountains · zoom 10+', dataKey: '' },
     ],
   },
 ];
@@ -190,7 +197,7 @@ function SubLayerStem() {
   );
 }
 
-function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'core', setTheme, capabilities = {} }: LayerPanelProps) {
+function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'core', setTheme, capabilities = {}, terrainStatus = 'idle', onTerrainRetry, onTerrainFocus, on3DModeSelected }: LayerPanelProps) {
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
   /**
    * A pinned group stays open when the pointer leaves. Hover-only flyouts are
@@ -207,11 +214,24 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
     return () => window.removeEventListener('keydown', onKey);
   }, [pinnedGroup]);
 
-  const toggle = (key: string) => setActiveLayers((prev: any) => ({ ...prev, [key]: !prev[key] }));
+  const toggle = (key: string) => {
+    if ((key === 'terrain_elevation' || key === 'terrain_3d') && !activeLayers[key]) on3DModeSelected?.();
+    setActiveLayers((prev: any) => ({ ...prev, [key]: !prev[key] }));
+  };
+  const terrainDetails = activeLayers.terrain_elevation ? (
+    <div className="mt-2 rounded-lg border border-white/10 bg-white/[0.03] p-2.5 text-[10px] text-white/60">
+      <p role="status">{terrainStatus === 'idle' ? `Terrain at zoom ${TERRAIN_MIN_ZOOM}+ · zoom in` : terrainStatus === 'waiting' ? 'Terrain starts when you stop moving' : terrainStatus === 'loading' ? 'Loading nearby terrain…' : terrainStatus === 'error' ? 'Terrain unavailable; the map is still usable.' : 'Terrain on'}</p>
+      {terrainStatus === 'idle' && <button type="button" onClick={onTerrainFocus} className="mt-2 min-h-8 rounded border border-white/15 px-2 text-[var(--gold-primary)] hover:bg-white/10">Zoom to terrain</button>}
+      {terrainStatus === 'error' && <button type="button" onClick={onTerrainRetry} className="mt-2 min-h-8 rounded border border-white/15 px-2 text-[var(--gold-primary)] hover:bg-white/10">Retry terrain</button>}
+      <p className="mt-2 text-white/35">Nearby detail only · cached tiles</p>
+      <a className="mt-1 inline-block underline underline-offset-2" href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md" target="_blank" rel="noopener noreferrer">Terrain credits</a>
+    </div>
+  ) : null;
 
   /** Switch a whole group at once — off if any are on, otherwise all on. */
   const toggleGroup = (layers: LayerDef[]) => {
     const anyOn = layers.some(l => activeLayers[l.key]);
+    if (!anyOn && layers.some(l => l.key === 'terrain_elevation' || l.key === 'terrain_3d')) on3DModeSelected?.();
     setActiveLayers((prev: any) => {
       const next = { ...prev };
       for (const l of layers) next[l.key] = !anyOn;
@@ -261,12 +281,14 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                     key={layer.key}
                     onClick={() => toggle(layer.key)}
                     aria-pressed={!!isLayerActive}
+                    aria-label={layer.label}
                     className={`relative w-full flex items-center gap-3 py-2 rounded-md text-left hover:bg-white/[0.04] transition-colors ${layer.parent ? 'pl-[22px] pr-1' : 'px-1'} ${dormant ? 'opacity-40' : ''}`}
                   >
                     {layer.parent && <SubLayerStem />}
                     <ToggleSwitch active={!!isLayerActive} />
                     <span className={`text-[11px] font-mono uppercase tracking-wider flex-1 transition-colors ${isLayerActive ? 'text-white/80' : 'text-white/40'}`}>
                       {layer.label}
+                      {layer.description && <span className="block mt-0.5 text-[9px] normal-case tracking-normal text-white/35">{layer.description}</span>}
                     </span>
                     {count !== null && (
                       <span className="text-[10px] font-mono tabular-nums text-white/25">
@@ -276,6 +298,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                   </button>
                 );
               })}
+              {group.label === 'DISPLAY' && terrainDetails}
             </div>
           </div>
         ))}
@@ -447,6 +470,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                             key={layer.key}
                             onClick={() => toggle(layer.key)}
                             aria-pressed={!!isLayerActive}
+                            aria-label={layer.label}
                             title={dormant ? 'Turn the layer above on to use this' : undefined}
                             className={`relative w-full flex items-center gap-3 py-1.5 rounded-md hover:bg-white/[0.05] transition-colors cursor-pointer text-left focus:outline-none focus-visible:ring-1 focus-visible:ring-white/30 ${layer.parent ? 'pl-[22px] pr-1' : 'px-1'} ${dormant ? 'opacity-40' : ''}`}
                           >
@@ -454,6 +478,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                             <ToggleSwitch active={!!isLayerActive} />
                             <span className={`text-[11px] font-mono uppercase tracking-wider flex-1 transition-colors duration-200 ${isLayerActive ? 'text-white/70' : 'text-white/35'}`}>
                               {layer.label}
+                              {layer.description && <span className="block mt-0.5 text-[9px] normal-case tracking-normal text-white/35">{layer.description}</span>}
                             </span>
                             {count !== null && (
                               <span className={`text-[10px] font-mono tabular-nums transition-colors ${isLayerActive ? 'text-white/45' : 'text-white/20'}`}>
@@ -463,6 +488,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                           </button>
                         );
                       })}
+                      {group.label === 'DISPLAY' && terrainDetails}
                     </div>
                   </motion.div>
                 )}

@@ -1,6 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  turbopack: {
+    rules: {
+      'maplibre-gl.mjs': {
+        loaders: [`${__dirname}/tools/maplibre-url-loader.cjs`],
+        as: '*.js',
+      },
+    },
+  },
   output: 'standalone',
   serverExternalPackages: ['ws'],
   transpilePackages: ['react-map-gl', 'mapbox-gl', 'maplibre-gl'],

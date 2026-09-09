@@ -4,6 +4,8 @@ import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Layers, BarChart3, Newspaper, Search, X, Globe, MapPinned, Route, Radar, Satellite, Moon, ExternalLink, AlertTriangle, Activity, Database, Wifi, Play, Network, Crosshair, Bluetooth, Pentagon, Radio , PenLine } from 'lucide-react';
+import { type TerrainStatus } from '@/lib/map-terrain';
+import { loadCameraCatalog, mergeCameraCatalog } from '@/lib/camera-catalog';
 import IntelFeed from '@/components/IntelFeed';
 import MarketsPanel from '@/components/MarketsPanel';
 import ScmPanel from '@/components/ScmPanel';
@@ -109,8 +111,10 @@ function ViewSegment({ active, onClick, title, icon: Icon, label, layoutId }: {
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       title={title}
+      aria-label={title}
       aria-pressed={active}
       className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[10px] font-mono font-medium tracking-[0.18em] transition-colors duration-200 ${
         active ? 'text-[var(--gold-light)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -144,6 +148,8 @@ export default function Dashboard() {
   const [regionDossier, setRegionDossier] = useState<any>(null);
   const [dossierLoading, setDossierLoading] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
+  const autoLocateCancelled = useRef(false);
+  const [mapRetry, setMapRetry] = useState(0);
   const [activeCamera, setActiveCamera] = useState<any>(null);
   const [spaceWeather, setSpaceWeather] = useState<any>(null);
   const [showLayers, setShowLayers] = useState(true);
@@ -255,6 +261,9 @@ export default function Dashboard() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<'layers'|'markets'|'intel'|'search'|'recon'|'remote'|null>(null);
   const [mapProjection, setMapProjection] = useState<'globe'|'mercator'>('globe');
+  const [terrainFocus, setTerrainFocus] = useState(0);
+  const [terrainStatus, setTerrainStatus] = useState<TerrainStatus>('idle');
+  const [terrainRetry, setTerrainRetry] = useState(0);
   const [mapStyle, setMapStyle] = useState<'dark'|'satellite'>('dark');
   const [sweepData, setSweepData] = useState<any>(null);
   const [scanTargets, setScanTargets] = useState<any[]>([]);
@@ -310,6 +319,7 @@ export default function Dashboard() {
     sdk_air: true,
     sdk_naval: true,
     terrain_3d: false,
+    terrain_elevation: false,
     malware: false,
     cyber_attacks: false,
     gdelt_events: false,
@@ -317,6 +327,16 @@ export default function Dashboard() {
     cf_attacks: false,
   });
   // Server-side capability flags — gate layers that need credentials.
+  const selectFlatMap = () => {
+    setActiveLayers(prev => ({ ...prev, terrain_elevation: false, terrain_3d: false }));
+    setMapProjection('mercator');
+  };
+  const terrainPanelProps = {
+    terrainStatus,
+    on3DModeSelected: () => setMapProjection('globe'),
+    onTerrainRetry: () => setTerrainRetry(value => value + 1),
+    onTerrainFocus: () => setTerrainFocus(value => value + 1),
+  };
   const [capabilities, setCapabilities] = useState<Record<string, boolean>>({});
   const [liveFeedUrl, setLiveFeedUrl] = useState<string | null>(null);
   const [liveFeedName, setLiveFeedName] = useState('');
@@ -351,20 +371,30 @@ export default function Dashboard() {
       .then(p => { if (p) setCapabilities(c => ({ ...c, cloudflare: !!p.configured })); })
       .catch(() => { /* leave the layer hidden */ });
 
-    // Delay geolocation until map is ready (after splash screen clears)
+    // Once the user interacts, a late IP-location response must not steal the
+    // camera back. The request is also cancelled when this page unmounts.
+    const geoController = new AbortController();
+    const cancelAutoLocate = () => { autoLocateCancelled.current = true; };
+    window.addEventListener('pointerdown', cancelAutoLocate, { once: true });
+    window.addEventListener('keydown', cancelAutoLocate, { once: true });
     const geoTimer = setTimeout(() => {
-      fetch('/api/geo')
+      if (autoLocateCancelled.current) return;
+      fetch('/api/geo', { signal: geoController.signal })
         .then(r => r.json())
         .then(geo => {
-          if (geo.status === 'success' && geo.lat && geo.lon) {
-            setFlyToLocation({ lat: geo.lat, lng: geo.lon, ts: Date.now() });
-            setMapView(v => ({ ...v, zoom: 12 }));
+          if (!autoLocateCancelled.current && !geoController.signal.aborted && geo.status === 'success' &&
+              Number.isFinite(geo.lat) && Number.isFinite(geo.lon) && Math.abs(geo.lat) <= 90 && Math.abs(geo.lon) <= 180) {
+            setFlyToLocation({ lat: geo.lat, lng: geo.lon, zoom: 8, ts: Date.now() });
           }
         })
         .catch(() => { /* silent — keep default global view */ });
     }, 3000);
 
-    return () => clearTimeout(geoTimer);
+    return () => {
+      clearTimeout(geoTimer); geoController.abort();
+      window.removeEventListener('pointerdown', cancelAutoLocate);
+      window.removeEventListener('keydown', cancelAutoLocate);
+    };
   }, []);
 
   // URL state: persist active layers only (lat/lon comes from IP geolocation on each load)
@@ -402,8 +432,11 @@ export default function Dashboard() {
       if (e.key === 'c') setShowScmPanel(p => !p);
       if (e.key === 'i') setShowIntel(p => !p);
       if (e.key === 's') { setShowDesktopSearch(p => !p); setShowIntel(false); setShowMarkets(false); setShowAlerts(false); setShowSpaceCam(false); }
-      if (e.key === 'r') setFlyToLocation({ lat: 20, lng: 0, ts: Date.now() });
-      if (e.key === 'g') setMapProjection(p => p === 'globe' ? 'mercator' : 'globe');
+      if (e.key === 'r' && !e.ctrlKey && !e.metaKey) setFlyToLocation({ lat: 20, lng: 0, zoom: 2.5, ts: Date.now() });
+      if (e.key === 'g') {
+        setActiveLayers(prev => ({ ...prev, terrain_elevation: false, terrain_3d: false }));
+        setMapProjection(p => p === 'globe' ? 'mercator' : 'globe');
+      }
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
         e.preventDefault();
         setShowDesktopSearch(true); setShowIntel(false); setShowMarkets(false); setShowAlerts(false); setShowSpaceCam(false);
@@ -605,6 +638,18 @@ export default function Dashboard() {
   // ── LAYER-AWARE DATA LOADING — only fetch when layer is toggled ON ──
   const layerFetchedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
+    if (!activeLayers.cctv) return;
+    return loadCameraCatalog(cameras => {
+      dataRef.current = {
+        ...dataRef.current,
+        cameras: mergeCameraCatalog(dataRef.current.cameras ?? [], cameras),
+      };
+      setDataVersion(value => value + 1);
+      setBackendStatus('connected');
+    }, () => console.warn('[OSIRIS] Camera catalogue load failed; bounded retry scheduled'));
+  }, [activeLayers.cctv]);
+
+  useEffect(() => {
 
     // Flights
     if (activeLayers.flights || activeLayers.military || activeLayers.jets || activeLayers.private) {
@@ -627,11 +672,6 @@ export default function Dashboard() {
     if (activeLayers.fires && !layerFetchedRef.current.has('fires')) {
       fetchEndpoint('/api/fires');
       layerFetchedRef.current.add('fires');
-    }
-    // CCTV
-    if (activeLayers.cctv && !layerFetchedRef.current.has('cctv')) {
-      fetchEndpoint(`/api/cctv?region=all&_t=${Date.now()}`);
-      layerFetchedRef.current.add('cctv');
     }
     // Maritime
     if (activeLayers.maritime && !layerFetchedRef.current.has('maritime')) {
@@ -1101,10 +1141,15 @@ export default function Dashboard() {
       {/* ── MAP ── */}
       <ErrorBoundary name="Map">
         <OsirisMap 
-          key={osirisTheme}
+          key={`${osirisTheme}-${mapRetry}`}
+          onRetryMap={() => setMapRetry(retry => retry + 1)}
           data={data} 
           activeLayers={activeLayers} 
-          projection={mapProjection} 
+          projection={mapProjection === 'mercator' ? 'mercator' : 'globe'}
+          terrainEnabled={activeLayers.terrain_elevation && mapProjection === 'globe'}
+          terrainFocus={terrainFocus}
+          terrainRetry={terrainRetry}
+          onTerrainStatusChange={setTerrainStatus}
           mapStyle={mapStyle === 'satellite' ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}' : 'dark'} 
           onEntityClick={handleEntityClick} 
           onMouseCoords={handleMouseCoords} 
@@ -1225,11 +1270,12 @@ export default function Dashboard() {
         {/* Unified Control Strip */}
         <div className="flex items-center gap-[3px] p-[3px] pointer-events-auto rounded-xl border border-[var(--border-primary)] bg-[var(--bg-panel)] backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.55)]">
           <ViewSegment layoutId="view-projection" active={mapProjection === 'globe'} onClick={() => setMapProjection('globe')} title="3D Globe" icon={Globe} label="3D" />
-          <ViewSegment layoutId="view-projection" active={mapProjection === 'mercator'} onClick={() => setMapProjection('mercator')} title="2D Map" icon={MapPinned} label="2D" />
+          <ViewSegment layoutId="view-projection" active={mapProjection === 'mercator'} onClick={selectFlatMap} title="2D Map" icon={MapPinned} label="2D" />
           <div className="w-px h-5 mx-1 bg-[var(--border-secondary)]" />
           <ViewSegment layoutId="view-style" active={mapStyle === 'dark'} onClick={() => setMapStyle('dark')} title="Night Mode" icon={Moon} label="MAP" />
           <ViewSegment layoutId="view-style" active={mapStyle === 'satellite'} onClick={() => setMapStyle('satellite')} title="Satellite View" icon={Satellite} label="SAT" />
         </div>
+
 
         {/* Scale Bar */}
         {!isMobile && (
@@ -1307,7 +1353,7 @@ export default function Dashboard() {
 
 
       {/* ── NEW SIDEBAR (Root Level) ── */}
-      {showLayers && !isMobile && <LayerPanel data={data} activeLayers={activeLayers} setActiveLayers={setActiveLayers} theme={osirisTheme} setTheme={setOsirisTheme} capabilities={capabilities} />}
+      {showLayers && !isMobile && <LayerPanel {...terrainPanelProps} data={data} activeLayers={activeLayers} setActiveLayers={setActiveLayers} theme={osirisTheme} setTheme={setOsirisTheme} capabilities={capabilities} />}
 
 
 
@@ -1685,9 +1731,9 @@ export default function Dashboard() {
                           <div><div className="hud-label" style={{fontSize:'9px'}}>NUC</div><div className="hud-value text-[10px]" style={{color:'var(--accent-nuclear)'}}>{(data.infrastructure?.length||0)}</div></div>
                         </div>
                       </div>
-                      <LayerPanel data={data} activeLayers={activeLayers} setActiveLayers={setActiveLayers} isMobile={true} theme={osirisTheme} setTheme={setOsirisTheme} capabilities={capabilities} />
+                      <LayerPanel {...terrainPanelProps} data={data} activeLayers={activeLayers} setActiveLayers={setActiveLayers} isMobile={true} theme={osirisTheme} setTheme={setOsirisTheme} capabilities={capabilities} />
                       <div className="mt-8">
-                        <ViewPresets onNavigate={(lat, lng, zoom) => { setFlyToLocation({ lat, lng, ts: Date.now() }); setMapView(v => ({ ...v, zoom })); setMobilePanel(null); }} />
+                        <ViewPresets onNavigate={(lat, lng, zoom) => { setFlyToLocation({ lat, lng, zoom, ts: Date.now() }); setMobilePanel(null); }} />
                       </div>
                     </>
                   )}

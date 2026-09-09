@@ -10,6 +10,7 @@
 # Next.js
 /.next/
 /out/
+/public/vendor/maplibre/
 
 # Production
 /build

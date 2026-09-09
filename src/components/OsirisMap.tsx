@@ -1,8 +1,9 @@
-import { buildGeometry, closeRing, drawReducer, initialDrawState, measure, type DrawAction, type DrawMode, type DrawProgress, type DrawResult, type DrawState } from '@/lib/draw';
 'use client';
 
+import { buildGeometry, closeRing, drawReducer, initialDrawState, measure, type DrawAction, type DrawMode, type DrawProgress, type DrawResult, type DrawState } from '@/lib/draw';
 import { useEffect, useRef, useState, useCallback, memo } from 'react';
-import maplibregl from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
+import { installTerrainTileProtocol } from '@/lib/terrain-tiles';
 import { createSatelliteLayer, parseColor, type SatPoint } from '@/lib/satellite-layer';
 import { MAP_DEFAULTS, MAP_PALETTE_KEYS, readMapPalette, satColorFor, type MapPalette } from '@/lib/map-palette';
 import { STYLE_EVENT } from '@/lib/style-tokens';
@@ -11,6 +12,9 @@ import SatelliteCard, { type SatelliteDetail } from '@/components/SatelliteCard'
 import CctvPreviews, { type PreviewCamera } from '@/components/CctvPreviews';
 import MapControls from '@/components/MapControls';
 import LiveNewsPreviews, { type PreviewFeed } from '@/components/LiveNewsPreviews';
+import { attachTerrain, type TerrainStatus } from '@/lib/map-terrain';
+import { watchMapStartup, type MapStartupStatus } from '@/lib/map-startup';
+import { applyMapProjection } from '@/lib/map-projection';
 
 /** The catalogue fields the satellite layer and its popup actually read. */
 interface SatelliteRow {
@@ -34,6 +38,11 @@ interface OsirisMapProps {
   onViewStateChange?: (vs: { zoom: number; latitude: number }) => void;
   flyToLocation?: { lat: number; lng: number; zoom?: number; ts: number } | null;
   projection?: 'mercator' | 'globe';
+  terrainEnabled?: boolean;
+  terrainRetry?: number;
+  terrainFocus?: number;
+  onTerrainStatusChange?: (status: TerrainStatus) => void;
+  onRetryMap?: () => void;
   mapStyle?: string;
   sweepData?: any;
   scanTargets?: any[];
@@ -96,11 +105,15 @@ function computeSolarTerminator(): [number, number][] {
 
 const EMPTY_FC = { type: 'FeatureCollection' as const, features: [] };
 
-function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, flyToLocation, projection = 'globe', mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', drawnPolygons = [], arcgisLayers = [], drawMode = null, onDrawComplete, onDrawProgress, onDrawCancel, drawCommand = null, onMapCenter, route = null, userLocation = null, followUser = false, onFollowInterrupt, navigating = false, aircraftAirports = {} }: OsirisMapProps) {
+function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, flyToLocation, projection = 'globe', terrainEnabled = false, terrainRetry = 0, terrainFocus = 0, onTerrainStatusChange, onRetryMap, mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', drawnPolygons = [], arcgisLayers = [], drawMode = null, onDrawComplete, onDrawProgress, onDrawCancel, drawCommand = null, onMapCenter, route = null, userLocation = null, followUser = false, onFollowInterrupt, navigating = false, aircraftAirports = {} }: OsirisMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [startupStatus, setStartupStatus] = useState<MapStartupStatus>('loading');
+  // Do not replay an earlier explicit zoom request after theme/retry remounts.
+  const lastTerrainFocus = useRef(terrainFocus);
+  const wasNavigating = useRef(false);
   /**
    * What the map's own layers draw with, mirrored out of the `--map-*` custom
    * properties. Held in state rather than read at each use so a change re-runs
@@ -110,7 +123,6 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
   const [palette, setPalette] = useState<MapPalette>(MAP_DEFAULTS);
   const paletteRef = useRef(palette);
   useEffect(() => { paletteRef.current = palette; }, [palette]);
-  const prevStyleRef = useRef(mapStyle);
   const prevDrawnPolygonsRef = useRef<string[]>([]);
   const prevArcgisLayersRef = useRef<string[]>([]);
   const satLayerRef = useRef<ReturnType<typeof createSatelliteLayer> | null>(null);
@@ -229,36 +241,33 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     if (!containerRef.current || mapRef.current) return;
     
     // Select basemap style
-    const styleUrl = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+    // Local style/TileJSON metadata, with tiles delivered directly by the CDN.
+    // This avoids a blocking upstream style fetch and a server hop per tile.
+    const styleUrl = '/dark-matter-style.json';
 
     const container = containerRef.current;
+    maplibregl.setWorkerUrl(`/vendor/maplibre/${maplibregl.getVersion()}/maplibre-gl-worker.mjs`);
     const baseOptions = {
       container,
       style: styleUrl,
       center: [25.48, 42.70] as [number, number], zoom: 6.5, minZoom: 1.5, maxZoom: 18,
       attributionControl: false as const,
-      maxPitch: 85,
-      transformRequest: (url: string) => {
-        // Route all CARTO CDN requests through the internal Next.js proxy API
-        if (url.includes('cartocdn.com')) {
-          const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-          return { url: `${baseUrl}/api/proxy-tiles?url=${encodeURIComponent(url)}` };
-        }
-        return { url };
-      },
+      // Keep the supported pitch range from the start; terrain must not flatten
+      // an already-positioned camera when its performance limits are attached.
+      maxPitch: 60,
+      pitch: 20,
     };
 
     // MapLibre asks for a high-performance WebGL2 context and throws outright if it
     // cannot get one. Some machines refuse that exact request while still granting a
-    // plainer context — a blocklisted discrete GPU, a driver Chrome only trusts for
-    // WebGL1 — so walk down to weaker requests before giving up.
+    // plainer WebGL2 context — try the low-power GPU before giving up.
     const attributeFallbacks: maplibregl.MapOptions['canvasContextAttributes'][] = [
       undefined,
       { powerPreference: 'low-power', failIfMajorPerformanceCaveat: false },
-      { contextType: 'webgl', powerPreference: 'low-power', failIfMajorPerformanceCaveat: false },
     ];
 
     let map: maplibregl.Map | undefined;
+    let initializationCancelled = false;
     for (const canvasContextAttributes of attributeFallbacks) {
       try {
         map = new maplibregl.Map(
@@ -268,11 +277,16 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       } catch (e) {
         // A failed constructor leaves its canvas behind; the next attempt needs a clean container.
         container.innerHTML = '';
-        if (canvasContextAttributes === attributeFallbacks[attributeFallbacks.length - 1]) throw e;
+        if (canvasContextAttributes === attributeFallbacks[attributeFallbacks.length - 1]) {
+          console.warn('[OSIRIS] Map initialization failed:', e);
+          queueMicrotask(() => { if (!initializationCancelled) setStartupStatus('error'); });
+          return () => { initializationCancelled = true; };
+        }
         console.warn('[OSIRIS] WebGL context rejected, retrying with weaker attributes:', e instanceof Error ? e.message : e);
       }
     }
     if (!map) return;
+    const stopWatchingStartup = watchMapStartup(map, setStartupStatus);
 
     map.on('load', () => {
       mapRef.current = map;
@@ -796,7 +810,18 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       }
     });
     map.on('contextmenu', e => { e.preventDefault(); onRightClick?.({ lat: e.lngLat.lat, lng: e.lngLat.lng }); });
-    map.on('moveend', () => { const c = map.getCenter(); onViewStateChange?.({ zoom: map.getZoom(), latitude: c.lat }); });
+    const reportViewState = () => { const c = map.getCenter(); onViewStateChange?.({ zoom: map.getZoom(), latitude: c.lat }); };
+    map.on('load', reportViewState);
+    map.on('moveend', reportViewState);
+    // Lightweight settled-view diagnostics for camera/terrain regressions.
+    const reportCamera = () => {
+      const center = map.getCenter();
+      container.dataset.mapCamera = JSON.stringify({ zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing(), lat: center.lat, lng: center.lng });
+    };
+    map.on('load', reportCamera);
+    map.on('moveend', reportCamera);
+    map.on('idle', reportCamera);
+    reportCamera();
 
     // ── POPUP HELPER ──
     const popup = (coords: any, html: string) => {
@@ -1033,19 +1058,21 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     });
 
     // The cursor should say a satellite is clickable, like every other layer.
-    // Throttled to one test per frame: mousemove fires far faster than the
-    // screen updates, and each pick is a full offscreen re-render of the
-    // whole catalogue — measured at 1-2 ms with ~19,000 satellites.
-    let hoverQueued = false;
+    // Picking re-renders the entire catalogue and reads back from the GPU.
+    // Keep that work out of camera gestures and limit hover checks to 10/sec.
+    // Click selection above remains immediate and full precision.
+    let hoverFrame = 0;
+    let lastHoverPick = -Infinity;
     map.on('mousemove', e => {
       const layer = satLayerRef.current;
-      if (!layer || hoverQueued) return;
-      hoverQueued = true;
-      requestAnimationFrame(() => {
-        hoverQueued = false;
+      if (!layer || hoverFrame || map.isMoving() || performance.now() - lastHoverPick < 100) return;
+      hoverFrame = requestAnimationFrame(() => {
+        hoverFrame = 0;
+        if (map.isMoving()) return;
         const canvas = map.getCanvas();
         // Never fight another layer that has already claimed the cursor.
         if (canvas.style.cursor && canvas.style.cursor !== 'pointer') return;
+        lastHoverPick = performance.now();
         const over = layer.pick(e.point.x, e.point.y) != null;
         if (over) canvas.style.cursor = 'pointer';
         else if (canvas.style.cursor === 'pointer') canvas.style.cursor = '';
@@ -1537,7 +1564,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       });
     });
 
-    return () => { map.remove(); mapRef.current = null; };
+    return () => { stopWatchingStartup(); cancelAnimationFrame(hoverFrame); map.remove(); mapRef.current = null; };
   }, []);
 
   // Day/Night
@@ -2158,7 +2185,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
 
     // Switch to globe and fly to the sweep location
     try {
-      (map as any).setProjection({ type: 'globe' });
+      applyMapProjection(map, 'globe');
       map.setSky({ 'sky-color': '#0A0A0F', 'sky-horizon-blend': 0.02, 'horizon-color': '#0A0A0F', 'horizon-fog-blend': 0.02 });
     } catch { /* projection may not be supported */ }
 
@@ -2226,22 +2253,18 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     if (src) src.setData({ type: 'FeatureCollection', features });
   }, [scanTargets, mapReady]);
 
-  // Fly-to
-  useEffect(() => {
-    if (!mapReady || !mapRef.current || !flyToLocation) return;
-    mapRef.current.flyTo({ center: [flyToLocation.lng, flyToLocation.lat], zoom: flyToLocation.zoom || 8, duration: 2000 });
-  }, [mapReady, flyToLocation]);
-
-  // Dynamic projection switching (lightweight — no terrain DEM)
+  // Projection changes are independent of terrain. Toggling elevation must not
+  // zoom, tilt, or reposition the camera the user has already chosen.
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
     const map = mapRef.current;
     try {
-      (map as any).setProjection({ type: projection });
+      const projectionChanged = applyMapProjection(map, projection);
+      const configureSky = projectionChanged || !containerRef.current?.dataset.mapProjection;
+      if (containerRef.current) containerRef.current.dataset.mapProjection = projection;
       if (projection === 'globe') {
-        map.easeTo({ pitch: 20, duration: 1200 });
         try {
-          (map as any).setSky({
+          if (configureSky) map.setSky({
             'sky-color': '#04040A',
             'sky-horizon-blend': 0.5,
             'horizon-color': '#0a0a1a',
@@ -2251,14 +2274,40 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
           });
         } catch (e) { console.warn('[OSIRIS] Suppressed error:', e instanceof Error ? e.message : e); }
       } else {
-        map.easeTo({ pitch: 0, duration: 800 });
+        if (map.getPitch() > 0.5) map.easeTo({ pitch: 0, duration: 350 });
       }
     } catch (e) {
       console.warn('Projection switch failed:', e);
     }
   }, [mapReady, projection]);
 
-  // 3D Terrain & Buildings layer
+  // Terrain loads only at regional zooms; globe overview stays inexpensive.
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !terrainEnabled) return;
+    const map = mapRef.current;
+    installTerrainTileProtocol(maplibregl.addProtocol);
+    const dispose = attachTerrain(map, status => onTerrainStatusChange?.(status));
+    return () => {
+      // The map constructor effect removes the entire map first on unmount.
+      if (mapRef.current === map) dispose();
+    };
+  }, [mapReady, terrainEnabled, terrainRetry, onTerrainStatusChange]);
+
+  // A user-requested close-up keeps the current location and avoids a fly-out arc.
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !terrainFocus || !terrainEnabled || lastTerrainFocus.current === terrainFocus) return;
+    lastTerrainFocus.current = terrainFocus;
+    const map = mapRef.current;
+    map.easeTo({ zoom: Math.max(10.5, map.getZoom()), pitch: 45, duration: 650 });
+  }, [mapReady, terrainFocus, terrainEnabled]);
+
+  // Fly-to
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !flyToLocation) return;
+    mapRef.current.flyTo({ center: [flyToLocation.lng, flyToLocation.lat], zoom: flyToLocation.zoom ?? 8, duration: 2000 });
+  }, [mapReady, flyToLocation]);
+
+  // 3D buildings are independent of the elevation renderer.
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
     const map = mapRef.current;
@@ -2266,19 +2315,14 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
 
     try {
       if (enabled) {
-        // ── 3D BUILDINGS SOURCE (OpenFreeMap CDN — no API key, globally cached) ──
-        if (!map.getSource('osiris-buildings')) {
-          map.addSource('osiris-buildings', {
-            type: 'vector',
-            url: 'https://tiles.openfreemap.org/planet',
-          });
-        }
+        // CARTO's already-loaded vector tiles include the building footprints
+        // and render heights. No second worldwide vector source is needed.
 
         // ── 3D BUILDING EXTRUSION LAYER ──
         if (!map.getLayer('osiris-3d-buildings')) {
           map.addLayer({
             id: 'osiris-3d-buildings',
-            source: 'osiris-buildings',
+            source: 'carto',
             'source-layer': 'building',
             type: 'fill-extrusion',
             minzoom: 14.5,
@@ -2327,8 +2371,6 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
   // Satellite / Dark style switching
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
-    if (mapStyle === prevStyleRef.current) return;
-    prevStyleRef.current = mapStyle;
     const map = mapRef.current;
 
     try {
@@ -2341,6 +2383,8 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
             tileSize: 256,
             maxzoom: 18,
           });
+        }
+        if (!map.getLayer('satellite-layer')) {
           map.addLayer({ id: 'satellite-layer', type: 'raster', source: 'satellite-tiles', paint: { 'raster-opacity': 0.85 } }, 'day-night-fill');
         } else {
           map.setLayoutProperty('satellite-layer', 'visibility', 'visible');
@@ -2658,11 +2702,15 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     });
   }, [mapReady, followUser, userLocation, navigating]);
 
-  // Restore a plain north-up view when guidance ends.
+  // Restore the selected view only when guidance ends, not on first map load.
   useEffect(() => {
-    if (!mapReady || !mapRef.current || navigating) return;
-    mapRef.current.easeTo({ pitch: 0, bearing: 0, duration: 600 });
-  }, [mapReady, navigating]);
+    const ended = wasNavigating.current && !navigating;
+    wasNavigating.current = navigating;
+    if (!mapReady || !mapRef.current || !ended) return;
+    const map = mapRef.current;
+    const pitch = projection === 'mercator' ? 0 : activeLayers.terrain_3d ? 50 : terrainEnabled && map.getZoom() >= 10 ? 45 : 20;
+    map.easeTo({ pitch, bearing: 0, duration: 600 });
+  }, [mapReady, navigating, projection, terrainEnabled, activeLayers.terrain_3d]);
 
   // ── AIRPORTS FOR WATCHED AIRCRAFT ──
   // The endpoints that survived corroboration against the aircraft's reported
@@ -2976,7 +3024,18 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
 
   return (
     <>
-      <div ref={containerRef} className="absolute inset-0 w-full h-full" />
+      <div ref={containerRef} data-map-status={startupStatus} className="absolute inset-0 w-full h-full" />
+      {startupStatus !== 'ready' && (
+        <div className="absolute inset-0 z-[10] flex items-center justify-center pointer-events-none">
+          <div role="status" className="pointer-events-auto max-w-[min(360px,85vw)] rounded-xl border border-[var(--border-primary)] bg-[var(--bg-secondary)]/95 p-5 text-center shadow-lg">
+            <p className="text-sm text-[var(--text-primary)]">{startupStatus === 'loading' ? 'Loading map…' : 'The map couldn’t finish loading'}</p>
+            {startupStatus === 'error' && <>
+              <p className="mt-2 text-xs text-[var(--text-secondary)]">A map request or graphics connection failed. Your dashboard is still available.</p>
+              <button type="button" onClick={onRetryMap} className="mt-4 rounded-md border border-[var(--border-primary)] px-4 py-2 text-xs text-[var(--gold-primary)] hover:bg-[var(--hover-accent)]">Retry map</button>
+            </>}
+          </div>
+        </div>
+      )}
       {mapReady && mapRef.current && (
         <CctvPreviews
           mapRef={mapRef}
