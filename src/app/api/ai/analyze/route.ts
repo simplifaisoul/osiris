@@ -84,6 +84,8 @@ interface AnalyzeResponse {
   analysis: string;
   model: string;
   timestamp: string;
+  briefingSource: 'gemini_cloud' | 'local_ai';
+  provider: 'gemini' | 'local_ai';
 }
 
 interface ErrorResponse {
@@ -181,6 +183,8 @@ export async function POST(
         analysis,
         model: 'gemini-2.0-flash',
         timestamp: new Date().toISOString(),
+        briefingSource: 'gemini_cloud' as const,
+        provider: 'gemini' as const,
       },
       {
         headers: {

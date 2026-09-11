@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Newspaper, ChevronDown, ChevronUp, ExternalLink, MapPin, Zap } from 'lucide-react';
+import { safeMachineAssessment } from '@/lib/judgment-ui';
 
 /* ═══════════════════════════════════════════════════════════════
    OSIRIS — Intelligence Feed
@@ -129,11 +130,11 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
                     </h4>
 
                     {/* Machine Assessment (if critical) */}
-                    {item.machine_assessment && (
+                    {safeMachineAssessment(item.machine_assessment) && (
                       <div className="mt-1.5 flex items-start gap-1.5 bg-red-950/20 border border-red-900/20 rounded px-2 py-1">
                         <Zap className="w-2.5 h-2.5 text-red-400 flex-shrink-0 mt-0.5" />
-                        <span className="text-[10px] font-mono text-red-400/80 leading-relaxed">
-                          {item.machine_assessment}
+                        <span className="text-[9px] font-mono text-red-400/80 leading-relaxed">
+                          {safeMachineAssessment(item.machine_assessment)}
                         </span>
                       </div>
                     )}
