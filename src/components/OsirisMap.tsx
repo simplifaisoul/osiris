@@ -252,10 +252,10 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       style: styleUrl,
       center: [25.48, 42.70] as [number, number], zoom: 6.5, minZoom: 1.5, maxZoom: 18,
       attributionControl: false as const,
-      // Keep the supported pitch range from the start; terrain must not flatten
-      // an already-positioned camera when its performance limits are attached.
-      maxPitch: 60,
-      pitch: 20,
+      // The full pitch range, as before #330. Terrain caps this to 60 itself
+      // while attached and restores it on the way out, so the limit belongs to
+      // terrain rather than to every session that never turns it on.
+      maxPitch: 85,
     };
 
     // MapLibre asks for a high-performance WebGL2 context and throws outright if it
@@ -2259,10 +2259,14 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     if (!mapReady || !mapRef.current) return;
     const map = mapRef.current;
     try {
-      const projectionChanged = applyMapProjection(map, projection);
+      const projectionChanged = applyMapProjection(map, projection, terrainEnabled);
       const configureSky = projectionChanged || !containerRef.current?.dataset.mapProjection;
       if (containerRef.current) containerRef.current.dataset.mapProjection = projection;
       if (projection === 'globe') {
+        // The overview globe's resting tilt, which used to be the initial
+        // pitch. Only on a real projection change, so toggling terrain never
+        // re-tilts a camera the user has already placed.
+        if (configureSky && map.getPitch() < 0.5) map.easeTo({ pitch: 20, duration: 1200 });
         try {
           if (configureSky) map.setSky({
             'sky-color': '#04040A',
@@ -2279,7 +2283,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     } catch (e) {
       console.warn('Projection switch failed:', e);
     }
-  }, [mapReady, projection]);
+  }, [mapReady, projection, terrainEnabled]);
 
   // Terrain loads only at regional zooms; globe overview stays inexpensive.
   useEffect(() => {
