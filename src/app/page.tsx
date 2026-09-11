@@ -258,6 +258,16 @@ export default function Dashboard() {
   }, [navSession]);
   const [showRemote, setShowRemote] = useState(false);
   const [showLab, setShowLab] = useState(false);
+  /* Deep link: ?panel=lab apre direttamente il LAB. Serve a chi arriva da un
+     altro cruscotto con un collegamento allo strumento, non alla mappa. Si
+     impostano entrambi perche' la barra desktop e la nav mobile si escludono
+     a vicenda per larghezza: vince quella visibile. */
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('panel') === 'lab') {
+      setShowLab(true);
+      setMobilePanel('lab');
+    }
+  }, []);
   const [showArcGIS, setShowArcGIS] = useState(false);
   const [arcgisLayers, setArcgisLayers] = useState<Array<{ id: string; title: string; url: string; geojson: any; color: string; visible: boolean; opacity: number }>>([]);
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number; bounds?: { west: number; south: number; east: number; north: number } } | null>(null);
