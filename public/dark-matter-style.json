@@ -1,7 +1,6 @@
 {
   "version": 8,
   "name": "Dark Matter",
-  "projection": { "type": ["interpolate", ["linear"], ["zoom"], 7, "vertical-perspective", 9, "mercator"] },
   "metadata": { "maputnik:renderer": "mbgljs" },
   "sources": {
     "carto": {
