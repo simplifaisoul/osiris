@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { expandFires } from '@/lib/fires';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Layers, BarChart3, Newspaper, Search, X, Globe, MapPinned, Route, Radar, Satellite, Moon, ExternalLink, AlertTriangle, Activity, Database, Wifi, Play, Network, Crosshair, Bluetooth, Pentagon, Radio , PenLine } from 'lucide-react';
@@ -670,7 +671,11 @@ export default function Dashboard() {
     }
     // Fires
     if (activeLayers.fires && !layerFetchedRef.current.has('fires')) {
-      fetchEndpoint('/api/fires');
+      /* The route sends column arrays rather than objects — see lib/fires — so
+         the payload is expanded here before anything downstream sees it. The
+         sensor is reported once for the whole batch, so it is lifted onto its
+         own key rather than left as the generic `source`. */
+      fetchEndpoint('/api/fires', d => ({ fires: expandFires(d), fires_source: d.source }));
       layerFetchedRef.current.add('fires');
     }
     // Maritime
