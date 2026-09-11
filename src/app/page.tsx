@@ -25,6 +25,7 @@ import GlobalStatusBar from '@/components/GlobalStatusBar';
 import LiveAlerts from '@/components/LiveAlerts';
 import WorldRemote from '@/components/WorldRemote';
 import ArcGISPanel from '@/components/ArcGISPanel';
+import { isToolId, type ToolId } from '@/components/LabPanel';
 const OsirisMap = dynamic(() => import('@/components/OsirisMap'), { ssr: false });
 const LayerPanel = dynamic(() => import('@/components/LayerPanel'));
 const SpaceCam = dynamic(() => import('@/components/SpaceCam'), { ssr: false });
@@ -258,15 +259,21 @@ export default function Dashboard() {
   }, [navSession]);
   const [showRemote, setShowRemote] = useState(false);
   const [showLab, setShowLab] = useState(false);
-  /* Deep link: ?panel=lab apre direttamente il LAB. Serve a chi arriva da un
-     altro cruscotto con un collegamento allo strumento, non alla mappa. Si
-     impostano entrambi perche' la barra desktop e la nav mobile si escludono
-     a vicenda per larghezza: vince quella visibile. */
+  const [labTool, setLabTool] = useState<ToolId | undefined>(undefined);
+  /* Deep link: ?panel=lab apre direttamente il LAB, e ?tool=exif lo apre gia'
+     sullo strumento giusto. Serve a chi arriva da un altro cruscotto con un
+     collegamento a UNO strumento, non alla mappa. Si legge qui e non nel
+     pannello perche' l'app riscrive la query poco dopo l'avvio, mentre il
+     pannello (import dinamico) monta più tardi: leggerlo lì lo troverebbe
+     gia' sparito. Si impostano entrambi i contenitori perche' barra desktop e
+     nav mobile si escludono per larghezza: vince quello visibile. */
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('panel') === 'lab') {
-      setShowLab(true);
-      setMobilePanel('lab');
-    }
+    const q = new URLSearchParams(window.location.search);
+    if (q.get('panel') !== 'lab') return;
+    const t = q.get('tool');
+    if (isToolId(t)) setLabTool(t);
+    setShowLab(true);
+    setMobilePanel('lab');
   }, []);
   const [showArcGIS, setShowArcGIS] = useState(false);
   const [arcgisLayers, setArcgisLayers] = useState<Array<{ id: string; title: string; url: string; geojson: any; color: string; visible: boolean; opacity: number }>>([]);
@@ -1585,6 +1592,7 @@ export default function Dashboard() {
             {showLab && (
               <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="absolute right-12 top-1/2 -translate-y-1/2 w-[340px] max-h-[80vh] overflow-auto glass-panel rounded-lg p-3">
                 <LabPanel
+                  strumento={labTool}
                   onClose={() => setShowLab(false)}
                   onLocate={(lat, lng) => { setFlyToLocation({ lat, lng, ts: Date.now() }); setShowLab(false); }}
                 />
@@ -1793,6 +1801,7 @@ export default function Dashboard() {
                   {mobilePanel === 'lab' && (
                     <LabPanel
                       isMobile={true}
+                      strumento={labTool}
                       onClose={() => setMobilePanel(null)}
                       onLocate={(lat, lng) => { setFlyToLocation({ lat, lng, ts: Date.now() }); setMobilePanel(null); }}
                     />

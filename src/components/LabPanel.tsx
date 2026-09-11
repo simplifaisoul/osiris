@@ -20,7 +20,12 @@ import {
  */
 const PLANCIA_URL = process.env.NEXT_PUBLIC_DELFI_URL || 'http://localhost:7863';
 
-type ToolId = 'intel' | 'exif' | 'face' | 'media';
+export type ToolId = 'intel' | 'exif' | 'face' | 'media';
+
+/** Riconosce un identificativo di strumento arrivato da fuori (query string). */
+export function isToolId(v: unknown): v is ToolId {
+  return v === 'intel' || v === 'exif' || v === 'face' || v === 'media';
+}
 
 const TOOLS: { id: ToolId; label: string; icon: typeof Eye; color: string; blurb: string }[] = [
   { id: 'intel', label: 'IMAGE INTEL', icon: Eye, color: '#00E5FF', blurb: 'Descrive la scena, legge insegne e testo' },
@@ -34,13 +39,31 @@ interface Props {
   isMobile?: boolean;
   /** Porta la mappa sulle coordinate trovate nell'EXIF. */
   onLocate?: (lat: number, lng: number) => void;
+  /** Strumento su cui aprirsi, quando si arriva da un link diretto. */
+  strumento?: ToolId;
 }
 
-async function postForm(url: string, form: FormData) {
+/* Forme delle risposte del nodo, per i soli campi che questo pannello legge. */
+interface RispVision { analisi?: string }
+interface RispFace { eta?: number; genere?: string; emozione?: string; etnia?: string }
+interface RispExif {
+  base?: { formato?: string; larghezza?: number; altezza?: number };
+  presente?: boolean;
+  sintesi?: Record<string, string>;
+  gps?: { lat: number; lon: number } | null;
+}
+interface RispMask { maschera: string; copertura: number; sam?: boolean; vuota?: boolean }
+interface RispEdit {
+  immagine: string; nota?: string; applicate?: string[]; generativo_necessario?: boolean;
+}
+interface RispGen { immagine: string }
+
+async function postForm<T>(url: string, form: FormData): Promise<T> {
   const r = await fetch(url, { method: 'POST', body: form });
-  const j = await r.json().catch(() => null);
-  if (!r.ok || (j && j.error)) throw new Error((j && j.error) || `HTTP ${r.status}`);
-  return j as Record<string, any>;
+  const j: unknown = await r.json().catch(() => null);
+  const err = (j as { error?: string } | null)?.error;
+  if (!r.ok || err) throw new Error(err || `HTTP ${r.status}`);
+  return j as T;
 }
 
 /** data:image/...;base64,... -> Blob, per rispedire la maschera al generatore. */
@@ -53,8 +76,8 @@ function dataUrlToBlob(dataUrl: string): Blob {
   return new Blob([buf], { type: mime });
 }
 
-export default function LabPanel({ onClose, isMobile, onLocate }: Props) {
-  const [tool, setTool] = useState<ToolId>('intel');
+export default function LabPanel({ onClose, isMobile, onLocate, strumento }: Props) {
+  const [tool, setTool] = useState<ToolId>(strumento ?? 'intel');
   const [file, setFile] = useState<File | null>(null);
   const [anteprima, setAnteprima] = useState<string | null>(null);
   const [domanda, setDomanda] = useState('');
@@ -63,7 +86,7 @@ export default function LabPanel({ onClose, isMobile, onLocate }: Props) {
   const [busy, setBusy] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
   const [testo, setTesto] = useState<string | null>(null);
-  const [exif, setExif] = useState<Record<string, any> | null>(null);
+  const [exif, setExif] = useState<RispExif | null>(null);
   const [risultato, setRisultato] = useState<string | null>(null);
   const [nota, setNota] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -86,16 +109,16 @@ export default function LabPanel({ onClose, isMobile, onLocate }: Props) {
         const fd = new FormData();
         fd.append('file', file);
         if (domanda.trim()) fd.append('domanda', domanda.trim());
-        const d = await postForm('/api/ai/vision', fd);
+        const d = await postForm<RispVision>('/api/ai/vision', fd);
         setTesto(String(d.analisi || ''));
       } else if (tool === 'exif') {
         const fd = new FormData();
         fd.append('file', file);
-        setExif(await postForm('/api/ai/exif', fd));
+        setExif(await postForm<RispExif>('/api/ai/exif', fd));
       } else if (tool === 'face') {
         const fd = new FormData();
         fd.append('image', file);           // Delfi vuole "image", non "file"
-        const d = await postForm('/api/ai/face', fd);
+        const d = await postForm<RispFace>('/api/ai/face', fd);
         setTesto(
           [d.eta != null ? `Età stimata: ${d.eta}` : null,
            d.genere ? `Genere: ${d.genere}` : null,
@@ -108,20 +131,20 @@ export default function LabPanel({ onClose, isMobile, onLocate }: Props) {
           // area descritta => percorso GENERATIVO: prima la maschera, poi l'inpainting
           const fm = new FormData();
           fm.append('file', file); fm.append('testo', area.trim());
-          const m = await postForm('/api/ai/mask', fm);
+          const m = await postForm<RispMask>('/api/ai/mask', fm);
           if (m.vuota) { setErrore('Non ho trovato quell\'area: descrivila diversamente.'); setBusy(false); return; }
           const fg = new FormData();
           fg.append('file', file);
           fg.append('maschera', dataUrlToBlob(String(m.maschera)), 'mask.png');
           fg.append('prompt', prompt.trim());
           fg.append('forza', '0.95');
-          const g = await postForm('/api/ai/generate', fg);
+          const g = await postForm<RispGen>('/api/ai/generate', fg);
           setRisultato(String(g.immagine));
           setNota(`Rigenerata l'area «${area.trim()}» (${m.copertura}%${m.sam ? ', bordi netti con SAM' : ''}).`);
         } else {
           const fe = new FormData();
           fe.append('file', file); fe.append('prompt', prompt.trim());
-          const d = await postForm('/api/ai/image-edit', fe);
+          const d = await postForm<RispEdit>('/api/ai/image-edit', fe);
           setRisultato(String(d.immagine));
           setNota(d.generativo_necessario
             ? `${d.nota} — descrivi l'area qui sopra per usare il generativo.`
@@ -135,6 +158,9 @@ export default function LabPanel({ onClose, isMobile, onLocate }: Props) {
   }, [file, tool, domanda, prompt, area]);
 
   const attivo = TOOLS.find(t => t.id === tool)!;
+  /* Copia locale: dentro una closure TypeScript non puo' restringere un campo
+     di stato (potrebbe cambiare fra il controllo e il clic). */
+  const gps = exif?.gps ?? null;
 
   return (
     <div className={`flex flex-col gap-3 ${isMobile ? '' : 'w-[340px]'} text-white/90`}>
@@ -245,18 +271,18 @@ export default function LabPanel({ onClose, isMobile, onLocate }: Props) {
             {String(exif.base?.formato)} · {String(exif.base?.larghezza)}×{String(exif.base?.altezza)}
           </div>
           {!exif.presente && <div className="text-white/45">Nessun metadato EXIF in questa immagine.</div>}
-          {exif.sintesi && Object.entries(exif.sintesi as Record<string, string>).map(([k, v]) => (
+          {exif.sintesi && Object.entries(exif.sintesi).map(([k, v]) => (
             <div key={k} className="flex gap-2">
               <span className="text-white/45 w-28 shrink-0">{k}</span><span className="break-all">{v}</span>
             </div>
           ))}
-          {exif.gps && (
+          {gps && (
             <button
-              onClick={() => onLocate?.(Number(exif.gps.lat), Number(exif.gps.lon))}
+              onClick={() => onLocate?.(gps.lat, gps.lon)}
               className="mt-1 flex items-center gap-2 text-[#D4AF37] hover:underline"
             >
               <MapPin className="w-3.5 h-3.5" />
-              {Number(exif.gps.lat).toFixed(5)}, {Number(exif.gps.lon).toFixed(5)} — porta la mappa qui
+              {gps.lat.toFixed(5)}, {gps.lon.toFixed(5)} — porta la mappa qui
             </button>
           )}
         </div>
