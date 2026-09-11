@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Layers, BarChart3, Newspaper, Search, X, Globe, MapPinned, Route, Radar, Satellite, Moon, ExternalLink, AlertTriangle, Activity, Database, Wifi, Play, Network, Crosshair, Bluetooth, Pentagon, Radio , PenLine } from 'lucide-react';
+import { Layers, BarChart3, Newspaper, Search, X, Globe, MapPinned, Route, Radar, Satellite, Moon, ExternalLink, AlertTriangle, Activity, Database, Wifi, Play, Network, Crosshair, Bluetooth, Pentagon, Radio , PenLine, Wand2 } from 'lucide-react';
 import { type TerrainStatus } from '@/lib/map-terrain';
 import { loadCameraCatalog, mergeCameraCatalog } from '@/lib/camera-catalog';
 import IntelFeed from '@/components/IntelFeed';
@@ -30,6 +30,8 @@ const LayerPanel = dynamic(() => import('@/components/LayerPanel'));
 const SpaceCam = dynamic(() => import('@/components/SpaceCam'), { ssr: false });
 const CameraViewer = dynamic(() => import('@/components/CameraViewer'));
 const OsintPanel = dynamic(() => import('@/components/OsintPanel'));
+// LAB — strumenti AI serviti dal nodo locale (Delfi), via /api/ai/*
+const LabPanel = dynamic(() => import('@/components/LabPanel'));
 const DrawingToolbar = dynamic(() => import('@/components/DrawingToolbar'), { ssr: false });
 const DrawHud = dynamic(() => import('@/components/DrawHud'), { ssr: false });
 // The measurement helpers are pure functions — importing them directly keeps
@@ -255,11 +257,12 @@ export default function Dashboard() {
     return () => navigator.geolocation.clearWatch(id);
   }, [navSession]);
   const [showRemote, setShowRemote] = useState(false);
+  const [showLab, setShowLab] = useState(false);
   const [showArcGIS, setShowArcGIS] = useState(false);
   const [arcgisLayers, setArcgisLayers] = useState<Array<{ id: string; title: string; url: string; geojson: any; color: string; visible: boolean; opacity: number }>>([]);
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number; bounds?: { west: number; south: number; east: number; north: number } } | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [mobilePanel, setMobilePanel] = useState<'layers'|'markets'|'intel'|'search'|'recon'|'remote'|null>(null);
+  const [mobilePanel, setMobilePanel] = useState<'layers'|'markets'|'intel'|'search'|'recon'|'remote'|'lab'|null>(null);
   const [mapProjection, setMapProjection] = useState<'globe'|'mercator'>('globe');
   const [terrainFocus, setTerrainFocus] = useState(0);
   const [terrainStatus, setTerrainStatus] = useState<TerrainStatus>('idle');
@@ -1556,6 +1559,30 @@ export default function Dashboard() {
           </AnimatePresence>
         </div>
 
+        {/* ── AI LAB ── strumenti AI serviti dal nodo locale (Delfi) */}
+        <div className="relative group">
+          <button onClick={() => { setShowLab(!showLab); setShowRemote(false); setShowArcGIS(false); setShowIntel(false); setShowMarkets(false); setShowAlerts(false); setShowSpaceCam(false); setShowDrawing(false); setShowDesktopSearch(false); }} className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/50 ${showLab ? 'bg-[var(--cyan-primary)]/20' : 'hover:bg-white/10'}`} title="AI Lab — analisi immagini, EXIF/GPS, volti e ritocco (nodo locale)" aria-label="AI Lab" aria-expanded={showLab}>
+            <Wand2 className={`w-4 h-4 ${showLab ? 'text-[var(--cyan-primary)]' : 'text-white/60'}`} />
+            {showLab && (
+              <span
+                aria-hidden="true"
+                className="absolute -right-1 top-1/2 -translate-y-1/2 h-4 w-[2px] rounded-full bg-current text-[var(--cyan-primary)]"
+              />
+            )}
+          </button>
+          <span className="absolute right-11 top-1/2 -translate-y-1/2 px-2 py-1 text-[9px] font-mono tracking-wider text-white/80 bg-black/80 backdrop-blur-sm rounded whitespace-nowrap opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity pointer-events-none">LAB</span>
+          <AnimatePresence>
+            {showLab && (
+              <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="absolute right-12 top-1/2 -translate-y-1/2 w-[340px] max-h-[80vh] overflow-auto glass-panel rounded-lg p-3">
+                <LabPanel
+                  onClose={() => setShowLab(false)}
+                  onLocate={(lat, lng) => { setFlyToLocation({ lat, lng, ts: Date.now() }); setShowLab(false); }}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
 
       </div>}
 
@@ -1665,6 +1692,10 @@ export default function Dashboard() {
                 // because both answer "take me somewhere".
                 { id: 'route' as const, icon: Route, label: 'ROUTE' },
                 { id: 'remote' as const, icon: Bluetooth, label: 'REMOTE' },
+                // LAB — analisi immagini, EXIF/GPS, volti e ritocco, serviti dal
+                // nodo AI locale. Sta in fondo perche' opera su file caricati,
+                // non sulla mappa.
+                { id: 'lab' as const, icon: Wand2, label: 'LAB' },
               ].map(tab => {
                 // Routing opens the planner at the top of the screen rather than
                 // the bottom drawer — it needs the room above the keyboard, and
@@ -1715,7 +1746,7 @@ export default function Dashboard() {
                 <div className="px-3 pb-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="hud-text text-[10px] text-[var(--text-primary)]">
-                      {mobilePanel === 'layers' ? 'LAYERS & STATS' : mobilePanel === 'markets' ? 'MARKETS & INTEL' : mobilePanel === 'intel' ? 'INTEL FEED' : mobilePanel === 'recon' ? 'OSIRIS RECON' : mobilePanel === 'remote' ? 'WORLD REMOTE' : 'SEARCH'}
+                      {mobilePanel === 'layers' ? 'LAYERS & STATS' : mobilePanel === 'markets' ? 'MARKETS & INTEL' : mobilePanel === 'intel' ? 'INTEL FEED' : mobilePanel === 'recon' ? 'OSIRIS RECON' : mobilePanel === 'remote' ? 'WORLD REMOTE' : mobilePanel === 'lab' ? 'AI LAB' : 'SEARCH'}
                     </span>
                     <button onClick={() => setMobilePanel(null)} className="text-[var(--text-muted)] p-1"><X className="w-4 h-4" /></button>
                   </div>
@@ -1748,6 +1779,13 @@ export default function Dashboard() {
                     <div className="space-y-2">
                       <OsintPanel isOpen={true} onClose={() => setMobilePanel(null)} isMobile={true} onSweepVisualize={setSweepData} />
                     </div>
+                  )}
+                  {mobilePanel === 'lab' && (
+                    <LabPanel
+                      isMobile={true}
+                      onClose={() => setMobilePanel(null)}
+                      onLocate={(lat, lng) => { setFlyToLocation({ lat, lng, ts: Date.now() }); setMobilePanel(null); }}
+                    />
                   )}
                   {mobilePanel === 'remote' && (
                     <WorldRemote onClose={() => setMobilePanel(null)} onPlaceOnMap={(devs) => {
