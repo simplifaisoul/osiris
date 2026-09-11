@@ -61,6 +61,27 @@ const SYSTEM_PRESETS: SystemPreset[] = [
   }
 ];
 
+
+/** Structured prose — avoid whitespace-pre-wrap brick walls */
+function ProseBlocks({ text, className = '' }: { text: string; className?: string }) {
+  const blocks = text.split(/\n{2,}/).map((b) => b.trim()).filter(Boolean);
+  const paras = blocks.length > 0 ? blocks : [text];
+  return (
+    <div className={`intel-prose ${className}`.trim()}>
+      {paras.map((para, i) => (
+        <p key={i}>
+          {para.split('\n').map((line, j, arr) => (
+            <span key={j}>
+              {line}
+              {j < arr.length - 1 ? <br /> : null}
+            </span>
+          ))}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 export default function LocalAiStudio() {
   const [mainTab, setMainTab] = useState<'chat' | 'vision'>('vision');
   const [messages, setMessages] = useState<Message[]>([
@@ -250,21 +271,23 @@ export default function LocalAiStudio() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-5rem)] bg-slate-950 text-slate-100 rounded-2xl border border-slate-800 shadow-2xl overflow-hidden font-sans">
+    <div className="flex flex-col h-[calc(100vh-5rem)] bg-[var(--bg-void)] text-[var(--text-primary)] rounded-2xl glass-panel overflow-hidden font-[family-name:var(--font-body)]">
       {/* Top Header & Metrics Dashboard Bar */}
-      <div className="flex flex-wrap items-center justify-between px-6 py-4 bg-slate-900/80 border-b border-slate-800 backdrop-blur-md">
+      <div className="flex flex-wrap items-center justify-between px-6 py-4 bg-[var(--bg-panel)] border-b border-[var(--border-primary)] backdrop-blur-md">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 rounded-xl text-indigo-400">
+          <div className="p-2.5 bg-[rgba(var(--gold-rgb),0.12)] border border-[var(--border-primary)] rounded-xl text-[var(--gold-primary)]">
             <Cpu className="w-5 h-5 animate-pulse" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="font-bold text-slate-100 text-base tracking-tight">⚡ 로컬 AI 통합 스튜디오</h2>
-              <div className="flex items-center bg-slate-950 p-1 border border-slate-800 rounded-lg text-xs font-mono ml-2">
+              <h2 className="intel-title intel-title--hud text-[var(--text-heading)]">⚡ 로컬 AI 통합 스튜디오</h2>
+              <div className="flex items-center bg-[var(--bg-void)] p-1 border border-[var(--border-secondary)] rounded-lg intel-meta ml-2">
                 <button
                   onClick={() => setMainTab('chat')}
                   className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-colors ${
-                    mainTab === 'chat' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:text-slate-200'
+                    mainTab === 'chat'
+                      ? 'bg-[rgba(var(--gold-rgb),0.2)] text-[var(--gold-primary)] font-semibold border border-[var(--border-active)]'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
                   }`}
                 >
                   <MessageSquare className="w-3.5 h-3.5" /> 💬 AI 대화
@@ -272,41 +295,43 @@ export default function LocalAiStudio() {
                 <button
                   onClick={() => setMainTab('vision')}
                   className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-colors ${
-                    mainTab === 'vision' ? 'bg-amber-600 text-white font-bold' : 'text-slate-400 hover:text-slate-200'
+                    mainTab === 'vision'
+                      ? 'bg-[rgba(var(--cyan-rgb),0.15)] text-[var(--cyan-primary)] font-semibold border border-[var(--border-cyan)]'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
                   }`}
                 >
                   <Eye className="w-3.5 h-3.5" /> 🍌 제미니 바나나 2.0 & OCR
                 </button>
               </div>
             </div>
-            <p className="text-xs text-slate-400 font-mono">모델: {modelLabel()}{healthInfo.listenPort ? ` · Ollama :${healthInfo.listenPort}` : ''}{statusHint ? ` · ${statusHint}` : ''}</p>
+            <p className="intel-meta mt-0.5">모델: {modelLabel()}{healthInfo.listenPort ? ` · Ollama :${healthInfo.listenPort}` : ''}{statusHint ? ` · ${statusHint}` : ''}</p>
           </div>
         </div>
 
         {/* Real-time Hardware Metrics Gauges */}
-        <div className="flex items-center gap-4 text-xs font-mono bg-slate-950/60 border border-slate-800 px-4 py-2 rounded-xl">
+        <div className="flex items-center gap-4 intel-meta bg-[var(--bg-void)]/60 border border-[var(--border-secondary)] px-4 py-2 rounded-xl">
           <div className="flex items-center gap-2">
-            <Zap className="w-3.5 h-3.5 text-amber-400" />
-            <span className="text-slate-400">입력 속도:</span>
-            <span className="text-amber-300 font-bold">{metrics.promptTps > 0 ? `${metrics.promptTps} t/s` : '89.4 t/s'}</span>
+            <Zap className="w-3.5 h-3.5 text-[var(--gold-primary)]" />
+            <span className="text-[var(--text-muted)]">입력 속도:</span>
+            <span className="text-[var(--gold-light)] font-semibold">{metrics.promptTps > 0 ? `${metrics.promptTps} t/s` : '89.4 t/s'}</span>
           </div>
-          <div className="h-3 w-px bg-slate-800" />
+          <div className="h-3 w-px bg-[var(--border-primary)]" />
           <div className="flex items-center gap-2">
-            <Activity className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="text-slate-400">답변 속도:</span>
-            <span className="text-indigo-300 font-bold">{metrics.genTps > 0 ? `${metrics.genTps} t/s` : '9.7 t/s'}</span>
+            <Activity className="w-3.5 h-3.5 text-[var(--cyan-primary)]" />
+            <span className="text-[var(--text-muted)]">답변 속도:</span>
+            <span className="text-[var(--cyan-primary)] font-semibold">{metrics.genTps > 0 ? `${metrics.genTps} t/s` : '9.7 t/s'}</span>
           </div>
-          <div className="h-3 w-px bg-slate-800" />
+          <div className="h-3 w-px bg-[var(--border-primary)]" />
           <div className="flex items-center gap-2">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="text-slate-400">상태:</span>
-            <span className={`font-semibold ${serverStatus === 'connected' ? 'text-emerald-400' : 'text-amber-400'}`}>
+            <ShieldCheck className="w-3.5 h-3.5 text-[var(--alert-green)]" />
+            <span className="text-[var(--text-muted)]">상태:</span>
+            <span className={`font-semibold ${serverStatus === 'connected' ? 'text-[var(--alert-green)]' : 'text-[var(--alert-orange)]'}`}>
               {serverStatus === 'connected' ? (healthInfo.inference === false ? '연결됨 · 추론 대기' : '연결 완료 (온라인)') : serverStatus === 'error' ? '오프라인' : '확인 중'}
             </span>
           </div>
           <button 
             onClick={checkHealth}
-            className="p-1 hover:bg-slate-800 rounded transition-colors text-slate-400 hover:text-slate-200"
+            className="p-1 hover:bg-[var(--hover-accent)] rounded transition-colors text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             title="상태 새로고침"
           >
             <RefreshCw className="w-3.5 h-3.5" />
@@ -321,18 +346,18 @@ export default function LocalAiStudio() {
       ) : (
         <>
           {/* Preset System Prompt Selection Strip */}
-          <div className="flex items-center gap-2 px-6 py-2 bg-slate-900/40 border-b border-slate-800/80 overflow-x-auto text-xs">
-        <span className="text-slate-500 font-medium shrink-0 flex items-center gap-1">
+          <div className="flex items-center gap-2 px-6 py-2 bg-[var(--bg-secondary)]/60 border-b border-[var(--border-secondary)] overflow-x-auto">
+        <span className="intel-label shrink-0 flex items-center gap-1">
           <Sliders className="w-3.5 h-3.5" /> 페르소나:
         </span>
         {SYSTEM_PRESETS.map(preset => (
           <button
             key={preset.id}
             onClick={() => setActivePreset(preset)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all shrink-0 font-medium ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all shrink-0 intel-meta ${
               activePreset.id === preset.id
-                ? 'bg-indigo-600/20 border-indigo-500/50 text-indigo-200 shadow-sm shadow-indigo-500/10'
-                : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                ? 'bg-[rgba(var(--gold-rgb),0.14)] border-[var(--border-active)] text-[var(--gold-light)]'
+                : 'bg-[var(--bg-panel-solid)] border-[var(--border-secondary)] text-[var(--text-muted)] hover:bg-[var(--hover-accent)] hover:text-[var(--text-secondary)]'
             }`}
           >
             <span>{preset.icon}</span>
@@ -349,7 +374,7 @@ export default function LocalAiStudio() {
             className={`flex gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             {msg.role === 'assistant' && (
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white shrink-0 shadow-md shadow-indigo-500/20">
+              <div className="w-8 h-8 rounded-xl bg-[rgba(var(--gold-rgb),0.18)] border border-[var(--border-active)] flex items-center justify-center text-[var(--gold-primary)] shrink-0">
                 <Bot className="w-4 h-4" />
               </div>
             )}
@@ -357,20 +382,20 @@ export default function LocalAiStudio() {
             <div className={`max-w-[80%] space-y-2 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
               {/* Reasoning / Thinking Accordion */}
               {msg.reasoning && (
-                <div className="bg-slate-900/90 border border-slate-800 rounded-xl overflow-hidden">
+                <div className="glass-panel-sm overflow-hidden">
                   <button
                     onClick={() => toggleReasoning(msg.id)}
-                    className="w-full px-3 py-1.5 bg-slate-900 flex items-center justify-between text-xs text-slate-400 hover:text-slate-200 transition-colors border-b border-slate-800/50 font-mono"
+                    className="w-full px-3 py-1.5 bg-[var(--bg-panel-solid)] flex items-center justify-between intel-label hover:text-[var(--text-secondary)] transition-colors border-b border-[var(--border-secondary)]"
                   >
                     <span className="flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-purple-400 animate-spin-slow" />
+                      <Sparkles className="w-3.5 h-3.5 text-[var(--cyan-primary)]" />
                       추론 / Thinking 과정
                     </span>
                     {expandedReasoning[msg.id] ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                   </button>
                   {expandedReasoning[msg.id] && (
-                    <div className="p-3 text-xs font-mono text-slate-400 bg-slate-950/60 leading-relaxed whitespace-pre-wrap border-t border-slate-800/40">
-                      {msg.reasoning}
+                    <div className="p-3 intel-body bg-[var(--bg-void)]/60 border-t border-[var(--border-secondary)]">
+                      <ProseBlocks text={msg.reasoning} />
                     </div>
                   )}
                 </div>
@@ -378,45 +403,45 @@ export default function LocalAiStudio() {
 
               {/* Message Content Box */}
               <div
-                className={`p-4 rounded-2xl leading-relaxed text-sm shadow-sm ${
+                className={`p-4 rounded-2xl shadow-sm ${
                   msg.role === 'user'
-                    ? 'bg-indigo-600 text-white rounded-br-none font-medium'
-                    : 'bg-slate-900 border border-slate-800 text-slate-200 rounded-bl-none'
+                    ? 'bg-[rgba(var(--cyan-rgb),0.14)] border border-[var(--border-cyan)] text-[var(--text-heading)] rounded-br-none'
+                    : 'bg-[var(--bg-panel-solid)] border border-[var(--border-primary)] text-[var(--text-secondary)] rounded-bl-none'
                 }`}
               >
-                <div className="whitespace-pre-wrap leading-relaxed">
+                <div>
                   {msg.content.includes('![') ? (
                     (() => {
                       const regex = /!\[(.*?)\]\((.*?)\)/g;
-                      const parts = [];
+                      const parts: React.ReactNode[] = [];
                       let lastIndex = 0;
                       let match;
                       while ((match = regex.exec(msg.content)) !== null) {
                         if (match.index > lastIndex) {
-                          parts.push(msg.content.substring(lastIndex, match.index));
+                          parts.push(<ProseBlocks key={`t-${lastIndex}`} text={msg.content.substring(lastIndex, match.index)} />);
                         }
                         const alt = match[1];
                         const src = match[2];
                         parts.push(
-                          <div key={match.index} className="my-3 max-w-sm rounded-xl overflow-hidden border border-amber-500/40 bg-slate-950 p-2 shadow-lg">
+                          <div key={match.index} className="my-3 max-w-sm rounded-xl overflow-hidden border border-[var(--border-active)] bg-[var(--bg-void)] p-2 shadow-lg">
                             <img src={src} alt={alt} className="w-full h-auto rounded-lg object-contain hover:scale-105 transition-transform" />
-                            <div className="mt-1.5 text-[11px] font-mono text-amber-400 text-center font-bold">{alt}</div>
+                            <div className="mt-1.5 intel-label text-center text-[var(--gold-primary)]">{alt}</div>
                           </div>
                         );
                         lastIndex = match.index + match[0].length;
                       }
                       if (lastIndex < msg.content.length) {
-                        parts.push(msg.content.substring(lastIndex));
+                        parts.push(<ProseBlocks key={`t-${lastIndex}`} text={msg.content.substring(lastIndex)} />);
                       }
                       return parts;
                     })()
                   ) : (
-                    msg.content
+                    <ProseBlocks text={msg.content} className={msg.role === 'user' ? 'text-[var(--text-heading)]' : ''} />
                   )}
                 </div>
 
                 {/* Footer Metadata */}
-                <div className="flex items-center justify-between gap-4 mt-3 pt-2 border-t border-slate-800/40 text-[11px] text-slate-400 font-mono">
+                <div className="flex items-center justify-between gap-4 mt-3 pt-2 border-t border-[var(--border-secondary)] intel-meta">
                   <span>{msg.timestamp}</span>
                   {msg.role === 'assistant' && (
                     <div className="flex items-center gap-3">
@@ -427,10 +452,10 @@ export default function LocalAiStudio() {
                       )}
                       <button
                         onClick={() => handleCopy(msg.id, msg.content)}
-                        className="hover:text-slate-200 transition-colors flex items-center gap-1"
+                        className="hover:text-[var(--text-primary)] transition-colors flex items-center gap-1"
                         title="복사"
                       >
-                        {copiedId === msg.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copiedId === msg.id ? <Check className="w-3.5 h-3.5 text-[var(--alert-green)]" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>
                     </div>
                   )}
@@ -439,7 +464,7 @@ export default function LocalAiStudio() {
             </div>
 
             {msg.role === 'user' && (
-              <div className="w-8 h-8 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-cyan)] flex items-center justify-center text-[var(--cyan-primary)] shrink-0">
                 <User className="w-4 h-4" />
               </div>
             )}
@@ -447,30 +472,30 @@ export default function LocalAiStudio() {
         ))}
 
 {chatRag && chatRag.assertiveAllowed === false && (
-        <div className="mx-4 mb-2 rounded-md border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs text-slate-400">
+        <div className="mx-4 mb-2 rounded-md border border-[var(--border-secondary)] bg-[var(--bg-panel)] px-3 py-2 intel-meta text-[var(--text-muted)]">
           관측/출처 없음 · 단정·고confidence 표시 안 함
         </div>
       )}
       {chatRag && chatRag.assertiveAllowed === true && chatRag.citations.length > 0 && (
         <div className="mx-4 mb-2 flex flex-wrap gap-1.5">
           {chatRag.citations.slice(0, 3).map((c, i) => (
-            <span key={c.id || i} className="rounded bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 text-[10px] text-emerald-300/90 truncate max-w-[14rem]" title={c.title || ''}>
+            <span key={c.id || i} className="rounded bg-[rgba(0,230,118,0.08)] border border-[rgba(0,230,118,0.28)] px-2 py-0.5 intel-label text-[var(--alert-green)] truncate max-w-[14rem]" title={c.title || ''}>
               RAG · {c.title || c.id || 'citation'}
             </span>
           ))}
         </div>
       )}
               {loading && (
-          <div className="flex flex-col gap-2 text-slate-400 text-sm font-mono bg-slate-900/60 p-4 border border-slate-800 rounded-2xl w-fit min-w-[240px]">
+          <div className="flex flex-col gap-2 intel-meta glass-panel-sm p-4 w-fit min-w-[240px]">
             <div className="flex items-center gap-3">
-              <Bot className="w-5 h-5 text-indigo-400 animate-spin" />
+              <Bot className="w-5 h-5 text-[var(--gold-primary)] animate-spin" />
               <span>추론 생성 중... {Math.max(0, Math.round(streamElapsedMs / 1000))}s</span>
             </div>
-            <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
-              <div className="h-full w-1/3 rounded-full bg-indigo-500 animate-pulse" />
+            <div className="h-1.5 w-full rounded-full bg-[var(--bg-tertiary)] overflow-hidden">
+              <div className="h-full w-1/3 rounded-full bg-[var(--gold-primary)] animate-pulse" />
             </div>
             {timeoutSoon && (
-              <button type="button" onClick={() => handleSubmit()} className="text-amber-300 hover:text-amber-200 underline text-left">
+              <button type="button" onClick={() => handleSubmit()} className="text-[var(--alert-orange)] hover:text-[var(--gold-light)] underline text-left">
                 재시도
               </button>
             )}
@@ -481,7 +506,7 @@ export default function LocalAiStudio() {
       </div>
 
       {/* Message Input Area */}
-      <form onSubmit={handleSubmit} className="p-4 bg-slate-900 border-t border-slate-800">
+      <form onSubmit={handleSubmit} className="p-4 bg-[var(--bg-panel)] border-t border-[var(--border-primary)]">
         <div className="relative flex items-center">
           <input
             type="text"
@@ -489,12 +514,12 @@ export default function LocalAiStudio() {
             onChange={(e) => setInput(e.target.value)}
             placeholder={`${activePreset.name}에게 무엇이든 물어보세요...`}
             disabled={loading}
-            className="w-full bg-slate-950 text-slate-100 border border-slate-800 rounded-xl px-4 py-3.5 pr-12 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 font-sans"
+            className="w-full bg-[var(--bg-void)] text-[var(--text-primary)] border border-[var(--border-primary)] rounded-xl px-4 py-3.5 pr-12 intel-body focus:outline-none focus:border-[var(--border-active)] transition-colors disabled:opacity-50"
           />
           <button
             type="submit"
             disabled={loading || !input.trim()}
-            className="absolute right-2.5 p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors disabled:opacity-40 disabled:hover:bg-indigo-600 shadow-sm"
+            className="absolute right-2.5 p-2 bg-[rgba(var(--gold-rgb),0.25)] hover:bg-[rgba(var(--gold-rgb),0.4)] text-[var(--gold-primary)] border border-[var(--border-active)] rounded-lg transition-colors disabled:opacity-40 shadow-sm"
           >
             <Send className="w-4 h-4" />
           </button>

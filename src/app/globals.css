@@ -266,6 +266,127 @@ html:has(.docs-root) body {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   INTEL TYPE SCALE — readable hierarchy on OSIRIS tokens
+   Compatible with existing .hud-* / .gotham-* chrome.
+   Do not invent palette; reuse --text-* / --font-*.
+   ═══════════════════════════════════════════════════════════════ */
+.intel-label {
+  font-family: var(--font-hud);
+  font-size: 8.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.intel-meta {
+  font-family: var(--font-hud);
+  font-size: 9.5px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+.intel-body {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.intel-title {
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-heading);
+  line-height: 1.35;
+}
+
+.intel-title--hud {
+  font-family: var(--font-hud);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+.intel-prose {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+
+.intel-prose p {
+  margin: 0;
+}
+
+.intel-prose p + p {
+  margin-top: 0.65em;
+}
+
+.intel-prose h2,
+.intel-prose h3,
+.intel-prose h4 {
+  font-family: var(--font-body);
+  font-weight: 600;
+  color: var(--text-heading);
+  letter-spacing: 0.02em;
+  line-height: 1.35;
+  margin: 0.75em 0 0.35em;
+}
+
+.intel-prose h2 { font-size: 13px; }
+.intel-prose h3 {
+  font-size: 12.5px;
+  border-bottom: 1px solid var(--border-secondary);
+  padding-bottom: 4px;
+}
+.intel-prose h4 { font-size: 12px; }
+
+.intel-prose strong {
+  color: var(--text-heading);
+  font-weight: 600;
+}
+
+.intel-prose em {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.intel-prose-list {
+  list-style: none;
+  margin: 0.45em 0;
+  padding: 0;
+}
+
+.intel-prose-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0.28em 0;
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.intel-prose-list li::before {
+  content: "◆";
+  flex-shrink: 0;
+  margin-top: 2px;
+  font-size: 8px;
+  color: var(--gold-dim);
+  font-family: var(--font-hud);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
    ANIMATIONS
    ═══════════════════════════════════════════════════════════════ */
 @keyframes osiris-pulse {
@@ -320,16 +441,84 @@ html:has(.docs-root) body {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   MAP OVERRIDES
+   MAP OVERRIDES & LEFT-DOCK INTEL POPUP (좌측 지도 시작 지점 고정 도킹)
    ═══════════════════════════════════════════════════════════════ */
-.maplibregl-popup-content { background: transparent !important; border: none !important; box-shadow: none !important; padding: 0 !important; }
-.maplibregl-popup-tip { display: none !important; }
-.maplibregl-ctrl-attrib { display: none !important; }
-.maplibregl-popup-close-button { color: var(--text-muted) !important; font-size: 16px !important; padding: 4px 8px !important; }
-.maplibregl-popup-close-button:hover { color: var(--gold-primary) !important; }
+.maplibregl-popup {
+  position: absolute !important;
+  left: 56px !important;
+  top: 76px !important;
+  bottom: auto !important;
+  right: auto !important;
+  transform: none !important;
+  max-width: 440px !important;
+  width: min(440px, calc(100vw - 72px)) !important;
+  max-height: calc(100vh - 120px) !important;
+  z-index: 250 !important;
+  pointer-events: auto !important;
+  margin: 0 !important;
+  animation: mapPopupSlideInLeft 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+@keyframes mapPopupSlideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-18px) !important;
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) !important;
+  }
+}
+
+.maplibregl-popup-content {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  max-height: calc(100vh - 120px) !important;
+  overflow-y: auto !important;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 215, 0, 0.4) transparent;
+}
+
+.maplibregl-popup-content::-webkit-scrollbar {
+  width: 5px;
+}
+.maplibregl-popup-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 215, 0, 0.35);
+  border-radius: 4px;
+}
+.maplibregl-popup-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.maplibregl-popup-tip {
+  display: none !important;
+}
+.maplibregl-ctrl-attrib {
+  display: none !important;
+}
+.maplibregl-popup-close-button {
+  color: var(--text-muted) !important;
+  font-size: 18px !important;
+  padding: 6px 10px !important;
+  top: 8px !important;
+  right: 8px !important;
+  z-index: 20 !important;
+  background: rgba(0, 0, 0, 0.75) !important;
+  border-radius: 6px !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer !important;
+}
+.maplibregl-popup-close-button:hover {
+  color: #FFD700 !important;
+  border-color: #FFD700 !important;
+  background: rgba(0, 0, 0, 0.95) !important;
+}
 
 .map-focus-active .maplibregl-canvas-container { filter: brightness(0.3); transition: filter 0.3s ease; }
-.map-focus-active .maplibregl-popup { z-index: 10 !important; }
+.map-focus-active .maplibregl-popup { z-index: 300 !important; }
 
 /* ── Layer Toggle Switch ── */
 .layer-toggle {
@@ -449,10 +638,24 @@ html:has(.docs-root) body {
   /* Hide desktop panels */
   .desktop-panel { display: none !important; }
 
-  /* Adjust map popups for touch */
-  .maplibregl-popup { max-width: 260px !important; font-size: 10px !important; }
-  .maplibregl-popup-content { max-width: 260px !important; padding: 8px !important; }
-  .maplibregl-popup-close-button { font-size: 18px !important; padding: 4px 8px !important; }
+  /* Adjust map popups for touch & mobile left-dock */
+  .maplibregl-popup {
+    left: 10px !important;
+    top: 60px !important;
+    max-width: calc(100vw - 20px) !important;
+    width: calc(100vw - 20px) !important;
+    max-height: calc(100vh - 130px) !important;
+    font-size: 11px !important;
+  }
+  .maplibregl-popup-content {
+    max-width: calc(100vw - 20px) !important;
+    max-height: calc(100vh - 130px) !important;
+    padding: 0 !important;
+  }
+  .maplibregl-popup-close-button {
+    font-size: 18px !important;
+    padding: 6px 10px !important;
+  }
 
   /* Glass panel mobile tweaks */
   .glass-panel { border-radius: 12px; }

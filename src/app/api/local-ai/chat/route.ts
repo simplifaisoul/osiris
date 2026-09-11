@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { withThinkingOsMessages } from '@/lib/local-thinking-os';
 
 const OLLAMA = process.env.OLLAMA_BASE_URL ?? 'http://127.0.0.1:11434';
 const PREFERRED_MODEL = process.env.LOCAL_AI_MODEL ?? 'qwen3:14b-osiris';
@@ -70,11 +71,32 @@ async function softRag(lastUser: string): Promise<ChatRag> {
           return false;
         });
       };
-      let strong = hits.filter((h) => h.score >= RAG_STRONG && grounded(h.doc.title, h.doc.content));
+      const isProtocolDoc = (doc: { id?: string; category?: string; metadata?: Record<string, unknown> }) => {
+        const id = String(doc.id || '').toLowerCase();
+        const cat = String(doc.category || '').toLowerCase();
+        const tags = doc.metadata?.tags;
+        const tagHit = Array.isArray(tags) && tags.some((x) => {
+          const s = String(x).toLowerCase();
+          return s.includes('thinking-os') || s.includes('protocol');
+        });
+        return (
+          tagHit ||
+          cat === 'thinking-os' ||
+          cat.includes('protocol') ||
+          id.startsWith('thinking-os') ||
+          id.includes('protocol') ||
+          id.includes('ui-field-contract') ||
+          id.includes('inject-spec')
+        );
+      };
+      // Protocol/contract docs never count as domain observation citations
+      let strong = hits.filter(
+        (h) => !isProtocolDoc(h.doc) && h.score >= RAG_STRONG && grounded(h.doc.title, h.doc.content),
+      );
       if (strong.length === 0) {
         const store = loadVectorStore();
         strong = store
-          .filter((doc) => grounded(doc.title, doc.content))
+          .filter((doc) => !isProtocolDoc(doc) && grounded(doc.title, doc.content))
           .slice(0, 3)
           .map((doc) => ({ doc, score: 1 }));
       }
@@ -158,6 +180,7 @@ export async function POST(req: NextRequest) {
   } else {
     chatMessages = [{ role: 'system', content: domain }, ...chatMessages];
   }
+  chatMessages = withThinkingOsMessages(chatMessages);
 
   const started = Date.now();
   const encoder = new TextEncoder();

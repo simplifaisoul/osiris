@@ -172,9 +172,18 @@ function buildContext(data: DashboardData): IntelligenceContext {
   };
 }
 
-/** Render markdown-lite: bold, headers, bullet points */
+/** Inline markdown (bold/italic) after HTML escape */
+function applyInlineMarkdown(s: string): string {
+  return s
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>');
+}
+
+/**
+ * Render markdown-lite with paragraph structure.
+ * Avoid blanket every-newline→<br> (brick walls); use .intel-prose hierarchy.
+ */
 function renderMarkdown(text: string): string {
-  // Basic HTML escape to prevent XSS
   const escaped = text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -182,14 +191,59 @@ function renderMarkdown(text: string): string {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 
-  return escaped
-    .replace(/### (.+)/g, '<h4 class="text-[11px] font-bold text-[var(--gold-primary)] mt-3 mb-1 tracking-wider uppercase font-mono">$1</h4>')
-    .replace(/## (.+)/g, '<h3 class="text-[12px] font-bold text-[var(--gold-primary)] mt-3 mb-1.5 tracking-wider uppercase font-mono border-b border-[var(--border-secondary)] pb-1">$1</h3>')
-    .replace(/# (.+)/g, '<h2 class="text-[13px] font-bold text-[var(--gold-primary)] mt-3 mb-1.5 tracking-wider uppercase font-mono">$1</h2>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong class="text-[var(--text-heading)] font-semibold">$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em class="text-[var(--text-secondary)] italic">$1</em>')
-    .replace(/^- (.+)/gm, '<div class="flex items-start gap-1.5 ml-1 my-0.5"><span class="text-[var(--gold-dim)] mt-[3px] text-[8px]">◆</span><span>$1</span></div>')
-    .replace(/\n/g, '<br />');
+  const blocks = escaped.split(/\n{2,}/);
+  const out: string[] = [];
+
+  for (const raw of blocks) {
+    const block = raw.trim();
+    if (!block) continue;
+
+    const lines = block.split('\n');
+    const nonEmpty = lines.filter((l) => l.trim().length > 0);
+
+    // Pure bullet list block
+    if (nonEmpty.length > 0 && nonEmpty.every((l) => /^-\s+/.test(l))) {
+      const items = nonEmpty
+        .map((l) => `<li>${applyInlineMarkdown(l.replace(/^-\s+/, ''))}</li>`)
+        .join('');
+      out.push(`<ul class="intel-prose-list">${items}</ul>`);
+      continue;
+    }
+
+    // Heading-only or heading + body
+    const hMatch = lines[0].match(/^(#{1,3})\s+(.+)$/);
+    if (hMatch) {
+      const level = hMatch[1].length;
+      const title = applyInlineMarkdown(hMatch[2]);
+      const tag = level === 1 ? 'h2' : level === 2 ? 'h3' : 'h4';
+      out.push(`<${tag}>${title}</${tag}>`);
+      const rest = lines.slice(1).join('\n').trim();
+      if (rest) {
+        // Recurse-ish: remaining as nested paragraphs without re-escaping
+        const sub = rest.split(/\n{2,}/);
+        for (const sraw of sub) {
+          const s = sraw.trim();
+          if (!s) continue;
+          const slines = s.split('\n').filter((l) => l.trim());
+          if (slines.length > 0 && slines.every((l) => /^-\s+/.test(l))) {
+            const items = slines
+              .map((l) => `<li>${applyInlineMarkdown(l.replace(/^-\s+/, ''))}</li>`)
+              .join('');
+            out.push(`<ul class="intel-prose-list">${items}</ul>`);
+          } else {
+            out.push(`<p>${applyInlineMarkdown(s.replace(/\n/g, ' '))}</p>`);
+          }
+        }
+      }
+      continue;
+    }
+
+    // Mixed lines with bullets interleaved — keep simple: collapse soft newlines to spaces
+    // but preserve standalone bullet lines as list when majority
+    out.push(`<p>${applyInlineMarkdown(block.replace(/\n/g, ' '))}</p>`);
+  }
+
+  return out.join('');
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -475,7 +529,7 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                   </div>
                   <div className="flex flex-col">
                     <span className="hud-text text-[11px] text-[var(--text-heading)]">⚡ AI 군사지능 분석관</span>
-                    <span className="text-[7px] font-mono tracking-[0.2em] text-[var(--text-muted)]">
+                    <span className="intel-label">
                       GEMINI 2.0 FLASH • ONLINE
                     </span>
                   </div>
@@ -696,7 +750,7 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                           <Bot className="w-3 h-3 text-[var(--gold-primary)]" />
                         )}
                         <span
-                          className="text-[8px] font-mono tracking-[0.15em] uppercase"
+                          className="intel-label"
                           style={{
                             color: msg.role === 'user'
                               ? 'var(--cyan-primary)'
@@ -727,7 +781,7 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                             </span>
                           );
                         })()}
-                        <span className="text-[7px] font-mono text-[var(--text-muted)] ml-auto">
+                        <span className="intel-meta ml-auto text-[var(--text-muted)]">
                           {new Date(msg.timestamp).toLocaleTimeString([], {
                             hour: '2-digit',
                             minute: '2-digit',
@@ -738,13 +792,15 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                       {/* Message content */}
                       {msg.role === 'analyst' && !msg.isError ? (
                         <div
-                          className="text-[11px] font-mono text-[var(--text-primary)] leading-relaxed whitespace-pre-wrap break-words"
+                          className="intel-prose"
                           dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
                         />
                       ) : (
-                        <p className="text-[11px] font-mono text-[var(--text-primary)] leading-relaxed whitespace-pre-wrap break-words">
-                          {msg.content}
-                        </p>
+                        <div className="intel-prose">
+                          {msg.content.split(/\n{2,}/).map((para, i) => (
+                            <p key={i}>{para.replace(/\n/g, ' ')}</p>
+                          ))}
+                        </div>
                       )}
                     </div>
                   </motion.div>

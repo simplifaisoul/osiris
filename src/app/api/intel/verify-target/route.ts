@@ -111,12 +111,33 @@ export async function POST(req: NextRequest) {
         return nameTokens.some((tok) => blob.includes(tok));
       };
       // Vector strong: high score + lexical grounding (blocks unrelated NK noise)
-      let strong = hits.filter((h) => h.score >= RAG_STRONG && grounded(h.doc.title, h.doc.content));
+      const isProtocolDoc = (doc: { id?: string; category?: string; metadata?: Record<string, unknown> }) => {
+        const id = String(doc.id || '').toLowerCase();
+        const cat = String(doc.category || '').toLowerCase();
+        const tags = doc.metadata?.tags;
+        const tagHit = Array.isArray(tags) && tags.some((x) => {
+          const s = String(x).toLowerCase();
+          return s.includes('thinking-os') || s.includes('protocol');
+        });
+        return (
+          tagHit ||
+          cat === 'thinking-os' ||
+          cat.includes('protocol') ||
+          id.startsWith('thinking-os') ||
+          id.includes('protocol') ||
+          id.includes('ui-field-contract') ||
+          id.includes('inject-spec')
+        );
+      };
+      let strong = hits.filter(
+        (h) => !isProtocolDoc(h.doc) && h.score >= RAG_STRONG && grounded(h.doc.title, h.doc.content),
+      );
       // Lexical fallback: only exact full-name substring (embedding miss on KO names)
       if (strong.length === 0 && needle.length >= 2) {
         const store = loadVectorStore();
         strong = store
           .filter((doc) => {
+            if (isProtocolDoc(doc)) return false;
             const blob = `${doc.title} ${doc.content}`.toLowerCase();
             return blob.includes(needle);
           })
