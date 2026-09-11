@@ -8,7 +8,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import {
+  aiModel,
   createGeminiClient,
+  getServerApiKeys,
   rotateApiKey,
   analyzeIntelligence,
   type IntelligenceContext,
@@ -55,21 +57,6 @@ setInterval(() => {
     }
   }
 }, 120_000);
-
-/* ─────────────────────────────────────────────────────────────
-   Collect API keys from environment
-   ───────────────────────────────────────────────────────────── */
-
-function getEnvApiKeys(): string[] {
-  const keys: string[] = [];
-  for (let i = 1; i <= 8; i++) {
-    const key = process.env[`GEMINI_API_KEY_${i}`];
-    if (key && key.trim().length > 0) {
-      keys.push(key.trim());
-    }
-  }
-  return keys;
-}
 
 /* ─────────────────────────────────────────────────────────────
    Request / Response types
@@ -132,12 +119,12 @@ export async function POST(
   if (userKey && userKey.length > 0) {
     apiKey = userKey;
   } else {
-    const envKeys = getEnvApiKeys();
+    const envKeys = getServerApiKeys();
     if (envKeys.length === 0) {
       return NextResponse.json(
         {
           error:
-            'No Gemini API key configured. Set GEMINI_API_KEY_1 in environment or provide a key via the settings panel.',
+            'No Gemini API key configured. Set GEMINI_API_KEY_1 or OSIRIS_AI_BASE_URL in environment, or provide a key via the settings panel.',
           code: 'NO_API_KEY',
         },
         { status: 503 }
@@ -179,7 +166,7 @@ export async function POST(
     return NextResponse.json(
       {
         analysis,
-        model: 'gemini-2.0-flash',
+        model: aiModel(),
         timestamp: new Date().toISOString(),
       },
       {
