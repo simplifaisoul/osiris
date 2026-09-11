@@ -149,7 +149,7 @@ export default function Dashboard() {
   const [dossierLoading, setDossierLoading] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const autoLocateCancelled = useRef(false);
-  const [mapRetry, setMapRetry] = useState(0);
+
   const [activeCamera, setActiveCamera] = useState<any>(null);
   const [spaceWeather, setSpaceWeather] = useState<any>(null);
   const [showLayers, setShowLayers] = useState(true);
@@ -1141,8 +1141,7 @@ export default function Dashboard() {
       {/* ── MAP ── */}
       <ErrorBoundary name="Map">
         <OsirisMap 
-          key={`${osirisTheme}-${mapRetry}`}
-          onRetryMap={() => setMapRetry(retry => retry + 1)}
+          key={osirisTheme}
           data={data} 
           activeLayers={activeLayers} 
           projection={mapProjection === 'mercator' ? 'mercator' : 'globe'}
