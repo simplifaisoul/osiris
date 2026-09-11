@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Map, ProjectionSpecification } from 'maplibre-gl';
-import style from '../../public/dark-matter-style.json';
+
 import { applyMapProjection, GLOBE_PROJECTION, TERRAIN_GLOBE_PROJECTION } from './map-projection';
 import { TERRAIN_MIN_ZOOM } from './map-terrain';
 
@@ -11,16 +11,11 @@ function fixture(initial?: ProjectionSpecification) {
 }
 
 describe('map projection', () => {
-  /* #330 baked a zoom-interpolated projection into the style itself, so every
-     session drew the overview globe through the terrain code path even with
-     terrain switched off — and in production the basemap stopped drawing
-     there while the entity layers kept rendering. The style ships no
-     projection again; the app picks one, and the terrain variant belongs to
+  /* #330 applied a zoom-interpolated projection to every session at every
+     zoom, so the overview globe ran the terrain code path with terrain
+     switched off — and in production the basemap stopped drawing there while
+     the entity layers kept rendering. The terrain variant belongs to
      terrain. */
-  it('ships no projection in the style, as before #330', () => {
-    expect(style).not.toHaveProperty('projection');
-  });
-
   it("uses MapLibre's own adaptive globe when terrain is off", () => {
     const { map, set } = fixture();
     expect(applyMapProjection(map, 'globe')).toBe(true);
