@@ -137,7 +137,7 @@ export function probeSocraticCounterHypothesis(target: SocraticVerificationReque
     contradictions.push('2. [비행계획서 부재] 한미 연합 공역 관제소(MCRC)에 사전 승인된 비행계획서(ATO/Flight Plan) 번호가 미등록됨.');
     contradictions.push('3. [침투성 궤적] 민간 정규 항로(Airway)를 이탈하여 군사분계선/NLL 인근으로 직진 기동 중임.');
   } else if (iff === 'FRIENDLY') {
-    contradictions.push('1. [Mode-5 일치] 아군 군용기 고유의 암호화된 Mode-5 Level 2 보안 코드가 완벽히 응답함.');
+    contradictions.push('1. [Mode-5 일치] 아군 군용기 고유의 암호화된 Mode-5 Level 2 보안 코드가 응답함 (규칙 템플릿 · 실측 확증 아님).');
     contradictions.push('2. [합동 작전선] 한미연합사 공역 통제 명령(ACO)에 승인된 초계 구역 내에서 기동 중임.');
     contradictions.push('3. [공역 기지 링크] 아군 공군기지 TACAN 항법 유도국과의 양방향 링크 정상 교신 중.');
   } else {

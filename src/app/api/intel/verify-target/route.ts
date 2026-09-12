@@ -166,8 +166,8 @@ export async function POST(req: NextRequest) {
       ragCitations = [];
     }
 
-    // 2. 로컬 Ollama Qwen3-14B-OSIRIS 온디바이스 실시간 추론
-    const prompt = `[OSIRIS ${target_type.toUpperCase()} 전술 검증 질의]
+    // 2. 로컬 Ollama Qwen3-14B (로컬) 온디바이스 실시간 추론
+    const prompt = `[번개의 눈동자 ${target_type.toUpperCase()} 전술 검증 질의]
 표적명칭: ${targetName}
 기종/선종: ${model || '미확인'}
 식별번호: ${targetIdentifier}

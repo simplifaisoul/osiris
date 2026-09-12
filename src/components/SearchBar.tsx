@@ -168,7 +168,7 @@ export default function SearchBar({ onLocate, alwaysExpanded = false }: SearchBa
         // Use addressdetails=1 for better type detection and limit=8 for more results
         const res = await fetch(
           `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=8&addressdetails=1&extratags=1`,
-          { headers: { 'Accept-Language': 'en', 'User-Agent': 'OSIRIS-Intelligence-Platform/1.0' } }
+          { headers: { 'Accept-Language': 'en', 'User-Agent': 'LightningEye-Intelligence/1.0' } }
         );
         const data = await res.json();
         setResults(data.map((r: any) => {

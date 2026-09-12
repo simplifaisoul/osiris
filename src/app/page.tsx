@@ -1,15 +1,17 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Layers, BarChart3, Newspaper, Search, X, Globe, MapPinned, Route, Radar, Satellite, Moon, ExternalLink, AlertTriangle, Activity, Database, Wifi, Play, Network, Crosshair, Bluetooth, Pentagon, Radio , PenLine } from 'lucide-react';
+import { Layers, BarChart3, Newspaper, Search, X, Globe, MapPinned, Route, Radar, Satellite, Moon, ExternalLink, AlertTriangle, Activity, Database, Wifi, Play, Network, Crosshair, Bluetooth, Pentagon, Radio, PenLine, Zap } from 'lucide-react';
 import { type TerrainStatus } from '@/lib/map-terrain';
 import { loadCameraCatalog, mergeCameraCatalog } from '@/lib/camera-catalog';
 import IntelFeed from '@/components/IntelFeed';
 import MarketsPanel from '@/components/MarketsPanel';
 import ScmPanel from '@/components/ScmPanel';
 import SearchBar from '@/components/SearchBar';
+import HarnessAuditHud from '@/components/HarnessAuditHud';
 import DirectionsBar, { type RouteResult, type LiveLocation } from '@/components/DirectionsBar';
 import NavigationView from '@/components/NavigationView';
 import FlightWatchPanel, { type WatchedFlight, type FlightTelemetry, type AircraftDetail, type Airport } from '@/components/FlightWatchPanel';
@@ -32,6 +34,7 @@ const CameraViewer = dynamic(() => import('@/components/CameraViewer'));
 const OsintPanel = dynamic(() => import('@/components/OsintPanel'));
 const DrawingToolbar = dynamic(() => import('@/components/DrawingToolbar'), { ssr: false });
 const DrawHud = dynamic(() => import('@/components/DrawHud'), { ssr: false });
+const DprkReportDossierModal = dynamic(() => import('@/components/DprkReportDossierModal'), { ssr: false });
 // The measurement helpers are pure functions — importing them directly keeps
 // them out of the lazy chunk, so a finished polygon can be measured whether or
 // not the toolbar has loaded yet.
@@ -189,12 +192,18 @@ export default function Dashboard() {
   const [watchedFlights, setWatchedFlights] = useState<WatchedFlight[]>([]);
   const [aircraftAirports, setAircraftAirports] = useState<Record<string, Airport[]>>({});
 
-  // The popup lives in raw map HTML, so it hands aircraft over through a global.
+  const [dprkReportModalData, setDprkReportModalData] = useState<any>(null);
+
+  // The popup lives in raw map HTML, so it hands aircraft and DPRK dossiers over through globals.
   useEffect(() => {
     (window as unknown as { osirisWatchFlight?: (f: WatchedFlight) => void }).osirisWatchFlight = (f) => {
       if (!f?.icao24) return;
       setWatchedFlights((prev) =>
         prev.some((w) => w.icao24 === f.icao24) ? prev : [...prev, f].slice(-6));
+    };
+    (window as any).openDprkReportDossier = (data: any) => setDprkReportModalData(data);
+    return () => {
+      delete (window as any).openDprkReportDossier;
     };
   }, []);
 
@@ -288,12 +297,12 @@ export default function Dashboard() {
   const geocodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastGeocodedPos = useRef<{ lat: number; lng: number } | null>(null);
 
-  // ── DEFAULT: Most layers OFF — fast initial load ──
+  // ── DEFAULT: Tactical layers ON ──
   const [activeLayers, setActiveLayers] = useState({
-    flights: false,
+    flights: true,
     private: false,
     jets: false,
-    military: false,
+    military: true,
     maritime: true,
     satellites: false,
     sat_comms: false,
@@ -312,6 +321,9 @@ export default function Dashboard() {
     radiation: false,
     infrastructure: false,
     global_incidents: true,
+    dprk_sites: true,
+    dprk_activity: true,
+    seismic_watch: true,
     war_alerts: false,
     day_night: true,
     cables: true,
@@ -473,7 +485,7 @@ export default function Dashboard() {
           setLocationLabel(label);
           lastGeocodedPos.current = coords;
         }
-      } catch (e) { console.warn('[OSIRIS] Suppressed error:', e instanceof Error ? e.message : e); }
+      } catch (e) { console.warn('[번개의눈동자] Suppressed error:', e instanceof Error ? e.message : e); }
     }, 3000); // 3s debounce (was 1.5s)
   }, []);
 
@@ -483,7 +495,7 @@ export default function Dashboard() {
     try {
       const res = await fetch(`/api/region-dossier?lat=${coords.lat}&lng=${coords.lng}`);
       if (res.ok) setRegionDossier(await res.json());
-    } catch (e) { console.warn('[OSIRIS] Suppressed error:', e instanceof Error ? e.message : e); } finally { setDossierLoading(false); }
+    } catch (e) { console.warn('[번개의눈동자] Suppressed error:', e instanceof Error ? e.message : e); } finally { setDossierLoading(false); }
   }, []);
   // Entity click handler (hoisted from JSX to comply with Rules of Hooks - Fixes #113)
   const handleEntityClick = useCallback((entity: any) => {
@@ -588,7 +600,7 @@ export default function Dashboard() {
       }
       return false;
     } catch (e) {
-      console.warn('[OSIRIS] Suppressed error:', e instanceof Error ? e.message : e);
+      console.warn('[번개의눈동자] Suppressed error:', e instanceof Error ? e.message : e);
       setBackendStatus('error');
       return false;
     }
@@ -618,7 +630,7 @@ export default function Dashboard() {
       try {
         const r = await fetch('/api/space-weather');
         if (r.ok) setSpaceWeather(await r.json());
-      } catch (e) { console.warn('[OSIRIS] Suppressed error:', e instanceof Error ? e.message : e); }
+      } catch (e) { console.warn('[번개의눈동자] Suppressed error:', e instanceof Error ? e.message : e); }
     }, 5000);
 
     // Polling — OPTIMIZED intervals to minimize edge requests
@@ -646,7 +658,7 @@ export default function Dashboard() {
       };
       setDataVersion(value => value + 1);
       setBackendStatus('connected');
-    }, () => console.warn('[OSIRIS] Camera catalogue load failed; bounded retry scheduled'));
+    }, () => console.warn('[번개의눈동자] Camera catalogue load failed; bounded retry scheduled'));
   }, [activeLayers.cctv]);
 
   useEffect(() => {
@@ -707,6 +719,24 @@ export default function Dashboard() {
     if (activeLayers.global_incidents && !layerFetchedRef.current.has('gdelt')) {
       fetchEndpoint('/api/gdelt', d => ({ gdelt: d.events }));
       layerFetchedRef.current.add('gdelt');
+    }
+
+    // DPRK Strategic Military, Nuclear, Missile, UAV, Artillery & HARTS Sites
+    if (activeLayers.dprk_sites && !layerFetchedRef.current.has('dprk_sites')) {
+      fetchEndpoint('/api/osint/dprk', d => ({ dprk_sites: d.sites }));
+      layerFetchedRef.current.add('dprk_sites');
+    }
+
+    // Bridge 1: DPRK Military Activity Intelligence (Harness)
+    if (activeLayers.dprk_activity && !layerFetchedRef.current.has('dprk_activity')) {
+      fetchEndpoint('/api/osint/dprk-activity', d => ({ dprk_activities: d.activities }));
+      layerFetchedRef.current.add('dprk_activity');
+    }
+
+    // Bridge 2: Seismic Nuclear Watch
+    if (activeLayers.seismic_watch && !layerFetchedRef.current.has('seismic_watch')) {
+      fetchEndpoint('/api/osint/seismic-watch', d => ({ seismic_events: d.events }));
+      layerFetchedRef.current.add('seismic_watch');
     }
 
     // Submarine Cables
@@ -784,6 +814,12 @@ export default function Dashboard() {
         layerFetchedRef.current.add('cyber_attacks');
       }, 10000)); // 10s — rapid refresh
     }
+    if (activeLayers.dprk_activity) {
+      intervals.push(setInterval(() => fetchEndpoint('/api/osint/dprk-activity', d => ({ dprk_activities: d.activities })), 60000));
+    }
+    if (activeLayers.seismic_watch) {
+      intervals.push(setInterval(() => fetchEndpoint('/api/osint/seismic-watch', d => ({ seismic_events: d.events })), 60000));
+    }
     return () => intervals.forEach(clearInterval);
   }, [activeLayers, fetchEndpoint]);
 
@@ -857,7 +893,7 @@ export default function Dashboard() {
 
   // Reactive layer fetch: handled by layerFetchedRef above (no duplicate)
 
-  // ── OSIRIS SDK — Intelligence Fusion Layer ──
+  // ── 번개의 눈동자 SDK — Intelligence Fusion Layer ──
   // Produces node coordinates for the SDK network mesh visualization.
   // Does NOT duplicate existing layer visuals — SDK layer is LINES ONLY.
   // Cameras are excluded — they have their own dedicated layer.
@@ -1038,16 +1074,16 @@ export default function Dashboard() {
               />
             </div>
 
-            {/* ── OSIRIS title — letter-by-letter stagger ── */}
+            {/* ── Brand title — letter-by-letter stagger ── */}
             <div className="flex items-center gap-[2px] mb-3 z-[2]">
-              {'OSIRIS'.split('').map((letter, i) => (
+              {'번개의 눈동자'.split('').map((letter, i) => (
                 <motion.span
                   key={i}
-                  initial={{ opacity: 0, y: 20, filter: 'blur(8px)' }}
+                  initial={{ opacity: 0, y: 12, filter: 'blur(4px)' }}
                   animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                  transition={{ delay: 0.5 + i * 0.08, duration: 0.5, ease: 'easeOut' }}
-                  className="text-4xl md:text-5xl font-bold tracking-[0.5em] font-mono"
-                  style={{ color: 'var(--text-heading)', textShadow: '0 0 30px rgba(212,175,55,0.2)' }}
+                  transition={{ delay: 0.5 + i * 0.05, duration: 0.45, ease: 'easeOut' }}
+                  className="text-3xl md:text-4xl font-bold tracking-[0.2em] font-mono"
+                  style={{ color: 'var(--text-heading)', textShadow: '0 0 12px var(--gold-glow)' }}
                 >
                   {letter}
                 </motion.span>
@@ -1077,7 +1113,7 @@ export default function Dashboard() {
                   animate={{ width: ['0%', '25%', '50%', '78%', '100%'] }}
                   transition={{ duration: 2.2, delay: 0.5, times: [0, 0.25, 0.5, 0.75, 1], ease: 'easeInOut' }}
                   className="absolute inset-y-0 left-0 rounded-full"
-                  style={{ background: 'linear-gradient(90deg, var(--gold-primary), var(--cyan-primary), var(--gold-primary))', boxShadow: '0 0 12px rgba(212,175,55,0.4)' }}
+                  style={{ background: 'linear-gradient(90deg, var(--gold-primary), var(--cyan-primary), var(--gold-primary))', boxShadow: '0 0 6px var(--gold-glow)' }}
                 />
               </div>
 
@@ -1268,7 +1304,7 @@ export default function Dashboard() {
       >
         {/* Unified Control Strip */}
         <div className="flex items-center gap-[3px] p-[3px] pointer-events-auto rounded-xl border border-[var(--border-primary)] bg-[var(--bg-panel)] backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.55)]">
-          <ViewSegment layoutId="view-projection" active={mapProjection === 'globe'} onClick={() => setMapProjection('globe')} title="3D Globe" icon={Globe} label="3D" />
+          <ViewSegment layoutId="view-projection" active={mapProjection === 'globe'} onClick={() => { setMapProjection('globe'); setActiveLayers(prev => ({ ...prev, terrain_elevation: true })); }} title="3D 입체 지구 & 지형 (3D Globe & Terrain)" icon={Globe} label="3D" />
           <ViewSegment layoutId="view-projection" active={mapProjection === 'mercator'} onClick={selectFlatMap} title="2D Map" icon={MapPinned} label="2D" />
           <div className="w-px h-5 mx-1 bg-[var(--border-secondary)]" />
           <ViewSegment layoutId="view-style" active={mapStyle === 'dark'} onClick={() => setMapStyle('dark')} title="Night Mode" icon={Moon} label="MAP" />
@@ -1286,20 +1322,54 @@ export default function Dashboard() {
 
       {/* ── HEADER ── */}
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, delay: 2.5 }} className={`absolute top-4 z-[200] pointer-events-none flex flex-col`} style={{ left: isMobile ? '24px' : '64px', right: '24px' }}>
-        <div className="flex items-center gap-3 w-fit">
-          <svg viewBox="0 0 650 500" className="w-8 h-8 md:w-10 md:h-10 shrink-0 transition-colors duration-500 text-[#D4AF37] drop-shadow-[0_0_8px_rgba(255,215,0,0.5)]" fill="currentColor">
-            <path d="m620.39,364.82c-0.53628-7.2677-1.7767-14.482-5.0286-21.276-9.4786-19.803-33.963-29.34-53.026-19.284-15.333,8.0885-22.563,29.331-13.578,45.149,6.873,12.099,23.072,18.235,35.622,10.228,4.4328-2.828,7.6343-7.2793,8.9938-12.286,1.3595-5.0063,0.68452-10.798-2.9392-15.401-2.2364-2.8407-5.4473-4.7654-9.1114-5.408-3.664-0.64263-8.1708,0.40388-10.875,3.9972-1.7829,2.3692-1.91,4.5449-1.4108,7.1127,0.24961,1.2839,0.78116,2.8399,2.3513,3.9972,1.5702,1.1573,4.2926,1.9424,5.5844,0.58783,1.1069-1.1607-0.67477-3.153-0.73029-4.7559-0.0388-0.83158-0.0772-1.7317,0.26004-2.4745,0.89679-1.1463,1.8493-1.342,3.4682-1.0581,1.6548,0.29023,3.6474,1.4542,4.5851,2.6452v0.0588c2.0224,2.5986,2.3717,5.5943,1.5284,8.6999-0.81645,3.0066-2.8568,5.919-5.4668,7.7006l-0.29391,0.23513c-8.5452,5.4516-18.484,0.70317-23.392-7.9366-6.7162-11.823-1.5113-26.282,10.285-32.505,15.078-7.9537,35.744,1.451,40.36,17.085,4.566,15.464,2.8715,30.938,0.27385,37.511l10.609,0.073c2.5579-12.089,1.9287-15.035,1.9287-22.696z" />
-            <path d="m158.66,157a70.231,70.231,0,0,0,-14.44,42.81,70.235,70.235,0,1,0,140.47,0,70.231,70.231,0,0,0,-14.28,-42.81h-111.75z" />
-            <path d="m140.86,465.53c-6.7333,0-8.7137-5.4462-12.181-25.899-2.4479-14.774-7.1068-28.463-10.502-43.043-3.0219-13.117-5.6425-20.332-9.6694-26.618-6.5526-10.229-6.3011-20.921,0.71691-30.481,6.33-8.6232,6.827-11.121,6.5471-32.901-0.13783-10.725-0.56403-21.286-0.94711-23.468-0.88077-5.0179-4.6148-7.6923-13.904-9.9586-8.4827-2.0695-16.525-2.2933-41.967-1.1681-18.144,0.80245-20.457,0.72323-22.75-0.77901-5.627-3.687-2.9527-8.8405,12.261-23.626,15.69-15.249,23.876-24.688,38.811-44.75,26.839-36.053,30.927-40.83,57.501-49.189,19.575-6.1582,26.691-9.0119,62.031-10.06,24.654-0.7309,38.767,2.5963,45.357,3.3466,25.219,2.8716,66.247,14.877,91.933,26.083,13.581,5.9249,14.042,6.1723,30.115,16.152,11.981,7.4391,18.733,10.459,35.44,15.034,34.886,9.553,56.753,7.7583,92,10.378,9.2579,0.68808,49.298,3.5149,74.5,4.4784,30.689,1.1732,35.835-2.0376,38.423,0.54994,2.0315,2.0315,0.5636,8.1815,0.6024,14.306,0.0237,3.7378-0.18399,7.6642-0.48569,11.602-8.1923-1.424-8.0353-1.3676-26.54-2.9165-1.6808-0.14069-16.718-1.6695-44.5-4.1726-11.867-1.0692-70.326-2.8448-105.5-3.9248-16.997-0.52189-34.357-4.7228-51-1.2347-5.7624,1.2076,2.387-1.1161-16,7.4812-36.313,14.051-55.853,23.79-104.5,32.83-30.774,4.5201-33.208,4.9745-36.376,7.2909-1.7456,1.2764-1.662,1.6171,1.6767,6.8363,3.5642,5.5717,14.275,15.81,29.699,28.389,51.619,43.564,115.05,77.431,162.89,98.598,22.221,9.5122,37.55,14.655,50.108,16.811,61.892,13.654,134.26-9.4938,136.11-56.959,0.0489-1.256,0.49928-6.001-0.1398-12.079-0.44539-4.2357-0.89625-7.3216-2.2932-11.095-3.9795-10.75-12.413-20.407-28.672-21.755-11.746,0.022-20.375,6.1561-23.95,16.17-4.5622,12.78,1.3185,27.071,14.023,29.565,6.6403,1.3038,11.222-0.5256,14.271-4.4679,3.3424-4.3221,3.72-12.026,1.3559-15.634-2.2757-3.4732-7.2459-5.2754-10.824-3.9248-3.6125,1.3636-4.9933,0.36555-0.6538-3.1839,0.38036-0.24867,0.77844-0.4586,1.191-0.63136,6.6675-2.7918,17.127,4.1226,17.913,14.135,0.7119,11.495-7.7045,20.279-19.249,20.94-6.5659,0.37574-14.594-1.9665-20.026-7.8035-13.425-14.428-9.1712-34.885,2.9586-45.762,4.6131-4.1366,7.7535-6.0583,14.065-7.4773,19.37-4.3554,37.69,4.5134,45.528,24.301,3.5645,8.9992,3.7675,16.201,3.8515,23.221,0.70438,58.895-65.742,87.202-131.95,82.517-28.009-2.4123-46.229-6.8095-80.495-20.915-36.58-12.09-143.44-68.32-207.96-120.33-18.846-15.317-30.511-22.813-33.055-21.24-0.61585,0.38062-0.98989,11.992-0.99221,30.802-0.004,28.758-0.1019,30.352-2.0717,33.583-3.2793,5.3791-4.935,17.725-5.9822,44.608-1.6327,41.914-2.675,60.915-3.4439,62.778-1.3963,3.383-7.0306,4.6642-13.289,4.6642zm221.62-252.27c0.41803-2.1707-4.6044-8.6243-11.231-13.08-10.396-6.9893-22.385-11.512-34.092-15.96-71.934-23.518-145.08-20.065-174.03-4.962-10.593,5.1512-14.126,7.777-22.813,15.582-4.1291,3.7102-9.5939,9.7305-12.144,13.379-5.133,7.3428-10.014,13.339-19.014,23.362-9.3026,10.359-14.5,16.774-14.5,17.897,0,1.5721,7.8962,3.1488,17.5,3.5809,81.15,10.292,230.44,14.198,270.32-39.799zm224.18-69.351c-16.558-0.50003-42.467-2.0158-63.5-4.8954-19.525-2.6732-39.047-6.067-58-11.467-17.982-5.123-35.124-12.85-52.5-19.754-7.7243-3.0694-15.32-6.4533-23-9.6318-8.319-3.4429-16.53-7.1723-25-10.224-15.523-5.5928-30.986-11.946-47.239-14.789-41.988-7.3464-85.261-8.7793-127.76-5.4986-23.554,1.8182-46.695,7.7124-69.5,13.878-17.863,4.8293-35.019,11.972-52.5,18.041-5.069,1.761-10.039,6.841-15.177,5.321-5.396-1.6-10.73-7.749-10.317-13.361,0.434-5.884,7.835-9.014,12.753-12.272,16.823-11.146,36.498-17.485,55.661-23.803,19.219-6.3349,38.923-12.127,59.072-14.001,54.326-5.0532,110.09-3.4301,163.5,7.7269,28.29,5.9098,53.945,20.759,81,30.92,31.437,11.806,61.76,27.444,94.5,34.909,33.045,7.534,83.745,9.6292,101.22,9.5911,6.5425-0.0143,6.7685,0.0708,8.3595,3.1475,1.8515,3.5805,3.1256,14.296,1.7926,15.077-1.3395,0.78418-21.593,1.4453-33.376,1.0894z" />
-          </svg>
-          <div className="flex flex-col items-start gap-0.5">
-            <h1 className="text-lg md:text-xl font-bold tracking-[0.4em] text-[#D4AF37] font-mono">OSIRIS</h1>
-            <span className="text-[9px] md:text-[10px] font-mono tracking-[0.2em] opacity-80 uppercase text-[#D4AF37]">OPEN SOURCE INTELLIGENCE</span>
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-3">
+            <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-black/70 border border-[var(--border-active)] shadow-[0_0_8px_var(--gold-glow)] shrink-0">
+              <div className="absolute inset-0 bg-gradient-to-tr from-[var(--gold-primary)]/10 to-transparent rounded-xl" />
+              <div className="absolute inset-x-1.5 top-1/2 -translate-y-1/2 h-[0.5px] bg-[var(--cyan-primary)]/30" />
+              <div className="absolute inset-y-1.5 left-1/2 -translate-x-1/2 w-[0.5px] bg-[var(--cyan-primary)]/30" />
+              
+              {/* Lightning Eye Icon: 눈동자 형태 + 황금 번개 동공 */}
+              <svg viewBox="0 0 40 24" className="w-8 h-5 relative z-10" style={{ filter: 'drop-shadow(0 0 2px var(--gold-glow))' }}>
+                <path d="M 3 12 Q 20 1 37 12 Q 20 23 3 12 Z" fill="rgba(3,6,15,0.85)" stroke="var(--gold-primary)" strokeWidth="1.8" />
+                <circle cx="20" cy="12" r="5.5" fill="#02040c" stroke="var(--cyan-primary)" strokeWidth="1" />
+                <polygon points="21,7 17,12 20,12 19,17 23,12 20,12" fill="var(--gold-primary)" stroke="#FFFFFF" strokeWidth="0.4" />
+              </svg>
+            </div>
+            <div className="flex flex-col items-start gap-0.5">
+              <h1 className="text-lg md:text-xl font-bold tracking-[0.3em] text-[var(--gold-primary)] font-mono notranslate" style={{ textShadow: '0 0 6px var(--gold-glow)' }} translate="no">번개의 눈동자</h1>
+              <span className="text-[8px] md:text-[9px] font-mono tracking-[0.2em] opacity-75 uppercase text-[var(--cyan-primary)] notranslate" translate="no">LIGHTNING EYE · INTEL HUD</span>
+            </div>
           </div>
+
+          {!isMobile && (
+            <div className="pointer-events-auto flex items-center gap-2 mr-64 lg:mr-72">
+              <Link
+                href="/tactical-ar"
+                className="flex items-center gap-1.5 px-3 py-2 bg-[var(--cyan-primary)]/10 border border-[var(--border-cyan)] hover:border-[var(--cyan-primary)]/50 rounded-xl text-xs font-mono font-bold text-[var(--cyan-primary)] shadow-[0_0_8px_var(--cyan-glow)] transition-colors shrink-0"
+                title="화력유도 전술 VR 시뮬레이터 (교관 및 교육생)"
+              >
+                <Crosshair className="w-3.5 h-3.5 text-cyan-400" />
+                <span>🎯 화력유도 VR 포털</span>
+              </Link>
+              <Link
+                href="/ai"
+                className="flex items-center gap-1.5 px-3 py-2 bg-[var(--gold-primary)]/10 border border-[var(--border-primary)] hover:border-[var(--border-active)] rounded-xl text-xs font-mono font-bold text-[var(--gold-primary)] shadow-[0_0_8px_var(--gold-glow)] transition-colors shrink-0"
+                title="M5 온디바이스 로컬 AI 스튜디오"
+              >
+                <Zap className="w-3.5 h-3.5 text-[var(--gold-primary)]" />
+                <span>⚡ AI 스튜디오 전용화면</span>
+              </Link>
+              <HarnessAuditHud />
+              <div className="w-56 lg:w-72">
+                <SearchBar onLocate={(lat, lng, zoom) => { setFlyToLocation({ lat, lng, zoom, ts: Date.now() }); }} />
+              </div>
+            </div>
+          )}
         </div>
-        <div className="flex items-center gap-3 mt-1.5 pl-[44px] min-w-0 pr-4">
-          <span className="text-[9px] md:text-[9px] text-[var(--text-muted)] font-mono tracking-[0.2em] md:tracking-[0.3em] uppercase opacity-40 truncate">
-            REAL-TIME GLOBAL MONITORING <span className="hidden md:inline">· FLIGHTS · MARITIME · SATELLITES · CCTV · WEATHER · CYBER THREATS</span>
+        <div className="flex items-center gap-3 mt-1.5 pl-[52px] min-w-0 pr-4">
+          <span className="text-[9px] md:text-[9px] text-[var(--text-muted)] font-mono tracking-[0.2em] md:tracking-[0.3em] uppercase opacity-60 truncate notranslate" translate="no">
+            전 세계 실시간 관제 <span className="hidden md:inline">· 항공기 · 함정 · 위성 · CCTV · 기상 · 사이버 위협</span>
           </span>
         </div>
       </motion.div>
@@ -1312,28 +1382,21 @@ export default function Dashboard() {
           <ZuluClock />
         </span>
 
-        <span className="flex items-center gap-1" title="Backend connection status">STATUS: <span className={backendStatus === 'connected' ? 'text-[var(--alert-green)]' : 'text-[var(--alert-red)]'}>{backendStatus === 'connected' ? 'LIVE' : backendStatus.toUpperCase()}</span></span>
+        <span className="flex items-center gap-1" title="백엔드 연결 상태">상태: <span className={backendStatus === 'connected' ? 'text-[var(--alert-green)]' : 'text-[var(--alert-red)]'}>{backendStatus === 'connected' ? '정상 가동' : backendStatus.toUpperCase()}</span></span>
 
-        <span className="hidden lg:inline-flex items-center gap-1" title="Number of active data layers">
+        <span className="hidden lg:inline-flex items-center gap-1" title="활성화된 데이터 레이어">
           <span className="text-[var(--cyan-primary)] font-bold">{Object.values(activeLayers).filter(Boolean).length}</span>
-          <span className="opacity-60">LAYERS</span>
+          <span className="opacity-60">레이어</span>
         </span>
 
-        <span className="hidden lg:inline-flex items-center gap-1" title="Tracked entities on map">
+        <span className="hidden lg:inline-flex items-center gap-1" title="지도 상 추적 중인 표적">
           <ActiveEntityCount data={data} />
-          <span className="opacity-60">ENTITIES</span>
+          <span className="opacity-60">실체</span>
         </span>
 
-        {spaceWeather && <span className="hidden lg:inline" title={`Geomagnetic Storm Index — Kp${spaceWeather.kp_index}`}>SOLAR: <span style={{ color: spaceWeather.storm_color, fontWeight: 700 }}>Kp{spaceWeather.kp_index}</span></span>}
+        {spaceWeather && <span className="hidden lg:inline" title={`지자기 폭풍 지수 — Kp${spaceWeather.kp_index}`}>태양풍: <span style={{ color: spaceWeather.storm_color, fontWeight: 700 }}>Kp{spaceWeather.kp_index}</span></span>}
 
-        <span className="text-[11px] font-bold tracking-[0.2em] text-[var(--text-muted)] opacity-50">V.4.1</span>
-        
-        <TokenPanel />
-
-        <a href='https://ko-fi.com/M8D41ZYW4Z' target='_blank' rel='noopener noreferrer' className="pointer-events-auto glass-panel px-3 py-1.5 flex items-center gap-1.5 text-[9px] font-mono tracking-widest hover:opacity-80 transition-opacity border-[var(--gold-primary)]/40 bg-[var(--gold-primary)]/10 ml-3 shadow-[0_0_10px_rgba(255,215,0,0.1)]">
-          <div className="w-1.5 h-1.5 rounded-full bg-[var(--gold-primary)] animate-osiris-pulse" />
-          <span className="text-[var(--gold-primary)] font-bold">SUPPORT</span>
-        </a>
+        <span className="text-[11px] font-bold tracking-[0.2em] text-[var(--text-muted)] opacity-50">V.4.2</span>
       </motion.div>
 
       {/* ── MOBILE: Compact top status ── */}
@@ -1341,11 +1404,7 @@ export default function Dashboard() {
           place would put the support badge underneath the destination field. */}
       {isMobile && !showDirections && !navSession && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 2.5 }} className="absolute top-3 right-3 z-[200] pointer-events-auto flex items-center gap-2">
-          <TokenPanel />
-          <a href='https://ko-fi.com/M8D41ZYW4Z' target='_blank' rel='noopener noreferrer' className="glass-panel px-2 py-1 flex items-center gap-1.5 text-[9px] font-mono tracking-widest hover:opacity-80 transition-opacity border-[var(--gold-primary)]/40 bg-[var(--gold-primary)]/10">
-            <div className="w-1 h-1 rounded-full bg-[var(--gold-primary)] animate-osiris-pulse" />
-            <span className="text-[var(--gold-primary)] font-bold">SUPPORT</span>
-          </a>
+          <span className="text-[10px] font-mono text-[var(--gold-primary)] font-bold">⚡ 번개의 눈동자</span>
         </motion.div>
       )}
 
@@ -1445,7 +1504,7 @@ export default function Dashboard() {
         </div>
 
         <div className="relative group">
-          <button onClick={() => { setShowDrawing(!showDrawing); setShowIntel(false); setShowMarkets(false); setShowAlerts(false); setShowSpaceCam(false); }} className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/50 ${showDrawing ? 'bg-[#00E5FF]/20' : 'hover:bg-white/10'}`} title="Draw — measure areas of interest on the map" aria-label="Draw" aria-expanded={showDrawing}>
+          <button onClick={() => { setShowDrawing(!showDrawing); setShowIntel(false); setShowMarkets(false); setShowAlerts(false); setShowSpaceCam(false); }} className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/50 ${showDrawing ? 'bg-[#00E5FF]/20' : 'hover:bg-white/10'}`} title="전술 작전 드로잉 & 표적 구역(AOI) 정밀 계측" aria-label="전술 작전 드로잉" aria-expanded={showDrawing}>
             <PenLine className={`w-4 h-4 ${showDrawing ? 'text-[#00E5FF]' : 'text-white/60'}`} />
             {showDrawing && (
               <span
@@ -1715,7 +1774,7 @@ export default function Dashboard() {
                 <div className="px-3 pb-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="hud-text text-[10px] text-[var(--text-primary)]">
-                      {mobilePanel === 'layers' ? 'LAYERS & STATS' : mobilePanel === 'markets' ? 'MARKETS & INTEL' : mobilePanel === 'intel' ? 'INTEL FEED' : mobilePanel === 'recon' ? 'OSIRIS RECON' : mobilePanel === 'remote' ? 'WORLD REMOTE' : 'SEARCH'}
+                      {mobilePanel === 'layers' ? 'LAYERS & STATS' : mobilePanel === 'markets' ? 'MARKETS & INTEL' : mobilePanel === 'intel' ? 'INTEL FEED' : mobilePanel === 'recon' ? '번개의 눈동자 RECON' : mobilePanel === 'remote' ? 'WORLD REMOTE' : 'SEARCH'}
                     </span>
                     <button onClick={() => setMobilePanel(null)} className="text-[var(--text-muted)] p-1"><X className="w-4 h-4" /></button>
                   </div>
@@ -1862,6 +1921,15 @@ export default function Dashboard() {
             watchEvents={watchEvents}
           />
         </div>
+      )}
+
+      {/* ── DPRK Strategic Intelligence & Think Tank 1:1 Report Dossier Modal ── */}
+      {dprkReportModalData && (
+        <DprkReportDossierModal
+          isOpen={!!dprkReportModalData}
+          onClose={() => setDprkReportModalData(null)}
+          siteData={dprkReportModalData}
+        />
       )}
 
       {/* ── OVERLAYS ── */}
