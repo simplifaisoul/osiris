@@ -84,25 +84,25 @@ function formatRelativeTime(ms: number) {
 }
 
 const MODES = [
-  { id: 'polygon' as const,   label: 'AREA',   Icon: Pentagon, blurb: 'Any shape, corner by corner' },
-  { id: 'rectangle' as const, label: 'BOX',    Icon: Square,   blurb: 'Two clicks, opposite corners' },
-  { id: 'circle' as const,    label: 'RADIUS', Icon: Circle,   blurb: 'Centre, then distance out' },
-  { id: 'line' as const,      label: 'PATH',   Icon: Spline,   blurb: 'Measure a route' },
+  { id: 'polygon' as const,   label: '다각형 구역',   Icon: Pentagon, blurb: '임의 다각형 구역 정밀 설정' },
+  { id: 'rectangle' as const, label: '직사각형',    Icon: Square,   blurb: '2점 클릭 신속 격리' },
+  { id: 'circle' as const,    label: '반경 원형', Icon: Circle,   blurb: '중심점 및 사거리 반경' },
+  { id: 'line' as const,      label: '이동 경로',   Icon: Spline,   blurb: '기동로/비행로 거리 측정' },
 ];
 
 const MODE_HINT: Record<DrawMode, string> = {
-  polygon: 'Click the first corner',
-  rectangle: 'Click one corner',
-  circle: 'Click the centre',
-  line: 'Click the start point',
+  polygon: '첫 번째 꼭짓점을 지도에 클릭하십시오',
+  rectangle: '첫 번째 모서리를 클릭하십시오',
+  circle: '중심점을 클릭하십시오',
+  line: '시작점을 클릭하십시오',
 };
 
 // Spelling the keys out matters: nobody guesses that Backspace undoes a vertex.
 const KEY_HINT: Record<DrawMode, string> = {
-  polygon: 'Double-click or Enter to close · Backspace undoes · Esc cancels',
-  rectangle: 'Second click completes the box · Esc cancels',
-  circle: 'Second click sets the radius · Esc cancels',
-  line: 'Double-click or Enter to end · Backspace undoes · Esc cancels',
+  polygon: '더블클릭 또는 Enter: 구역 폐합 · Backspace: 이전 취소 · Esc: 취소',
+  rectangle: '두 번째 클릭: 직사각형 완성 · Esc: 취소',
+  circle: '두 번째 클릭: 반경 설정 완료 · Esc: 취소',
+  line: '더블클릭 또는 Enter: 경로 완료 · Backspace: 이전 취소 · Esc: 취소',
 };
 
 export default function DrawingToolbar({
@@ -162,8 +162,8 @@ export default function DrawingToolbar({
         className="w-[280px] bg-black/90 backdrop-blur-xl border rounded-lg overflow-hidden flex flex-col glass-panel transition-all duration-500"
         style={{
           boxShadow: flash 
-            ? '0 0 20px #00E67666, 0 25px 50px -12px rgba(0,0,0,0.5)' 
-            : '0 25px 50px -12px rgba(0,0,0,0.25)',
+            ? '0 0 8px rgba(0,230,118,0.25), 0 12px 28px -12px rgba(0,0,0,0.45)' 
+            : '0 12px 28px -12px rgba(0,0,0,0.35)',
           borderColor: flash ? 'var(--alert-green, #00E676)' : 'rgba(255, 255, 255, 0.06)'
         }}
       >
@@ -171,29 +171,26 @@ export default function DrawingToolbar({
         <div className="px-4 py-3 border-b border-white/[0.06]">
           <div className="flex items-center gap-2 mb-2">
             <Pentagon className="w-3.5 h-3.5 text-[var(--cyan-primary)]" />
-            <span className="text-[12px] font-mono tracking-[0.2em] text-white/90 font-bold">DRAWING TOOLS</span>
+            <span className="text-[12px] font-mono tracking-[0.2em] text-white/90 font-bold">전술 작전 드로잉 & 계측</span>
           </div>
           
           <div className="flex items-center justify-between text-[10px] font-mono text-white/50 bg-white/5 rounded px-2 py-1.5 border border-white/[0.04]">
             <div className="flex flex-col">
-              <span className="text-[10px] tracking-wider mb-0.5 uppercase">Tracked Area</span>
+              <span className="text-[10px] tracking-wider mb-0.5 uppercase">계측 면적</span>
               <span className="text-[12px] text-[var(--cyan-primary)] font-bold">{totalArea.toFixed(1)} km²</span>
             </div>
             <div className="w-[1px] h-6 bg-white/10" />
             <div className="flex flex-col text-right">
-              <span className="text-[10px] tracking-wider mb-0.5 uppercase">AOIs / Perim</span>
-              <span className="text-[12px] text-white/80">{polygons.length} / {totalPerim.toFixed(1)}km</span>
+              <span className="text-[10px] tracking-wider mb-0.5 uppercase">설정 구역 / 둘레</span>
+              <span className="text-[12px] text-white/80">{polygons.length}개 / {totalPerim.toFixed(1)}km</span>
             </div>
           </div>
         </div>
 
         {/* Mode selector */}
         <div className="p-3 border-b border-white/[0.04]">
-          {/* Naming the step is the difference between a toolbar and a puzzle:
-              without it, nothing tells you a mode must be picked before the map
-              will respond to a click. */}
           <p className="text-[10px] font-mono tracking-[0.18em] text-white/40 mb-2">
-            {drawMode ? 'STEP 2 — NOW CLICK THE MAP' : 'STEP 1 — CHOOSE A SHAPE'}
+            {drawMode ? '2단계 — 지도 위를 클릭하십시오' : '1단계 — 작전 도형을 선택하십시오'}
           </p>
           <div className="grid grid-cols-2 gap-1.5">
             {MODES.map(m => {
@@ -213,8 +210,6 @@ export default function DrawingToolbar({
                     <span className={`block text-[11px] font-mono tracking-wider ${on ? 'text-[var(--cyan-primary)]' : 'text-white/80'}`}>
                       {m.label}
                     </span>
-                    {/* The description was a tooltip, which is invisible to
-                        anyone who does not already know to hover. */}
                     <span className="block text-[10px] font-mono text-white/40 leading-tight mt-0.5">
                       {m.blurb}
                     </span>
@@ -224,19 +219,18 @@ export default function DrawingToolbar({
             })}
           </div>
 
-          {/* Live figures while drawing. Measuring only on completion is what
-              makes a tool feel like a form; this makes it feel like a ruler. */}
+          {/* Live figures while drawing */}
           {drawMode && (
             <div className="mt-2 px-2 py-1.5 rounded bg-[var(--cyan-primary)]/[0.07] border border-[var(--cyan-primary)]/25">
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-[var(--cyan-primary)] animate-pulse flex-shrink-0" />
                 <span className="text-[10px] font-mono text-[var(--cyan-primary)] tracking-wider flex-1">
                   {progress
-                    ? `${progress.vertices} point${progress.vertices === 1 ? '' : 's'}`
+                    ? `${progress.vertices}개 지점 연결`
                     : MODE_HINT[drawMode]}
                 </span>
                 {progress && progress.radiusKm != null && progress.radiusKm > 0 && (
-                  <span className="text-[10px] font-mono text-white tabular-nums">r {formatDistance(progress.radiusKm)}</span>
+                  <span className="text-[10px] font-mono text-white tabular-nums">반경 {formatDistance(progress.radiusKm)}</span>
                 )}
                 {progress && progress.areaKm2 > 0 && (
                   <span className="text-[10px] font-mono text-white tabular-nums">{formatArea(progress.areaKm2)}</span>
@@ -263,15 +257,13 @@ export default function DrawingToolbar({
                 className="py-8 px-4 text-center"
               >
                 <Pentagon className="w-6 h-6 text-white/10 mx-auto mb-2" />
-                {/* "No polygons drawn yet" states the obvious and helps nobody.
-                    An empty state should say what to do next. */}
                 {drawMode ? (
                   <p className="text-[11px] font-mono text-[var(--cyan-primary)]/70 tracking-wider leading-relaxed">
-                    Now click on the map to place your first point.
+                    지도 위를 클릭하여 첫 점을 지정하십시오.
                   </p>
                 ) : (
                   <p className="text-[11px] font-mono text-white/35 tracking-wider leading-relaxed">
-                    Choose a shape above, then click the map<br />to measure an area and see what is inside it.
+                    상단에서 작전 도형을 선택한 후 지도를 클릭하여<br />전술 구역을 설정하고 내부 표적을 탐지하십시오.
                   </p>
                 )}
               </motion.div>
@@ -332,10 +324,10 @@ export default function DrawingToolbar({
                           <Radar className={`w-3 h-3 ${watched?.has(polygon.id) ? 'animate-pulse' : ''}`} />
                         </button>
                       )}
-                      <button onClick={(e) => { e.stopPropagation(); handleCopy(polygon); }} className="p-1.5 rounded bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition" title="Copy GeoJSON">
+                      <button onClick={(e) => { e.stopPropagation(); handleCopy(polygon); }} className="p-1.5 rounded bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition" title="GeoJSON 좌표 복사">
                         {copied === polygon.id ? <Check className="w-3 h-3 text-[var(--alert-green)]" /> : <Copy className="w-3 h-3" />}
                       </button>
-                      <button onClick={(e) => { e.stopPropagation(); onDeletePolygon(polygon.id); }} className="p-1.5 rounded bg-[#FF3D57]/10 hover:bg-[#FF3D57]/20 text-[#FF3D57]/60 hover:text-[#FF3D57] transition" title="Delete">
+                      <button onClick={(e) => { e.stopPropagation(); onDeletePolygon(polygon.id); }} className="p-1.5 rounded bg-[#FF3D57]/10 hover:bg-[#FF3D57]/20 text-[#FF3D57]/60 hover:text-[#FF3D57] transition" title="구역 삭제">
                         <Trash2 className="w-3 h-3" />
                       </button>
                     </div>
@@ -354,21 +346,19 @@ export default function DrawingToolbar({
                     </span>
                   </div>
 
-                  {/* What is inside. Recomputed from the live store, so the
-                      readout tracks aircraft moving through the area rather
-                      than freezing at the moment the polygon was drawn. */}
+                  {/* What is inside. Recomputed from the live store */}
                   {selectedPolygon === polygon.id && (() => {
                     const ring = polygon.geojson.geometry.coordinates[0] as number[][];
                     const report = selectInPolygon(ring, data || {});
                     return (
                       <div className="mt-2 pt-2 border-t border-white/[0.06]">
                         <div className="flex items-baseline gap-2 mb-1.5">
-                          <span className="text-[10px] font-mono tracking-[0.2em] text-white/40">CONTENTS</span>
+                          <span className="text-[10px] font-mono tracking-[0.2em] text-white/40">구역 내 탐지 표적</span>
                           <span className="text-[11px] font-mono text-white tabular-nums">{report.total.toLocaleString()}</span>
-                          <span className="text-[10px] font-mono text-white/30">object{report.total === 1 ? "" : "s"}</span>
+                          <span className="text-[10px] font-mono text-white/30">개 표적</span>
                         </div>
                         {report.total === 0 && (
-                          <p className="text-[10px] font-mono text-white/30 pb-1">Nothing tracked inside this area.</p>
+                          <p className="text-[10px] font-mono text-white/30 pb-1">해당 구역 내 탐지된 실시간 표적이 없습니다.</p>
                         )}
                         {report.groups.map(g => (
                           <div key={g.key} className="mb-1.5">
@@ -394,7 +384,7 @@ export default function DrawingToolbar({
                                 ))}
                                 {g.count > MAX_ITEMS_PER_GROUP && (
                                   <p className="text-[10px] font-mono text-white/25 px-1 py-0.5">
-                                    +{(g.count - MAX_ITEMS_PER_GROUP).toLocaleString()} more not listed
+                                    +{(g.count - MAX_ITEMS_PER_GROUP).toLocaleString()}개 추가 표적 생략
                                   </p>
                                 )}
                               </div>
@@ -403,24 +393,22 @@ export default function DrawingToolbar({
                         ))}
                         {report.total > 0 && (
                           <div className="flex gap-1 mt-2 pt-2 border-t border-white/[0.06]">
-                            {/* Finding the objects is only half of it; the next
-                                stop is usually a spreadsheet. */}
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 const stamp = new Date().toISOString().slice(0, 10);
-                                downloadFile(`${polygon.name.replace(/s+/g, "-")}-contents-${stamp}.csv`,
+                                downloadFile(`${polygon.name.replace(/\s+/g, "-")}-contents-${stamp}.csv`,
                                   contentsToCSV(polygon, report), "text/csv");
                               }}
                               className="flex-1 flex items-center justify-center gap-1 py-1 rounded text-[10px] font-mono tracking-wider border border-white/10 text-white/60 hover:text-white hover:bg-white/[0.06] transition"
                             >
-                              <Table className="w-2.5 h-2.5" /> CSV
+                              <Table className="w-2.5 h-2.5" /> CSV 보고서
                             </button>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 const stamp = new Date().toISOString().slice(0, 10);
-                                downloadFile(`${polygon.name.replace(/s+/g, "-")}-contents-${stamp}.geojson`,
+                                downloadFile(`${polygon.name.replace(/\s+/g, "-")}-contents-${stamp}.geojson`,
                                   JSON.stringify(contentsToGeoJSON(polygon, report), null, 2), "application/geo+json");
                               }}
                               className="flex-1 flex items-center justify-center gap-1 py-1 rounded text-[10px] font-mono tracking-wider border border-white/10 text-white/60 hover:text-white hover:bg-white/[0.06] transition"
@@ -438,21 +426,20 @@ export default function DrawingToolbar({
           </AnimatePresence>
         </div>
 
-        {/* Tripwire log. Only shown once something is armed — an empty panel
-            for a feature nobody switched on is just noise. */}
+        {/* Tripwire log */}
         {watched && watched.size > 0 && (
           <div className="border-t border-white/[0.04] bg-black/50">
             <div className="flex items-center gap-2 px-3 py-1.5">
               <Radar className="w-3 h-3 text-[var(--alert-green)] animate-pulse" />
               <span className="text-[10px] font-mono tracking-[0.2em] text-[var(--alert-green)] flex-1">
-                WATCHING {watched.size}
+                트립와이어 감시 중 ({watched.size}개 구역)
               </span>
-              <span className="text-[10px] font-mono text-white/30 tabular-nums">{watchEvents.length} events</span>
+              <span className="text-[10px] font-mono text-white/30 tabular-nums">{watchEvents.length}건 발생</span>
             </div>
             <div className="max-h-[120px] overflow-y-auto styled-scrollbar">
               {watchEvents.length === 0 ? (
                 <p className="px-3 pb-2 text-[10px] font-mono text-white/30">
-                  Baseline recorded. Movement in or out will appear here.
+                  기준선이 수립되었습니다. 진입 및 이탈 표적이 실시간 기록됩니다.
                 </p>
               ) : watchEvents.map(ev => (
                 <div key={ev.id} className="flex items-center gap-2 px-3 py-1 hover:bg-white/[0.03]">
@@ -476,14 +463,14 @@ export default function DrawingToolbar({
               className="flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded text-[10px] font-mono tracking-[0.2em] bg-[var(--cyan-primary)]/10 border border-[var(--cyan-primary)]/30 text-[var(--cyan-primary)]/80 hover:text-[var(--cyan-primary)] hover:bg-[var(--cyan-primary)]/20 hover:border-[var(--cyan-primary)]/50 transition"
             >
               <Download className="w-3 h-3" />
-              EXPORT GEOJSON
+              GEOJSON 내보내기
             </button>
             <button 
               onClick={onClearAll} 
               className="flex items-center justify-center gap-1.5 px-3 py-2 rounded text-[10px] font-mono tracking-widest bg-[#FF3D57]/10 border border-[#FF3D57]/20 text-[#FF3D57]/60 hover:text-[#FF3D57] hover:bg-[#FF3D57]/20 transition"
             >
               <Trash2 className="w-3 h-3" />
-              CLEAR
+              전체 삭제
             </button>
           </div>
         )}

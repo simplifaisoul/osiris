@@ -50,7 +50,7 @@ interface LayerGroupDef {
 const LAYER_GROUPS: LayerGroupDef[] = [
   {
     label: 'SDK',
-    fullLabel: 'OSIRIS SDK',
+    fullLabel: '번개의 눈동자 SDK',
     icon: Network,
     layers: [
       { key: 'sdk_sea', label: 'Maritime Lines', dataKey: 'sdk_entities' },
@@ -93,9 +93,9 @@ const LAYER_GROUPS: LayerGroupDef[] = [
     fullLabel: 'SURVEILLANCE',
     icon: Camera,
     layers: [
-      { key: 'cctv', label: 'CCTV Cameras', dataKey: 'cameras' },
-      { key: 'cctv_previews', label: 'Live Previews', dataKey: '', parent: 'cctv' },
-      { key: 'live_news', label: 'Live News Feeds', dataKey: 'live_feeds' },
+      { key: 'cctv', label: 'CCTV 실시간 감시 카메라', dataKey: 'cameras' },
+      { key: 'cctv_previews', label: '지도 상 실시간 비디오 프리뷰', description: '줌 13+ 최근접 카메라 팝업 영상', dataKey: '', parent: 'cctv' },
+      { key: 'live_news', label: '실시간 뉴스 피드', dataKey: 'live_feeds' },
     ],
   },
   {
@@ -141,9 +141,9 @@ const LAYER_GROUPS: LayerGroupDef[] = [
     fullLabel: 'DISPLAY',
     icon: Sun,
     layers: [
-      { key: 'day_night', label: 'Day / Night Cycle', dataKey: '' },
-      { key: 'terrain_3d', label: '3D Buildings', description: 'City detail · zoom 14.5+', dataKey: '' },
-      { key: 'terrain_elevation', label: '3D Terrain', description: 'Mountains · zoom 10+', dataKey: '' },
+      { key: 'day_night', label: '주야간 명암선 (Day / Night)', dataKey: '' },
+      { key: 'terrain_3d', label: '3D 입체 건물 (Buildings)', description: '도심지 3D 입체 건물군 · zoom 14.5+', dataKey: '' },
+      { key: 'terrain_elevation', label: '3D 입체 지형 (Terrain DEM)', description: '산악·고도 입체 표고 · zoom 10+', dataKey: '' },
     ],
   },
 ];
@@ -312,7 +312,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
             className="w-8 h-8 rounded-full flex items-center justify-center transition-all"
             style={{
               background: studioOpen ? 'var(--hover-accent)' : 'transparent',
-              boxShadow: studioOpen ? '0 0 12px var(--gold-glow)' : 'none',
+              boxShadow: studioOpen ? '0 0 6px var(--gold-glow)' : 'none',
             }}
           >
             <SlidersHorizontal className="w-4 h-4" style={{ color: studioOpen ? 'var(--gold-primary)' : 'rgba(255,255,255,0.25)' }} />
@@ -331,7 +331,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
               className="w-8 h-8 rounded-full flex items-center justify-center transition-all"
               style={{
                 background: theme === 'ghost' ? 'rgba(179, 136, 255, 0.15)' : 'transparent',
-                boxShadow: theme === 'ghost' ? '0 0 12px rgba(179, 136, 255, 0.3)' : 'none',
+                boxShadow: theme === 'ghost' ? '0 0 6px rgba(179, 136, 255, 0.2)' : 'none',
               }}
             >
               <Ghost className="w-4 h-4" style={{ color: theme === 'ghost' ? '#B388FF' : 'rgba(255,255,255,0.25)' }} />
@@ -400,7 +400,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                       : isOpen
                         ? 'rgba(255,255,255,0.45)'
                         : 'rgba(255,255,255,0.22)',
-                    filter: groupActive ? 'drop-shadow(0 0 4px rgba(255,255,255,0.3))' : 'none',
+                    filter: groupActive ? 'drop-shadow(0 0 2px rgba(255,255,255,0.15))' : 'none',
                   }}
                 />
 
@@ -412,7 +412,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                     style={{
                       background: 'rgba(0,229,255,0.9)',
                       color: '#04040A',
-                      boxShadow: '0 0 6px rgba(0,229,255,0.5)',
+                      boxShadow: '0 0 4px var(--cyan-glow)',
                     }}
                   >
                     {activeCount}
@@ -515,7 +515,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
             width: 15,
             height: 15,
             color: studioOpen ? 'var(--gold-primary)' : 'rgba(255,255,255,0.15)',
-            filter: studioOpen ? 'drop-shadow(0 0 6px var(--gold-glow))' : 'none',
+            filter: studioOpen ? 'drop-shadow(0 0 3px var(--gold-glow))' : 'none',
           }}
         />
       </button>
@@ -539,7 +539,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
               width: 15,
               height: 15,
               color: theme === 'ghost' ? '#B388FF' : 'rgba(255,255,255,0.15)',
-              filter: theme === 'ghost' ? 'drop-shadow(0 0 6px rgba(179, 136, 255, 0.5))' : 'none',
+              filter: theme === 'ghost' ? 'drop-shadow(0 0 3px rgba(179, 136, 255, 0.3))' : 'none',
             }}
           />
         </button>

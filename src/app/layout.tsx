@@ -91,7 +91,7 @@ export const metadata: Metadata = {
     canonical: SITE_URL,
   },
   openGraph: {
-    title: "번개의 눈동자 — 전술 군사 안보 관제 | 항공·CCTV·위성·OSINT",
+    title: "번개의 눈동자 (LIGHTNING EYE) — 항공·CCTV·위성·OSINT 관제",
     description: "Live flights, satellites, CCTV and OSINT tools on a shared tactical map HUD. Observational feeds — verify before acting.",
     type: "website",
     siteName: SITE_NAME,
@@ -109,7 +109,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "⚡ 번개의 눈동자 — 전술 군사 안보 관제",
+    title: "번개의 눈동자 (LIGHTNING EYE) — 실시간 관제 · OSINT",
     description: "Live flights, satellites & CCTV with browser OSINT tools. Observational intel HUD.",
     creator: "@simplifaisoul",
     site: "@simplifaisoul",
@@ -131,7 +131,7 @@ export const metadata: Metadata = {
 const jsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: "번개의 눈동자 — 전술 군사 안보 관제 체계",
+  name: "번개의 눈동자 (LIGHTNING EYE) — OSINT Toolkit & Intelligence Platform",
   alternateName: ["번개의 눈동자", "Lightning Eye", "Lightning Eye Intelligence"],
   url: SITE_URL,
   description: SITE_DESCRIPTION,
