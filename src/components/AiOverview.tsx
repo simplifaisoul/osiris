@@ -22,6 +22,7 @@ interface OverviewResult {
   overview: string;
   highlights: string[];
   generatedBy: 'gemini' | 'analyst';
+  model?: string | null;
   generatedAt: string;
 }
 
@@ -125,7 +126,10 @@ export default function AiOverview({ mode, payload, accent = '#7C4DFF' }: AiOver
                   )}
 
                   <div className="mt-2 text-[9px] font-mono text-[var(--text-muted)] tracking-wide">
-                    {result.generatedBy === 'gemini' ? 'GEMINI 2.0 FLASH' : 'HEURISTIC ANALYST'} ·{' '}
+                    {result.generatedBy === 'gemini'
+                      ? (result.model ?? 'gemini-2.0-flash').toUpperCase()
+                      : 'HEURISTIC ANALYST'}{' '}
+                    ·{' '}
                     {new Date(result.generatedAt).toLocaleTimeString()}
                   </div>
                 </>

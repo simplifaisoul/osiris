@@ -6,7 +6,12 @@
  * ═══════════════════════════════════════════════════════════════
  */
 
-import { GoogleGenerativeAI, type GenerativeModel } from '@google/generative-ai';
+import {
+  GoogleGenerativeAI,
+  type EnhancedGenerateContentResponse,
+  type GenerativeModel,
+  type Part,
+} from '@google/generative-ai';
 
 /* ─────────────────────────────────────────────────────────────
    Data Interfaces — Zero `any` types
@@ -148,6 +153,78 @@ export function createGeminiClient(apiKey: string): GoogleGenerativeAI {
 }
 
 /* ─────────────────────────────────────────────────────────────
+   Model Backend — Google by default, or a Gemini-compatible gateway
+
+   OSIRIS_AI_BASE_URL points the SDK at any server that speaks the Gemini
+   REST API instead of Google — e.g. a local OmniRoute at
+   http://127.0.0.1:20128, which serves /v1beta/models/{model}:generateContent
+   and routes it to whichever provider it picks. OSIRIS_AI_MODEL overrides the
+   model id ('auto' lets OmniRoute choose). Read per call, not at import, so a
+   changed env takes effect on the next request.
+   ───────────────────────────────────────────────────────────── */
+
+const DEFAULT_MODEL = 'gemini-2.0-flash';
+
+export function aiModel(): string {
+  return process.env.OSIRIS_AI_MODEL?.trim() || DEFAULT_MODEL;
+}
+
+function aiBaseUrl(): string | undefined {
+  return process.env.OSIRIS_AI_BASE_URL?.trim().replace(/\/+$/, '') || undefined;
+}
+
+export function getModel(client: GoogleGenerativeAI, systemInstruction: string): GenerativeModel {
+  const baseUrl = aiBaseUrl();
+  return client.getGenerativeModel(
+    { model: aiModel(), systemInstruction },
+    baseUrl ? { baseUrl } : undefined
+  );
+}
+
+/**
+ * Server-side keys: GEMINI_API_KEY_1..8. With a gateway configured and no
+ * Gemini keys, a single stand-in key is returned (OSIRIS_AI_API_KEY, else a
+ * placeholder) — the SDK refuses to run without one, and a keyless local
+ * gateway ignores it.
+ */
+export function getServerApiKeys(): string[] {
+  const keys: string[] = [];
+  for (let i = 1; i <= 8; i++) {
+    const key = process.env[`GEMINI_API_KEY_${i}`];
+    if (key && key.trim().length > 0) {
+      keys.push(key.trim());
+    }
+  }
+  if (keys.length === 0 && aiBaseUrl()) {
+    keys.push(process.env.OSIRIS_AI_API_KEY?.trim() || 'no-key-required');
+  }
+  return keys;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Response Text — without the model's reasoning
+
+   Reasoning models behind a gateway return their chain of thought as parts
+   flagged `thought: true`. SDK 0.24's text() concatenates every part, so the
+   briefing would open with the model talking to itself.
+   ───────────────────────────────────────────────────────────── */
+
+function isThought(part: Part): boolean {
+  return (part as Part & { thought?: boolean }).thought === true;
+}
+
+export function responseText(response: EnhancedGenerateContentResponse): string {
+  // Called first: it throws on a blocked response, which the routes map to SAFETY_BLOCKED.
+  const full = response.text();
+  const parts = response.candidates?.[0]?.content?.parts ?? [];
+  if (!parts.some(isThought)) return full;
+  return parts
+    .filter(part => !isThought(part))
+    .map(part => part.text ?? '')
+    .join('');
+}
+
+/* ─────────────────────────────────────────────────────────────
    API Key Rotation — Round-robin through available keys
    ───────────────────────────────────────────────────────────── */
 
@@ -222,10 +299,7 @@ export async function analyzeIntelligence(
   context: IntelligenceContext,
   userQuery: string
 ): Promise<string> {
-  const model: GenerativeModel = client.getGenerativeModel({
-    model: 'gemini-2.0-flash',
-    systemInstruction: SYSTEM_PROMPT,
-  });
+  const model = getModel(client, SYSTEM_PROMPT);
 
   const contextData = serializeContext(context);
 
@@ -238,8 +312,7 @@ ${userQuery}
 Provide your intelligence assessment based on the operational data above and the analyst's query.`;
 
   const result = await model.generateContent(prompt);
-  const response = result.response;
-  return response.text();
+  return responseText(result.response);
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -250,10 +323,7 @@ export async function generateBriefing(
   client: GoogleGenerativeAI,
   context: IntelligenceContext
 ): Promise<string> {
-  const model: GenerativeModel = client.getGenerativeModel({
-    model: 'gemini-2.0-flash',
-    systemInstruction: SYSTEM_PROMPT,
-  });
+  const model = getModel(client, SYSTEM_PROMPT);
 
   const contextData = serializeContext(context);
 
@@ -265,6 +335,5 @@ ${contextData}
 Generate the briefing now.`;
 
   const result = await model.generateContent(prompt);
-  const response = result.response;
-  return response.text();
+  return responseText(result.response);
 }
