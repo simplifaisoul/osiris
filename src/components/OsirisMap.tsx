@@ -13,6 +13,7 @@ import CctvPreviews, { type PreviewCamera } from '@/components/CctvPreviews';
 import MapControls from '@/components/MapControls';
 import LiveNewsPreviews, { type PreviewFeed } from '@/components/LiveNewsPreviews';
 import { attachTerrain, type TerrainStatus } from '@/lib/map-terrain';
+import { watchBasemap, BASEMAP_MAX_ATTEMPTS, type BasemapStatus } from '@/lib/map-basemap';
 
 import { applyMapProjection } from '@/lib/map-projection';
 
@@ -110,6 +111,15 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
   const mapRef = useRef<maplibregl.Map | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [basemap, setBasemap] = useState<BasemapStatus>({ state: 'loading' });
+  const basemapRetryRef = useRef<() => void>(() => {});
+  // A healthy load draws its first tile while the splash is still up, so
+  // the loading chip waits before it says anything.
+  const [basemapSlow, setBasemapSlow] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setBasemapSlow(true), 4000);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Do not replay an earlier explicit zoom request after theme/retry remounts.
   const lastTerrainFocus = useRef(terrainFocus);
@@ -288,6 +298,8 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       }
     }
     if (!map) return;
+    const basemapWatch = watchBasemap(map, styleUrl, setBasemap);
+    basemapRetryRef.current = basemapWatch.retry;
 
     map.on('load', () => {
       mapRef.current = map;
@@ -1565,7 +1577,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       });
     });
 
-    return () => { cancelAnimationFrame(hoverFrame); map.remove(); mapRef.current = null; };
+    return () => { basemapWatch.dispose(); cancelAnimationFrame(hoverFrame); map.remove(); mapRef.current = null; };
   }, []);
 
   // Day/Night
@@ -3030,6 +3042,23 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
   return (
     <>
       <div ref={containerRef} className="absolute inset-0 w-full h-full" />
+      {basemap.state !== 'ready' && (basemap.state !== 'loading' || basemapSlow) && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-14 z-[500] flex justify-center px-3">
+          <div role="status" className="pointer-events-auto flex items-center gap-2 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-panel)]/95 px-3 py-1.5 shadow-[0_10px_40px_rgba(0,0,0,0.6)] backdrop-blur-2xl">
+            <span className={`h-2 w-2 rounded-full ${basemap.state === 'failed' ? 'bg-[var(--alert-red)]' : 'animate-pulse bg-[var(--cyan-primary)]'}`} />
+            <span className="text-[11px] font-mono font-bold tracking-[0.2em] text-[var(--text-primary)]">
+              {basemap.state === 'loading' && 'BASEMAP LOADING'}
+              {basemap.state === 'retrying' && `BASEMAP RETRY ${basemap.attempt}/${BASEMAP_MAX_ATTEMPTS}`}
+              {basemap.state === 'failed' && 'BASEMAP UNAVAILABLE'}
+            </span>
+            {basemap.state === 'failed' && (
+              <button type="button" onClick={() => basemapRetryRef.current()} className="rounded-md border border-[var(--border-primary)] px-2 py-0.5 text-[10px] font-mono tracking-[0.2em] text-[var(--gold-primary)] hover:bg-[var(--hover-accent)]">
+                RETRY
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       {mapReady && mapRef.current && (
         <CctvPreviews
           mapRef={mapRef}
