@@ -92,6 +92,40 @@ export function cachedSource<T>(
   };
 }
 
+/**
+ * Read a source without triggering a fetch.
+ *
+ * The catalogue route uses this to answer from what it already has and to
+ * queue only the regions it is actually missing — otherwise every request
+ * enqueues all 48 regions into the pool, and a warm catalogue still pays for a
+ * queue it does not need.
+ */
+export function peekSource<T>(key: string, allowStale = false): T[] | undefined {
+  const entry = store.get(key) as Entry<T> | undefined;
+  if (!entry || entry.data.length === 0) return undefined;
+  if (allowStale || Date.now() < entry.expiresAt) return entry.data;
+  return undefined;
+}
+
+/** Is what peekSource would return past its TTL? */
+export function isStale(key: string): boolean {
+  const entry = store.get(key);
+  return !entry || Date.now() >= entry.expiresAt;
+}
+
+/**
+ * Install data the process did not fetch — a catalogue restored from disk.
+ * Serving that at boot is the difference between a map that is populated on the
+ * first request and one that waits on forty-eight upstreams to answer.
+ */
+export function seedSource<T>(key: string, data: T[], ttlMs: number = DEFAULT_TTL_MS): void {
+  if (!data.length) return;
+  const entry = store.get(key);
+  if (entry?.inflight) return; // a live fetch already supersedes the snapshot
+  store.set(key, { data, expiresAt: Date.now() + ttlMs, inflight: null } as Entry<unknown>);
+  evictIfNeeded();
+}
+
 /** Test seam — drops all cached indexes. */
 export function clearSourceCache(): void {
   store.clear();

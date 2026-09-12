@@ -56,3 +56,6 @@ scanner_backend_backup.js
 
 # Security - Prevent accidental manual leaks
 *Manual*.md
+
+# Saved camera catalogue
+/.cache/

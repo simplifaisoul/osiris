@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { stealthFetch } from '@/lib/stealthFetch';
-import { cachedSource } from '@/lib/sourceCache';
+import { cachedSource, isStale, peekSource, seedSource } from '@/lib/sourceCache';
+import { buildPayload, clearPayload, getPayload, readSnapshot, writeSnapshot, type Payload, type RegionCameras } from '@/lib/cctv-snapshot';
+import { createPool } from '@/lib/fetch-pool';
 
 export const maxDuration = 60;
 import { fetchAsfinagCameras } from './asfinag';
@@ -535,24 +537,228 @@ const REGION_FETCHERS: Record<string, RegionFetcher> = Object.fromEntries(
 );
 
 /**
- * A region that will not answer must not hold the other thirty-eight hostage.
+ * A region that will not answer must not hold the other forty-seven hostage.
  * The abandoned fetch keeps running inside the cache, so the frame it was
  * fetching lands in time for the next request rather than being thrown away —
  * this drops a slow region from the current response, not from the map.
  */
 const REGION_BUDGET_MS = 12_000;
 
-function withBudget(region: string, fetcher: RegionFetcher): Promise<{ cameras: Awaited<ReturnType<RegionFetcher>>; pending: boolean }> {
-  let timer: ReturnType<typeof setTimeout>;
-  return Promise.race([
-    fetcher().then(cameras => ({ cameras, pending: cameras.length === 0 })).finally(() => clearTimeout(timer)),
-    new Promise<{ cameras: Awaited<ReturnType<RegionFetcher>>; pending: boolean }>(resolve => {
-      timer = setTimeout(() => {
-        console.warn(`[OSIRIS] cctv:${region} over ${REGION_BUDGET_MS}ms — returning without it`);
-        resolve({ cameras: [], pending: true });
-      }, REGION_BUDGET_MS);
-    }),
-  ]);
+/**
+ * Regions are fetched a few at a time, not all forty-eight at once.
+ *
+ * Several regions fan out again to their own sub-sources, so the old
+ * all-at-once dispatch opened well over sixty simultaneous connections and
+ * the upstreams started failing on connect. Every host that timed out that
+ * way answered in under a second when asked on its own, and because a failed
+ * region caches empty for a minute, one storm kept the same regions missing
+ * from response after response. Queued regions still run; they just wait
+ * their turn, and whatever misses the deadline lands in the cache for the
+ * next caller.
+ */
+/**
+ * How long a response waits on regions it does not already have.
+ *
+ * A catalogue that already holds 35,000 cameras must not be held hostage by
+ * one upstream that hangs. us-central does exactly that — it burns the full
+ * slot budget on every attempt — and waiting on it turned a 0.2s response
+ * into a 12s one for every visitor, which is what made the cameras take so
+ * long to appear. With cameras already in hand, wait only briefly for the
+ * stragglers and let the rest land in the cache for the next caller. With
+ * nothing in hand there is nothing to show anyway, so a cold start still
+ * waits properly rather than returning an empty map.
+ */
+const WARM_GRACE_MS = 2_000;
+
+const REGION_CONCURRENCY = 4;
+const regionPool = createPool(REGION_CONCURRENCY);
+
+/**
+ * One refresh per region at a time, and never an unbounded slot.
+ *
+ * A pool slot held by an upstream that never answers is worse than the storm
+ * it replaced: four of those and the catalogue stops refreshing entirely. The
+ * budget guarantees the slot comes back. The abandoned fetch keeps running
+ * inside the source cache, where it costs no slot and still lands for the
+ * next caller. Sharing one refresh per region also stops a hundred
+ * simultaneous visitors queueing a hundred copies of the same work.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const refreshing = new Map<string, Promise<any[]>>();
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function refreshRegion(region: string): Promise<any[]> {
+  const existing = refreshing.get(region);
+  if (existing) return existing;
+
+  const started = regionPool.run(async () => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        REGION_FETCHERS[region](),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        new Promise<any[]>(resolve => {
+          timer = setTimeout(() => {
+            console.warn(`[OSIRIS] cctv:${region} over ${REGION_BUDGET_MS}ms — freeing its slot`);
+            resolve([]);
+          }, REGION_BUDGET_MS);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }).finally(() => { refreshing.delete(region); });
+
+  refreshing.set(region, started);
+  return started;
+}
+
+const ALL_REGIONS = () => Object.keys(REGION_FETCHERS);
+
+/** Everything currently held, stale included — what gets written to disk. */
+function currentRegions(): RegionCameras {
+  const regions: RegionCameras = {};
+  for (const region of ALL_REGIONS()) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cameras = peekSource<any>(`cctv:${region}`, true);
+    if (cameras?.length) regions[region] = cameras;
+  }
+  return regions;
+}
+
+/** Serialise and compress the whole-world response once, not per request. */
+function rebuildPayload(): Payload | undefined {
+  const regions = currentRegions();
+  const held = Object.keys(regions);
+  if (!held.length) return undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cameras: any[] = [];
+  const sources: Record<string, number> = {};
+  for (const region of ALL_REGIONS()) {
+    for (const camera of regions[region] ?? []) {
+      cameras.push(camera);
+      const label = String(camera.source ?? 'unknown');
+      sources[label] = (sources[label] || 0) + 1;
+    }
+  }
+  return buildPayload({
+    cameras,
+    total: cameras.length,
+    sources,
+    regions: ALL_REGIONS(),
+    pendingRegions: ALL_REGIONS().filter(region => !regions[region]),
+    timestamp: new Date().toISOString(),
+  }, cameras.length, held.length === ALL_REGIONS().length);
+}
+
+const PERSIST_EVERY_MS = 60_000;
+let lastPersistedAt = 0;
+let lastPersistedTotal = 0;
+
+/**
+ * Saves only ever move forwards.
+ *
+ * A boot that starts empty reaches its first request with a handful of
+ * cameras, and writing that would replace a good saved catalogue with a
+ * near-empty one — the next boot would then restore almost nothing. The
+ * restore seeds the high-water mark, so a fresh process cannot regress what
+ * an earlier one already learned.
+ */
+async function persistCatalogue() {
+  const cameras = Object.values(currentRegions()).reduce((n, list) => n + list.length, 0);
+  if (cameras <= lastPersistedTotal) return;
+  if (Date.now() - lastPersistedAt < PERSIST_EVERY_MS) return;
+  lastPersistedAt = Date.now();
+  lastPersistedTotal = cameras;
+  try {
+    await writeSnapshot(currentRegions());
+  } catch (error) {
+    console.warn('[OSIRIS] Could not save the camera catalogue:', error);
+  }
+}
+
+/**
+ * Fill the catalogue before the first visitor arrives, rather than because of
+ * one. Without this the first request after a deploy pays the whole cold
+ * fan-out and still returns a partial map; with it the pool has usually
+ * finished by the time anyone asks. Called from instrumentation at boot.
+ */
+let restoring: Promise<void> | undefined;
+
+/**
+ * Load the saved catalogue into this module, once.
+ *
+ * The request handler owns this rather than the boot hook: Next loads
+ * instrumentation in its own module graph, so a catalogue restored there
+ * populated a different copy of these caches and every request still started
+ * from nothing. Reading ~2MB from disk costs a few milliseconds and makes the
+ * first request as fast as the thousandth.
+ */
+function ensureRestored(): Promise<void> {
+  restoring ??= (async () => {
+    const saved = await readSnapshot();
+    if (!saved) return;
+    let cameras = 0;
+    for (const [region, list] of Object.entries(saved.regions)) {
+      if (region in REGION_FETCHERS) { seedSource(`cctv:${region}`, list); cameras += list.length; }
+    }
+    rebuildPayload();
+    lastPersistedTotal = cameras;
+    console.log(`[OSIRIS] Camera catalogue restored: ${cameras} cameras from disk`);
+  })().catch(error => { console.warn('[OSIRIS] Could not restore the camera catalogue:', error); });
+  return restoring;
+}
+
+export async function warmCctvCatalog() {
+  await ensureRestored();
+  // Then bring it up to date, and save whatever it became.
+  await collectRegions(ALL_REGIONS());
+  rebuildPayload();
+  await persistCatalogue();
+}
+
+/** Test seam — drops queued refreshes between cases. */
+export function clearCctvRefreshes() {
+  refreshing.clear();
+  regionPool.reset();
+  restoring = undefined;
+  clearPayload();
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function collectRegions(regions: string[]): Promise<{ cameras: Record<string, any[]>; pending: string[] }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cameras: Record<string, any[]> = {};
+  const missing: string[] = [];
+
+  for (const region of regions) {
+    /* Stale cameras beat no cameras: a camera index goes out of date over
+       weeks, so serving yesterday's positions while today's are fetched is
+       always the better trade. The refresh runs behind the response. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cached = peekSource<any>(`cctv:${region}`, true);
+    if (cached) {
+      cameras[region] = cached;
+      if (isStale(`cctv:${region}`)) void refreshRegion(region).catch(() => {});
+    } else {
+      missing.push(region);
+    }
+  }
+  if (!missing.length) return { cameras, pending: [] };
+
+  const fetches = missing.map(region => refreshRegion(region)
+    .then(result => { if (result.length) cameras[region] = result; })
+    .catch(() => { /* the cache logs it and keeps the last good index */ }));
+
+  const budget = Object.keys(cameras).length ? WARM_GRACE_MS : REGION_BUDGET_MS;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<void>(resolve => { timer = setTimeout(resolve, budget); });
+  await Promise.race([Promise.all(fetches), deadline]);
+  clearTimeout(timer);
+
+  const pending = missing.filter(region => !cameras[region]);
+  if (pending.length) console.warn(`[OSIRIS] cctv still filling: ${pending.join(", ")}`);
+  return { cameras, pending };
 }
 
 // Determine which regions to fetch based on viewport bounds
@@ -667,8 +873,49 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   return regions.length > 0 ? regions : ['uk', 'us-east']; // Default fallback
 }
 
+/** How old the prebuilt world payload may get before a rebuild is kicked off. */
+const PAYLOAD_REFRESH_MS = 5 * 60 * 1000;
+const REBUILD_DELAY_MS = 2_000;
+let rebuilding: Promise<void> | undefined;
+
+function rebuildInBackground() {
+  rebuilding ??= (async () => {
+    /* Let the response that triggered this reach the client first. Refreshing
+       48 regions is heavy, single-threaded work, and starting it inline made
+       the first request after a restart take 13s to flush a payload that was
+       already built and sitting in memory. */
+    await new Promise(resolve => setTimeout(resolve, REBUILD_DELAY_MS));
+    await collectRegions(ALL_REGIONS());
+    rebuildPayload();
+    await persistCatalogue();
+  })().catch(error => { console.warn('[OSIRIS] Camera catalogue rebuild failed:', error); })
+    .finally(() => { rebuilding = undefined; });
+  return rebuilding;
+}
+
+/**
+ * The bytes are already serialised and gzipped, so a request costs a buffer
+ * write. An unchanged catalogue answers a returning visitor with a 304.
+ */
+function servePayload(request: Request, ready: Payload) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'public, max-age=60, stale-while-revalidate=600',
+    'Vary': 'Accept-Encoding',
+    'ETag': ready.etag,
+  };
+  if (request.headers.get('if-none-match') === ready.etag) return new Response(null, { status: 304, headers });
+
+  if ((request.headers.get('accept-encoding') || '').includes('gzip')) {
+    headers['Content-Encoding'] = 'gzip';
+    return new Response(new Uint8Array(ready.gzip), { headers });
+  }
+  return new Response(new Uint8Array(ready.json), { headers });
+}
+
 export async function GET(request: Request) {
   try {
+    await ensureRestored();
     const { searchParams } = new URL(request.url);
     const region = searchParams.get('region');
     const lat = parseFloat(searchParams.get('lat') || '0');
@@ -688,21 +935,39 @@ export async function GET(request: Request) {
       regionsToFetch = Object.keys(REGION_FETCHERS);
     }
 
-    const results = await Promise.allSettled(
-      regionsToFetch.map(r => withBudget(r, REGION_FETCHERS[r]))
-    );
+    if (regionsToFetch.length === ALL_REGIONS().length) {
+      const ready = getPayload();
+      if (ready) {
+        void persistCatalogue();
+        // Past its TTL, refresh behind the response rather than in front of it.
+        /* An incomplete catalogue is chased straight away; a complete one is
+           left alone until its regions actually go stale. */
+        if (!ready.complete || Date.now() - ready.builtAt > PAYLOAD_REFRESH_MS) void rebuildInBackground();
+        return servePayload(request, ready);
+      }
+    }
+
+    const collected = await collectRegions(regionsToFetch);
 
     const allCameras: any[] = [];
     const sources: Record<string, number> = {};
-    const pendingRegions: string[] = [];
+    const pendingRegions = collected.pending;
 
-    for (const [index, result] of results.entries()) {
-      if (result.status === 'rejected' || result.value.pending) pendingRegions.push(regionsToFetch[index]);
-      if (result.status === 'fulfilled') {
-        for (const cam of result.value.cameras) {
-          allCameras.push(cam);
-          sources[cam.source] = (sources[cam.source] || 0) + 1;
-        }
+    for (const region of regionsToFetch) {
+      for (const cam of collected.cameras[region] ?? []) {
+        allCameras.push(cam);
+        sources[cam.source] = (sources[cam.source] || 0) + 1;
+      }
+    }
+
+    /* Cache what was just assembled, so the next caller is served the
+       prebuilt bytes instead of paying to build them again — and so the
+       catalogue reaches disk even when no payload existed to begin with. */
+    if (regionsToFetch.length === ALL_REGIONS().length) {
+      const built = rebuildPayload();
+      if (built) {
+        void persistCatalogue();
+        return servePayload(request, built);
       }
     }
 
