@@ -1,0 +1,1416 @@
+{
+ "au|Sydney": {
+  "lat": -33.8698439,
+  "lng": 151.2082848,
+  "display_name": "Sydney, New South Wales, Australia"
+ },
+ "be|Lokeren": {
+  "lat": 51.1483816,
+  "lng": 3.944247,
+  "display_name": "Lokeren, Sint-Niklaas, Oost-Vlaanderen, Vlaanderen, België / Belgique / Belgien"
+ },
+ "be|Stadhuis Sint-Niklaas": {
+  "lat": 51.1647955,
+  "lng": 4.1390224,
+  "display_name": "Stadhuis Sint-Niklaas, 1, Grote Markt, Kroonmolenwijk, Sint-Niklaas, Oost-Vlaanderen, Vlaanderen, 9100, België / Belgique / Belgien"
+ },
+ "be|Zwin, Knokke-Heist": {
+  "lat": 51.3580057,
+  "lng": 3.3456862,
+  "display_name": "Zwin, Zenopad, Knokke, Knokke-Heist, Brugge, West-Vlaanderen, Vlaanderen, 8300, België / Belgique / Belgien"
+ },
+ "bz|The Belize Zoo": {
+  "lat": 17.357681,
+  "lng": -88.5426117,
+  "display_name": "The Belize Zoo's Tropical Education Center and Lodge, Cayo-Belize Road, La Democracia, Belize District, Belize"
+ },
+ "ca|Canmore": {
+  "lat": 51.0866897,
+  "lng": -115.3481135,
+  "display_name": "Canmore, Town of Canmore, Alberta, T1W 2H4, Canada"
+ },
+ "ca|Channel-Port aux Basques": {
+  "lat": 47.5776635,
+  "lng": -59.1424188,
+  "display_name": "Channel-Port aux Basques, Newfoundland, Newfoundland and Labrador, A0M 1C0, Canada"
+ },
+ "ca|Collingwood, Ontario": {
+  "lat": 44.5027226,
+  "lng": -80.2172379,
+  "display_name": "Collingwood, Simcoe County, Central Ontario, Ontario, Canada"
+ },
+ "ca|Peace Bridge, Fort Erie": {
+  "lat": 42.9074262,
+  "lng": -78.9093961,
+  "display_name": "Peace Bridge, Fort Erie, Niagara Region, Golden Horseshoe, Ontario, L2A 0B5, Canada"
+ },
+ "ch|Basel": {
+  "lat": 47.5581077,
+  "lng": 7.5878261,
+  "display_name": "Basel, Basel-Stadt, Schweiz/Suisse/Svizzera/Svizra"
+ },
+ "ch|Luzern": {
+  "lat": 47.052144,
+  "lng": 8.3058123,
+  "display_name": "Luzern, Schweiz/Suisse/Svizzera/Svizra"
+ },
+ "ch|Rheinfall, Schaffhausen": {
+  "lat": 47.6783615,
+  "lng": 8.6148706,
+  "display_name": "Rheinfall, Neuhausen am Rheinfall, Bezirk Schaffhausen, Schaffhausen, 8212, Schweiz/Suisse/Svizzera/Svizra"
+ },
+ "ch|Zürich Hauptbahnhof": {
+  "lat": 47.3781008,
+  "lng": 8.5393635,
+  "display_name": "Zürich Hauptbahnhof, Passage Löwenstrasse, City, Altstadt, Zürich, Bezirk Zürich, Zürich, 8021, Schweiz/Suisse/Svizzera/Svizra"
+ },
+ "de|Bremen": {
+  "lat": 53.0758196,
+  "lng": 8.8071646,
+  "display_name": "Bremen, Deutschland"
+ },
+ "de|Naumburg (Saale)": {
+  "lat": 51.1525648,
+  "lng": 11.8099186,
+  "display_name": "Naumburg (Saale), Burgenlandkreis, Sachsen-Anhalt, Deutschland"
+ },
+ "de|Rees": {
+  "lat": 51.7581242,
+  "lng": 6.3956605,
+  "display_name": "Rees, Kreis Kleve, Nordrhein-Westfalen, 46459, Deutschland"
+ },
+ "de|Tiergarten, Berlin": {
+  "lat": 52.5097776,
+  "lng": 13.3572597,
+  "display_name": "Tiergarten, Mitte, Berlin, Deutschland"
+ },
+ "ee|Tallinn": {
+  "lat": 59.437242,
+  "lng": 24.7572693,
+  "display_name": "Tallinn, Harju maakond, Eesti"
+ },
+ "es|Arrecife, Lanzarote": {
+  "lat": 28.9671116,
+  "lng": -13.5546147,
+  "display_name": "Ciudad deportiva Lanzarote, Avenida Alcalde Gines de la Hoz, Titerroy, Arrecife, Las Palmas, Canarias, 35509, España"
+ },
+ "es|Benidorm": {
+  "lat": 38.5406255,
+  "lng": -0.1290929,
+  "display_name": "Benidorm, la Marina Baixa, Alacant / Alicante, Comunitat Valenciana, España"
+ },
+ "es|Cap Blanch, Altea": {
+  "lat": 38.5791012,
+  "lng": -0.0653265,
+  "display_name": "Cap Blanch, Carrer Johann Sebastian Bach, Carretera de l'Albir, l'Alfàs del Pi, la Marina Baixa, Alacant / Alicante, Comunitat Valenciana, 03581, España"
+ },
+ "es|Girona": {
+  "lat": 41.9793006,
+  "lng": 2.8199439,
+  "display_name": "Girona, Gironès, Girona, Catalunya, España"
+ },
+ "es|Las Palmas de Gran Canaria": {
+  "lat": 28.1288694,
+  "lng": -15.4349015,
+  "display_name": "Las Palmas de Gran Canaria, Las Palmas, Canarias, España"
+ },
+ "es|San Sebastián de la Gomera": {
+  "lat": 28.0910382,
+  "lng": -17.1110077,
+  "display_name": "San Sebastián de la Gomera, Santa Cruz de Tenerife, Canarias, España"
+ },
+ "fi|Apukka, Rovaniemi": {
+  "lat": 66.5789284,
+  "lng": 26.0108254,
+  "display_name": "Apukka, Rovaniemi, Rovaniemen seutukunta, Lappi, Manner-Suomi, Suomi / Finland"
+ },
+ "fi|Helsinki": {
+  "lat": 60.1666204,
+  "lng": 24.9435408,
+  "display_name": "Helsinki, Helsingin seutukunta, Uusimaa, Manner-Suomi, Suomi / Finland"
+ },
+ "fi|Kuopio": {
+  "lat": 62.8924628,
+  "lng": 27.6783603,
+  "display_name": "Kuopio, Kuopion seutukunta, Pohjois-Savo, Manner-Suomi, Suomi / Finland"
+ },
+ "fi|Levi, Kittilä": {
+  "lat": 67.7844055,
+  "lng": 24.8557289,
+  "display_name": "Levi, Kittilä, Tunturi-Lapin seutukunta, Lappi, Manner-Suomi, 99130, Suomi / Finland"
+ },
+ "fi|Rovaniemi": {
+  "lat": 66.5025537,
+  "lng": 25.7303912,
+  "display_name": "Rovaniemi, Rovaniemen seutukunta, Lappi, Manner-Suomi, Suomi / Finland"
+ },
+ "gb|Ammanford": {
+  "lat": 51.7955509,
+  "lng": -3.996828,
+  "display_name": "Ammanford, Station Road, Tir-y-dail, Ammanford, Sir Gaerfyrddin / Carmarthenshire, Cymru / Wales, SA18 2DD, United Kingdom"
+ },
+ "gb|Broad Haven, Pembrokeshire": {
+  "lat": 51.7803689,
+  "lng": -5.1023775,
+  "display_name": "Broad Haven, Pembrokeshire, Cymru / Wales, SA62 3JR, United Kingdom"
+ },
+ "gb|Cowes, Isle of Wight": {
+  "lat": 50.7633176,
+  "lng": -1.2985186,
+  "display_name": "Cowes, Isle of Wight, England, United Kingdom"
+ },
+ "gb|Dorchester, Dorset": {
+  "lat": 50.7132064,
+  "lng": -2.4371229,
+  "display_name": "Dorchester, Dorset, England, United Kingdom"
+ },
+ "gb|Isle of Wight": {
+  "lat": 50.6710482,
+  "lng": -1.3327111,
+  "display_name": "Isle of Wight, England, United Kingdom"
+ },
+ "gb|Manchester Airport": {
+  "lat": 53.350342,
+  "lng": -2.2803693,
+  "display_name": "Manchester Airport, Enterprise Way, Woodhouse Park, Wythenshawe, Manchester, Greater Manchester, England, M90 1QX, United Kingdom"
+ },
+ "gb|Oxford Martin School": {
+  "lat": 51.7548496,
+  "lng": -1.254134,
+  "display_name": "Oxford Martin School, 34, Broad Street, City Centre, Oxford, Oxfordshire, England, OX1 3BD, United Kingdom"
+ },
+ "gb|Pickering, North Yorkshire": {
+  "lat": 54.2456591,
+  "lng": -0.7765631,
+  "display_name": "Pickering, North Yorkshire, York and North Yorkshire, England, United Kingdom"
+ },
+ "gb|Port Isaac": {
+  "lat": 50.5938787,
+  "lng": -4.8299895,
+  "display_name": "Port Isaac, Cornwall, England, PL29 3SB, United Kingdom"
+ },
+ "hr|Hvar": {
+  "lat": 43.1739411,
+  "lng": 16.5565161,
+  "display_name": "Hvar, Splitsko-dalmatinska županija, Hrvatska"
+ },
+ "ie|Dublin Port": {
+  "lat": 53.3527704,
+  "lng": -6.2245117,
+  "display_name": "Dublin Port, Dublin Tunnel, Fairview, North Strand, North Dock B ED, Dublin, County Dublin, Leinster, D03 R8P8, Éire / Ireland"
+ },
+ "ie|Temple Bar, Dublin": {
+  "lat": 53.3454957,
+  "lng": -6.2631139,
+  "display_name": "Temple Bar, Royal Exchange A Ward 1986, Dublin, County Dublin, Leinster, Éire / Ireland"
+ },
+ "it|Venezia": {
+  "lat": 45.4371908,
+  "lng": 12.3345898,
+  "display_name": "Venezia, Veneto, 30121-30176, Italia"
+ },
+ "jp|Shinjuku, Tokyo": {
+  "lat": 35.6937632,
+  "lng": 139.7036319,
+  "display_name": "新宿区, 東京都, 160-8484, 日本"
+ },
+ "kr|Nowon-gu, Seoul": {
+  "lat": 37.654,
+  "lng": 127.0567,
+  "display_name": "노원구, 서울특별시, 대한민국"
+ },
+ "nl|11 Stedenhal, Leeuwarden (Ljouwert)": null,
+ "nl|Aalsmeer": {
+  "lat": 52.2669442,
+  "lng": 4.7493384,
+  "display_name": "Aalsmeer, Noord-Holland, Nederland"
+ },
+ "nl|Abram van Rijckevorselweg, Capelle aan den IJssel": {
+  "lat": 51.9259935,
+  "lng": 4.5700507,
+  "display_name": "Abram van Rijckevorselweg, Middelwatering, Capelle aan den IJssel, Zuid-Holland, Nederland, 2902 EK, Nederland"
+ },
+ "nl|Afvaloven, Harlingen": null,
+ "nl|Airport (Helihaven), Den Helder": null,
+ "nl|Akkrum": {
+  "lat": 53.0501248,
+  "lng": 5.8362304,
+  "display_name": "Akkrum, Heerenveen, Fryslân, Nederland"
+ },
+ "nl|Alkmaar": {
+  "lat": 52.6008538,
+  "lng": 4.8170994,
+  "display_name": "Alkmaar, Noord-Holland, Nederland"
+ },
+ "nl|Almere": {
+  "lat": 52.3705038,
+  "lng": 5.2185859,
+  "display_name": "Almere, Flevoland, Nederland"
+ },
+ "nl|Alpaca World, Koewacht": null,
+ "nl|Ameland": {
+  "lat": 53.4063472,
+  "lng": 5.74825,
+  "display_name": "Ameland, Fryslân, Nederland"
+ },
+ "nl|Amersfoort": {
+  "lat": 52.1637703,
+  "lng": 5.4088845,
+  "display_name": "Amersfoort, Utrecht, Nederland"
+ },
+ "nl|Amsterdam": {
+  "lat": 52.3730796,
+  "lng": 4.8924534,
+  "display_name": "Amsterdam, Noord-Holland, Nederland"
+ },
+ "nl|Andijk": {
+  "lat": 52.7467338,
+  "lng": 5.2217929,
+  "display_name": "Andijk, Medemblik, Noord-Holland, Nederland"
+ },
+ "nl|Andr&#233 Rieu - Vrijthof, Maastricht": null,
+ "nl|Apeldoorn": {
+  "lat": 52.1795738,
+  "lng": 5.9300775,
+  "display_name": "Apeldoorn, Gelderland, Nederland"
+ },
+ "nl|Arnhem": {
+  "lat": 51.984257,
+  "lng": 5.9108573,
+  "display_name": "Arnhem, Gelderland, Nederland"
+ },
+ "nl|BIO IJ-cam, Amsterdam": null,
+ "nl|Barneveld": {
+  "lat": 52.1715067,
+  "lng": 5.6454392,
+  "display_name": "Barneveld, Gelderland, Nederland"
+ },
+ "nl|Be Fair Tennis, Waddinxveen": null,
+ "nl|Beachcam en Surfspots, Cadzand-Bad": null,
+ "nl|Bed and Breakfast Aan Strand, Katwijk aan Zee": null,
+ "nl|Berghaven, Hoek van Holland": {
+  "lat": 51.9763589,
+  "lng": 4.1243794,
+  "display_name": "Berghaven, Hoek van Holland, Rotterdam, Zuid-Holland, Nederland, 3151 HX, Nederland"
+ },
+ "nl|Bij HAL 4, Rotterdam": null,
+ "nl|Bij Hotel Princenhof, Eernewoude": null,
+ "nl|Bij Melis Seafood, Westkapelle": null,
+ "nl|Bij Surfschool Foamball, Texel": null,
+ "nl|Binnenhaven, Harlingen": null,
+ "nl|Blokzijl": {
+  "lat": 52.7261494,
+  "lng": 5.9614191,
+  "display_name": "Blokzijl, Steenwijkerland, Overijssel, Nederland"
+ },
+ "nl|Bosgoed Animal Paradise, Terwolde": null,
+ "nl|Bouw High Five, Utrecht": null,
+ "nl|Bouwcam Beurskwartier, Utrecht": null,
+ "nl|Bouwcam Zuidasdok, Amsterdam": null,
+ "nl|Bouwcam bij Station NS, Hilversum": null,
+ "nl|Brandarisplein Hotel NAP, Terschelling": null,
+ "nl|Broek op Langedijk": {
+  "lat": 52.675121,
+  "lng": 4.8031094,
+  "display_name": "Broek op Langedijk, Dijk en Waard, Noord-Holland, Nederland"
+ },
+ "nl|Brouwersdam": {
+  "lat": 52.3115171,
+  "lng": 4.6382757,
+  "display_name": "Brouwersdam, Goeree-Overflakkee, Floriande, Hoofddorp, Haarlemmermeer, Noord-Holland, Nederland, 2134 WZ, Nederland"
+ },
+ "nl|Cadzand-Bad": {
+  "lat": 51.3771811,
+  "lng": 3.388391,
+  "display_name": "Cadzand-Bad, Cadzand, Sluis, Zeeland, Nederland, 4506 KV, Nederland"
+ },
+ "nl|Camping Duinhoeve, Renesse": {
+  "lat": 51.7396612,
+  "lng": 3.778939,
+  "display_name": "Duinhoeve, Scholderlaan, Renesse, Schouwen-Duiveland, Zeeland, Nederland, 4325 EN, Nederland"
+ },
+ "nl|Capelle aan den IJssel": {
+  "lat": 51.9312552,
+  "lng": 4.5883596,
+  "display_name": "Capelle aan den IJssel, Zuid-Holland, Nederland"
+ },
+ "nl|Castricum": {
+  "lat": 52.5496739,
+  "lng": 4.6696185,
+  "display_name": "Castricum, Noord-Holland, Nederland"
+ },
+ "nl|Circuit Zandvoort, Zandvoort": {
+  "lat": 52.3894712,
+  "lng": 4.5428849,
+  "display_name": "CM.com Circuit Zandvoort, Laarwall, Zandvoort, Noord-Holland, Nederland, 2041 TZ, Nederland"
+ },
+ "nl|Dalfsen": {
+  "lat": 52.5117837,
+  "lng": 6.2566367,
+  "display_name": "Dalfsen, Overijssel, Nederland"
+ },
+ "nl|De Dam, Amsterdam": {
+  "lat": 52.3731449,
+  "lng": 4.8913363,
+  "display_name": "Koninklijk Paleis, 147, Nieuwezijds Voorburgwal, Centrum, Amsterdam, Noord-Holland, Nederland, 1012 RJ, Nederland"
+ },
+ "nl|De Dijk van links naar rechts v.v., Volendam": null,
+ "nl|De Heeren van Loosdrecht, Loosdrecht": null,
+ "nl|De Koog - Dikke Zeehond, Texel": null,
+ "nl|De Markt (reuzenrad), Steenwijk": null,
+ "nl|De Mortel": {
+  "lat": 51.5403294,
+  "lng": 5.7089062,
+  "display_name": "De Mortel, Gemert-Bakel, Noord-Brabant, Nederland"
+ },
+ "nl|De Oldehove Toren, Leeuwarden": null,
+ "nl|De Wijde EE, Oudega": null,
+ "nl|Delfzijl": {
+  "lat": 53.3325644,
+  "lng": 6.9135144,
+  "display_name": "Delfzijl, Eemsdelta, Groningen, Nederland"
+ },
+ "nl|Den Haag": {
+  "lat": 52.0799838,
+  "lng": 4.3113461,
+  "display_name": "Den Haag, Zuid-Holland, Nederland"
+ },
+ "nl|Den Helder": {
+  "lat": 52.957976,
+  "lng": 4.760279,
+  "display_name": "Den Helder, Noord-Holland, Nederland"
+ },
+ "nl|Dierenopvang Woody's, Texel": null,
+ "nl|Dierenpark Amersfoort, Amersfoort": {
+  "lat": 52.1495255,
+  "lng": 5.3449887,
+  "display_name": "Dierenpark Amersfoort, Berenplein, Bosgebied, Amersfoort, Utrecht, Nederland, 3819 AB, Nederland"
+ },
+ "nl|Dokkumer EE, Wijns": {
+  "lat": 53.2941133,
+  "lng": 5.8781251,
+  "display_name": "Dokkumer Ie, Burdaard, Noardeast-Fryslân, Fryslân, Nederland"
+ },
+ "nl|Domburg": {
+  "lat": 51.5632141,
+  "lng": 3.4967277,
+  "display_name": "Domburg, Veere, Zeeland, Nederland"
+ },
+ "nl|Dongen": {
+  "lat": 51.6428928,
+  "lng": 4.957877,
+  "display_name": "Dongen, Noord-Brabant, Nederland"
+ },
+ "nl|Dordrecht": {
+  "lat": 51.7689546,
+  "lng": 4.6867891,
+  "display_name": "Dordrecht, Zuid-Holland, Nederland"
+ },
+ "nl|Down Under Recreatie, Nieuwegein": null,
+ "nl|Drierivierenpunt, Dordrecht": null,
+ "nl|DutchRadar ADS-B and MLAT, Twello": null,
+ "nl|Eems (Noord), Delfzijl": null,
+ "nl|Eems (Zuid), Delfzijl": null,
+ "nl|Eernewoude": {
+  "lat": 53.1322349,
+  "lng": 5.9406531,
+  "display_name": "Earnewâld, Tytsjerksteradiel, Fryslân, Nederland"
+ },
+ "nl|Egmond aan Zee": {
+  "lat": 52.6183093,
+  "lng": 4.6256307,
+  "display_name": "Egmond aan Zee, Bergen, Noord-Holland, Nederland"
+ },
+ "nl|Elburg": {
+  "lat": 52.4156591,
+  "lng": 5.8413217,
+  "display_name": "Elburg, Gelderland, Nederland"
+ },
+ "nl|Enkhuizen": {
+  "lat": 52.7577195,
+  "lng": 5.3206941,
+  "display_name": "Enkhuizen, Noord-Holland, Nederland"
+ },
+ "nl|Gaia Zoo Livestream, Kerkrade": null,
+ "nl|Gasunie Slechtvalk webcam, Groningen": null,
+ "nl|Gemert": {
+  "lat": 51.5589833,
+  "lng": 5.6864592,
+  "display_name": "Gemert, Gemert-Bakel, Noord-Brabant, Nederland"
+ },
+ "nl|Genemuiden": {
+  "lat": 52.6228834,
+  "lng": 6.0424311,
+  "display_name": "Genemuiden, Zwartewaterland, Overijssel, Nederland"
+ },
+ "nl|Golfbaan Ameland, Ameland": {
+  "lat": 53.4497909,
+  "lng": 5.6518937,
+  "display_name": "Golfbaan Ameland, Fabrieksweg, Hollum, Ameland, Fryslân, Nederland, 9161 CG, Nederland"
+ },
+ "nl|Golfbaan de Texelse, Texel": {
+  "lat": 53.1508892,
+  "lng": 4.8497467,
+  "display_name": "Golfbaan De Texelse, Postweg, De Cocksdorp, Texel, Noord-Holland, Nederland, 1795 JT, Nederland"
+ },
+ "nl|Gouwzee, Monnickendam": {
+  "lat": 52.4691468,
+  "lng": 5.0851354,
+  "display_name": "Gouwzee, Marken, Waterland, Noord-Holland, Nederland"
+ },
+ "nl|Groede": {
+  "lat": 51.3793344,
+  "lng": 3.5067157,
+  "display_name": "Groede, Sluis, Zeeland, Nederland"
+ },
+ "nl|Groningen": {
+  "lat": 53.2190652,
+  "lng": 6.5680077,
+  "display_name": "Groningen, Nederland"
+ },
+ "nl|Haaksbergen": {
+  "lat": 52.1564581,
+  "lng": 6.740239,
+  "display_name": "Haaksbergen, Overijssel, Nederland"
+ },
+ "nl|Han Bouwmeester Natuurfotografie, Markelo": null,
+ "nl|Hans Natuurkanaal, De Mortel": null,
+ "nl|Harlingen": {
+  "lat": 53.1752103,
+  "lng": 5.4141998,
+  "display_name": "Harlingen, Fryslân, Nederland"
+ },
+ "nl|Haven bij VVV kantoor, Terschelling": null,
+ "nl|Haven van Oudeschild, Texel": null,
+ "nl|Haven, Delfzijl": {
+  "lat": 53.3319081,
+  "lng": 6.9294303,
+  "display_name": "Havenstraat, Centrum, Delfzijl, Eemsdelta, Groningen, Nederland, 9934 AB, Nederland"
+ },
+ "nl|Haven, Terschelling": {
+  "lat": 53.357741,
+  "lng": 5.216581,
+  "display_name": "Haven, Willem Barentszkade, West-Terschelling, Terschelling, Fryslân, Nederland, 8881 BA, Nederland"
+ },
+ "nl|Havenkom, Terschelling": null,
+ "nl|Havenmond (draaibare camera), Harlingen": null,
+ "nl|Havenmond Oudeschild, Texel": null,
+ "nl|Havenmond, Harlingen": {
+  "lat": 53.1765539,
+  "lng": 5.4033493,
+  "display_name": "Havenmond, Harlingen, Fryslân, Nederland, 8862 NZ, Nederland"
+ },
+ "nl|Havenmond, Vlieland": null,
+ "nl|Havenplein en Veerkade, Terschelling": null,
+ "nl|Hengelo": {
+  "lat": 52.2523195,
+  "lng": 6.7955256,
+  "display_name": "Hengelo, Overijssel, Nederland"
+ },
+ "nl|Herwijnen": {
+  "lat": 51.8267226,
+  "lng": 5.1296799,
+  "display_name": "Herwijnen, West Betuwe, Gelderland, Nederland"
+ },
+ "nl|Het Posthuys, Vlieland": null,
+ "nl|Highlands Bouwcam, Alkmaar": null,
+ "nl|Hilversum": {
+  "lat": 52.2241375,
+  "lng": 5.1719396,
+  "display_name": "Hilversum, Noord-Holland, Nederland"
+ },
+ "nl|Hoek van Holland": {
+  "lat": 51.9771615,
+  "lng": 4.1314526,
+  "display_name": "Hoek van Holland, Rotterdam, Zuid-Holland, Nederland"
+ },
+ "nl|Hoekse Watersportvereniging, Hoek van Holland": null,
+ "nl|Hoge Veluwe wildcamera, Otterloo": null,
+ "nl|Holocaust Namenmonument Nederland, Amsterdam": {
+  "lat": 52.3657056,
+  "lng": 4.904975,
+  "display_name": "Nationaal Holocaust Namenmonument, Weesperstraat, Weesperbuurt, Centrum, Amsterdam, Noord-Holland, Nederland, 1018 VA, Nederland"
+ },
+ "nl|Hoogeveen": {
+  "lat": 52.7264258,
+  "lng": 6.4930815,
+  "display_name": "Hoogeveen, Drenthe, Nederland"
+ },
+ "nl|Hotel Chicago (Bouwcam), Rotterdam": null,
+ "nl|Huissen": {
+  "lat": 51.9383502,
+  "lng": 5.9393769,
+  "display_name": "Huissen, Lingewaard, Gelderland, Nederland"
+ },
+ "nl|IJ vanaf Mövenpick Hotel, Amsterdam": null,
+ "nl|IJmuiden": {
+  "lat": 52.4574139,
+  "lng": 4.6116211,
+  "display_name": "IJmuiden, Velsen, Noord-Holland, Nederland"
+ },
+ "nl|IJsbaan De Meent, Alkmaar": {
+  "lat": 52.6329855,
+  "lng": 4.7136071,
+  "display_name": "IJsbaan De Meent, Terborchlaan, De Hoef III, Alkmaar, Noord-Holland, Nederland, 1816 MH, Nederland"
+ },
+ "nl|IJsbaan Woerden Live, Woerden": null,
+ "nl|IJsbaan en meer, Dongen": null,
+ "nl|IJschclub Haaksbergen, Haaksbergen": null,
+ "nl|IJsclub, Julianadorp": {
+  "lat": 52.8923176,
+  "lng": 4.7555018,
+  "display_name": "IJsclub Julianadorp, Landbouwstraat, Julianadorp-West, Julianadorp, Den Helder, Noord-Holland, Nederland, 1787 AK, Nederland"
+ },
+ "nl|IJsmarkt Oosterhout, Oosterhout": null,
+ "nl|IJsselstein": {
+  "lat": 52.0246381,
+  "lng": 5.0458792,
+  "display_name": "IJsselstein, Utrecht, Nederland"
+ },
+ "nl|Imkerij De Valksche Bijenhof, Kootwijkerbroek": null,
+ "nl|Jachthaven Vlieland, Vlieland": {
+  "lat": 53.2965365,
+  "lng": 5.0900787,
+  "display_name": "Waddenhaven Vlieland, 68, Havenweg, Oost-Vlieland, Vlieland, Fryslân, Nederland, 8899 BC, Nederland"
+ },
+ "nl|Jachthaven en Het Arsenaal, Vlissingen": null,
+ "nl|Jachthaven, Monnickendam": {
+  "lat": 52.4635616,
+  "lng": 5.0357373,
+  "display_name": "Jachthaven, Monnickendam, Waterland, Noord-Holland, Nederland, 1141 AV, Nederland"
+ },
+ "nl|Jachthaven, Terherne": {
+  "lat": 53.0454887,
+  "lng": 5.7836845,
+  "display_name": "Jachthaven, Terhernsterdyk, Terherne, De Fryske Marren, Fryslân, Nederland, 8493 RG, Nederland"
+ },
+ "nl|Joe Adam Planespotting, Schiphol": null,
+ "nl|Jufferenstraat (Museum Elburg), Elburg": {
+  "lat": 52.4477018,
+  "lng": 5.8355036,
+  "display_name": "Museum Elburg, 8, Jufferenstraat, Elburg-Vesting, Oostendorp, Elburg, Gelderland, Nederland, 8081 CR, Nederland"
+ },
+ "nl|Julianadorp": {
+  "lat": 52.8907035,
+  "lng": 4.7446131,
+  "display_name": "Julianadorp, Den Helder, Noord-Holland, Nederland"
+ },
+ "nl|KPN LED-wall / Erasmusbrug, Rotterdam": null,
+ "nl|Kampen": {
+  "lat": 52.5559484,
+  "lng": 5.9033303,
+  "display_name": "Kampen, Overijssel, Nederland"
+ },
+ "nl|Kattenopvang Woody's, Texel": null,
+ "nl|Katwijk aan Zee": {
+  "lat": 52.2048978,
+  "lng": 4.3965975,
+  "display_name": "Katwijk aan Zee, Katwijk, Zuid-Holland, Nederland, 2225 CA, Nederland"
+ },
+ "nl|Kerkje van Den Hoorn, Texel": null,
+ "nl|Kerkrade": {
+  "lat": 50.8749089,
+  "lng": 6.0593853,
+  "display_name": "Kerkrade, Limburg, Nederland"
+ },
+ "nl|Kerstboom Gerbrandytoren, IJsselstein": null,
+ "nl|Kijk in het Egelhuisje, Alkmaar": null,
+ "nl|Knooppunt Velperbroek, Rheden": {
+  "lat": 51.9831107,
+  "lng": 5.9800888,
+  "display_name": "Knooppunt Velperbroek, Velperbroekcircuit, Velp-Zuid ten zuiden van Waterstraat, Velp, Rheden, Gelderland, Nederland, 6883 BS, Nederland"
+ },
+ "nl|Koewacht": {
+  "lat": 51.2289816,
+  "lng": 3.9702283,
+  "display_name": "Koewacht, Terneuzen, Zeeland, Nederland"
+ },
+ "nl|Kootwijkerbroek": {
+  "lat": 52.1513512,
+  "lng": 5.6631504,
+  "display_name": "Kootwijkerbroek, Barneveld, Gelderland, Nederland"
+ },
+ "nl|Lammetjes cam, Texel": null,
+ "nl|Landschap De Hoge Berg, Texel": null,
+ "nl|Lauwersoog": {
+  "lat": 53.4036333,
+  "lng": 6.2142384,
+  "display_name": "Lauwersoog, Het Hogeland, Groningen, Nederland"
+ },
+ "nl|Leeuwarden": {
+  "lat": 53.2005936,
+  "lng": 5.7918548,
+  "display_name": "Leeuwarden, Fryslân, Nederland"
+ },
+ "nl|Leeuwarden (Ljouwert)": {
+  "lat": 53.2005936,
+  "lng": 5.7918548,
+  "display_name": "Leeuwarden, Fryslân, Nederland"
+ },
+ "nl|Leiden": {
+  "lat": 52.1594747,
+  "lng": 4.4908843,
+  "display_name": "Leiden, Zuid-Holland, Nederland"
+ },
+ "nl|Lelystad": {
+  "lat": 52.5150949,
+  "lng": 5.4768915,
+  "display_name": "Lelystad, Flevoland, Nederland"
+ },
+ "nl|Lemmer": {
+  "lat": 52.8444859,
+  "lng": 5.7099136,
+  "display_name": "Lemmer, De Fryske Marren, Fryslân, Nederland"
+ },
+ "nl|Loosdrecht": {
+  "lat": 52.2025993,
+  "lng": 5.0905629,
+  "display_name": "Loosdrecht, Wijdemeren, Noord-Holland, Nederland"
+ },
+ "nl|Maassluis": {
+  "lat": 51.9266671,
+  "lng": 4.2440007,
+  "display_name": "Maassluis, Zuid-Holland, Nederland"
+ },
+ "nl|Maastricht": {
+  "lat": 50.8512438,
+  "lng": 5.6909768,
+  "display_name": "Maastricht, Limburg, Nederland"
+ },
+ "nl|Marina Lelystad Haven, Lelystad": {
+  "lat": 52.5025656,
+  "lng": 5.4128297,
+  "display_name": "Lelystad Haven, 59a, Oostvaardersdijk, Lelystad-Haven, Lelystad, Flevoland, Nederland, 8244 PG, Nederland"
+ },
+ "nl|Marina Lelystad Havenmond, Lelystad": null,
+ "nl|MaritiemStream Vlissingen, Vlissingen": null,
+ "nl|Markelo": {
+  "lat": 52.2347139,
+  "lng": 6.4949852,
+  "display_name": "Markelo, Hof van Twente, Overijssel, Nederland"
+ },
+ "nl|Marktplein, Huissen": null,
+ "nl|Meteren": {
+  "lat": 51.8637206,
+  "lng": 5.2834238,
+  "display_name": "Meteren, West Betuwe, Gelderland, Nederland"
+ },
+ "nl|Middelburg": {
+  "lat": 51.4996784,
+  "lng": 3.6137371,
+  "display_name": "Middelburg, Zeeland, Nederland"
+ },
+ "nl|Middenmeer": {
+  "lat": 52.8111468,
+  "lng": 4.9948462,
+  "display_name": "Middenmeer, Hollands Kroon, Noord-Holland, Nederland"
+ },
+ "nl|Mierlo-Hout": {
+  "lat": 51.4670673,
+  "lng": 5.6346559,
+  "display_name": "Mierlo-Hout, Ganzewinkel, Helmond, Noord-Brabant, Nederland, 5706, Nederland"
+ },
+ "nl|Milieustraat Purmerend, Purmerend": null,
+ "nl|Modelvliegclub Friendship, Dalfsen": null,
+ "nl|Monding Nieuwe Waterweg, Hoek van Holland": null,
+ "nl|Monnickendam": {
+  "lat": 52.4570766,
+  "lng": 5.0373214,
+  "display_name": "Monnickendam, Waterland, Noord-Holland, Nederland"
+ },
+ "nl|NS Station (vast), Zandvoort": null,
+ "nl|Nabij de Wilhelminasluis, Zaandam": null,
+ "nl|Natuur Waal en Burg, Texel": null,
+ "nl|Natuurgebied Kristalbad, Hengelo": null,
+ "nl|Nieuwe Veemarkt (Bouw), Zwolle": null,
+ "nl|Nieuwe Waterweg (draaibaar), Hoek van Holland": null,
+ "nl|Nieuwe Waterweg, Hoek van Holland": {
+  "lat": 51.9717447,
+  "lng": 4.1285773,
+  "display_name": "Nieuwe Waterweg, Hoek van Holland, Rotterdam, Zuid-Holland, Nederland"
+ },
+ "nl|Nieuwegein": {
+  "lat": 52.0367152,
+  "lng": 5.0836117,
+  "display_name": "Nieuwegein, Utrecht, Nederland"
+ },
+ "nl|Noorderhaven, Harlingen": {
+  "lat": 53.0217927,
+  "lng": 5.2049508,
+  "display_name": "Noorderhaven, Breezanddijk, Harlingen, Súdwest-Fryslân, Fryslân, Nederland, 8766 TS, Nederland"
+ },
+ "nl|Noorderpier, Harlingen": {
+  "lat": 53.1827194,
+  "lng": 5.4140511,
+  "display_name": "Noorderpier, Havenkwartier, Harlingen, Fryslân, Nederland, 8861 NX, Nederland"
+ },
+ "nl|Onder water, Leiden": null,
+ "nl|Onderwatercam Ecomare, Texel": null,
+ "nl|Ontwikkeling Rijnhaven, Rotterdam": null,
+ "nl|Ooievaars (TV Buitengewoon), Herwijnen": null,
+ "nl|Ooievaars Stadhuis, Vianen": null,
+ "nl|Ooievaarsnest (Dick Bakker), Vlist": null,
+ "nl|Ooievaarsnest, IJsselstein": null,
+ "nl|Oosterdelgebied (Veldzorg), Broek op Langedijk": null,
+ "nl|Oosterhout": {
+  "lat": 51.6322376,
+  "lng": 4.8630424,
+  "display_name": "Oosterhout, Noord-Brabant, Nederland"
+ },
+ "nl|Oostkapelle": {
+  "lat": 51.5654515,
+  "lng": 3.5509041,
+  "display_name": "Oostkapelle, Veere, Zeeland, Nederland"
+ },
+ "nl|Otterloo": {
+  "lat": 52.3681394,
+  "lng": 5.1790988,
+  "display_name": "Rogier van Otterloostraat, Almere, Flevoland, Nederland, 1311 JX, Nederland"
+ },
+ "nl|Oude Haven, Enkhuizen": {
+  "lat": 52.7018113,
+  "lng": 5.2909322,
+  "display_name": "Oude Haven, Enkhuizen, Noord-Holland, Nederland, 1601 GJ, Nederland"
+ },
+ "nl|Oude Schouw": {
+  "lat": 53.0650162,
+  "lng": 5.8098252,
+  "display_name": "Oude Schouw, Akkrum, Heerenveen, Fryslân, Nederland, 8491 MP, Nederland"
+ },
+ "nl|Oudega": {
+  "lat": 52.9921271,
+  "lng": 5.5528684,
+  "display_name": "Oudega, Súdwest-Fryslân, Fryslân, Nederland"
+ },
+ "nl|Overzicht vanaf de Kerk (1), Oostkapelle": null,
+ "nl|Overzicht vanaf de Kerk (2), Oostkapelle": null,
+ "nl|Paal 33 / Kaap Noord, Texel": null,
+ "nl|Paracentrum Texel/Tessel Air, Texel": null,
+ "nl|Peregrine Falcon NL, Apeldoorn": null,
+ "nl|Petten": {
+  "lat": 52.7685974,
+  "lng": 4.6626091,
+  "display_name": "Petten, Schagen, Noord-Holland, Nederland"
+ },
+ "nl|PixLife (Test camera), Brouwersdam": null,
+ "nl|Planespotting AMS Live, Schiphol": null,
+ "nl|Pleisterplaats De Bol, Varik": null,
+ "nl|Pompplein, Egmond aan Zee": {
+  "lat": 52.6175295,
+  "lng": 4.6221143,
+  "display_name": "Pompplein, Egmond aan Zee, Bergen, Noord-Holland, Nederland, 1931 AD, Nederland"
+ },
+ "nl|Purmerend": {
+  "lat": 52.5024789,
+  "lng": 4.9614827,
+  "display_name": "Purmerend, Noord-Holland, Nederland"
+ },
+ "nl|Raalte": {
+  "lat": 52.3874327,
+  "lng": 6.3078482,
+  "display_name": "Raalte, Overijssel, Nederland"
+ },
+ "nl|Raalte on Ice, Raalte": null,
+ "nl|Rail Cam NL, Mierlo-Hout": null,
+ "nl|Rede en ingang Kazematten, Vlissingen": null,
+ "nl|Reeuwijk": {
+  "lat": 52.0449873,
+  "lng": 4.7224789,
+  "display_name": "Reeuwijk, Bodegraven-Reeuwijk, Zuid-Holland, Nederland"
+ },
+ "nl|Renesse": {
+  "lat": 51.7311823,
+  "lng": 3.7719799,
+  "display_name": "Renesse, Schouwen-Duiveland, Zeeland, Nederland"
+ },
+ "nl|Rheden": {
+  "lat": 52.031367,
+  "lng": 6.0605043,
+  "display_name": "Rheden, Gelderland, Nederland"
+ },
+ "nl|Ridderkerk": {
+  "lat": 51.8709913,
+  "lng": 4.5926479,
+  "display_name": "Ridderkerk, Zuid-Holland, Nederland"
+ },
+ "nl|Roermond": {
+  "lat": 51.1933903,
+  "lng": 5.9882649,
+  "display_name": "Roermond, Limburg, Nederland"
+ },
+ "nl|Rondkijken Lemmer e.o., Lemmer": null,
+ "nl|Rondkijken bij Paal 17, Texel": null,
+ "nl|Rondkijken bij Paal 9, Texel": null,
+ "nl|Rondkijken op de golfbaan, Texel": null,
+ "nl|Rotterdam": {
+  "lat": 51.9244424,
+  "lng": 4.47775,
+  "display_name": "Rotterdam, Zuid-Holland, Nederland"
+ },
+ "nl|Schapenboerderij Texel, Texel": {
+  "lat": 53.0415321,
+  "lng": 4.7953486,
+  "display_name": "Schapenboerderij Texel, 77, Pontweg, Zuid-Haffel, Den Burg, Texel, Noord-Holland, Nederland, 1791 DE, Nederland"
+ },
+ "nl|Scheepvaart op de Nieuwe Maas, Ridderkerk": null,
+ "nl|Scheldemonding vanaf de Boulevard, Vlissingen": null,
+ "nl|Scheveningen": {
+  "lat": 52.1067449,
+  "lng": 4.2736937,
+  "display_name": "Scheveningen, Den Haag, Zuid-Holland, Nederland"
+ },
+ "nl|Schiphol": {
+  "lat": 52.3080392,
+  "lng": 4.7621975,
+  "display_name": "Schiphol, Haarlemmermeer, Noord-Holland, Nederland"
+ },
+ "nl|Sint Servaasbrug, Maastricht": {
+  "lat": 50.8494109,
+  "lng": 5.6957195,
+  "display_name": "Sint Servaasbrug, Binnenstad, Maastricht-Centrum, Maastricht, Limburg, Nederland, 6211 EV, Nederland"
+ },
+ "nl|Skyline, Kampen": null,
+ "nl|Slechtvalken Eusebiuskerk, Arnhem": null,
+ "nl|Slechtvalken St. Martinuskerk, Weert": null,
+ "nl|Sneek": {
+  "lat": 53.033548,
+  "lng": 5.6611029,
+  "display_name": "Sneek, Súdwest-Fryslân, Fryslân, Nederland"
+ },
+ "nl|Spoorzicht met Mo (Railcam), Amersfoort": null,
+ "nl|Stadsbrug, Kampen": {
+  "lat": 52.5595659,
+  "lng": 5.9188689,
+  "display_name": "Stadsbrug, IJsselbrug, Cellesbroedersespel, Schans Buitenwacht, Kampen, Overijssel, Nederland, 8261 AE, Nederland"
+ },
+ "nl|Stadskanaal": {
+  "lat": 52.9962401,
+  "lng": 7.0014349,
+  "display_name": "Stadskanaal, Groningen, Nederland"
+ },
+ "nl|Station (Piet Voscam), Middelburg": null,
+ "nl|Stationsweg/Groninger Museum, Groningen": null,
+ "nl|Steenwijk": {
+  "lat": 52.7895502,
+  "lng": 6.1210477,
+  "display_name": "Steenwijk, Steenwijkerland, Overijssel, Nederland"
+ },
+ "nl|Strand bij Reddingsbrigade Petten, Petten": null,
+ "nl|Strand en boulevard, Vlissingen": null,
+ "nl|Strand, Harlingen": null,
+ "nl|Strand/Duinen bij De Koog, Texel": null,
+ "nl|Strandcamping Groede, Groede": {
+  "lat": 51.3943552,
+  "lng": 3.4876111,
+  "display_name": "Strandcamping Groede, 1, Zeeweg, Groede, Sluis, Zeeland, Nederland, 4503 PA, Nederland"
+ },
+ "nl|Strandhotel Buren aan Zee, Ameland": {
+  "lat": 53.4598569,
+  "lng": 5.8070753,
+  "display_name": "Strandhotel Buren aan Zee, Strandweg, Buren, Ameland, Fryslân, Nederland, 9164 LC, Nederland"
+ },
+ "nl|Strandhotel Duinoord, Vrouwenpolder": null,
+ "nl|Strandpaviljoen Aloha Surf and Food, Scheveningen": null,
+ "nl|Strandpaviljoen Club 17, Texel": null,
+ "nl|Strandpaviljoen Oase, Domburg": null,
+ "nl|Strandpaviljoen Paal 17, Texel": null,
+ "nl|Strandpaviljoen Pier 7, Vlissingen": null,
+ "nl|Strandpaviljoen Zeezicht, Castricum": null,
+ "nl|Tata Steel via Frisse Wind Nu, IJmuiden": null,
+ "nl|Tennisclub Alkmaar, Alkmaar": null,
+ "nl|Tennisvereniging Heerenduinen, IJmuiden": null,
+ "nl|Terherne": {
+  "lat": 53.0405936,
+  "lng": 5.7809002,
+  "display_name": "Terherne, De Fryske Marren, Fryslân, Nederland"
+ },
+ "nl|Terneuzen": {
+  "lat": 51.298843,
+  "lng": 3.8422044,
+  "display_name": "Terneuzen, Zeeland, Nederland"
+ },
+ "nl|Terras Hotel New York, Rotterdam": null,
+ "nl|Terrassen Marktstraat, Sneek": null,
+ "nl|Terschelling": {
+  "lat": 53.3339055,
+  "lng": 5.3514909,
+  "display_name": "Terschelling, Fryslân, Nederland"
+ },
+ "nl|Terwolde": {
+  "lat": 52.2816866,
+  "lng": 6.0998032,
+  "display_name": "Terwolde, Voorst, Gelderland, Nederland"
+ },
+ "nl|Teuge": {
+  "lat": 52.2335934,
+  "lng": 6.0466638,
+  "display_name": "Teuge, Voorst, Gelderland, Nederland"
+ },
+ "nl|Texel": {
+  "lat": 53.0767854,
+  "lng": 4.905757,
+  "display_name": "Texel, Noord-Holland, Nederland"
+ },
+ "nl|Tjerk Hiddessluis, Harlingen": null,
+ "nl|Toren7 Webcam vanaf de ECI, Roermond": null,
+ "nl|Twello": {
+  "lat": 52.2383079,
+  "lng": 6.1007137,
+  "display_name": "Twello, Stationplein, Centrum, Twello, Voorst, Gelderland, Nederland, 7391 EH, Nederland"
+ },
+ "nl|Uitgeest": {
+  "lat": 52.5303233,
+  "lng": 4.7090367,
+  "display_name": "Uitgeest, Noord-Holland, Nederland"
+ },
+ "nl|Urk": {
+  "lat": 52.6654515,
+  "lng": 5.5987894,
+  "display_name": "Urk, Flevoland, Nederland"
+ },
+ "nl|Utrecht": {
+  "lat": 52.0907006,
+  "lng": 5.1215634,
+  "display_name": "Utrecht, Nederland"
+ },
+ "nl|Van Brienenoordbrug / De Kuip, Rotterdam": null,
+ "nl|Vanaf Brasserie Westbeer (Oost), Terneuzen": null,
+ "nl|Vanaf Brasserie Westbeer (West), Terneuzen": null,
+ "nl|Vanaf Flat Hoogwatum, Delfzijl": null,
+ "nl|Vanaf Hotel Goerres, Akkrum": null,
+ "nl|Vanaf Hotel Schylge (Oost), Terschelling": null,
+ "nl|Vanaf Hotel Schylge (West), Terschelling": null,
+ "nl|Vanaf Hotel Zeezicht, Vlieland": null,
+ "nl|Vanaf Restaurant 't Platje (Oost), Vlaardingen": null,
+ "nl|Vanaf Restaurant 't Platje (West), Vlaardingen": null,
+ "nl|Vanaf Restaurant De Oude Schouw, Oude Schouw": null,
+ "nl|Vanaf Strandhotel Noordzee, Texel": null,
+ "nl|Vanaf de Kerktoren, Harlingen": null,
+ "nl|Vanaf windturbine (ADW-10), Zeewolde": null,
+ "nl|Vanaf windturbine (Skipper-93), Zeewolde": null,
+ "nl|Varik": {
+  "lat": 51.823471,
+  "lng": 5.3679909,
+  "display_name": "Varik, West Betuwe, Gelderland, Nederland"
+ },
+ "nl|Veerbootkade, Texel": null,
+ "nl|Veerhaven Nes, Ameland": {
+  "lat": 53.4343835,
+  "lng": 5.7746395,
+  "display_name": "Veerhaven, Veerweg, Nes, Ameland, Fryslân, Nederland, 9163 KE, Nederland"
+ },
+ "nl|Veerkade, Vlieland": null,
+ "nl|Vianen": {
+  "lat": 51.9889916,
+  "lng": 5.0939178,
+  "display_name": "Vianen, Vijfheerenlanden, Utrecht, Nederland"
+ },
+ "nl|Vischmarkt, Elburg": {
+  "lat": 52.4484739,
+  "lng": 5.8338344,
+  "display_name": "De Vischmarkt, Elburg-Vesting, Oostendorp, Elburg, Gelderland, Nederland, 8081 EC, Nederland"
+ },
+ "nl|Vismarkt, Groningen": {
+  "lat": 53.2172209,
+  "lng": 6.5648775,
+  "display_name": "Vismarkt, Binnenstad-zuid, Binnenstad, Centrum, Groningen, Nederland, 9711 KV, Nederland"
+ },
+ "nl|Vissershaven, Harlingen": {
+  "lat": 53.1813743,
+  "lng": 5.4166212,
+  "display_name": "Nieuwe Vissershaven, Harlingen, Fryslân, Nederland, 8861 NX, Nederland"
+ },
+ "nl|Vlaardingen": {
+  "lat": 51.9227863,
+  "lng": 4.3295634,
+  "display_name": "Vlaardingen, Zuid-Holland, Nederland"
+ },
+ "nl|Vliegveld (Cam 1), Middenmeer": null,
+ "nl|Vliegveld (Cam 2), Middenmeer": null,
+ "nl|Vliegveld (Oost), Hoogeveen": null,
+ "nl|Vliegveld (West), Hoogeveen": null,
+ "nl|Vliegveld (helispot), Ameland": null,
+ "nl|Vliegveld (overzicht), Ameland": null,
+ "nl|Vliegveld, Hilversum": {
+  "lat": 52.1911544,
+  "lng": 5.1459251,
+  "display_name": "Vliegveld Hilversum, Noodweg, Hilversum, Noord-Holland, Nederland, 1213 PZ, Nederland"
+ },
+ "nl|Vliegveld, Stadskanaal": {
+  "lat": 52.9967046,
+  "lng": 7.0226652,
+  "display_name": "Vliegveld Stadskanaal, Aviaweg, Vledderveen, Stadskanaal, Groningen, Nederland, 9585 PJ, Nederland"
+ },
+ "nl|Vliegveld, Teuge": {
+  "lat": 52.2424074,
+  "lng": 6.0506956,
+  "display_name": "Vliegveld Teuge, de Zanden, Teuge, Voorst, Gelderland, Nederland, 7395 MS, Nederland"
+ },
+ "nl|Vlieland": {
+  "lat": 53.202995,
+  "lng": 4.9949134,
+  "display_name": "Vlieland, Fryslân, Nederland"
+ },
+ "nl|Vlissingen": {
+  "lat": 51.4480929,
+  "lng": 3.5697992,
+  "display_name": "Vlissingen, Zeeland, Nederland"
+ },
+ "nl|Vlist": {
+  "lat": 51.9750267,
+  "lng": 4.8224887,
+  "display_name": "Vlist, Krimpenerwaard, Zuid-Holland, Nederland"
+ },
+ "nl|Voetbal- en Cricketvereniging Quick, Den Haag": null,
+ "nl|Vogel informatiecentrum, Texel": null,
+ "nl|Vogelwerkgroep (Slechtvalk), Gemert": null,
+ "nl|Volendam": {
+  "lat": 52.4963759,
+  "lng": 5.0682736,
+  "display_name": "Volendam, Edam-Volendam, Noord-Holland, Nederland"
+ },
+ "nl|Volvo Klassiekers, Barneveld": null,
+ "nl|Vreugdevuur Duindorp, Den Haag": null,
+ "nl|Vrijthof, Maastricht": {
+  "lat": 50.8490733,
+  "lng": 5.6886303,
+  "display_name": "Vrijthof, Binnenstad, Maastricht-Centrum, Maastricht, Limburg, Nederland, 6211 LD, Nederland"
+ },
+ "nl|Vrouwenpolder": {
+  "lat": 51.576602,
+  "lng": 3.6165776,
+  "display_name": "Vrouwenpolder, Veere, Zeeland, Nederland"
+ },
+ "nl|Vuurtoren / Restaurant RJ, Texel": null,
+ "nl|Vuurtoren bij De Cocksdorp, Texel": null,
+ "nl|W.E.C. Zeehondencentrum, Lauwersoog": null,
+ "nl|Waddenhaven Nes, Ameland": {
+  "lat": 53.4374921,
+  "lng": 5.7755243,
+  "display_name": "Waddenhaven Ameland, Oude Steiger, Nes, Ameland, Fryslân, Nederland, 9163 KE, Nederland"
+ },
+ "nl|Waddenhaven, Texel": {
+  "lat": 53.0443911,
+  "lng": 4.8580372,
+  "display_name": "Waddenhaven Texel, Dijkmanshuizen, Oudeschild, Texel, Noord-Holland, Nederland"
+ },
+ "nl|Waddinxveen": {
+  "lat": 52.0443308,
+  "lng": 4.6558527,
+  "display_name": "Waddinxveen, Zuid-Holland, Nederland"
+ },
+ "nl|Wagenborg Terminal Nes, Ameland": null,
+ "nl|Watersport Vereniging De Vrijbuiter, Loosdrecht": null,
+ "nl|Weathercam, Uitgeest": null,
+ "nl|Webcam De Zeemeermin, Zandvoort": null,
+ "nl|Webcam KVSA & SHIPM8.com, IJmuiden": null,
+ "nl|Webcam PWN, Andijk": null,
+ "nl|Webcam Pooltje, Brouwersdam": null,
+ "nl|Webcam Toren 7, Roermond": null,
+ "nl|Webcams Haven, Urk": null,
+ "nl|Webcams VVV-Ameland, Ameland": null,
+ "nl|Weercam DordrechtNu, Dordrecht": null,
+ "nl|Weert": {
+  "lat": 51.2355829,
+  "lng": 5.7050797,
+  "display_name": "Weert, Limburg, Nederland"
+ },
+ "nl|Werk Zuidwestboog (ProRail), Meteren": null,
+ "nl|Werkhaven Oudeschild, Texel": {
+  "lat": 53.0413569,
+  "lng": 4.8532462,
+  "display_name": "Werkhaven, Oudeschild, Texel, Noord-Holland, Nederland, 1792 AE, Nederland"
+ },
+ "nl|Westeinderplassen, Aalsmeer": {
+  "lat": 52.2477769,
+  "lng": 4.7304932,
+  "display_name": "Westeinderplassen, Aalsmeer, Noord-Holland, Nederland"
+ },
+ "nl|Westerschelde Ferry, Vlissingen": {
+  "lat": 51.4440831,
+  "lng": 3.5965366,
+  "display_name": "Westerschelde Ferry, Westerhavenweg, Vlissingen, Zeeland, Nederland, 4382 NR, Nederland"
+ },
+ "nl|Westerschelde bij de Oranjemolen, Vlissingen": null,
+ "nl|Westkapelle": {
+  "lat": 51.5293313,
+  "lng": 3.4407863,
+  "display_name": "Westkapelle, Veere, Zeeland, Nederland"
+ },
+ "nl|Wijns": {
+  "lat": 53.2522713,
+  "lng": 5.8318353,
+  "display_name": "Wyns, Tytsjerksteradiel, Fryslân, Nederland"
+ },
+ "nl|Wilhelminaplein, Leeuwarden": {
+  "lat": 53.1995344,
+  "lng": 5.7940626,
+  "display_name": "Wilhelminaplein, Binnenstad, Binnenstad en Stationskwartier, Leeuwarden, Fryslân, Nederland, 8911 BL, Nederland"
+ },
+ "nl|Willemshaven (Cam 2), Harlingen": null,
+ "nl|Willemshaven, Harlingen": {
+  "lat": 53.1715639,
+  "lng": 5.4106796,
+  "display_name": "Nieuwe Willemshaven, Harlingen, Fryslân, Nederland, 8862 RZ, Nederland"
+ },
+ "nl|Windmolen webcam, Harlingen": null,
+ "nl|Windsurf Club Reeuwijk, Reeuwijk": {
+  "lat": 52.0566461,
+  "lng": 4.739748,
+  "display_name": "Windsurf-Club Reeuwijk, 2, Reeuwijksehoutwal, Reeuwijk, Bodegraven-Reeuwijk, Zuid-Holland, Nederland, 2811 NW, Nederland"
+ },
+ "nl|Windsurfclub Aalsmeer, Aalsmeer": null,
+ "nl|Windsurfvereniging Almere-Centraal, Almere": {
+  "lat": 52.334776,
+  "lng": 5.2064013,
+  "display_name": "Windsurfvereniging Almere Centraal, 2, Surfstrand Haven, Almere Haven, Almere, Flevoland, Nederland, 1353 CT, Nederland"
+ },
+ "nl|Woerden": {
+  "lat": 52.0859261,
+  "lng": 4.8832939,
+  "display_name": "Woerden, Utrecht, Nederland"
+ },
+ "nl|Z.O. Singel, Harlingen": null,
+ "nl|Zaandam": {
+  "lat": 52.4424926,
+  "lng": 4.8298607,
+  "display_name": "Zaandam, Zaanstad, Noord-Holland, Nederland"
+ },
+ "nl|Zandvoort": {
+  "lat": 52.3719838,
+  "lng": 4.5302209,
+  "display_name": "Zandvoort, Noord-Holland, Nederland"
+ },
+ "nl|Zeehondenbassin Ecomare (2), Texel": null,
+ "nl|Zeehondenbassin Ecomare, Texel": null,
+ "nl|Zeesleper Elbe, Maassluis": null,
+ "nl|Zeewolde": {
+  "lat": 52.3451194,
+  "lng": 5.4580775,
+  "display_name": "Zeewolde, Flevoland, Nederland"
+ },
+ "nl|Zicht op De Koog, Texel": null,
+ "nl|Zicht op Genemuiden, Genemuiden": null,
+ "nl|Zicht op de sluis, Blokzijl": null,
+ "nl|Zuiderpier, Harlingen": {
+  "lat": 53.1718445,
+  "lng": 5.4088229,
+  "display_name": "Zuiderpier, Havenkwartier, Harlingen, Fryslân, Nederland, 8862 NZ, Nederland"
+ },
+ "nl|Zuiderzee Museum, Enkhuizen": null,
+ "nl|Zwolle": {
+  "lat": 52.5145653,
+  "lng": 6.0977204,
+  "display_name": "Zwolle, Overijssel, Nederland"
+ },
+ "no|Kirkenes": {
+  "lat": 69.7271478,
+  "lng": 30.0448971,
+  "display_name": "Kirkenes, Sør-Varanger, Finnmark, 9900, Norge"
+ },
+ "no|Nordkapp": {
+  "lat": 71.1699506,
+  "lng": 25.7858893,
+  "display_name": "Nordkapp, Finnmark, Norge"
+ },
+ "ph|Davao City": {
+  "lat": 7.0648306,
+  "lng": 125.6080623,
+  "display_name": "Davao City, Davao Region, Philippines"
+ },
+ "pt|Aeroporto Humberto Delgado, Lisboa": {
+  "lat": 38.7809981,
+  "lng": -9.1318608,
+  "display_name": "Aeroporto Humberto Delgado, Alameda das Comunidades Portuguesas, Olivais, Lisboa, 1700-111, Portugal"
+ },
+ "pt|Aeroporto da Madeira": {
+  "lat": 32.6989623,
+  "lng": -16.7730306,
+  "display_name": "Aeroporto Internacional da Madeira - Cristiano Ronaldo, Avenida das Partidas, Santa Catarina, Santa Cruz, Madeira, 9100-187, Portugal"
+ },
+ "pt|Funchal": {
+  "lat": 32.6496497,
+  "lng": -16.9086783,
+  "display_name": "Funchal, Madeira, Portugal"
+ },
+ "ru|Lensk": {
+  "lat": 60.7145488,
+  "lng": 114.9172123,
+  "display_name": "Ленск, городское поселение Ленск, Ленский улус, Республика Саха (Якутия), Дальневосточный федеральный округ, Россия"
+ },
+ "ru|Sankt-Peterburg": {
+  "lat": 59.9606739,
+  "lng": 30.1586551,
+  "display_name": "Санкт-Петербург, Северо-Западный федеральный округ, Россия"
+ },
+ "si|Kranjska Gora": {
+  "lat": 46.4502123,
+  "lng": 13.8434055,
+  "display_name": "Kranjska Gora, Slovenija"
+ },
+ "th|Ko Samui": {
+  "lat": 9.5071545,
+  "lng": 99.9957562,
+  "display_name": "อำเภอเกาะสมุย, จังหวัดสุราษฎร์ธานี, ประเทศไทย"
+ },
+ "th|Pattaya": {
+  "lat": 12.9366924,
+  "lng": 100.8865002,
+  "display_name": "เมืองพัทยา, หนองปลาไหล, อำเภอบางละมุง, จังหวัดชลบุรี, ประเทศไทย"
+ },
+ "tw|Taoyuan": {
+  "lat": 24.9929995,
+  "lng": 121.3010003,
+  "display_name": "桃園市, 臺灣"
+ },
+ "us|Atlantic City, New Jersey": {
+  "lat": 39.3642852,
+  "lng": -74.4229351,
+  "display_name": "Atlantic City, Atlantic County, New Jersey, United States"
+ },
+ "us|Breckenridge, Colorado": {
+  "lat": 39.4829124,
+  "lng": -106.0465486,
+  "display_name": "Breckenridge, Summit County, Colorado, United States"
+ },
+ "us|Charlevoix, Michigan": {
+  "lat": 45.202075,
+  "lng": -84.9676387,
+  "display_name": "Charlevoix County, Michigan, United States"
+ },
+ "us|Clearwater Beach, Florida": {
+  "lat": 27.9774736,
+  "lng": -82.8279313,
+  "display_name": "Clearwater Beach, Clearwater, Pinellas County, Florida, 33767, United States"
+ },
+ "us|Coldwater, Michigan": {
+  "lat": 41.941091,
+  "lng": -85.0030617,
+  "display_name": "Coldwater, Branch County, Michigan, United States"
+ },
+ "us|Hollywood, Florida": {
+  "lat": 26.0112014,
+  "lng": -80.1494901,
+  "display_name": "Hollywood, Broward County, Florida, United States"
+ },
+ "us|Houston, Texas": {
+  "lat": 29.7589382,
+  "lng": -95.3676974,
+  "display_name": "Houston, Harris County, Texas, United States"
+ },
+ "us|Jonesborough, Tennessee": {
+  "lat": 36.2944928,
+  "lng": -82.4734089,
+  "display_name": "Jonesborough, Washington County, East Tennessee, Tennessee, United States"
+ },
+ "us|Leavenworth, Washington": {
+  "lat": 47.5969138,
+  "lng": -120.661081,
+  "display_name": "Leavenworth, Chelan County, Washington, United States"
+ },
+ "us|Los Angeles International Airport": {
+  "lat": 33.9421675,
+  "lng": -118.4213591,
+  "display_name": "Los Angeles International Airport, 1, World Way, Westchester, Los Angeles, Los Angeles County, California, 90045, United States"
+ },
+ "us|Martha's Vineyard": {
+  "lat": 41.3920455,
+  "lng": -70.6208138,
+  "display_name": "Martha's Vineyard, West Tisbury, Dukes County, Massachusetts, United States"
+ },
+ "us|Myrtle Beach, South Carolina": {
+  "lat": 33.6956461,
+  "lng": -78.8900409,
+  "display_name": "Myrtle Beach, Horry County, South Carolina, United States"
+ },
+ "us|Newburyport, Massachusetts": {
+  "lat": 42.8116592,
+  "lng": -70.8719271,
+  "display_name": "Newburyport, Essex County, Massachusetts, 01950, United States"
+ },
+ "us|Pacifica Pier, California": {
+  "lat": 37.6333784,
+  "lng": -122.496171,
+  "display_name": "Pacifica Municipal Pier, Beach Boulevard, Pacifica, San Mateo County, California, 94044, United States"
+ },
+ "us|Plymouth, Minnesota": {
+  "lat": 45.0065149,
+  "lng": -93.46651,
+  "display_name": "Plymouth, Hennepin County, Minnesota, United States"
+ },
+ "us|Port Angeles, Washington": {
+  "lat": 48.118146,
+  "lng": -123.430741,
+  "display_name": "Port Angeles, Clallam County, Washington, 98362, United States"
+ },
+ "us|Port Everglades, Florida": {
+  "lat": 26.0968524,
+  "lng": -80.1272606,
+  "display_name": "Port Everglades, Fort Lauderdale, Broward County, Florida, 33316, United States"
+ },
+ "us|San Diego Zoo": {
+  "lat": 32.7359874,
+  "lng": -117.1506542,
+  "display_name": "San Diego Zoo, 2920, Zoo Drive, Banker's Hill, San Diego, San Diego County, California, 92101, United States"
+ },
+ "us|San Diego, California": {
+  "lat": 32.7174202,
+  "lng": -117.162772,
+  "display_name": "San Diego, San Diego County, California, United States"
+ },
+ "us|Seattle-Tacoma International Airport": {
+  "lat": 47.4475673,
+  "lng": -122.3080159,
+  "display_name": "Seattle-Tacoma International Airport, 17801, International Boulevard, SeaTac, King County, Washington, 98158, United States"
+ },
+ "us|Southampton, New York": {
+  "lat": 40.8842482,
+  "lng": -72.3897131,
+  "display_name": "Town of Southampton, Suffolk County, New York, United States"
+ },
+ "us|St. Augustine, Florida": {
+  "lat": 29.8946952,
+  "lng": -81.3145395,
+  "display_name": "Saint Augustine, Saint Johns County, Florida, 32084, United States"
+ },
+ "us|Sugarloaf Mountain, Maine": {
+  "lat": 45.0318106,
+  "lng": -70.3131008,
+  "display_name": "Sugarloaf Mountain, Carrabassett Valley, Franklin County, Maine, 04947, United States"
+ },
+ "us|Tehachapi, California": {
+  "lat": 35.1321878,
+  "lng": -118.4489739,
+  "display_name": "Tehachapi, Kern County, California, 93561, United States"
+ },
+ "us|University of North Dakota, Grand Forks": {
+  "lat": 47.9265412,
+  "lng": -97.0721209,
+  "display_name": "University of North Dakota, North 42nd Street, Grand Forks, Grand Forks County, North Dakota, 58203, United States"
+ },
+ "us|Winter Garden, Florida": {
+  "lat": 28.5656649,
+  "lng": -81.5856742,
+  "display_name": "Winter Garden, Orange County, Florida, United States"
+ },
+ "va|Piazza San Pietro": {
+  "lat": 41.9022351,
+  "lng": 12.4573573,
+  "display_name": "Piazza San Pietro, Civitas Vaticana - Città del Vaticano"
+ },
+ "|Cruz Bay, Saint John, U.S. Virgin Islands": {
+  "lat": 18.3308212,
+  "lng": -64.7944809,
+  "display_name": "Cruz Bay, Saint Thomas - Saint John District, United States Virgin Islands, 00831, United States"
+ },
+ "|Kralendijk, Bonaire": {
+  "lat": 12.1472869,
+  "lng": -68.2740206,
+  "display_name": "Kralendijk, Bonaire, Nederland"
+ },
+ "|Willemstad, Curacao": {
+  "lat": 12.1066695,
+  "lng": -68.9351307,
+  "display_name": "Willemstad, Curaçao, Nederland"
+ }
+}

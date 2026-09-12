@@ -40,6 +40,10 @@ scanner/
 # Data files
 threatfox.json
 
+# Intermediate scrape of somebody else's index — regenerate it with
+# scratch/scrape_public_webcams.js harvest rather than keeping a copy here.
+scratch/public-webcams-harvest.json
+
 # Dev scripts (one-time migration helpers)
 scripts/
 
