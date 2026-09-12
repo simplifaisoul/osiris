@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { queryableResults } from '@/lib/arcgis-catalog';
 
 /**
  * OSIRIS — ArcGIS Public Data Integration
  *
  * Two query modes:
  *   1. Search:  ?q=keyword&bbox=-105,35,-94,42
- *      Searches the ArcGIS Online catalog for public Feature Services.
+ *      Searches the ArcGIS Online catalog for public Feature Services
+ *      and returns the ones whose URL can actually be queried.
  *
  *   2. Query:   ?service=<FeatureServiceURL>&bbox=-105,35,-94,42
  *      Runs a spatial query against a specific Feature Service layer and
@@ -15,6 +17,7 @@ import { NextRequest, NextResponse } from 'next/server';
  */
 
 const ARCGIS_SEARCH_URL = 'https://www.arcgis.com/sharing/rest/search';
+const SEARCH_RESULTS = 20;
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -30,7 +33,9 @@ export async function GET(request: NextRequest) {
         q,
         type: 'Feature Service',
         filter: 'access:public',
-        num: '20',
+        // Roughly a third of a page is app pages and URL-less items, which
+        // are dropped below, so ask for more than one page shows.
+        num: String(SEARCH_RESULTS * 2),
         f: 'json',
       });
       if (bbox) params.set('bbox', bbox);
@@ -65,7 +70,7 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      const results = (data.results || []).map((item: any) => ({
+      const results = queryableResults(data.results || [], SEARCH_RESULTS).map((item: any) => ({
         id: item.id,
         title: item.title,
         url: item.url,
