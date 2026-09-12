@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Layers, BarChart3, Newspaper, Search, X, Globe, MapPinned, Route, Radar, Satellite, Moon, ExternalLink, AlertTriangle, Activity, Database, Wifi, Play, Network, Crosshair, Bluetooth, Pentagon, Radio , PenLine } from 'lucide-react';
+import { Layers, BarChart3, Newspaper, Search, X, Globe, MapPinned, Route, Radar, Satellite, Moon, ExternalLink, AlertTriangle, Activity, Database, Wifi, Play, Network, Crosshair, Bluetooth, Pentagon, Radio , PenLine, ShoppingBag } from 'lucide-react';
 import { type TerrainStatus } from '@/lib/map-terrain';
 import { loadCameraCatalog, mergeCameraCatalog } from '@/lib/camera-catalog';
 import IntelFeed from '@/components/IntelFeed';
@@ -1334,17 +1334,30 @@ export default function Dashboard() {
           <div className="w-1.5 h-1.5 rounded-full bg-[var(--gold-primary)] animate-osiris-pulse" />
           <span className="text-[var(--gold-primary)] font-bold">SUPPORT</span>
         </a>
+
+        <a href='https://shop.osirisai.live/' target='_blank' rel='noopener noreferrer' className="pointer-events-auto glass-panel px-3 py-1.5 flex items-center gap-1.5 text-[9px] font-mono tracking-widest hover:opacity-80 transition-opacity border-[var(--cyan-primary)]/40 bg-[var(--cyan-primary)]/10 ml-3 shadow-[0_0_10px_rgba(0,229,255,0.1)]">
+          <ShoppingBag className="w-3 h-3 text-[var(--cyan-primary)]" />
+          <span className="text-[var(--cyan-primary)] font-bold">MERCH</span>
+        </a>
       </motion.div>
 
       {/* ── MOBILE: Compact top status ── */}
       {/* The route planner claims the top of a phone screen; leaving this in
           place would put the support badge underneath the destination field. */}
       {isMobile && !showDirections && !navSession && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 2.5 }} className="absolute top-3 right-3 z-[200] pointer-events-auto flex items-center gap-2">
-          <TokenPanel />
-          <a href='https://ko-fi.com/M8D41ZYW4Z' target='_blank' rel='noopener noreferrer' className="glass-panel px-2 py-1 flex items-center gap-1.5 text-[9px] font-mono tracking-widest hover:opacity-80 transition-opacity border-[var(--gold-primary)]/40 bg-[var(--gold-primary)]/10">
-            <div className="w-1 h-1 rounded-full bg-[var(--gold-primary)] animate-osiris-pulse" />
-            <span className="text-[var(--gold-primary)] font-bold">SUPPORT</span>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 2.5 }} className="absolute top-3 right-3 z-[200] pointer-events-auto flex flex-col items-end gap-1.5">
+          <div className="flex items-center gap-2">
+            <TokenPanel />
+            <a href='https://ko-fi.com/M8D41ZYW4Z' target='_blank' rel='noopener noreferrer' className="glass-panel px-2 py-1 flex items-center gap-1.5 text-[9px] font-mono tracking-widest hover:opacity-80 transition-opacity border-[var(--gold-primary)]/40 bg-[var(--gold-primary)]/10">
+              <div className="w-1 h-1 rounded-full bg-[var(--gold-primary)] animate-osiris-pulse" />
+              <span className="text-[var(--gold-primary)] font-bold">SUPPORT</span>
+            </a>
+          </div>
+          {/* A third pill on this row pushes $OSIRIS under the wordmark on a
+              375px phone, so the shop link takes a line of its own. */}
+          <a href='https://shop.osirisai.live/' target='_blank' rel='noopener noreferrer' className="glass-panel px-2 py-1 flex items-center gap-1.5 text-[9px] font-mono tracking-widest hover:opacity-80 transition-opacity border-[var(--cyan-primary)]/40 bg-[var(--cyan-primary)]/10">
+            <ShoppingBag className="w-2.5 h-2.5 text-[var(--cyan-primary)]" />
+            <span className="text-[var(--cyan-primary)] font-bold">MERCH</span>
           </a>
         </motion.div>
       )}
