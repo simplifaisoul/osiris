@@ -136,45 +136,60 @@ export default function GlobalStatusBar() {
 
   const solPrice = crypto.find(c => c.symbol === 'SOL');
 
+  const bridgeContent = (
+    <>
+      <span className="text-[var(--border-primary)] mx-1 text-white/20">│</span>
+      <span className="inline-flex items-center gap-1 mx-2">
+        <span className="text-[#FF1744] text-[10px]">🔴</span>
+        <span className="text-[#FF1744] font-bold tracking-wider">Bridge 1: 북한 군사활동 152건</span>
+        <span className="text-[#00E676] text-[8px] bg-[#00E676]/15 px-1 py-0.2 rounded border border-[#00E676]/30">수집 보고</span>
+      </span>
+      <span className="text-[var(--border-primary)] mx-1 text-white/20">│</span>
+      <span className="inline-flex items-center gap-1 mx-2">
+        <span className="text-[#D500F9] text-[10px]">🟣</span>
+        <span className="text-[#D500F9] font-bold tracking-wider">Bridge 2: 지진/핵실험 감시 365건</span>
+        <span className="text-[#00BCD4] text-[8px] bg-[#00BCD4]/20 px-1 py-0.2 rounded border border-[#00BCD4]/40">풍계리 반경 100km 감시</span>
+      </span>
+      <span className="text-[var(--border-primary)] mx-1 text-white/20">│</span>
+      <span className="inline-flex items-center gap-1 mx-2">
+        <span className="text-[#00E5FF] text-[10px]">🛰️</span>
+        <span className="text-[#00E5FF] font-bold tracking-wider">스타링크: 북한 상공 27.5대 가시</span>
+        <span className="text-[#FFD740] text-[8px] bg-[#FFD740]/20 px-1 py-0.2 rounded border border-[#FFD740]/40">매일 06:00 KST 스케줄</span>
+      </span>
+    </>
+  );
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 3, duration: 0.6 }}
-      className="hidden md:block absolute bottom-0 left-0 right-0 z-[210] pointer-events-none"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ delay: 3, duration: 0.8 }}
+      className="hidden md:block absolute bottom-0 left-0 right-0 z-[198] pointer-events-none"
     >
-      <div className="h-[28px] overflow-hidden bg-[#0a0a0f]/95 border-t border-white/[0.06] flex items-center text-[10px] font-mono tracking-wider backdrop-blur-xl relative">
-        {/* Animated scan line */}
-        <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[var(--cyan-primary)]/30 to-transparent" style={{ animation: 'hud-scanline 4s linear infinite' }} />
+      <div className="h-[24px] bg-black/90 backdrop-blur-md border-t border-white/[0.06] flex items-center justify-between text-[10px] font-mono tracking-wider text-white/70 overflow-hidden select-none">
         
-        {/* ── LEFT: Social & Community Links ── */}
+        {/* ── LEFT: 실시간 (LIVE) 뱃지 & Docs Link ── */}
         <div className="flex-shrink-0 h-full flex items-center pointer-events-auto">
-          {/* Discord — highlighted */}
-          <a href="https://discord.gg/EPaFD5FFKf" target="_blank" rel="noopener noreferrer"
-            className="h-full px-3 flex items-center gap-1.5 bg-[#5865F2]/10 hover:bg-[#5865F2]/25 border-r border-white/[0.04] transition-all duration-200 group"
-          >
-            <DiscordIcon />
-          </a>
-          {/* X / Twitter */}
-          <a href="https://x.com/soulsimplifai" target="_blank" rel="noopener noreferrer"
-            className="h-full px-2.5 flex items-center gap-1.5 text-white/40 hover:text-white hover:bg-white/[0.04] border-r border-white/[0.04] transition-all duration-200"
-          >
-            <XIcon />
-          </a>
+          <div className="h-full px-3 flex items-center gap-1.5 bg-[var(--cyan-primary)]/8 border-r border-white/[0.08] text-[var(--cyan-primary)] font-bold">
+            <div className="w-1.5 h-1.5 rounded-full bg-[var(--cyan-primary)] opacity-80" />
+            <span>실시간 (LIVE)</span>
+          </div>
           {/* Documentation & API reference */}
-          <Link href="/docs" prefetch title="Documentation & API Reference" aria-label="Documentation & API Reference"
-            className="h-full px-3 flex items-center gap-1.5 bg-[var(--gold-primary)]/10 text-[var(--gold-primary)]/80 hover:text-[var(--gold-primary)] hover:bg-[var(--gold-primary)]/25 border-r border-white/[0.04] transition-all duration-200"
+          <Link href="/docs" prefetch title="전술 문서 & API 레퍼런스" aria-label="전술 문서"
+            className="h-full px-3 flex items-center gap-1.5 bg-[var(--gold-primary)]/10 text-[var(--gold-primary)] hover:bg-[var(--gold-primary)]/20 border-r border-white/[0.08] transition-all duration-200"
           >
             <DocsIcon />
-            <span className="text-[9px] font-bold tracking-[0.15em] uppercase">Docs</span>
+            <span className="text-[9px] font-bold tracking-[0.15em] uppercase">전술 문서</span>
           </Link>
         </div>
 
         {/* ── CENTER: Scrolling ticker ── */}
         <div className="flex-1 overflow-hidden relative" style={{ maskImage: 'linear-gradient(to right, transparent, black 3%, black 97%, transparent)' }}>
-          <div className={`flex items-center animate-ticker whitespace-nowrap ${hasTicker ? '' : 'hidden'}`}>
-            {[...Array(4)].map((_, repeatIdx) => (
+          <div className="flex items-center animate-ticker whitespace-nowrap">
+            {[...Array(3)].map((_, repeatIdx) => (
               <span key={repeatIdx} className="inline-flex items-center">
+                {bridgeContent}
+                <span className="text-white/20 mx-2">│</span>
                 {/* Crypto prices */}
                 {crypto.map(c => (
                   <span key={`${c.symbol}-${repeatIdx}`} className="inline-flex items-center gap-1 mx-3">
@@ -186,7 +201,7 @@ export default function GlobalStatusBar() {
                   </span>
                 ))}
                 {/* Separator */}
-                <span className="text-white/10 mx-2">│</span>
+                <span className="text-white/20 mx-2">│</span>
                 {/* Earthquakes */}
                 {quakes.map(quake => (
                   <span 
@@ -197,18 +212,16 @@ export default function GlobalStatusBar() {
                   >
                     <span className="text-[#FF5722] text-[9px]">🔴</span>
                     <span className="text-[#FF5722] font-bold">M{quake.magnitude.toFixed(1)}</span>
-                    <span className="text-white/30 truncate max-w-[140px]">{quake.place}</span>
+                    <span className="text-white/50 truncate max-w-[140px]">{quake.place}</span>
                   </span>
                 ))}
-                <span className="text-white/10 mx-2">│</span>
               </span>
             ))}
           </div>
         </div>
 
-        {/* ── RIGHT: Live SOL Price + Links ── */}
+        {/* ── RIGHT: Status / SOL Price + Links ── */}
         <div className="flex-shrink-0 h-full flex items-center pointer-events-auto border-l border-white/[0.04]">
-
           {/* Status indicator */}
           <div className="h-full px-3 flex items-center gap-1.5">
             <div className="w-1.5 h-1.5 rounded-full bg-[#00E676] animate-pulse" />
@@ -220,7 +233,7 @@ export default function GlobalStatusBar() {
       {/* Earthquake hover tooltip */}
       {hoveredQuake && (
         <div className="absolute bottom-[34px] left-1/2 -translate-x-1/2 z-[300] pointer-events-none">
-          <div className="bg-black/90 backdrop-blur-xl border border-white/[0.08] rounded-lg px-4 py-3 text-[11px] font-mono whitespace-nowrap shadow-2xl">
+          <div className="bg-black/90 backdrop-blur-xl border border-white/[0.08] rounded-lg px-4 py-3 text-[11px] font-mono whitespace-nowrap shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-[11px]">🔴</span>
               <span className="font-bold text-[#FF5722]">Magnitude {hoveredQuake.magnitude.toFixed(1)}</span>

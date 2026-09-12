@@ -267,11 +267,14 @@ export async function POST(request: NextRequest) {
   }
   if (!overview) overview = heuristicOverview(mode, digest);
 
+  const briefingSource = generatedBy === 'gemini' ? 'gemini_cloud' : 'local_ai';
   return NextResponse.json({
     mode,
     overview,
     highlights: digest.highlights,
     generatedBy,
+    briefingSource,
+    provider: generatedBy === 'gemini' ? 'gemini' : 'local_ai',
     generatedAt: new Date().toISOString(),
   });
 }

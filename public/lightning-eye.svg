@@ -1,0 +1,122 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#070b19"/>
+      <stop offset="60%" stop-color="#04060d"/>
+      <stop offset="100%" stop-color="#020307"/>
+    </radialGradient>
+    
+    <radialGradient id="globeGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#00E5FF" stop-opacity="0.25"/>
+      <stop offset="70%" stop-color="#0055ff" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFF3A8"/>
+      <stop offset="50%" stop-color="#FFD700"/>
+      <stop offset="100%" stop-color="#D4AF37"/>
+    </linearGradient>
+
+    <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E0FFFF"/>
+      <stop offset="50%" stop-color="#00E5FF"/>
+      <stop offset="100%" stop-color="#0077B6"/>
+    </linearGradient>
+
+    <linearGradient id="lightningGrad" x1="0%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="35%" stop-color="#FFE853"/>
+      <stop offset="75%" stop-color="#FFD700"/>
+      <stop offset="100%" stop-color="#FF9100"/>
+    </linearGradient>
+
+    <filter id="glow-heavy" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="blur1"/>
+      <feGaussianBlur stdDeviation="16" result="blur2"/>
+      <feMerge>
+        <feMergeNode in="blur2"/>
+        <feMergeNode in="blur1"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="glow-subtle" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background Container -->
+  <rect width="512" height="512" rx="100" fill="url(#bg)"/>
+  <rect width="510" height="510" x="1" y="1" rx="99" fill="none" stroke="#FFD700" stroke-width="1.5" opacity="0.25"/>
+
+  <!-- ── 1. BACKGROUND 3D EARTH GLOBE SPHERE (지구 원) ── -->
+  <g transform="translate(256, 230)">
+    <circle cx="0" cy="0" r="145" fill="url(#globeGlow)"/>
+    <circle cx="0" cy="0" r="145" fill="none" stroke="#00E5FF" stroke-width="2" opacity="0.6" filter="url(#glow-subtle)"/>
+    <circle cx="0" cy="0" r="142" fill="none" stroke="#00E5FF" stroke-dasharray="3, 5" stroke-width="1" opacity="0.3"/>
+    
+    <ellipse cx="0" cy="0" rx="145" ry="0.1" fill="none" stroke="#00E5FF" stroke-width="1" opacity="0.35"/>
+    <ellipse cx="0" cy="-55" rx="134" ry="32" fill="none" stroke="#00E5FF" stroke-width="1" opacity="0.25"/>
+    <ellipse cx="0" cy="55" rx="134" ry="32" fill="none" stroke="#00E5FF" stroke-width="1" opacity="0.25"/>
+    <ellipse cx="0" cy="-100" rx="104" ry="20" fill="none" stroke="#00E5FF" stroke-width="0.8" opacity="0.2"/>
+    <ellipse cx="0" cy="100" rx="104" ry="20" fill="none" stroke="#00E5FF" stroke-width="0.8" opacity="0.2"/>
+    
+    <ellipse cx="0" cy="0" rx="0.1" ry="145" fill="none" stroke="#00E5FF" stroke-width="1" opacity="0.35"/>
+    <ellipse cx="0" cy="0" rx="55" ry="145" fill="none" stroke="#00E5FF" stroke-width="1" opacity="0.3"/>
+    <ellipse cx="0" cy="0" rx="105" ry="145" fill="none" stroke="#00E5FF" stroke-width="0.9" opacity="0.25"/>
+    
+    <ellipse cx="0" cy="0" rx="165" ry="60" fill="none" stroke="#FFD700" stroke-width="1.5" opacity="0.45" transform="rotate(-28)" filter="url(#glow-subtle)"/>
+    <ellipse cx="0" cy="0" rx="165" ry="60" fill="none" stroke="#00E5FF" stroke-width="1.2" opacity="0.35" transform="rotate(38)"/>
+    
+    <circle cx="140" cy="-70" r="3.5" fill="#FFD700" filter="url(#glow-subtle)"/>
+    <circle cx="-130" cy="80" r="3" fill="#00E5FF" filter="url(#glow-subtle)"/>
+    <circle cx="-80" cy="-110" r="2.5" fill="#FFD700"/>
+    <circle cx="95" cy="95" r="2.5" fill="#00E5FF"/>
+  </g>
+
+  <!-- ── 2. ELECTRIC ARCS / CRACKLING LIGHTNING ── -->
+  <g stroke="#00E5FF" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.85" filter="url(#glow-heavy)">
+    <path d="M70 230 L115 220 L135 235 L165 215 L190 230"/>
+    <path d="M442 230 L395 220 L375 235 L345 215 L320 230"/>
+    <path d="M190 290 L170 330 L145 340 L130 375"/>
+    <path d="M320 290 L340 330 L365 340 L380 375"/>
+    <path d="M220 160 L205 120 L220 100 L210 70"/>
+    <path d="M292 160 L307 120 L292 100 L302 70"/>
+  </g>
+
+  <!-- ── 3. FOREGROUND LIGHTNING EYE ── -->
+  <g transform="translate(256, 230)">
+    <path d="M-155 0 C-105 -95 105 -95 155 0 C105 95 -105 95 -155 0 Z" 
+          fill="rgba(4, 8, 20, 0.75)" stroke="url(#goldGrad)" stroke-width="4.5" stroke-linejoin="round" filter="url(#glow-heavy)"/>
+
+    <path d="M-125 0 C-80 -70 80 -70 125 0 C80 70 -80 70 -125 0 Z" 
+          fill="none" stroke="url(#cyanGrad)" stroke-width="2" opacity="0.8"/>
+
+    <circle cx="0" cy="0" r="54" fill="#030611" stroke="url(#goldGrad)" stroke-width="3.5" filter="url(#glow-subtle)"/>
+    <circle cx="0" cy="0" r="46" fill="none" stroke="#00E5FF" stroke-dasharray="4, 4" stroke-width="1.5" opacity="0.8"/>
+    <circle cx="0" cy="0" r="38" fill="rgba(0, 229, 255, 0.12)"/>
+
+    <!-- Lightning Bolt Pupil -->
+    <g filter="url(#glow-heavy)">
+      <polygon points="6,-32 -18,2 2,2 -8,32 18,-2 -2,-2" fill="url(#lightningGrad)" stroke="#FFFFFF" stroke-width="1.2"/>
+    </g>
+  </g>
+
+  <text x="256" y="425" text-anchor="middle" font-family="'Pretendard', 'Inter', -apple-system, monospace" font-size="28" 
+        font-weight="900" fill="#FFD700" letter-spacing="4" filter="url(#glow-subtle)">번개의 눈동자</text>
+        
+  <text x="256" y="455" text-anchor="middle" font-family="monospace" font-size="11" 
+        font-weight="700" fill="#00E5FF" letter-spacing="3" opacity="0.9">⚡ LIGHTNING EYE PLATFORM</text>
+
+  <g stroke="#FFD700" stroke-width="2" opacity="0.4" fill="none">
+    <path d="M35 55 L65 55 M35 55 L35 85"/>
+    <path d="M477 55 L447 55 M477 55 L477 85"/>
+    <path d="M35 457 L65 457 M35 457 L35 427"/>
+    <path d="M477 457 L447 457 M477 457 L477 427"/>
+  </g>
+</svg>

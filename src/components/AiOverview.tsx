@@ -3,6 +3,11 @@
 import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Loader2, RefreshCw, X } from 'lucide-react';
+import {
+  normalizeBriefingSourceFields,
+  briefingSourceBadgeStyle,
+  type BriefingSource,
+} from '@/lib/judgment-ui';
 
 /**
  * OSIRIS — One-Click AI Overview
@@ -23,6 +28,10 @@ interface OverviewResult {
   highlights: string[];
   generatedBy: 'gemini' | 'analyst';
   generatedAt: string;
+  /** From overview API — gemini_cloud | local_ai */
+  briefingSource?: BriefingSource;
+  /** Legacy provider alias from API */
+  provider?: 'gemini' | 'local_ai';
 }
 
 export default function AiOverview({ mode, payload, accent = '#7C4DFF' }: AiOverviewProps) {
@@ -85,9 +94,31 @@ export default function AiOverview({ mode, payload, accent = '#7C4DFF' }: AiOver
             >
               {/* Header row */}
               <div className="flex items-center justify-between mb-1.5">
-                <span className="font-mono tracking-widest text-[9px]" style={{ color: accent }}>
-                  {result ? `OSIRIS ${result.generatedBy === 'gemini' ? 'AI' : 'ANALYST'}` : 'OSIRIS ANALYST'}
-                </span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="font-mono tracking-widest text-[8px]" style={{ color: accent }}>
+                    {result ? `⚡ ${result.generatedBy === 'gemini' ? 'AI 군사지능 분석관' : '번개 눈동자 분석관'}` : '⚡ AI 군사지능 분석관'}
+                  </span>
+                  {result && (() => {
+                    const src = normalizeBriefingSourceFields(result);
+                    if (!src.show || !src.badgeLabel) return null;
+                    const st = briefingSourceBadgeStyle(src.amber);
+                    return (
+                      <span
+                        className="font-mono font-bold shrink-0"
+                        style={{
+                          color: st.color,
+                          background: st.background,
+                          border: st.border,
+                          padding: '1px 4px',
+                          borderRadius: '2px',
+                          fontSize: '8px',
+                        }}
+                      >
+                        {src.badgeLabel}
+                      </span>
+                    );
+                  })()}
+                </div>
                 <div className="flex items-center gap-2">
                   <button onClick={generate} disabled={loading} className="hover:opacity-70 transition-opacity" title="Regenerate">
                     <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} style={{ color: accent }} />

@@ -81,6 +81,10 @@ interface BriefingRequestBody {
 interface BriefingResponse {
   briefing: string;
   generatedAt: string;
+  /** Design contract: gemini_cloud | local_ai */
+  briefingSource: 'gemini_cloud' | 'local_ai';
+  /** Legacy alias — gemini means cloud */
+  provider: 'gemini' | 'local_ai';
 }
 
 interface ErrorResponse {
@@ -164,6 +168,8 @@ export async function POST(
       {
         briefing,
         generatedAt: new Date().toISOString(),
+        briefingSource: 'gemini_cloud' as const,
+        provider: 'gemini' as const, // legacy → cloud
       },
       {
         headers: {
