@@ -8,6 +8,7 @@ import IntelFeed from '@/components/IntelFeed';
 import MarketsPanel from '@/components/MarketsPanel';
 import ScmPanel from '@/components/ScmPanel';
 import SearchBar from '@/components/SearchBar';
+import CommandPanel from '@/components/CommandPanel';
 import DirectionsBar, { type RouteResult, type LiveLocation } from '@/components/DirectionsBar';
 import NavigationView from '@/components/NavigationView';
 import FlightWatchPanel, { type WatchedFlight, type FlightTelemetry, type AircraftDetail, type Airport } from '@/components/FlightWatchPanel';
@@ -393,6 +394,7 @@ export default function Dashboard() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA'].includes((e.target as Element)?.tagName)) return;
+      if ((e.target as HTMLElement)?.isContentEditable || document.querySelector('dialog[open]')) return;
       if (e.key === 'f' && !e.ctrlKey) {
         if (document.fullscreenElement) document.exitFullscreen();
         else document.documentElement.requestFullscreen();
@@ -1695,7 +1697,7 @@ export default function Dashboard() {
                   {mobilePanel === 'intel' && <IntelFeed data={data} onLocate={(lat, lng) => { setFlyToLocation({ lat, lng, ts: Date.now() }); setMobilePanel(null); }} />}
                   {mobilePanel === 'search' && (
                     <div className="space-y-2">
-                      <SearchBar onLocate={(lat, lng, zoom) => { setFlyToLocation({ lat, lng, zoom, ts: Date.now() }); setMobilePanel(null); }} />
+                      <SearchBar alwaysExpanded onLocate={(lat, lng, zoom) => { setFlyToLocation({ lat, lng, zoom, ts: Date.now() }); setMobilePanel(null); }} />
                       <SharePanel mapView={mapView} activeLayers={activeLayers} mouseCoords={null} />
                     </div>
                   )}
@@ -1836,6 +1838,44 @@ export default function Dashboard() {
       ))}
 
       {/* Keyboard Shortcuts Overlay */}
+      <CommandPanel
+        onLocate={(lat, lng, zoom, cameras) => {
+          setFollowUser(false);
+          setFlyToLocation({ lat, lng, zoom, ts: Date.now() });
+          if (cameras) setActiveLayers(prev => ({ ...prev, cctv: true, cctv_previews: true }));
+        }}
+        onCommand={command => {
+          switch (command.type) {
+            case 'coordinates':
+              setFollowUser(false);
+              setFlyToLocation({ lat: command.lat, lng: command.lng, zoom: 12, ts: Date.now() });
+              return `Flying to ${command.lat}, ${command.lng}.`;
+            case 'reset':
+              setFollowUser(false);
+              setFlyToLocation({ lat: 20, lng: 0, zoom: 2.5, ts: Date.now() });
+              return 'Returning to the global view.';
+            case 'zoom':
+              setFollowUser(false);
+              setFlyToLocation({ lat: mapCenter?.lat ?? 20, lng: mapCenter?.lng ?? 0, zoom: Math.max(1, Math.min(20, mapView.zoom + command.delta)), ts: Date.now() });
+              return command.delta > 0 ? 'Zooming in.' : 'Zooming out.';
+            case 'layer':
+              setActiveLayers(prev => ({ ...prev, [command.layer]: command.enabled,
+                ...(command.layer === 'cctv_previews' && command.enabled ? { cctv: true } : {}),
+              }));
+              return `${command.layer.replace(/_/g, ' ')} ${command.enabled ? 'enabled' : 'hidden'}.`;
+            case 'panel':
+              if (isMobile) setMobilePanel(previous => command.open ? command.panel : previous === command.panel ? null : previous);
+              else {
+                if (command.panel === 'layers') setShowLayers(command.open);
+                if (command.panel === 'intel') setShowIntel(command.open);
+                if (command.panel === 'markets') setShowMarkets(command.open);
+                if (command.panel === 'search') setShowDesktopSearch(command.open);
+              }
+              return `${command.panel} ${command.open ? 'opened' : 'closed'}.`;
+            default: return 'Use help to see available commands.';
+          }
+        }}
+      />
       <KeyboardShortcuts />
 
       {/* ── GLOBAL STATUS TICKER (bottom) ── */}

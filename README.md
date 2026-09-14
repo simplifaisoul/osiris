@@ -208,10 +208,17 @@ AIS_API_KEY=                 # aisstream.io maritime
 
 ---
 
+## Chat and voice navigation controls
+- Open **Commands** or press **Ctrl/Cmd+K**. Try `show cameras in London`, `fly to Austin`, `go to 30.2672, -97.7431`, `zoom in`, `zoom out`, or `reset view`. Location searches offer destinations to choose from before moving the map.
+- Control layers with `show` / `hide` (cameras, camera grid, flights, satellites, earthquakes, fires, weather, ships, news). Open or close the layers, intel, markets and search panels with commands such as `open layers`.
+- **Voice input** is optional in browsers supporting the [Web Speech API](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition): press the microphone, speak, review the transcript, then press Enter. The browser may process audio through its speech service. Closing the panel stops listening; typed commands remain available when voice is unsupported or permission is denied.
+- Commands use a fixed grammar and existing map controls, layers and location search. They require no AI key and work independently of new camera providers. Type `help` to see examples.
+
 ## Keyboard Shortcuts
 
 | Key | Action |
 |-----|--------|
+| `Ctrl/Cmd+K` | Open chat and voice navigation controls |
 | `F` | Toggle flight layers |
 | `E` | Toggle earthquakes |
 | `S` | Toggle satellites |
