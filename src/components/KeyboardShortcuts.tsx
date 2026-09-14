@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Keyboard, X } from 'lucide-react';
 
 const SHORTCUTS = [
+  { key: 'Ctrl/⌘ K', desc: 'Navigation commands / voice input' },
   { key: 'F', desc: 'Toggle fullscreen' },
   { key: 'S', desc: 'Share current view' },
   { key: 'L', desc: 'Toggle layer panel' },
@@ -21,6 +22,7 @@ export default function KeyboardShortcuts() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA'].includes((e.target as Element)?.tagName)) return;
+      if ((e.target as HTMLElement)?.isContentEditable || document.querySelector('dialog[open]')) return;
       if (e.key === '?' || (e.key === '/' && e.shiftKey)) setIsOpen(p => !p);
       if (e.key === 'Escape') setIsOpen(false);
     };
