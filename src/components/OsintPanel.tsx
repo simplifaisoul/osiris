@@ -7,34 +7,29 @@ import {
   ChevronDown, ChevronUp, Loader2, AlertTriangle, Server,
   Wifi, Lock, MapPin, Bug, Code, Layers, Network, Fingerprint,
   CheckCircle, XCircle, Clock, ExternalLink, Crosshair,
-  Maximize2, Minimize2, Gavel, Bitcoin, Phone, Terminal, ShieldAlert
+  Maximize2, Minimize2
 } from 'lucide-react';
-import { ipToNumber, numberToIp, calculateSubnetStart, classifyDevice, assessRisk, batchFetch, ShodanInternetDBResponse, SweepDevice } from '@/lib/osint-utils';
+import { useI18n } from '@/i18n/I18nProvider';
 
 const TABS = [
-  { id: 'scanner', label: 'PORT SCAN', icon: Radar, placeholder: 'IP or hostname', color: '#00E5FF' },
-  { id: 'vuln', label: 'VULN SWEEP', icon: Bug, placeholder: 'IP or hostname', color: '#FF3D3D' },
+  { id: 'scanner', labelKey: 'osint.tabs.scanner', icon: Radar, placeholderKey: 'osint.placeholders.ipOrHost', color: '#00E5FF' },
+  { id: 'vuln', labelKey: 'osint.tabs.vuln', icon: Bug, placeholderKey: 'osint.placeholders.ipOrHost', color: '#FF3D3D' },
 
-  { id: 'dns', label: 'DNS', icon: Server, placeholder: 'Domain name', color: '#448AFF' },
-  { id: 'whois', label: 'WHOIS', icon: FileText, placeholder: 'Domain name', color: '#FFD700' },
-  { id: 'certs', label: 'CERTS', icon: Lock, placeholder: 'Domain name', color: '#E040FB' },
-  { id: 'threats', label: 'THREATS', icon: AlertTriangle, placeholder: 'IP, domain, or hash', color: '#FF9500' },
-  { id: 'headers', label: 'HEADERS', icon: Code, placeholder: 'URL to inspect', color: '#87CEEB' },
-  { id: 'ssl', label: 'SSL/TLS', icon: Shield, placeholder: 'Domain name', color: '#76FF03' },
-  { id: 'subdomains', label: 'SUBDOMAINS', icon: Layers, placeholder: 'Domain to enumerate', color: '#00BCD4' },
-  { id: 'tech', label: 'TECH DETECT', icon: Code, placeholder: 'URL to fingerprint', color: '#9C27B0' },
-  { id: 'shodan', label: 'SHODAN IOT', icon: Network, placeholder: 'IP address', color: '#FF3D3D' },
-  { id: 'bgp', label: 'BGP ROUTE', icon: Globe, placeholder: 'IP or ASN', color: '#00E5FF' },
-  { id: 'mac', label: 'MAC ADDR', icon: Fingerprint, placeholder: 'MAC address', color: '#FFD700' },
-  { id: 'phone', label: 'PHONE INTEL', icon: Phone, placeholder: 'Phone number (e.g. +1...)', color: '#FF9500' },
-  { id: 'leaks', label: 'DATA LEAKS', icon: ShieldAlert, placeholder: 'Email address', color: '#E040FB' },
-  { id: 'github', label: 'GITHUB RECON', icon: Terminal, placeholder: 'GitHub username', color: '#87CEEB' },
-  { id: 'sweep', label: 'IP SWEEP', icon: Crosshair, placeholder: 'Enter IP address (e.g. 8.8.8.8)', color: '#FF3D3D' },
+  { id: 'dns', labelKey: 'osint.tabs.dns', icon: Server, placeholderKey: 'osint.placeholders.domain', color: '#448AFF' },
+  { id: 'whois', labelKey: 'osint.tabs.whois', icon: FileText, placeholderKey: 'osint.placeholders.domain', color: '#FFD700' },
+  { id: 'certs', labelKey: 'osint.tabs.certs', icon: Lock, placeholderKey: 'osint.placeholders.domain', color: '#E040FB' },
+  { id: 'threats', labelKey: 'osint.tabs.threats', icon: AlertTriangle, placeholderKey: 'osint.placeholders.threatQuery', color: '#FF9500' },
+  { id: 'headers', labelKey: 'osint.tabs.headers', icon: Code, placeholderKey: 'osint.placeholders.url', color: '#87CEEB' },
+  { id: 'ssl', labelKey: 'osint.tabs.ssl', icon: Shield, placeholderKey: 'osint.placeholders.domain', color: '#76FF03' },
+  { id: 'subdomains', labelKey: 'osint.tabs.subdomains', icon: Layers, placeholderKey: 'osint.placeholders.domainEnum', color: '#00BCD4' },
+  { id: 'tech', labelKey: 'osint.tabs.tech', icon: Fingerprint, placeholderKey: 'osint.placeholders.urlFingerprint', color: '#9C27B0' },
+  { id: 'sweep', labelKey: 'osint.tabs.sweep', icon: Crosshair, placeholderKey: 'osint.placeholders.ipExample', color: '#FF3D3D' },
 ];
 
 interface OsintPanelProps { isOpen?: boolean; onClose?: () => void; isMobile?: boolean; onSweepVisualize?: (data: any) => void; onScanGeolocate?: (target: string, data: any) => void; }
 
 function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintPanelProps) {
+  const { t } = useI18n();
   const [activeTab, setActiveTab] = useState('scanner');
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [query, setQuery] = useState('');
@@ -82,62 +77,13 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
     // IP Sweep / Vuln Scan — separate flow
     if (activeTab === 'sweep' || activeTab === 'vuln') {
       setSweepResult(null);
-      const cidr = sweepCidr;
-      const totalHosts = Math.pow(2, 32 - cidr);
-      setSweepProgress({ current: 0, total: totalHosts });
+      setSweepProgress({ current: 0, total: Math.pow(2, 32 - sweepCidr) });
       try {
-        const t0 = Date.now();
+        const cidr = sweepCidr;
         const res = await fetch(`/api/osint/sweep?ip=${encodeURIComponent(query)}&cidr=${cidr}`);
-        if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `Sweep failed (${res.status})`); }
-        const initData = await res.json();
-
-        const ipParts = initData.target_ip.split('.').map(Number) as [number, number, number, number];
-        const ipNum = ipToNumber(ipParts);
-        const subnetStart = calculateSubnetStart(ipNum, cidr);
-        const subnet = numberToIp(subnetStart);
-
-        const urls: string[] = [];
-        for (let i = 0; i < totalHosts; i++) {
-          urls.push(`https://internetdb.shodan.io/${numberToIp((subnetStart + i) >>> 0)}`);
-        }
-
-        const shodanResults = await batchFetch<ShodanInternetDBResponse>(urls, 15, async (u) => {
-          try {
-            const r = await fetch(u, { cache: 'no-store' });
-            if (r.status === 404) return null;
-            if (!r.ok) return null;
-            return await r.json();
-          } catch {
-            return null;
-          }
-        }, (done) => setSweepProgress({ current: done, total: totalHosts }));
-
-        const devices: SweepDevice[] = [];
-        const deviceBreakdown: Record<string, number> = {};
-        for (const sr of shodanResults) {
-          if (!sr) continue;
-          const classification = classifyDevice(sr.ports, sr.cpes, sr.tags);
-          const risk = assessRisk({ ports: sr.ports, vulns: sr.vulns });
-          devices.push({
-            ip: sr.ip, ports: sr.ports, hostnames: sr.hostnames,
-            cpes: sr.cpes, vulns: sr.vulns, tags: sr.tags,
-            device_type: classification.device_type,
-            device_icon: classification.device_icon,
-            device_color: classification.device_color,
-            risk_level: risk
-          });
-          deviceBreakdown[classification.device_type] = (deviceBreakdown[classification.device_type] || 0) + 1;
-        }
-
-        setSweepResult({
-          center: initData.center,
-          subnet: `${subnet}/${cidr}`,
-          cidr,
-          target_ip: initData.target_ip,
-          devices,
-          summary: { total_hosts: totalHosts, total_responsive: devices.length, device_breakdown: deviceBreakdown },
-          sweep_time_ms: Date.now() - t0
-        });
+        if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || t('osint.sweepFailed', { status: res.status })); }
+        const data = await res.json();
+        setSweepResult(data);
         setSweepProgress(null);
         setHistory(prev => [{ tab: activeTab, query, time: new Date().toLocaleTimeString() }, ...prev.slice(0, 9)]);
       } catch (err: any) {
@@ -157,36 +103,20 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
         case 'certs': url = `/api/osint/certs?domain=${encodeURIComponent(query)}`; break;
         case 'whois': url = `/api/osint/whois?domain=${encodeURIComponent(query)}`; break;
         case 'threats': url = `/api/osint/threats?query=${encodeURIComponent(query)}`; break;
-        case 'bgp': url = `/api/osint/bgp?query=${encodeURIComponent(query)}`; break;
-        case 'mac': url = `/api/osint/mac?mac=${encodeURIComponent(query)}`; break;
-        case 'phone': url = `/api/osint/phone?number=${encodeURIComponent(query)}`; break;
-        case 'leaks': url = `/api/osint/leaks?email=${encodeURIComponent(query)}`; break;
-        case 'crypto': url = `/api/osint/crypto?address=${encodeURIComponent(query)}`; break;
-        case 'github': url = `/api/osint/github?user=${encodeURIComponent(query)}`; break;
         case 'scanner': url = `/api/scanner?target=${encodeURIComponent(query)}&type=${scanType}`; break;
         case 'headers': url = `/api/scanner?target=${encodeURIComponent(query)}&type=headers`; break;
         case 'ssl': url = `/api/scanner?target=${encodeURIComponent(query)}&type=ssl`; break;
         case 'subdomains': url = `/api/scanner?target=${encodeURIComponent(query)}&type=subdomains`; break;
         case 'tech': url = `/api/scanner?target=${encodeURIComponent(query)}&type=tech`; break;
-        case 'shodan': url = `https://internetdb.shodan.io/${encodeURIComponent(query)}`; break;
       }
-      const res = await fetch(url, activeTab === 'shodan' ? { cache: 'no-store' } : undefined);
-      if (activeTab === 'shodan' && res.status === 404) {
-        setResults({ ip: query, status: 'No Shodan InternetDB records found', ports: [], cpes: [], hostnames: [], tags: [], vulns: [] });
-        setLoading(false);
-        return;
-      }
+      const res = await fetch(url);
       const data = await res.json();
       if (res.ok) {
         setResults(data);
         setHistory(prev => [{ tab: activeTab, query, time: new Date().toLocaleTimeString() }, ...prev.slice(0, 9)]);
         
         // Geolocate the target in the background
-        if (activeTab === 'phone') {
-          if (data.lat && data.lng && onScanGeolocate) {
-             onScanGeolocate(query, { lat: data.lat, lng: data.lng, type: 'phone', region: data.region });
-          }
-        } else if (activeTab !== 'sweep' && activeTab !== 'vuln' && activeTab !== 'crypto' && activeTab !== 'mac' && activeTab !== 'bgp' && activeTab !== 'github' && activeTab !== 'leaks' && activeTab !== 'phone') {
+        if (activeTab !== 'sweep' && activeTab !== 'vuln') {
           fetch(`/api/osint/ip?ip=${encodeURIComponent(query)}`)
             .then(r => r.json())
             .then(locData => {
@@ -198,13 +128,24 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
             .catch(() => {});
         }
       } else {
-        setError(data.error || 'Lookup failed');
+        setError(data.error || t('osint.lookupFailed'));
       }
-    } catch { setError('Network error'); }
+    } catch { setError(t('osint.networkError')); }
     finally { setLoading(false); }
-  }, [query, activeTab, scanType, loading, sweepCidr]);
+  }, [query, activeTab, scanType, loading, sweepCidr, t]);
 
   const currentTab = TABS.find(t => t.id === activeTab);
+
+  const scanTypeText = (v: string) => {
+    const key =
+      v === 'quick' ? 'osint.scanTypes.quick'
+        : v === 'deep' ? 'osint.scanTypes.deep'
+          : (v === 'ports' || v === 'topPorts') ? 'osint.scanTypes.topPorts'
+            : '';
+    if (!key) return v;
+    const txt = t(key);
+    return txt === key ? v : txt;
+  };
 
   // ── Shodan-style structured result renderers ──
 
@@ -227,28 +168,6 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
     </span>
   );
 
-  // Surfaces an inline OFAC-SDN hit (used by the WHOIS and IP-intel routes
-  // when their cross-check finds a sanctioned registrant / ASN owner).
-  const SanctionsBadge = ({ match }: { match: any }) => {
-    if (!match || !Array.isArray(match.hits) || match.hits.length === 0) return null;
-    return (
-      <div className="mb-2 px-2 py-2 rounded border border-red-500/40 bg-red-500/15">
-        <div className="flex items-center gap-2 mb-1.5">
-          <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
-          <span className="text-[10px] font-mono font-bold text-red-400 tracking-wider">
-            SANCTIONED — {match.source || 'OFAC SDN'}
-          </span>
-        </div>
-        {match.hits.slice(0, 5).map((h: any, i: number) => (
-          <div key={i} className="text-[9px] font-mono text-red-200 break-all leading-tight">
-            <span className="text-[var(--text-muted)]">↳ {h.matched_value}:</span>{' '}
-            {(h.entries || []).slice(0, 2).map((e: any) => e.name).join('; ')}
-          </div>
-        ))}
-      </div>
-    );
-  };
-
   const SectionHeader = ({ title, icon: Icon, color }: { title: string; icon: any; color: string }) => (
     <div className="flex items-center gap-2 mt-3 mb-1.5 first:mt-0">
       <Icon className="w-3.5 h-3.5" style={{ color }} />
@@ -260,8 +179,8 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
   const PortRow = ({ port, state, service, version }: { port: number; state: string; service?: string; version?: string }) => (
     <div className="flex items-center gap-2 py-1 px-2 rounded hover:bg-[var(--hover-accent)] transition-colors">
       <span className="text-[11px] font-mono font-bold text-[var(--cyan-primary)] w-[60px]">{port}</span>
-      <StatusBadge ok={state === 'open'} label={state.toUpperCase()} />
-      <span className="text-[10px] font-mono text-[var(--text-secondary)] flex-1">{service || 'unknown'}</span>
+      <StatusBadge ok={state === 'open'} label={state === 'open' ? t('osint.ui.open') : t('osint.ui.closed')} />
+      <span className="text-[10px] font-mono text-[var(--text-secondary)] flex-1">{service || t('osint.ui.unknownService')}</span>
       {version && <span className="text-[9px] font-mono text-[var(--text-muted)]">{version}</span>}
     </div>
   );
@@ -276,13 +195,13 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
       const host = r.host || r.target || query;
       return (
         <div>
-          <SectionHeader title="HOST INFO" icon={Server} color="#00E5FF" />
-          <ResultRow label="Target" value={host} color="#00E5FF" />
-          <ResultRow label="Scan Type" value={r.scan_type || scanType} />
-          <ResultRow label="Duration" value={r.duration || r.scan_time} />
+          <SectionHeader title={t('osint.ui.hostInfo')} icon={Server} color="#00E5FF" />
+          <ResultRow label={t('osint.ui.target')} value={host} color="#00E5FF" />
+          <ResultRow label={t('osint.ui.scanType')} value={scanTypeText(r.scan_type || scanType)} />
+          <ResultRow label={t('osint.ui.duration')} value={r.duration || r.scan_time} />
           {Array.isArray(ports) && ports.length > 0 && (
             <>
-              <SectionHeader title={`OPEN PORTS (${ports.length})`} icon={Wifi} color="#00E676" />
+              <SectionHeader title={t('osint.ui.openPorts', { n: ports.length })} icon={Wifi} color="#00E676" />
               <div className="space-y-0.5">
                 {ports.map((p: any, i: number) => (
                   <PortRow key={i} port={p.port || p} state={p.state || 'open'} service={p.service || p.name} version={p.version} />
@@ -303,10 +222,10 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
       
       return (
         <div>
-          <SectionHeader title="VULNERABILITY ASSESSMENT" icon={Bug} color="#FF3D3D" />
-          <ResultRow label="Target" value={r.target || query} color="#FF3D3D" />
-          <ResultRow label="Total CVEs" value={Array.isArray(vulns) ? vulns.length : 0} color={Array.isArray(vulns) && vulns.length > 0 ? '#FF3D3D' : '#00E676'} />
-          <ResultRow label="Risk Level" value={r.risk_level || r.severity} />
+          <SectionHeader title={t('osint.ui.vulnAssessment')} icon={Bug} color="#FF3D3D" />
+          <ResultRow label={t('osint.ui.target')} value={r.target || query} color="#FF3D3D" />
+          <ResultRow label={t('osint.ui.totalCves')} value={Array.isArray(vulns) ? vulns.length : 0} color={Array.isArray(vulns) && vulns.length > 0 ? '#FF3D3D' : '#00E676'} />
+          <ResultRow label={t('osint.ui.riskLevel')} value={r.risk_level || r.severity} />
           {Array.isArray(regularVulns) && regularVulns.length > 0 && (
             <div className="mt-2 space-y-1">
               {regularVulns.slice(0, 20).map((v: any, i: number) => (
@@ -324,16 +243,16 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
           
           {exploits.length > 0 && (
             <div className="mt-4">
-              <SectionHeader title={`POSSIBLE EXPLOITS (${exploits.length})`} icon={AlertTriangle} color="#FF9500" />
+              <SectionHeader title={t('osint.ui.possibleExploits', { n: exploits.length })} icon={AlertTriangle} color="#FF9500" />
               <div className="mt-2 space-y-1">
                 {exploits.slice(0, 10).map((e: any, i: number) => (
                   <div key={i} className="p-2 rounded-lg border border-orange-500/30 bg-orange-500/10 flex flex-col">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-mono font-bold text-orange-400">{e.id}</span>
-                      <span className="text-[8px] font-mono font-bold px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-400">EXPLOIT</span>
+                      <span className="text-[8px] font-mono font-bold px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-400">{t('osint.ui.exploit')}</span>
                     </div>
                     <div className="text-[9px] font-mono text-[var(--text-muted)] mt-1 flex justify-between">
-                      <span>Source: {e.type?.toUpperCase() || 'UNKNOWN'}</span>
+                      <span>{t('osint.ui.source')}: {e.type?.toUpperCase() || t('common.unknown')}</span>
                       {e.cvss && <span>CVSS: {e.cvss}</span>}
                     </div>
                   </div>
@@ -353,9 +272,9 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
     if (activeTab === 'dns') {
       return (
         <div>
-          <SectionHeader title="DNS RECORDS" icon={Server} color="#448AFF" />
-          <ResultRow label="Domain" value={r.domain || query} color="#448AFF" />
-          {r.A && <ResultRow label="A Records" value={Array.isArray(r.A) ? r.A.join(', ') : r.A} />}
+          <SectionHeader title={t('osint.ui.dnsRecords')} icon={Server} color="#448AFF" />
+          <ResultRow label={t('osint.ui.domain')} value={r.domain || query} color="#448AFF" />
+          {r.A && <ResultRow label={t('osint.ui.aRecords')} value={Array.isArray(r.A) ? r.A.join(', ') : r.A} />}
           {r.AAAA && <ResultRow label="AAAA" value={Array.isArray(r.AAAA) ? r.AAAA.join(', ') : r.AAAA} />}
           {r.MX && <ResultRow label="MX" value={Array.isArray(r.MX) ? r.MX.map((m:any) => m.exchange || m).join(', ') : r.MX} />}
           {r.NS && <ResultRow label="NS" value={Array.isArray(r.NS) ? r.NS.join(', ') : r.NS} />}
@@ -371,174 +290,15 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
     if (activeTab === 'whois') {
       return (
         <div>
-          <SectionHeader title="WHOIS INTELLIGENCE" icon={FileText} color="#FFD700" />
-          <SanctionsBadge match={r.sanctions_match} />
-          <ResultRow label="Domain" value={r.domain_name || r.domainName || query} color="#FFD700" />
-          <ResultRow label="Registrar" value={r.registrar} />
-          <ResultRow label="Created" value={r.creation_date || r.createdDate} />
-          <ResultRow label="Expires" value={r.expiration_date || r.expiresDate} />
-          <ResultRow label="Updated" value={r.updated_date || r.updatedDate} />
-          <ResultRow label="Status" value={Array.isArray(r.status) ? r.status.join(', ') : r.status} />
-          <ResultRow label="Nameservers" value={Array.isArray(r.name_servers || r.nameServers) ? (r.name_servers || r.nameServers).join(', ') : r.name_servers} />
-          {renderFallbackExcluding(['domain_name','domainName','registrar','creation_date','createdDate','expiration_date','expiresDate','updated_date','updatedDate','status','name_servers','nameServers','timestamp','cached','raw','sanctions_match'])}
-        </div>
-      );
-    }
-
-    // ── SHODAN ──
-    if (activeTab === 'shodan') {
-      return (
-        <div>
-          <SectionHeader title="SHODAN IOT INTELLIGENCE" icon={Network} color="#FF3D3D" />
-          <ResultRow label="Target IP" value={r.ip || query} color="#FF3D3D" />
-          {r.hostnames?.length > 0 && <ResultRow label="Hostnames" value={r.hostnames.join(', ')} />}
-          {r.ports?.length > 0 && <ResultRow label="Open Ports" value={r.ports.join(', ')} color="#00E5FF" />}
-          {r.tags?.length > 0 && <ResultRow label="Tags" value={r.tags.join(', ')} color="#FF9500" />}
-          {r.vulns?.length > 0 && (
-            <div className="mt-2 p-2 border border-red-500/30 bg-red-500/10 rounded">
-              <span className="text-[10px] font-mono text-red-400 font-bold mb-1 block">VULNERABILITIES ({r.vulns.length})</span>
-              <div className="flex flex-wrap gap-1">
-                {r.vulns.slice(0, 10).map((v: string) => (
-                  <a key={v} href={`https://nvd.nist.gov/vuln/detail/${v}`} target="_blank" rel="noreferrer" className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#1A1A18] text-[#8A8880] hover:text-[#FF3D3D]">{v}</a>
-                ))}
-                {r.vulns.length > 10 && <span className="text-[9px] font-mono text-[#8A8880]">+{r.vulns.length - 10} more</span>}
-              </div>
-            </div>
-          )}
-          {renderFallbackExcluding(['ip','hostnames','ports','tags','vulns','cpes'])}
-        </div>
-      );
-    }
-
-    // ── BGP ──
-    if (activeTab === 'bgp') {
-      return (
-        <div>
-          <SectionHeader title="BGP ROUTING INTELLIGENCE" icon={Globe} color="#00E5FF" />
-          <ResultRow label="Query" value={r.query} color="#00E5FF" />
-          {r.type === 'ip' && r.ip && (
-            <>
-              {r.ip.prefixes?.map((p: any, i: number) => (
-                <div key={i} className="mt-2 p-2 border border-[#00E5FF]/20 bg-[#00E5FF]/5 rounded">
-                  <ResultRow label="ASN" value={`AS${p.asn.asn} - ${p.asn.name}`} color="#00E5FF" />
-                  <ResultRow label="Prefix" value={p.prefix} />
-                  <ResultRow label="Country" value={p.asn.country_code} />
-                  <ResultRow label="Description" value={p.asn.description} />
-                </div>
-              ))}
-            </>
-          )}
-          {r.type === 'asn' && r.asn && (
-            <div className="mt-2 p-2 border border-[#00E5FF]/20 bg-[#00E5FF]/5 rounded">
-              <ResultRow label="ASN" value={`AS${r.asn.asn}`} color="#00E5FF" />
-              <ResultRow label="Name" value={r.asn.name} />
-              <ResultRow label="Description" value={r.asn.description} />
-              <ResultRow label="Country" value={r.asn.country_code} />
-              {r.prefixes && <ResultRow label="Prefixes" value={`IPv4: ${r.prefixes.total_v4} | IPv6: ${r.prefixes.total_v6}`} />}
-              {r.peers && <ResultRow label="Peers" value={r.peers.total} />}
-            </div>
-          )}
-          {renderFallbackExcluding(['query', 'type', 'ip', 'asn', 'prefixes', 'peers', 'timestamp'])}
-        </div>
-      );
-    }
-
-    // ── MAC ──
-    if (activeTab === 'mac') {
-      return (
-        <div>
-          <SectionHeader title="MAC VENDOR LOOKUP" icon={Fingerprint} color="#FFD700" />
-          <ResultRow label="MAC Address" value={r.mac} color="#FFD700" />
-          <ResultRow label="Vendor" value={r.vendor} color={r.vendor === 'Not Found' ? '#FF3D3D' : '#00E676'} />
-        </div>
-      );
-    }
-
-    // ── PHONE ──
-    if (activeTab === 'phone') {
-      return (
-        <div>
-          <SectionHeader title="PHONE INTELLIGENCE" icon={Phone} color="#FF9500" />
-          <ResultRow label="Query" value={r.query} color="#FF9500" />
-          <ResultRow label="Valid" value={r.valid ? 'YES' : 'NO'} color={r.valid ? '#00E676' : '#FF3D3D'} />
-          {r.valid && (
-            <>
-              <ResultRow label="E.164 Format" value={r.number} />
-              <ResultRow label="Intl Format" value={r.international} />
-              <ResultRow label="Nat Format" value={r.national} />
-              <ResultRow label="Country" value={`${r.region} (${r.country_code})`} />
-              <ResultRow label="Line Type" value={r.line_type} color={r.line_type === 'MOBILE' ? '#00E5FF' : r.line_type === 'VOIP' ? '#FF9500' : undefined} />
-            </>
-          )}
-        </div>
-      );
-    }
-
-    // ── GITHUB ──
-    if (activeTab === 'github') {
-      return (
-        <div>
-          <SectionHeader title="GITHUB RECON" icon={Terminal} color="#87CEEB" />
-          <div className="flex items-center gap-3 mb-2">
-            {r.avatar_url && <img src={r.avatar_url} alt="avatar" className="w-10 h-10 rounded-full border border-[#87CEEB]/30" />}
-            <div>
-              <div className="text-[12px] font-mono font-bold text-[#87CEEB]">{r.name || r.username}</div>
-              <div className="text-[9px] font-mono text-[var(--text-muted)]">@{r.username} • {r.followers} followers</div>
-            </div>
-          </div>
-          <ResultRow label="Company" value={r.company} />
-          <ResultRow label="Location" value={r.location} />
-          <ResultRow label="Email" value={r.email} color="#00E676" />
-          <ResultRow label="Twitter" value={r.twitter} color="#448AFF" />
-          <ResultRow label="Website" value={r.blog} />
-          <ResultRow label="Bio" value={r.bio} />
-          {r.recent_repos?.length > 0 && (
-            <div className="mt-2 p-2 border border-[#87CEEB]/20 bg-[#87CEEB]/5 rounded">
-              <span className="text-[9px] font-mono text-[#87CEEB] block mb-1">RECENT REPOS</span>
-              {r.recent_repos.map((repo: any, i: number) => (
-                <div key={i} className="flex justify-between text-[9px] font-mono mb-0.5">
-                  <span className="text-[#E8E6E0]">{repo.name}</span>
-                  <span className="text-[var(--text-muted)]">{repo.language || 'Unknown'}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    // ── LEAKS ──
-    if (activeTab === 'leaks') {
-      return (
-        <div>
-          <SectionHeader title="DATA LEAK SWEEP" icon={ShieldAlert} color="#E040FB" />
-          <ResultRow label="Email Target" value={r.email} color="#E040FB" />
-          <ResultRow label="Status" value={r.breached ? 'COMPROMISED' : 'SECURE'} color={r.breached ? '#FF1744' : '#00E676'} />
-          
-          {r.breached && r.data_exposed?.length > 0 && (
-            <div className="mt-2 p-2 border border-[#E040FB]/30 bg-[#E040FB]/10 rounded">
-              <span className="text-[10px] font-mono text-[#E040FB] font-bold mb-1 block">EXPOSED DATA POINTS</span>
-              <div className="flex flex-wrap gap-1">
-                {r.data_exposed.map((dc: string) => (
-                  <span key={dc} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#1A1A18] text-[#E8E6E0] border border-[#E040FB]/20">{dc}</span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {r.breached && r.breaches?.length > 0 && (
-            <div className="mt-2 p-2 border border-red-500/30 bg-red-500/10 rounded">
-              <span className="text-[10px] font-mono text-red-400 font-bold mb-1 block">KNOWN BREACHES ({r.breaches.length})</span>
-              <div className="flex flex-col gap-1">
-                {r.breaches.map((b: string) => (
-                  <a key={b} href={`https://haveibeenpwned.com/PwnedWebsites#${b}`} target="_blank" rel="noreferrer" className="text-[9px] font-mono px-2 py-1 rounded bg-[#1A1A18] text-red-300 hover:text-white hover:bg-red-500/30 flex items-center justify-between transition-colors">
-                    <span>{b}</span>
-                    <ExternalLink className="w-2.5 h-2.5" />
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
+          <SectionHeader title={t('osint.ui.whoisIntel')} icon={FileText} color="#FFD700" />
+          <ResultRow label={t('osint.ui.domain')} value={r.domain_name || r.domainName || query} color="#FFD700" />
+          <ResultRow label={t('osint.ui.registrar')} value={r.registrar} />
+          <ResultRow label={t('osint.ui.created')} value={r.creation_date || r.createdDate} />
+          <ResultRow label={t('osint.ui.expires')} value={r.expiration_date || r.expiresDate} />
+          <ResultRow label={t('osint.ui.updated')} value={r.updated_date || r.updatedDate} />
+          <ResultRow label={t('osint.ui.status')} value={Array.isArray(r.status) ? r.status.join(', ') : r.status} />
+          <ResultRow label={t('osint.ui.nameservers')} value={Array.isArray(r.name_servers || r.nameServers) ? (r.name_servers || r.nameServers).join(', ') : r.name_servers} />
+          {renderFallbackExcluding(['domain_name','domainName','registrar','creation_date','createdDate','expiration_date','expiresDate','updated_date','updatedDate','status','name_servers','nameServers','timestamp','cached','raw'])}
         </div>
       );
     }
@@ -548,15 +308,15 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
       const certs = r.certificates || r.certs || (Array.isArray(r) ? r : []);
       return (
         <div>
-          <SectionHeader title="CERTIFICATE TRANSPARENCY" icon={Lock} color="#E040FB" />
-          <ResultRow label="Domain" value={query} color="#E040FB" />
-          <ResultRow label="Certificates" value={Array.isArray(certs) ? certs.length : 0} />
+          <SectionHeader title={t('osint.ui.certTransparency')} icon={Lock} color="#E040FB" />
+          <ResultRow label={t('osint.ui.domain')} value={query} color="#E040FB" />
+          <ResultRow label={t('osint.ui.certificates')} value={Array.isArray(certs) ? certs.length : 0} />
           {Array.isArray(certs) && certs.slice(0, 15).map((c: any, i: number) => (
             <div key={i} className="mt-1.5 p-2 rounded border border-[var(--border-secondary)]/30 bg-[var(--bg-tertiary)]/30">
-              <ResultRow label="Issuer" value={c.issuer_name || c.issuer} />
-              <ResultRow label="Common Name" value={c.common_name || c.name_value} />
-              <ResultRow label="Not Before" value={c.not_before} />
-              <ResultRow label="Not After" value={c.not_after} />
+              <ResultRow label={t('osint.ui.issuer')} value={c.issuer_name || c.issuer} />
+              <ResultRow label={t('osint.ui.commonName')} value={c.common_name || c.name_value} />
+              <ResultRow label={t('osint.ui.notBefore')} value={c.not_before} />
+              <ResultRow label={t('osint.ui.notAfter')} value={c.not_after} />
             </div>
           ))}
           {(!Array.isArray(certs) || certs.length === 0) && renderFallback()}
@@ -568,16 +328,16 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
     if (activeTab === 'threats') {
       return (
         <div>
-          <SectionHeader title="THREAT INTELLIGENCE" icon={AlertTriangle} color="#FF9500" />
-          <ResultRow label="Query" value={query} color="#FF9500" />
-          <ResultRow label="Risk Score" value={r.risk_score || r.score} color={
+          <SectionHeader title={t('osint.ui.threatIntel')} icon={AlertTriangle} color="#FF9500" />
+          <ResultRow label={t('osint.ui.query')} value={query} color="#FF9500" />
+          <ResultRow label={t('osint.ui.riskScore')} value={r.risk_score || r.score} color={
             (r.risk_score || r.score || 0) > 70 ? '#FF3D3D' : (r.risk_score || r.score || 0) > 40 ? '#FF9500' : '#00E676'
           } />
-          <ResultRow label="Malicious" value={r.malicious !== undefined ? (r.malicious ? 'YES' : 'NO') : undefined} color={r.malicious ? '#FF3D3D' : '#00E676'} />
-          <ResultRow label="Category" value={r.category || r.type} />
-          <ResultRow label="Reports" value={r.total_reports || r.reports} />
-          <ResultRow label="Last Seen" value={r.last_seen || r.last_analysis} />
-          {r.tags && <ResultRow label="Tags" value={Array.isArray(r.tags) ? r.tags.join(', ') : r.tags} />}
+          <ResultRow label={t('osint.ui.malicious')} value={r.malicious !== undefined ? (r.malicious ? t('osint.ui.yes') : t('osint.ui.no')) : undefined} color={r.malicious ? '#FF3D3D' : '#00E676'} />
+          <ResultRow label={t('osint.ui.category')} value={r.category || r.type} />
+          <ResultRow label={t('osint.ui.reports')} value={r.total_reports || r.reports} />
+          <ResultRow label={t('osint.ui.lastSeen')} value={r.last_seen || r.last_analysis} />
+          {r.tags && <ResultRow label={t('osint.ui.tags')} value={Array.isArray(r.tags) ? r.tags.join(', ') : r.tags} />}
           {renderFallbackExcluding(['risk_score','score','malicious','category','type','total_reports','reports','last_seen','last_analysis','tags','timestamp','cached','query'])}
         </div>
       );
@@ -587,21 +347,19 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
     if (activeTab === 'ssl') {
       return (
         <div>
-          <SectionHeader title="SSL/TLS ANALYSIS" icon={Shield} color="#76FF03" />
-          <ResultRow label="Target" value={query} color="#76FF03" />
-          <ResultRow label="Protocol" value={r.protocol || r.tls_version} />
-          <ResultRow label="Cipher" value={r.cipher || r.cipher_suite} />
-          <ResultRow label="Valid" value={r.valid !== undefined ? (r.valid ? 'YES' : 'NO') : undefined} color={r.valid ? '#00E676' : '#FF3D3D'} />
-          <ResultRow label="Issuer" value={r.issuer} />
-          <ResultRow label="Subject" value={r.subject} />
-          <ResultRow label="Expires" value={r.expires || r.not_after} />
-          <ResultRow label="SANs" value={Array.isArray(r.sans) ? r.sans.join(', ') : r.sans} />
+          <SectionHeader title={t('osint.ui.sslAnalysis')} icon={Shield} color="#76FF03" />
+          <ResultRow label={t('osint.ui.target')} value={query} color="#76FF03" />
+          <ResultRow label={t('osint.ui.protocol')} value={r.protocol || r.tls_version} />
+          <ResultRow label={t('osint.ui.cipher')} value={r.cipher || r.cipher_suite} />
+          <ResultRow label={t('osint.ui.valid')} value={r.valid !== undefined ? (r.valid ? t('osint.ui.yes') : t('osint.ui.no')) : undefined} color={r.valid ? '#00E676' : '#FF3D3D'} />
+          <ResultRow label={t('osint.ui.issuer')} value={r.issuer} />
+          <ResultRow label={t('osint.ui.subject')} value={r.subject} />
+          <ResultRow label={t('osint.ui.expires')} value={r.expires || r.not_after} />
+          <ResultRow label={t('osint.ui.sans')} value={Array.isArray(r.sans) ? r.sans.join(', ') : r.sans} />
           {renderFallback()}
         </div>
       );
     }
-
-
 
     // Fallback for other tools
     return renderFallback();
@@ -646,7 +404,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
               boxShadow: activeTab === tab.id ? `0 0 15px ${tab.color}30` : 'none'
             }}>
             <tab.icon className="w-5 h-5" />
-            <span>GLOBAL {tab.label}</span>
+            <span>{t('osint.globalTool', { tool: t(tab.labelKey) })}</span>
           </button>
         ))}
         {/* Other Tools */}
@@ -656,7 +414,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
               className={`flex flex-col items-center gap-1 px-1 py-2 rounded-lg text-[8px] font-mono tracking-wider transition-all border ${activeTab === tab.id ? 'border-opacity-40 bg-opacity-15' : 'border-transparent hover:bg-[var(--hover-accent)]'}`}
               style={{ borderColor: activeTab === tab.id ? tab.color : 'transparent', backgroundColor: activeTab === tab.id ? `${tab.color}15` : undefined, color: activeTab === tab.id ? tab.color : 'var(--text-muted)' }}>
               <tab.icon className="w-3.5 h-3.5" />
-              <span className="leading-none text-center truncate w-full">{tab.label}</span>
+              <span className="leading-none text-center truncate w-full">{t(tab.labelKey)}</span>
             </button>
           ))}
         </div>
@@ -668,14 +426,14 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
           <div className="flex-1 relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)]" />
             <input type="text" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && runLookup()}
-              placeholder={currentTab?.placeholder}
+              placeholder={currentTab ? t(currentTab.placeholderKey) : ''}
               className="w-full bg-[var(--bg-primary)]/60 border border-[var(--border-primary)] rounded-lg pl-8 pr-3 py-2.5 text-[11px] font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)]/40 focus:outline-none transition-colors"
               style={{ borderColor: query ? `${currentTab?.color}40` : undefined }} />
           </div>
           <button onClick={runLookup} disabled={loading || !query.trim()}
             className="px-4 py-2 rounded-lg text-[10px] font-mono font-bold tracking-wider disabled:opacity-30 transition-all flex items-center justify-center min-w-[70px]"
             style={{ backgroundColor: `${currentTab?.color}20`, border: `1px solid ${currentTab?.color}40`, color: currentTab?.color }}>
-            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'SCAN'}
+            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : t('osint.scan').toUpperCase()}
           </button>
         </div>
         
@@ -683,12 +441,12 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
         {activeTab === 'scanner' && (
           <select value={scanType} onChange={e => setScanType(e.target.value)}
             className="bg-[var(--bg-primary)]/60 border border-[var(--border-primary)] rounded-lg px-2 py-1.5 text-[10px] font-mono text-[var(--text-muted)] outline-none w-full">
-            <option value="quick">QUICK SCAN</option><option value="deep">DEEP SCAN</option><option value="ports">TOP 1000 PORTS</option>
+            <option value="quick">{t('osint.scanTypes.quick')}</option><option value="deep">{t('osint.scanTypes.deep')}</option><option value="ports">{t('osint.scanTypes.topPorts')}</option>
           </select>
         )}
         {(activeTab === 'sweep' || activeTab === 'vuln') && (
           <div className="flex items-center justify-between bg-[var(--bg-primary)]/60 border border-[var(--border-primary)] rounded-lg p-1">
-            <span className="text-[9px] font-mono text-[var(--text-muted)] pl-2">SUBNET MASK:</span>
+            <span className="text-[9px] font-mono text-[var(--text-muted)] pl-2">{t('osint.subnetMask')}:</span>
             <div className="flex items-center gap-0.5">
               {[24, 25, 26, 27, 28].map(c => (
                 <button key={c} onClick={() => setSweepCidr(c)}
@@ -712,8 +470,8 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
       {sweepProgress && loading && (
         <div className="p-3 rounded-lg border border-[#FF3D3D]/30 bg-[#FF3D3D]/5">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-mono tracking-wider text-[#FF3D3D]">SWEEPING SUBNET...</span>
-            <span className="text-[10px] font-mono text-[#E8E6E0]">{sweepProgress.total} hosts</span>
+            <span className="text-[10px] font-mono tracking-wider text-[#FF3D3D]">{t('osint.sweeping')}</span>
+            <span className="text-[10px] font-mono text-[#E8E6E0]">{t('osint.hostsCount', { n: sweepProgress.total })}</span>
           </div>
           <div className="w-full h-1.5 bg-[#1A1A18] rounded-full overflow-hidden">
             <div className="h-full rounded-full" style={{ width: '100%', background: 'linear-gradient(90deg, #FF3D3D, #FF6B00, #FFD700)', animation: 'sweep-pulse 1.5s ease-in-out infinite' }} />
@@ -733,7 +491,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
               </div>
               <div className="text-right">
                 <div className="text-[18px] font-mono font-bold text-[#FF3D3D]">{sweepResult.summary.total_responsive}</div>
-                <div className="text-[8px] font-mono text-[#5C5A54] tracking-wider">DEVICES FOUND</div>
+                <div className="text-[8px] font-mono text-[#5C5A54] tracking-wider">{t('osint.devicesFound')}</div>
               </div>
             </div>
             {/* Breakdown Bar */}
@@ -762,7 +520,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
               className="w-full py-2.5 rounded-lg font-mono text-[11px] tracking-wider font-bold transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
               style={{ background: 'linear-gradient(135deg, rgba(255,61,61,0.2), rgba(255,107,0,0.2))', border: '1px solid rgba(255,61,61,0.5)', color: '#FF3D3D', textShadow: '0 0 10px rgba(255,61,61,0.5)' }}
             >
-              <Globe className="w-4 h-4" /> VISUALIZE ON GLOBE
+              <Globe className="w-4 h-4" /> {t('osint.visualizeOnGlobe')}
             </button>
           </div>
           {/* Device List */}
@@ -895,12 +653,12 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
                                 {isLoading ? (
                                   <div className="flex items-center gap-2 py-1">
                                     <Loader2 className="w-3 h-3 animate-spin text-[#5C5A54]" />
-                                    <span className="text-[10px] font-mono text-[#5C5A54]">Fetching vulnerability intelligence...</span>
+                                    <span className="text-[10px] font-mono text-[#5C5A54]">{t('osint.fetchingVulnIntel')}</span>
                                   </div>
                                 ) : (
                                   <>
                                     <p className="text-[11px] font-mono text-[#8A8880] leading-relaxed">{info.description}</p>
-                                    {info.cwe && <div className="text-[10px] font-mono text-[#5C5A54] mt-2">Weakness: {info.cwe}</div>}
+                                    {info.cwe && <div className="text-[10px] font-mono text-[#5C5A54] mt-2">{t('osint.weakness')}: {info.cwe}</div>}
                                     {info.affected && info.affected.length > 0 && (
                                       <div className="mt-2 flex flex-wrap gap-1.5">
                                         {info.affected.map((a: any, i: number) => (
@@ -925,7 +683,9 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
             })}
           </div>
           <div className="px-3 py-2 border-t border-[#2A2A28]">
-            <div className="text-[8px] font-mono text-[#5C5A54] tracking-wider">SWEPT {sweepResult.summary.total_hosts} HOSTS IN {(sweepResult.sweep_time_ms / 1000).toFixed(1)}s · ASN {sweepResult.center.asn}</div>
+            <div className="text-[8px] font-mono text-[#5C5A54] tracking-wider">
+              {t('osint.sweptSummary', { hosts: sweepResult.summary.total_hosts, seconds: (sweepResult.sweep_time_ms / 1000).toFixed(1), asn: sweepResult.center.asn })}
+            </div>
           </div>
         </div>
       )}
@@ -933,7 +693,9 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
       {results && !(sweepResult && !loading) && (
         <div className="bg-[var(--bg-primary)]/40 border border-[var(--border-primary)] rounded-lg p-3 max-h-[50vh] overflow-y-auto styled-scrollbar">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[9px] font-mono tracking-widest" style={{ color: currentTab?.color }}>{currentTab?.label} RESULTS</span>
+            <span className="text-[9px] font-mono tracking-widest" style={{ color: currentTab?.color }}>
+              {t('osint.resultsTitle', { tool: currentTab ? t(currentTab.labelKey) : '' })}
+            </span>
             <span className="text-[8px] font-mono text-[var(--text-muted)] flex items-center gap-1"><Clock className="w-2.5 h-2.5" />{new Date().toLocaleTimeString()}</span>
           </div>
           {renderStructuredResults()}
@@ -942,12 +704,17 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
 
       {history.length > 0 && !results && (
         <div className="space-y-1">
-          <span className="text-[9px] font-mono tracking-widest text-[var(--text-muted)]">RECENT SCANS</span>
+          <span className="text-[9px] font-mono tracking-widest text-[var(--text-muted)]">{t('osint.recentScans')}</span>
           {history.slice(0, 5).map((h, i) => (
             <button key={i} onClick={() => { setActiveTab(h.tab); setQuery(h.query); }}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-[var(--hover-accent)] transition-colors text-left">
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-[var(--hover-accent)] transition-colors text-start">
               <div className="flex items-center gap-2">
-                <span className="text-[9px] font-mono" style={{ color: TABS.find(t => t.id === h.tab)?.color }}>{TABS.find(t => t.id === h.tab)?.label}</span>
+                <span className="text-[9px] font-mono" style={{ color: TABS.find(t0 => t0.id === h.tab)?.color }}>
+                  {(() => {
+                    const tab = TABS.find(t0 => t0.id === h.tab);
+                    return tab ? t(tab.labelKey) : h.tab;
+                  })()}
+                </span>
                 <span className="text-[10px] font-mono text-[var(--text-secondary)]">{h.query}</span>
               </div>
               <span className="text-[8px] font-mono text-[var(--text-muted)]">{h.time}</span>
@@ -966,9 +733,9 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-secondary)] bg-[#111]">
           <div className="flex items-center gap-3">
             <Radar className="w-5 h-5 text-[var(--cyan-primary)]" />
-            <span className="hud-text text-[16px] text-[var(--text-primary)]">OSIRIS RECON TOOLKIT</span>
-            <span className="gotham-tag gotham-tag--info" style={{ fontSize: '9px' }}>FULL SCREEN</span>
-            <span className="gotham-tag gotham-tag--classified" style={{ fontSize: '8px' }}>{TABS.length} MODULES</span>
+            <span className="hud-text text-[16px] text-[var(--text-primary)]">{t('osint.fullscreenTitle')}</span>
+            <span className="gotham-tag gotham-tag--info" style={{ fontSize: '9px' }}>{t('osint.fullscreen')}</span>
+            <span className="gotham-tag gotham-tag--classified" style={{ fontSize: '8px' }}>{t('osint.modulesCount', { n: TABS.length })}</span>
           </div>
           <button onClick={() => setIsFullScreen(false)} className="p-2 hover:bg-white/5 rounded transition-colors text-[var(--text-muted)] hover:text-white">
             <Minimize2 className="w-5 h-5" />
@@ -985,15 +752,15 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
   }
 
   return (
-    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3, duration: 0.6 }} className="glass-panel flex flex-col overflow-hidden pointer-events-auto shrink-0">
+    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3, duration: 0.6 }} className="glass-panel flex flex-col overflow-hidden pointer-events-auto">
       <div className="flex items-center justify-between px-4 py-3 border-b border-transparent hover:bg-[var(--hover-accent)] transition-colors">
         <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-2 flex-1">
           <Radar className="w-3.5 h-3.5 text-[var(--cyan-primary)]" />
-          <span className="hud-text text-[12px] text-[var(--text-primary)]">RECON TOOLKIT</span>
-          <span className="gotham-tag gotham-tag--info" style={{ fontSize: '7px', padding: '1px 5px' }}>{TABS.length} TOOLS</span>
+          <span className="hud-text text-[12px] text-[var(--text-primary)]">{t('osint.title')}</span>
+          <span className="gotham-tag gotham-tag--info" style={{ fontSize: '7px', padding: '1px 5px' }}>{t('osint.toolsCount', { n: TABS.length })}</span>
         </button>
         <div className="flex items-center gap-3">
-          <button onClick={() => setIsFullScreen(true)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors" title="Full Screen">
+          <button onClick={() => setIsFullScreen(true)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors" title={t('osint.fullscreen')}>
              <Maximize2 className="w-3.5 h-3.5" />
           </button>
           <div className="w-1.5 h-1.5 rounded-full bg-[var(--cyan-primary)] animate-osiris-pulse" />

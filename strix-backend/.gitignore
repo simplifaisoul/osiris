@@ -1,0 +1,4 @@
+.env
+strix_runs/
+__pycache__/
+*.pyc

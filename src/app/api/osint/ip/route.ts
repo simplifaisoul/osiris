@@ -1,10 +1,7 @@
 import { NextResponse } from 'next/server';
 import { isRateLimited, getClientIp } from '@/lib/ssrf-guard';
-import { matchExact, type SanctionEntry } from '@/lib/sanctions';
 
-// IP Geolocation + Reputation — combines multiple free sources.
-// Cross-checks the ASN owner / ISP / org strings against the OFAC SDN
-// list so an IP routed via a sanctioned operator surfaces a hit.
+// IP Geolocation + Reputation — combines multiple free sources
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const ip = searchParams.get('ip');
@@ -60,22 +57,6 @@ export async function GET(req: Request) {
       is_mobile: results.geo?.is_mobile || false,
       risk_level: results.geo?.is_proxy ? 'HIGH' : results.geo?.is_hosting ? 'MEDIUM' : 'LOW',
     };
-
-    // OFAC SDN cross-check on ASN / ISP / org strings.
-    try {
-      const candidates = new Set<string>();
-      if (results.geo?.org) candidates.add(results.geo.org);
-      if (results.geo?.isp) candidates.add(results.geo.isp);
-      if (results.geo?.as_name) candidates.add(results.geo.as_name);
-      const hits: Array<{ matched_value: string; entries: SanctionEntry[] }> = [];
-      for (const value of candidates) {
-        const entries = await matchExact(value);
-        if (entries.length) hits.push({ matched_value: value, entries });
-      }
-      results.sanctions_match = hits.length
-        ? { source: 'OFAC SDN', hits }
-        : null;
-    } catch (e) { console.warn('[OSIRIS] Sanctions cross-check failed:', e instanceof Error ? e.message : e); }
 
     return NextResponse.json(results);
   } catch {

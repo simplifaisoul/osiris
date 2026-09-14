@@ -4,8 +4,9 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronDown, ChevronUp, MapPin, ExternalLink, AlertTriangle,
-  Newspaper, Clock, Radio, Maximize2, Minimize2
+  Newspaper, Clock, Radio,
 } from 'lucide-react';
+import { useI18n } from '@/i18n/I18nProvider';
 
 interface LiveAlertsProps {
   data: any;
@@ -22,8 +23,8 @@ const RISK_COLORS: Record<string, string> = {
 };
 
 export default function LiveAlerts({ data, onLocate, onWatchFeed }: LiveAlertsProps) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(true);
-  const [maximized, setMaximized] = useState(false);
   const [filter, setFilter] = useState<'all' | 'news' | 'quakes' | 'feeds'>('all');
 
   // Built-in live feeds — verified video IDs (synced with /api/live-news)
@@ -62,15 +63,17 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed }: LiveAlertsPr
   // Build unified alert feed
   const alerts: any[] = [];
 
-  // OSINT Telegram News Feed (from /api/news)
+  // News articles with locations (from /api/news)
   if (data.news) {
-    data.news.forEach((a: any) => {
-      alerts.push({
-        type: 'news', title: a.title, description: a.description, source: a.source,
-        lat: a.coords?.[0], lng: a.coords?.[1], time: a.published,
-        severity: (a.risk_score ?? 1) >= 8 ? 'CRITICAL' : (a.risk_score ?? 1) >= 6 ? 'HIGH' : (a.risk_score ?? 1) >= 4 ? 'ELEVATED' : 'LOW',
-        url: a.link,
-      });
+    data.news.slice(0, 10).forEach((a: any) => {
+      if (a.coords?.length === 2) {
+        alerts.push({
+          type: 'news', title: a.title, source: a.source,
+          lat: a.coords[0], lng: a.coords[1], time: a.published,
+          severity: (a.risk_score ?? 1) >= 8 ? 'CRITICAL' : (a.risk_score ?? 1) >= 6 ? 'HIGH' : (a.risk_score ?? 1) >= 4 ? 'ELEVATED' : 'LOW',
+          url: a.link,
+        });
+      }
     });
   }
 
@@ -114,7 +117,7 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed }: LiveAlertsPr
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: 0.5, duration: 0.6 }}
-      className={`glass-panel flex flex-col overflow-hidden pointer-events-auto shrink-0 resize-y min-h-[200px] transition-all duration-300 ${maximized ? 'fixed inset-4 z-[9999] bg-[#0a0a09]/95 backdrop-blur-3xl' : ''}`}
+      className="glass-panel flex flex-col overflow-hidden pointer-events-auto"
     >
       <button
         onClick={() => setExpanded(!expanded)}
@@ -122,15 +125,12 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed }: LiveAlertsPr
       >
         <div className="flex items-center gap-2">
           <Radio className="w-3.5 h-3.5 text-[#FF4081]" />
-          <span className="hud-text text-[10px] text-[var(--text-primary)]">LIVE ALERTS</span>
+          <span className="hud-text text-[10px] text-[var(--text-primary)]">{t('alerts.title')}</span>
           <span className="gotham-tag gotham-tag--high" style={{ fontSize: '7px', padding: '1px 5px' }}>{alerts.filter(a => a.type === 'news' || a.type === 'quake').length}</span>
-          <span className="gotham-tag gotham-tag--info" style={{ fontSize: '7px', padding: '1px 4px' }}>{BUILTIN_FEEDS.length} FEEDS</span>
+          <span className="gotham-tag gotham-tag--info" style={{ fontSize: '7px', padding: '1px 4px' }}>{t('alerts.feedsCount', { n: BUILTIN_FEEDS.length })}</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full bg-[#FF4081] animate-osiris-pulse" />
-          <button onClick={(e) => { e.stopPropagation(); setMaximized(!maximized); if (!expanded && !maximized) setExpanded(true); }} className="hover:text-white transition-colors" title={maximized ? "Restore" : "Maximize"}>
-            {maximized ? <Minimize2 className="w-3 h-3 text-[var(--text-muted)]" /> : <Maximize2 className="w-3 h-3 text-[var(--text-muted)]" />}
-          </button>
           {expanded ? <ChevronUp className="w-3.5 h-3.5 text-[var(--text-muted)]" /> : <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)]" />}
         </div>
       </button>
@@ -142,7 +142,7 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed }: LiveAlertsPr
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="overflow-hidden px-2 pb-2 flex flex-col flex-1 h-full min-h-0"
+            className="overflow-hidden px-2 pb-2"
           >
             {/* Filters */}
             <div className="flex gap-1 mb-2">
@@ -152,28 +152,26 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed }: LiveAlertsPr
                   onClick={() => setFilter(f)}
                   className={`px-2 py-1 rounded text-[9px] font-mono tracking-wider transition-all ${filter === f ? 'bg-[var(--hover-accent)] text-[var(--text-primary)] border border-[var(--border-primary)]' : 'text-[var(--text-muted)] border border-transparent hover:text-[var(--text-secondary)]'}`}
                 >
-                  {f.toUpperCase()}
+                  {t(`alerts.filters.${f}`)}
                 </button>
               ))}
             </div>
 
             {/* Alert List */}
-            <div className="space-y-0.5 overflow-y-auto styled-scrollbar flex-1 pb-4">
+            <div className="space-y-0.5 max-h-[180px] overflow-y-auto styled-scrollbar">
               {filtered.map((alert, i) => {
                 const Icon = getIcon(alert.type);
                 const sevColor = RISK_COLORS[alert.severity] || '#FFD700';
                 return (
-                  <div
+                  <button
                     key={i}
                     onClick={() => {
-                      if (alert.lat !== undefined && alert.lng !== undefined) {
-                        onLocate(alert.lat, alert.lng);
-                      }
+                      onLocate(alert.lat, alert.lng);
                       if (alert.feedUrl && onWatchFeed) {
                         onWatchFeed(alert.feedUrl, alert.title);
                       }
                     }}
-                    className="w-full text-left p-2 rounded-lg hover:bg-[var(--hover-accent)] transition-all border border-transparent hover:border-[var(--border-primary)] group cursor-default"
+                    className="w-full text-start p-2 rounded-lg hover:bg-[var(--hover-accent)] transition-all border border-transparent hover:border-[var(--border-primary)] group"
                   >
                     <div className="flex items-start gap-2">
                       {/* Severity indicator */}
@@ -182,47 +180,30 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed }: LiveAlertsPr
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 mb-1">
+                        <div className="flex items-center gap-1.5 mb-0.5">
                           <Icon className="w-3 h-3 flex-shrink-0" style={{ color: sevColor }} />
-                          <span className={`text-[10px] font-mono text-[var(--text-primary)] ${alert.type === 'news' ? 'line-clamp-4 leading-snug' : 'truncate leading-tight'}`}>
-                            {alert.description || alert.title}
-                          </span>
+                          <span className="text-[10px] font-mono text-[var(--text-primary)] truncate leading-tight">{alert.title}</span>
                         </div>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[8px] font-mono text-[var(--text-muted)]">{alert.source}</span>
-                            {alert.time && (
-                              <span className="text-[8px] font-mono text-[var(--text-muted)] flex items-center gap-0.5">
-                                <Clock className="w-2 h-2" />
-                                {new Date(alert.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                            )}
-                          </div>
-                          {alert.url && (
-                            <a 
-                              href={alert.url} 
-                              target="_blank" 
-                              rel="noopener noreferrer" 
-                              className="text-[8px] font-mono text-[var(--cyan-primary)] hover:underline"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              SOURCE
-                            </a>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[8px] font-mono text-[var(--text-muted)]">{alert.source}</span>
+                          {alert.time && (
+                            <span className="text-[8px] font-mono text-[var(--text-muted)] flex items-center gap-0.5">
+                              <Clock className="w-2 h-2" />
+                              {new Date(alert.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
                           )}
                         </div>
                       </div>
 
                       {/* Fly-to icon */}
-                      {alert.lat !== undefined && (
-                        <MapPin className="w-3 h-3 text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
-                      )}
+                      <MapPin className="w-3 h-3 text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
                     </div>
-                  </div>
+                  </button>
                 );
               })}
               {filtered.length === 0 && (
                 <div className="text-center py-4 text-[10px] font-mono text-[var(--text-muted)]">
-                  No alerts for this filter
+                  {t('alerts.empty')}
                 </div>
               )}
             </div>

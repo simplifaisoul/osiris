@@ -1,6 +1,5 @@
 
 import { NextResponse } from 'next/server';
-import { stealthFetch } from '@/lib/stealthFetch';
 
 /**
  * OSIRIS — Satellite Tracking API
@@ -48,7 +47,7 @@ function classifySatellite(name: string): { mission: string; color: string } {
   for (const [keyword, info] of Object.entries(MISSION_CLASSIFY)) {
     if (upper.includes(keyword)) return info;
   }
-  return { mission: 'Unknown', color: '#00E5FF' };
+  return { mission: 'Unknown', color: '#808080' };
 }
 
 function gmst(jd: number): number {
@@ -57,7 +56,24 @@ function gmst(jd: number): number {
   return ((gmstSec % 86400) / 86400.0) * 2 * Math.PI;
 }
 
-// No longer needed: function parseTLE(tleText: string) {}
+function parseTLE(tleText: string) {
+  const lines = tleText.trim().split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  const satellites: any[] = [];
+
+  for (let i = 0; i < lines.length - 2; i++) {
+    // Find name + line1 + line2 pattern
+    const name = lines[i];
+    const line1 = lines[i + 1];
+    const line2 = lines[i + 2];
+
+    if (!line1?.startsWith('1 ') || !line2?.startsWith('2 ')) continue;
+    if (name.startsWith('1 ') || name.startsWith('2 ')) continue;
+
+    satellites.push({ name, line1, line2 });
+    i += 2; // skip the TLE lines
+  }
+  return satellites;
+}
 
 function propagateSGP4Simple(line1: string, line2: string): { lat: number; lng: number; alt: number } | null {
   try {
@@ -80,8 +96,8 @@ function propagateSGP4Simple(line1: string, line2: string): { lat: number; lng: 
     epochDate.setDate(epochDate.getDate() + epochDay - 1);
     const elapsedMin = (now.getTime() - epochDate.getTime()) / 60000;
 
-    // Reject stale TLEs (> 30 days old) unless it's the emergency fallback
-    if (Math.abs(elapsedMin) > 43200 && !line1.includes('27885-3')) return null;
+    // Reject stale TLEs (> 30 days old)
+    if (Math.abs(elapsedMin) > 43200) return null;
 
     const n = meanMotion * 2 * Math.PI / 1440;
     const M = ((meanAnomDeg * Math.PI / 180) + n * elapsedMin) % (2 * Math.PI);
@@ -130,61 +146,66 @@ function propagateSGP4Simple(line1: string, line2: string): { lat: number; lng: 
   }
 }
 
-// SatNOGS Open API - Provides full TLE JSON without API keys or IP blocks
-const SATNOGS_API = 'https://db.satnogs.org/api/tle/?format=json';
+// Multiple TLE sources — individual groups fetched in parallel for resilience
+// NOTE: The full 'active' catalog often returns empty from cloud/serverless IPs
+// due to Celestrak rate-limiting. Individual groups are smaller and more reliable.
+const TLE_SOURCES = [
+  { url: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle', group: 'stations' },
+  { url: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle', group: 'visual' },
+  { url: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=weather&FORMAT=tle', group: 'weather' },
+  { url: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=resource&FORMAT=tle', group: 'resource' },
+  { url: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=sarsat&FORMAT=tle', group: 'sarsat' },
+  { url: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=gps-ops&FORMAT=tle', group: 'gps' },
+  { url: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=glo-ops&FORMAT=tle', group: 'glonass' },
+  { url: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=galileo&FORMAT=tle', group: 'galileo' },
+  { url: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=beidou&FORMAT=tle', group: 'beidou' },
+  { url: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=military&FORMAT=tle', group: 'military' },
+  { url: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=science&FORMAT=tle', group: 'science' },
+  { url: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=geodetic&FORMAT=tle', group: 'geodetic' },
+  { url: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=engineering&FORMAT=tle', group: 'engineering' },
+  { url: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=education&FORMAT=tle', group: 'education' },
+  { url: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle', group: 'starlink' },
+  { url: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle', group: 'active-fallback' },
+];
 
-let globalCachedSats: any[] = [];
-let globalCacheTime = 0;
+async function fetchTLEFromSource(source: typeof TLE_SOURCES[0]): Promise<string | null> {
+  try {
+    const res = await fetch(source.url, {
+      signal: AbortSignal.timeout(12000),
+      headers: { 'User-Agent': 'OSIRIS-Intelligence-Platform/3.4' },
+    });
+    if (!res.ok) return null;
+    const text = await res.text();
+    if (text.length < 100 || text.includes('<!DOCTYPE') || text.includes('<html')) return null;
+    return text;
+  } catch {
+    return null;
+  }
+}
 
 export async function GET() {
   try {
-    const nowTime = Date.now();
-    let allSats: any[] = globalCachedSats;
-    let source = 'memory-cache';
+    // Fetch all groups in parallel for maximum speed & resilience
+    const results = await Promise.allSettled(
+      TLE_SOURCES.map(src => fetchTLEFromSource(src))
+    );
 
-    if (globalCachedSats.length === 0 || nowTime - globalCacheTime > 3600000) { // 1 hour cache
-      try {
-        const res = await stealthFetch(SATNOGS_API, {
-          signal: AbortSignal.timeout(15000),
-          headers: { 'Accept': 'application/json' },
-        });
-        
-        if (res.ok) {
-          const data = await res.json();
-          const fetchedSats: any[] = [];
-          const seen = new Set<string>();
+    const allSats: any[] = [];
+    const seen = new Set<string>();
 
-          for (const item of data) {
-            const rawName = (item.tle0 || '').trim();
-            const cleanName = rawName.replace(/^0\s+/, '');
-            if (cleanName && item.tle1 && item.tle2 && !seen.has(cleanName)) {
-              seen.add(cleanName);
-              fetchedSats.push({
-                name: cleanName,
-                line1: item.tle1.trim(),
-                line2: item.tle2.trim(),
-              });
-            }
-          }
-          
-          if (fetchedSats.length > 0) {
-            globalCachedSats = fetchedSats;
-            globalCacheTime = nowTime;
-            allSats = fetchedSats;
-            source = 'satnogs-api';
+    for (const result of results) {
+      if (result.status === 'fulfilled' && result.value) {
+        const parsed = parseTLE(result.value);
+        for (const sat of parsed) {
+          if (!seen.has(sat.name)) {
+            seen.add(sat.name);
+            allSats.push(sat);
           }
         }
-      } catch (err) {
-        console.error('SatNOGS fetch error:', err);
       }
     }
 
-    // Emergency Fallback if cache is totally empty and SatNOGS is down
-    if (allSats.length === 0) {
-      const issFallback = "1 25544U 98067A   24146.40251785  .00015505  00000-0  27885-3 0  9997\n2 25544  51.6402 189.7042 0004381 334.8091 106.8778 15.50091157455243";
-      allSats = [{ name: 'ISS (FALLBACK)', line1: issFallback.split('\n')[0], line2: issFallback.split('\n')[1] }];
-      source = 'emergency-fallback';
-    }
+    const source = allSats.length > 0 ? 'celestrak-groups' : 'none';
 
     // Sample for performance (max 2000 satellites)
     const sampled = allSats.length > 2000
@@ -204,7 +225,6 @@ export async function GET() {
         alt: pos.alt,
         mission: classification.mission,
         color: classification.color,
-        noradId: sat.line1.substring(2, 7).trim(),
       });
     }
 

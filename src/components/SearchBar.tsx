@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Search, X, MapPin } from 'lucide-react';
+import { useI18n } from '@/i18n/I18nProvider';
 
 /* ═══════════════════════════════════════════════════════════════
    OSIRIS — Search / Locate Bar
@@ -13,6 +14,7 @@ interface SearchBarProps {
 }
 
 export default function SearchBar({ onLocate }: SearchBarProps) {
+  const { t, locale } = useI18n();
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState('');
   const [results, setResults] = useState<{ label: string; lat: number; lng: number }[]>([]);
@@ -44,15 +46,16 @@ export default function SearchBar({ onLocate }: SearchBarProps) {
     timerRef.current = setTimeout(async () => {
       setLoading(true);
       try {
+        const acceptLang = locale === 'fa-AF' ? 'fa' : 'ps';
         const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5`, {
-          headers: { 'Accept-Language': 'en' },
+          headers: { 'Accept-Language': acceptLang },
         });
         const data = await res.json();
         setResults(data.map((r: any) => ({ label: r.display_name, lat: parseFloat(r.lat), lng: parseFloat(r.lon) })));
       } catch { setResults([]); }
       setLoading(false);
     }, 350);
-  }, []);
+  }, [locale]);
 
   const handleSelect = (r: { lat: number; lng: number }) => {
     onLocate(r.lat, r.lng);
@@ -65,10 +68,10 @@ export default function SearchBar({ onLocate }: SearchBarProps) {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 glass-panel-sm px-3 py-2 text-[9px] font-mono tracking-[0.15em] text-[var(--text-muted)] hover:text-[var(--gold-primary)] hover:border-[var(--border-active)] transition-all hover:shadow-[0_0_12px_rgba(212,175,55,0.08)]"
+        className="flex items-center gap-1.5 glass-panel-sm px-3 py-2 text-[9px] font-mono tracking-[0.15em] text-[var(--text-muted)] hover:text-[var(--gold-primary)] hover:border-[var(--border-active)] transition-all hover:shadow-[0_0_12px_rgba(var(--accent-rgb),0.08)]"
       >
         <Search className="w-3 h-3" />
-        CMD: LOCATE
+        {t('search.cmdLocate')}
       </button>
     );
   }
@@ -85,7 +88,7 @@ export default function SearchBar({ onLocate }: SearchBarProps) {
             if (e.key === 'Escape') { setOpen(false); setValue(''); setResults([]); }
             if (e.key === 'Enter' && results.length > 0) handleSelect(results[0]);
           }}
-          placeholder="ENTER COORDINATES OR TARGET NAME..."
+          placeholder={t('search.placeholder')}
           className="flex-1 bg-transparent text-[10px] text-[var(--text-primary)] font-mono tracking-wider outline-none placeholder:text-[var(--text-muted)]"
         />
         {loading && <div className="w-3 h-3 border border-[var(--gold-primary)] border-t-transparent rounded-full animate-spin" />}
@@ -100,7 +103,7 @@ export default function SearchBar({ onLocate }: SearchBarProps) {
             <button
               key={i}
               onClick={() => handleSelect(r)}
-              className="w-full text-left px-3 py-2.5 hover:bg-[var(--hover-accent)] transition-colors border-b border-[var(--border-secondary)] last:border-0 flex items-center gap-2"
+              className="w-full text-start px-3 py-2.5 hover:bg-[var(--hover-accent)] transition-colors border-b border-[var(--border-secondary)] last:border-0 flex items-center gap-2"
             >
               <MapPin className="w-3 h-3 text-[var(--gold-primary)] flex-shrink-0" />
               <span className="text-[9px] text-[var(--text-secondary)] font-mono truncate">{r.label}</span>

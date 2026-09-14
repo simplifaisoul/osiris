@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ExternalLink, RefreshCw, MapPin, Camera, Maximize2 } from 'lucide-react';
 import Hls from 'hls.js';
+import { useI18n } from '@/i18n/I18nProvider';
 
 interface CameraViewerProps {
   camera: any | null;
@@ -12,6 +13,7 @@ interface CameraViewerProps {
 }
 
 export default function CameraViewer({ camera, onClose, onLocate }: CameraViewerProps) {
+  const { t } = useI18n();
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -115,16 +117,16 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
               {streamType === 'jpg' && (
-                <button onClick={() => setRefreshKey(k => k + 1)} className="p-1.5 rounded hover:bg-[var(--hover-accent)] transition-colors" title="Refresh feed">
+                <button onClick={() => setRefreshKey(k => k + 1)} className="p-1.5 rounded hover:bg-[var(--hover-accent)] transition-colors" title={t('camera.refresh')}>
                   <RefreshCw className="w-3 h-3 text-[var(--text-muted)] hover:text-[#39FF14]" />
                 </button>
               )}
               {camera.lat && camera.lng && (
-                <button onClick={() => onLocate?.(camera.lat, camera.lng)} className="p-1.5 rounded hover:bg-[var(--hover-accent)] transition-colors" title="Fly to location">
+                <button onClick={() => onLocate?.(camera.lat, camera.lng)} className="p-1.5 rounded hover:bg-[var(--hover-accent)] transition-colors" title={t('camera.flyTo')}>
                   <MapPin className="w-3 h-3 text-[var(--text-muted)] hover:text-[var(--gold-primary)]" />
                 </button>
               )}
-              <button onClick={() => setFullscreen(!fullscreen)} className="hidden md:block p-1.5 rounded hover:bg-[var(--hover-accent)] transition-colors" title="Toggle fullscreen">
+              <button onClick={() => setFullscreen(!fullscreen)} className="hidden md:block p-1.5 rounded hover:bg-[var(--hover-accent)] transition-colors" title={t('camera.fullscreen')}>
                 <Maximize2 className="w-3 h-3 text-[var(--text-muted)] hover:text-white" />
               </button>
               <button onClick={onClose} className="p-1.5 rounded hover:bg-red-900/30 transition-colors">
@@ -139,7 +141,7 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
               <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
                 <div className="text-center">
                   <div className="w-6 h-6 border-2 border-[#39FF14] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                  <span className="text-[8px] font-mono text-[#39FF14] tracking-widest">CONNECTING TO FEED...</span>
+                  <span className="text-[8px] font-mono text-[#39FF14] tracking-widest">{t('camera.connecting')}</span>
                 </div>
               </div>
             )}
@@ -148,11 +150,11 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
               <div className="absolute inset-0 flex items-center justify-center bg-black/90">
                 <div className="text-center px-6">
                   <div className="w-8 h-8 rounded-full bg-[#39FF14]/15 flex items-center justify-center mx-auto mb-2"><ExternalLink className="w-4 h-4 text-[#39FF14]" /></div>
-                  <span className="text-[9px] font-mono text-[#39FF14] tracking-widest block mb-1">EXTERNAL FEED</span>
-                  <span className="text-[7px] font-mono text-[var(--text-muted)]">Live stream opens in source viewer</span>
+                  <span className="text-[9px] font-mono text-[#39FF14] tracking-widest block mb-1">{t('camera.externalFeed')}</span>
+                  <span className="text-[7px] font-mono text-[var(--text-muted)]">{t('camera.externalHint')}</span>
                   {externalFeedUrl && (
                     <a href={externalFeedUrl} target="_blank" rel="noopener noreferrer" className="block mx-auto mt-3 px-3 py-1 text-[8px] font-mono text-[#39FF14] border border-[#39FF14]/30 rounded hover:bg-[#39FF14]/10 transition-colors tracking-wider">
-                      OPEN FEED
+                      {t('camera.openFeed')}
                     </a>
                   )}
                 </div>
@@ -161,10 +163,10 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
               <div className="absolute inset-0 flex items-center justify-center bg-black/90">
                 <div className="text-center">
                   <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center mb-2 mx-auto"><Camera className="w-4 h-4 text-red-400" /></div>
-                  <span className="text-[9px] font-mono text-red-400 tracking-widest block mb-1">FEED UNAVAILABLE</span>
-                  <span className="text-[7px] font-mono text-[var(--text-muted)]">Camera may be offline or restricted</span>
+                  <span className="text-[9px] font-mono text-red-400 tracking-widest block mb-1">{t('camera.unavailable')}</span>
+                  <span className="text-[7px] font-mono text-[var(--text-muted)]">{t('camera.unavailableHint')}</span>
                   <button onClick={() => { setError(false); setRefreshKey(k => k + 1); }} className="block mx-auto mt-3 px-3 py-1 text-[8px] font-mono text-[#39FF14] border border-[#39FF14]/30 rounded hover:bg-[#39FF14]/10 transition-colors tracking-wider">
-                    RETRY
+                    {t('common.retry').toUpperCase()}
                   </button>
                 </div>
               </div>
@@ -199,7 +201,7 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
               <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-black/70 backdrop-blur-sm px-2 py-1 rounded">
                 <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-osiris-pulse" />
                 <span className="text-[7px] font-mono text-white tracking-widest">
-                  {streamType === 'jpg' ? 'LIVE SNAPSHOT' : 'LIVE VIDEO'}
+                  {streamType === 'jpg' ? t('camera.liveSnapshot') : t('camera.liveVideo')}
                 </span>
               </div>
             )}
@@ -214,12 +216,12 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
               {(camera.feed_url || camera.external_url) && (
                 <a href={camera.external_url || camera.feed_url} target="_blank" rel="noopener noreferrer"
                   className="flex items-center gap-1 text-[7px] font-mono text-[#39FF14] hover:underline tracking-wider">
-                  <ExternalLink className="w-2.5 h-2.5" /> FEED
+                  <ExternalLink className="w-2.5 h-2.5" /> {t('camera.feed')}
                 </a>
               )}
               <a href={`https://www.google.com/maps/@${camera.lat},${camera.lng},17z`} target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-1 text-[7px] font-mono text-[var(--cyan-primary)] hover:underline tracking-wider">
-                <MapPin className="w-2.5 h-2.5" /> MAP
+                <MapPin className="w-2.5 h-2.5" /> {t('camera.map')}
               </a>
             </div>
           </div>

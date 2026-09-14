@@ -138,41 +138,15 @@ export async function GET() {
     const indices: Record<string, any> = {};
     for (const { symbol, data } of indexResults) { if (data) indices[INDEX_NAMES[symbol] || symbol] = data; }
 
-    // --- SCM Integration: Chokepoint-Commodity Correlation ---
-    const scm_alerts: string[] = [];
-    try {
-      const maritimeRes = await fetch('http://127.0.0.1:3000/api/maritime', { signal: AbortSignal.timeout(3000) });
-      if (maritimeRes.ok) {
-        const maritimeData = await maritimeRes.json();
-        const chokepoints = maritimeData.chokepoints || [];
-        
-        const hormuz = chokepoints.find((c: any) => c.name === 'Strait of Hormuz');
-        const suez = chokepoints.find((c: any) => c.name === 'Suez Canal');
-        const panama = chokepoints.find((c: any) => c.name === 'Panama Canal');
-
-        if (hormuz && (hormuz.risk === 'CRITICAL' || hormuz.risk === 'HIGH')) {
-          scm_alerts.push(`🚨 HORMUZ ${hormuz.risk}: High risk of WTI/Brent Crude price spike due to congestion.`);
-        }
-        if (suez && (suez.risk === 'CRITICAL' || suez.risk === 'HIGH')) {
-          scm_alerts.push(`🚨 SUEZ ${suez.risk}: Potential supply chain delays impacting European markets and Energy.`);
-        }
-        if (panama && (panama.risk === 'CRITICAL' || panama.risk === 'HIGH')) {
-          scm_alerts.push(`🚨 PANAMA ${panama.risk}: LNG and Agriculture (Corn/Wheat) shipment delays expected.`);
-        }
-      }
-    } catch (e) {
-      // Ignore if maritime is unreachable
-    }
-
     return NextResponse.json({
-      stocks, oil, commodities, crypto, indices, scm_alerts,
+      stocks, oil, commodities, crypto, indices,
       timestamp: new Date().toISOString(),
     }, {
-      headers: { 'Cache-Control': 'no-store' }, // Prevent caching so alerts update real-time
+      headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=300' },
     });
   } catch (error) {
     console.error('Markets fetch error:', error);
-    return NextResponse.json({ stocks: {}, oil: {}, commodities: {}, crypto: {}, indices: {}, scm_alerts: [], error: 'Failed' }, { status: 500 });
+    return NextResponse.json({ stocks: {}, oil: {}, commodities: {}, crypto: {}, indices: {}, error: 'Failed' }, { status: 500 });
   }
 }
 

@@ -1,40 +1,65 @@
+
 import { NextResponse } from 'next/server';
-import crypto from 'crypto';
 
 /**
- * OSIRIS — Military-Grade Intelligence API
- * Fetches Telegram OSINT feeds directly, with a failsafe fallback 
- * to traditional intelligence sources if Telegram blocks the IP.
+ * OSIRIS — News Intelligence API
+ * Aggregates RSS feeds from major international sources
+ * Risk scoring and geo-coordinate mapping
  */
 
-const TELEGRAM_CHANNELS = [
-  'OSINTtechnical',
-  'Faytuks',
-  'Liveuamap',
-  'CyberKnow'
-];
-
-const FALLBACK_FEEDS = {
+const FEEDS: Record<string, string> = {
   BBC: 'https://feeds.bbci.co.uk/news/world/rss.xml',
   AlJazeera: 'https://www.aljazeera.com/xml/rss/all.xml',
-  GDACS: 'https://www.gdacs.org/xml/rss.xml'
+  NPR: 'https://feeds.npr.org/1004/rss.xml',
+  GDACS: 'https://www.gdacs.org/xml/rss.xml',
+  NHK: 'https://www3.nhk.or.jp/nhkworld/rss/world.xml',
+  BBCEurope: 'https://feeds.bbci.co.uk/news/world/europe/rss.xml',
+  Dnevnik: 'https://www.dnevnik.bg/rss/',
+  Actualno: 'https://www.actualno.com/rss/actualno.xml',
+  Mediapool: 'https://www.mediapool.bg/rss/',
 };
 
-const RISK_KEYWORDS = ['war','missile','strike','attack','crisis','tension','military','conflict','defense','clash','nuclear','invasion','bomb','drone','weapon','sanctions','ceasefire','escalation', 'killed', 'destroyed', 'operation', 'casualty', 'frontline', 'threat'];
+const BG_NEWS_SOURCES = new Set(['Dnevnik', 'Actualno', 'Mediapool']);
+
+const SOFIA_COORDS: [number, number] = [42.698, 25.485];
+
+const RSS_FETCH_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (compatible; OSIRIS/1.0; +https://github.com/simplifaisoul/osiris)',
+  Accept: 'application/rss+xml, application/xml, text/xml, */*',
+};
+
+const RISK_KEYWORDS = ['war','missile','strike','attack','crisis','tension','military','conflict','defense','clash','nuclear','invasion','bomb','drone','weapon','sanctions','ceasefire','escalation'];
 
 const KEYWORD_COORDS: Record<string, [number, number]> = {
   'ukraine': [49.487, 31.272], 'kyiv': [50.450, 30.523], 'russia': [61.524, 105.318],
   'moscow': [55.755, 37.617], 'israel': [31.046, 34.851], 'gaza': [31.416, 34.333],
   'iran': [32.427, 53.688], 'lebanon': [33.854, 35.862], 'syria': [34.802, 38.996],
   'yemen': [15.552, 48.516], 'china': [35.861, 104.195], 'taiwan': [23.697, 120.960],
-  'united states': [38.907, -77.036], 'europe': [48.800, 2.300], 'middle east': [31.500, 34.800]
+  'north korea': [40.339, 127.510], 'south korea': [35.907, 127.766],
+  'japan': [36.204, 138.252], 'afghanistan': [33.939, 67.709], 'pakistan': [30.375, 69.345],
+  'india': [20.593, 78.962], 'sudan': [12.862, 30.217], 'nigeria': [9.082, 8.675],
+  'egypt': [26.820, 30.802], 'libya': [26.335, 17.228], 'somalia': [5.152, 46.199],
+  'ethiopia': [9.145, 40.489], 'venezuela': [7.119, -66.589], 'mexico': [23.634, -102.552],
+  'united states': [38.907, -77.036], 'washington': [38.907, -77.036],
+  'europe': [48.800, 2.300], 'middle east': [31.500, 34.800],
+  'africa': [0.000, 25.000], 'asia': [34.000, 100.000],
+  'south china sea': [15.000, 115.000], 'red sea': [20.000, 38.500],
+  'persian gulf': [26.500, 51.500], 'strait of hormuz': [26.600, 56.300],
+  'black sea': [43.500, 34.000], 'arctic': [75.000, 0.000],
+  // Balkans
+  'bulgaria': [42.698, 25.485], 'sofia': [42.698, 25.485],
+  'plovdiv': [42.136, 24.745], 'varna': [43.214, 27.915],
+  'burgas': [42.504, 27.462], 'ruse': [43.835, 25.965],
+  'balkans': [42.000, 22.000], 'greece': [39.074, 21.824],
+  'serbia': [44.016, 21.005], 'romania': [45.943, 24.967],
+  'turkey': [39.000, 35.000],
 };
 
-function scoreRisk(text: string): number {
-  const lower = text.toLowerCase();
+function scoreRisk(title: string, summary: string): number {
+  const text = (title + ' ' + summary).toLowerCase();
   let score = 1;
   for (const kw of RISK_KEYWORDS) {
-    if (lower.includes(kw)) score += 2;
+    if (text.includes(kw)) score += 2;
   }
   return Math.min(10, score);
 }
@@ -47,33 +72,12 @@ function findCoords(text: string): [number, number] | null {
   return null;
 }
 
-function parseTelegramHTML(html: string, channel: string): any[] {
-  const items: any[] = [];
-  const messageBlockRegex = /<div class="tgme_widget_message_wrap js-widget_message_wrap"[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/gi;
-  let blockMatch;
+// generateAssessment() REMOVED — was fabricating fake probabilistic threat
+// percentages using Math.random(). See Issue #116.
+// The risk_score field (from scoreRisk()) is deterministic and retained.
 
-  while ((blockMatch = messageBlockRegex.exec(html)) !== null) {
-    const blockHtml = blockMatch[0];
-    const textRegex = /<div class="tgme_widget_message_text[^>]*>([\s\S]*?)<\/div>/i;
-    const textMatch = blockHtml.match(textRegex);
-    if (!textMatch) continue;
-    
-    let text = textMatch[1].replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&quot;/g, '"').replace(/&amp;/g, '&').trim();
-    if (!text || text.length < 10) continue;
-
-    const dateRegex = /<a class="tgme_widget_message_date" href="(https:\/\/t\.me\/[^"]+)".*?<time datetime="([^"]+)"/i;
-    const dateMatch = blockHtml.match(dateRegex);
-    const link = dateMatch ? dateMatch[1] : `https://t.me/${channel}`;
-    const pubDate = dateMatch ? dateMatch[2] : new Date().toISOString();
-
-    const title = text.split('\n')[0].substring(0, 100);
-
-    items.push({ title, description: text, link, pubDate, source: `t.me/${channel}` });
-  }
-  return items;
-}
-
-function parseRSSItems(xml: string, sourceName: string): any[] {
+// Simple XML parsing for RSS (no external dependency needed in serverless)
+function parseRSSItems(xml: string): any[] {
   const items: any[] = [];
   const itemRegex = /<item>([\s\S]*?)<\/item>/gi;
   let match;
@@ -85,15 +89,11 @@ function parseRSSItems(xml: string, sourceName: string): any[] {
       return (m?.[1] || m?.[2] || '').trim();
     };
 
-    let title = getTag('title').replace(/<[^>]+>/g, '');
-    let desc = getTag('description').replace(/<[^>]+>/g, '').replace(/&quot;/g, '"');
-    
     items.push({
-      title: title.length > 100 ? title.substring(0, 100) + '...' : title,
-      description: desc,
+      title: getTag('title').replace(/<[^>]+>/g, ''),
       link: getTag('link'),
-      pubDate: getTag('pubDate') || new Date().toISOString(),
-      source: sourceName
+      pubDate: getTag('pubDate'),
+      description: getTag('description').replace(/<[^>]+>/g, '').substring(0, 200),
     });
   }
   return items;
@@ -101,61 +101,48 @@ function parseRSSItems(xml: string, sourceName: string): any[] {
 
 export async function GET() {
   try {
-    const feedPromises = TELEGRAM_CHANNELS.map(async (channel) => {
+    // Fetch all feeds in parallel
+    const feedPromises = Object.entries(FEEDS).map(async ([source, url]) => {
       try {
-        const res = await fetch(`https://t.me/s/${channel}`, { 
-          signal: AbortSignal.timeout(8000), 
-          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' } 
-        });
+        const res = await fetch(url, { signal: AbortSignal.timeout(8000), headers: RSS_FETCH_HEADERS });
         if (!res.ok) return [];
-        const html = await res.text();
-        return parseTelegramHTML(html, channel).slice(-8);
-      } catch { return []; }
+        const xml = await res.text();
+        const items = parseRSSItems(xml);
+        return items.slice(0, 5).map(item => ({ ...item, source }));
+      } catch {
+        return [];
+      }
     });
 
     const feedResults = await Promise.allSettled(feedPromises);
     const allArticles: any[] = [];
 
     for (const result of feedResults) {
-      if (result.status === 'fulfilled') allArticles.push(...result.value);
-    }
-
-    // FAILSAFE: If Telegram completely blocks the IP, fall back to traditional RSS
-    if (allArticles.length === 0) {
-      const fallbackPromises = Object.entries(FALLBACK_FEEDS).map(async ([source, url]) => {
-        try {
-          const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
-          if (!res.ok) return [];
-          const xml = await res.text();
-          return parseRSSItems(xml, source).slice(0, 5);
-        } catch { return []; }
-      });
-      
-      const fallbackResults = await Promise.allSettled(fallbackPromises);
-      for (const result of fallbackResults) {
-        if (result.status === 'fulfilled') allArticles.push(...result.value);
+      if (result.status === 'fulfilled') {
+        allArticles.push(...result.value);
       }
     }
 
+    // Score, classify, and sort
     const newsItems = allArticles.map(article => {
-      const riskScore = scoreRisk(article.description || article.title);
-      const coords = findCoords(article.description || article.title);
+      const riskScore = scoreRisk(article.title, article.description || '');
+      const keywordCoords = findCoords(article.title + ' ' + (article.description || ''));
+      const coords = keywordCoords ?? (BG_NEWS_SOURCES.has(article.source) ? SOFIA_COORDS : null);
 
       return {
-        id: crypto.createHash('md5').update((article.link || '') + (article.pubDate || '')).digest('hex'),
         title: article.title,
-        description: article.description,
         link: article.link,
         published: article.pubDate,
         source: article.source,
         risk_score: riskScore,
         coords: coords ? [coords[0], coords[1]] : null,
-        coords_default: !coords,
-        machine_assessment: riskScore >= 8 ? "AI Analysis indicates elevated tactical priority based on OSINT stream patterns." : null,
+        coords_default: !keywordCoords && BG_NEWS_SOURCES.has(article.source),
+        machine_assessment: null,
       };
     });
 
-    newsItems.sort((a, b) => new Date(b.published).getTime() - new Date(a.published).getTime());
+    // Sort by risk score descending
+    newsItems.sort((a, b) => b.risk_score - a.risk_score);
 
     return NextResponse.json({
       news: newsItems,
@@ -163,10 +150,12 @@ export async function GET() {
       timestamp: new Date().toISOString(),
     }, {
       headers: {
-        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
       },
     });
   } catch (error) {
-    return NextResponse.json({ news: [], error: 'Failed to fetch intel' }, { status: 500 });
+    console.error('News fetch error:', error);
+    return NextResponse.json({ news: [], error: 'Failed to fetch news' }, { status: 500 });
   }
 }
+

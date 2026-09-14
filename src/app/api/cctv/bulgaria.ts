@@ -17,7 +17,15 @@ const BULGARIA_MANUAL: CctvCamera[] = [
     source: 'meteo.chavo.biz',
   },
   
-
+  {
+    id: 'bg-gkpp-makaza-1',
+    lat: 41.297, lng: 24.133,
+    name: 'GKPP Makaza – Nymfea (cam 1)', city: 'Makaza', country: 'Bulgaria',
+    stream_url: 'https://www.youtube.com/embed/pnr0lhrqRAc?autoplay=1&mute=1',
+    stream_type: 'iframe',
+    external_url: 'https://weather-webcam.eu/ueb-kameri-ot-gkpp-makaza-nimfeya/',
+    source: 'YouTube / GKPP',
+  },
   {
     id: 'bg-burgas-center',
     lat: 42.497, lng: 27.47,

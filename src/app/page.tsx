@@ -3,10 +3,9 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Layers, BarChart3, Newspaper, Search, X, Globe, MapPinned, Radar, Satellite, Moon, ExternalLink, AlertTriangle, Activity, Database, Wifi } from 'lucide-react';
+import { Layers, BarChart3, Newspaper, Search, Share2, Map as MapIcon, X, Globe, MapPinned, Radar, Satellite, Moon, ExternalLink, AlertTriangle, Building2, RadioTower, Activity, Shield, Database, Wifi, Compass } from 'lucide-react';
 import IntelFeed from '@/components/IntelFeed';
 import MarketsPanel from '@/components/MarketsPanel';
-import ScmPanel from '@/components/ScmPanel';
 import SearchBar from '@/components/SearchBar';
 import ScaleBar from '@/components/ScaleBar';
 import ErrorBoundary from '@/components/ErrorBoundary';
@@ -15,11 +14,19 @@ import ViewPresets from '@/components/ViewPresets';
 import KeyboardShortcuts from '@/components/KeyboardShortcuts';
 import GlobalStatusBar from '@/components/GlobalStatusBar';
 import LiveAlerts from '@/components/LiveAlerts';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
+import ThemeSwitcher from '@/components/ThemeSwitcher';
+import VoiceControl from '@/components/VoiceControl';
+import { useI18n } from '@/i18n/I18nProvider';
+import { VoiceToolHandlers } from '@/lib/voice/voice-tools';
 
 const OsirisMap = dynamic(() => import('@/components/OsirisMap'), { ssr: false });
 const LayerPanel = dynamic(() => import('@/components/LayerPanel'));
 const CameraViewer = dynamic(() => import('@/components/CameraViewer'));
 const OsintPanel = dynamic(() => import('@/components/OsintPanel'));
+const GeoLocatePanel = dynamic(() => import('@/components/GeoLocatePanel'));
+const StrixPanel = dynamic(() => import('@/components/StrixPanel'));
+const VoiceAssistant = dynamic(() => import('@/components/VoiceAssistant'), { ssr: false });
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(false);
@@ -41,6 +48,7 @@ function useIsMobile() {
   return isMobile;
 }
 const UptimeClock = () => {
+  const { t } = useI18n();
   const [uptime, setUptime] = useState('00:00:00');
   const startTime = useRef(Date.now());
   useEffect(() => {
@@ -50,38 +58,36 @@ const UptimeClock = () => {
     }, 1000);
     return () => clearInterval(iv);
   }, []);
-  return <span className="hidden lg:inline">UPTIME: <span className="text-[var(--gold-primary)]">{uptime}</span></span>;
+  return <span className="hidden lg:inline">{t('dashboard.uptime')}: <span className="text-[var(--gold-primary)]">{uptime}</span></span>;
 };
 
 const ZuluClock = () => {
+  const { t } = useI18n();
   const [time, setTime] = useState('');
   useEffect(() => {
     const iv = setInterval(() => {
       const now = new Date();
-      setTime(`ZULU ${String(now.getUTCHours()).padStart(2,'0')}:${String(now.getUTCMinutes()).padStart(2,'0')}:${String(now.getUTCSeconds()).padStart(2,'0')}Z`);
+      setTime(`${t('dashboard.zulu')} ${String(now.getUTCHours()).padStart(2,'0')}:${String(now.getUTCMinutes()).padStart(2,'0')}:${String(now.getUTCSeconds()).padStart(2,'0')}Z`);
     }, 1000);
     return () => clearInterval(iv);
+  }, [t]);
+  return <span className="text-[var(--cyan-primary)] font-bold tabular-nums">{time || `${t('dashboard.zulu')} --:--:--Z`}</span>;
+};
+
+const DataThroughput = () => {
+  const [throughput, setThroughput] = useState('0.0');
+  useEffect(() => {
+    const iv = setInterval(() => {
+      // Simulated realistic data throughput between 1.2 and 4.8 MB/s
+      setThroughput((1.2 + Math.random() * 3.6).toFixed(1));
+    }, 2500);
+    return () => clearInterval(iv);
   }, []);
-  return <span className="text-[var(--cyan-primary)] font-bold tabular-nums">{time || 'ZULU --:--:--Z'}</span>;
+  return <span className="text-[var(--alert-green)] font-bold tabular-nums">{throughput} MB/s</span>;
 };
-
-/** Real entity count — no fake throughput metrics */
-const ActiveEntityCount = ({ data }: { data: Record<string, unknown[]> }) => {
-  const count = useMemo(() => {
-    if (!data) return 0;
-    return Object.values(data).reduce((sum, v) => sum + (Array.isArray(v) ? v.length : 0), 0);
-  }, [data]);
-  return <span className="text-[var(--alert-green)] font-bold tabular-nums">{count.toLocaleString()}</span>;
-};
-
-/** Extracts a watchable YouTube URL from embed/channel URLs */
-function getYouTubeWatchUrl(url: string): string {
-  if (url.includes('channel=')) return `https://www.youtube.com/channel/${url.split('channel=')[1].split('&')[0]}/live`;
-  if (url.includes('/embed/')) return `https://www.youtube.com/watch?v=${url.split('/embed/')[1].split('?')[0]}`;
-  return url;
-}
 
 export default function Dashboard() {
+  const { t, locale } = useI18n();
   const dataRef = useRef<any>({});
   const [dataVersion, setDataVersion] = useState(0);
   const data = dataRef.current;
@@ -89,9 +95,7 @@ export default function Dashboard() {
   const [backendStatus, setBackendStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
   const [mapView, setMapView] = useState({ zoom: 2.5, latitude: 20 });
   const [flyToLocation, setFlyToLocation] = useState<{ lat: number; lng: number; ts: number } | null>(null);
-  const [globalStats, setGlobalStats] = useState<any>(null);
-  const mouseCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
-  const coordsDisplayRef = useRef<HTMLDivElement>(null);
+  const [mouseCoords, setMouseCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [locationLabel, setLocationLabel] = useState('');
   const [regionDossier, setRegionDossier] = useState<any>(null);
   const [dossierLoading, setDossierLoading] = useState(false);
@@ -100,14 +104,14 @@ export default function Dashboard() {
   const [spaceWeather, setSpaceWeather] = useState<any>(null);
   const [showLayers, setShowLayers] = useState(true);
   const [showMarkets, setShowMarkets] = useState(true);
-  const [showScmPanel, setShowScmPanel] = useState(true);
   const [showIntel, setShowIntel] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [mobilePanel, setMobilePanel] = useState<'layers'|'markets'|'intel'|'search'|'recon'|null>(null);
+  const [mobilePanel, setMobilePanel] = useState<'layers'|'markets'|'intel'|'search'|'recon'|'geo'|null>(null);
   const [mapProjection, setMapProjection] = useState<'globe'|'mercator'>('globe');
   const [mapStyle, setMapStyle] = useState<'dark'|'satellite'>('dark');
   const [sweepData, setSweepData] = useState<any>(null);
   const [scanTargets, setScanTargets] = useState<any[]>([]);
+  const [capabilities, setCapabilities] = useState({ voice: false });
 
   const isMobile = useIsMobile();
   const startTime = useRef(Date.now());
@@ -136,7 +140,6 @@ export default function Dashboard() {
     war_alerts: false,
     gps_jamming: false,
     day_night: true,
-    sdk_stream: true,
   });
   const [liveFeedUrl, setLiveFeedUrl] = useState<string | null>(null);
   const [liveFeedName, setLiveFeedName] = useState('');
@@ -177,25 +180,15 @@ export default function Dashboard() {
     if (urlTimer.current) clearTimeout(urlTimer.current);
     urlTimer.current = setTimeout(() => {
       const p = new URLSearchParams();
-      p.set('lat', (mapView.latitude ?? 20).toFixed(4));
-      p.set('lon', '0');
+      p.set('lat', (mouseCoords?.lat ?? mapView.latitude ?? 20).toFixed(4));
+      p.set('lon', (mouseCoords?.lng ?? 0).toFixed(4));
       p.set('zoom', mapView.zoom.toFixed(2));
       const active = Object.entries(activeLayers).filter(([,v]) => v).map(([k]) => k).join(',');
       p.set('layers', active);
       const url = `${window.location.pathname}?${p.toString()}`;
       window.history.replaceState(null, '', url);
     }, 1500);
-  }, [mapView, activeLayers]);
-
-  // Global Stats Fetch
-  useEffect(() => {
-    fetch('/api/stats')
-      .then(res => res.json())
-      .then(d => {
-        if (d.stats) setGlobalStats(d.stats);
-      })
-      .catch(console.error);
-  }, []);
+  }, [mapView, activeLayers, mouseCoords]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -204,26 +197,21 @@ export default function Dashboard() {
       if (e.key === 'f' && !e.ctrlKey) {
         if (document.fullscreenElement) document.exitFullscreen();
         else document.documentElement.requestFullscreen();
+        setIsFullscreen(!!document.fullscreenElement);
       }
       if (e.key === 'l') setShowLayers(p => !p);
       if (e.key === 'm') setShowMarkets(p => !p);
-      if (e.key === 'c') setShowScmPanel(p => !p);
       if (e.key === 'i') setShowIntel(p => !p);
       if (e.key === 'r') setFlyToLocation({ lat: 20, lng: 0, ts: Date.now() });
       if (e.key === 'g') setMapProjection(p => p === 'globe' ? 'mercator' : 'globe');
     };
-    const fsHandler = () => setIsFullscreen(!!document.fullscreenElement);
     window.addEventListener('keydown', handler);
-    document.addEventListener('fullscreenchange', fsHandler);
-    return () => { window.removeEventListener('keydown', handler); document.removeEventListener('fullscreenchange', fsHandler); };
+    return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  // Mouse coords + reverse geocode (Zero-Render)
+  // Mouse coords + reverse geocode
   const handleMouseCoords = useCallback((coords: { lat: number; lng: number }) => {
-    mouseCoordsRef.current = coords;
-    if (coordsDisplayRef.current) {
-      coordsDisplayRef.current.innerText = `${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`;
-    }
+    setMouseCoords(coords);
     if (geocodeTimer.current) clearTimeout(geocodeTimer.current);
     geocodeTimer.current = setTimeout(async () => {
       if (lastGeocodedPos.current) {
@@ -233,11 +221,15 @@ export default function Dashboard() {
       const gk = `${coords.lat.toFixed(1)},${coords.lng.toFixed(1)}`; // coarser grid = more cache hits
       if (geocodeCache.current.has(gk)) { setLocationLabel(geocodeCache.current.get(gk)!); lastGeocodedPos.current = coords; return; }
       try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${coords.lat}&lon=${coords.lng}&format=json&zoom=10&addressdetails=1`, { headers: { 'Accept-Language': 'en' } });
+        const acceptLang = locale === 'fa-AF' ? 'fa' : 'ps';
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?lat=${coords.lat}&lon=${coords.lng}&format=json&zoom=10&addressdetails=1`,
+          { headers: { 'Accept-Language': acceptLang } }
+        );
         if (res.ok) {
           const d = await res.json();
           const a = d.address || {};
-          const label = [a.city||a.town||a.village||a.county, a.state||a.region, a.country].filter(Boolean).join(', ') || 'Unknown';
+          const label = [a.city||a.town||a.village||a.county, a.state||a.region, a.country].filter(Boolean).join(', ') || t('common.unknown');
           if (geocodeCache.current.size > 500) { const it = geocodeCache.current.keys(); for (let i=0;i<100;i++) { const k = it.next().value; if(k) geocodeCache.current.delete(k); }}
           geocodeCache.current.set(gk, label);
           setLocationLabel(label);
@@ -245,7 +237,7 @@ export default function Dashboard() {
         }
       } catch (e) { console.warn('[OSIRIS] Suppressed error:', e instanceof Error ? e.message : e); }
     }, 3000); // 3s debounce (was 1.5s)
-  }, []);
+  }, [locale, t]);
 
   // Region dossier (right-click)
   const handleRightClick = useCallback(async (coords: { lat: number; lng: number }) => {
@@ -266,6 +258,53 @@ export default function Dashboard() {
     }
   }, []);
 
+  // Image geolocation result → plot on the map (reuses the scan-targets layer) + fly to it
+  const handleGeoResult = useCallback((label: string, geo: { lat: number; lng: number; confidence: number; label: string }) => {
+    const id = `📍 ${label}`;
+    setScanTargets(prev => [
+      { id, timestamp: Date.now(), lat: geo.lat, lng: geo.lng, confidence: geo.confidence, kind: 'geolocate' },
+      ...prev.filter(t => t.id !== id),
+    ].slice(0, 10));
+    setFlyToLocation({ lat: geo.lat, lng: geo.lng, ts: Date.now() });
+  }, []);
+
+  // ── VOICE CONTROL HANDLERS ──
+  const voiceHandlers: VoiceToolHandlers = {
+    onFlyTo: useCallback((lat: number, lng: number, zoom?: number) => {
+      setFlyToLocation({ lat, lng, ts: Date.now() });
+      if (zoom) setMapView(v => ({ ...v, zoom }));
+    }, []),
+    onSetViewMode: useCallback((mode: '2d' | 'immersive_3d') => {
+      setMapProjection(mode === 'immersive_3d' ? 'globe' : 'mercator');
+    }, []),
+    onToggleLayer: useCallback((key: string, on?: boolean) => {
+      setActiveLayers(prev => ({ ...prev, [key]: on !== undefined ? on : !(prev as any)[key] }));
+    }, []),
+    onOpenPanel: useCallback((panel: string) => {
+      if (panel === 'layers') setShowLayers(true);
+      if (panel === 'markets') setShowMarkets(true);
+      if (panel === 'intel') setShowIntel(true);
+    }, []),
+    onClosePanel: useCallback((panel: string) => {
+      if (panel === 'layers') setShowLayers(false);
+      if (panel === 'markets') setShowMarkets(false);
+      if (panel === 'intel') setShowIntel(false);
+    }, []),
+    onTrackEntity: useCallback((kind: string, identifier: string) => {
+      // Simple entity tracking - could be enhanced to search through data
+      console.log('[Voice] Track entity:', kind, identifier);
+    }, []),
+    onQueryState: useCallback(() => ({
+      activeLayers,
+      data,
+      mapView,
+      timestamp: Date.now(),
+    }), [activeLayers, data, mapView]),
+    onSwitchBasemap: useCallback((style: 'dark' | 'satellite') => {
+      setMapStyle(style);
+    }, []),
+  };
+
   // ── SHARED FETCH UTILITY (Fixes #107 — single definition, not 3 copies) ──
   const fetchEndpoint = useCallback(async (url: string, transform?: (d: any) => any, options?: RequestInit) => {
     if (typeof document !== 'undefined' && document.hidden) return;
@@ -282,6 +321,22 @@ export default function Dashboard() {
       console.warn('[OSIRIS] Suppressed error:', e instanceof Error ? e.message : e);
       setBackendStatus('error');
     }
+  }, []);
+
+  // ── CAPABILITY PROBES ──
+  useEffect(() => {
+    const probeCapabilities = async () => {
+      try {
+        const voiceRes = await fetch('/api/realtime/token?probe=1');
+        if (voiceRes.ok) {
+          const voiceData = await voiceRes.json();
+          setCapabilities(prev => ({ ...prev, voice: voiceData.configured }));
+        }
+      } catch (e) {
+        console.warn('[OSIRIS] Capability probe failed:', e instanceof Error ? e.message : e);
+      }
+    };
+    probeCapabilities();
   }, []);
 
   // ── PROGRESSIVE DATA LOADING (request-optimized) ──
@@ -335,7 +390,7 @@ export default function Dashboard() {
     }
     // CCTV
     if (activeLayers.cctv && !layerFetchedRef.current.has('cctv')) {
-      fetchEndpoint('/api/cctv?region=all&v=2');
+      fetchEndpoint('/api/cctv?region=all');
       layerFetchedRef.current.add('cctv');
     }
     // Maritime
@@ -390,92 +445,15 @@ export default function Dashboard() {
       intervals.push(setInterval(() => fetchEndpoint('/api/radiation', d => ({ radiation: d.stations })), 300000)); // 5m
     }
     if (activeLayers.maritime) {
-      intervals.push(setInterval(() => fetchEndpoint('/api/maritime', d => ({ maritime_ports: d.ports, maritime_chokepoints: d.chokepoints, maritime_ships: d.ships })), 10000)); // 10s
+      intervals.push(setInterval(() => fetchEndpoint('/api/maritime', d => ({ maritime_ports: d.ports, maritime_chokepoints: d.chokepoints, maritime_ships: d.ships })), 60000)); // 1m
     }
+    // Fires: no polling needed (data changes very slowly, initial fetch is enough)
     return () => intervals.forEach(clearInterval);
   }, [activeLayers, fetchEndpoint]);
 
   // CCTV: loaded once on layer toggle via layerFetchedRef (no viewport polling)
 
   // Reactive layer fetch: handled by layerFetchedRef above (no duplicate)
-
-  // ── OSIRIS SDK — Intelligence Fusion Layer ──
-  // Produces node coordinates for the SDK network mesh visualization.
-  // Does NOT duplicate existing layer visuals — SDK layer is LINES ONLY.
-  // Cameras are excluded — they have their own dedicated layer.
-  useEffect(() => {
-    if (!activeLayers.sdk_stream) {
-      dataRef.current = { ...dataRef.current, sdk_entities: [] };
-      return;
-    }
-
-    const sdkEntities: any[] = [];
-
-    // Air domain (nodes only — no visual duplication)
-    const allFlights = [
-      ...(data.commercial_flights || []),
-      ...(data.private_flights || []),
-      ...(data.private_jets || []),
-      ...(data.military_flights || []),
-    ];
-    // Sample flights to keep it clean (every Nth)
-    const flightStep = Math.max(1, Math.floor(allFlights.length / 60));
-    for (let i = 0; i < allFlights.length; i += flightStep) {
-      const f = allFlights[i];
-      if (!f.lat || !f.lng) continue;
-      sdkEntities.push({
-        type: 'Feature', geometry: { type: 'Point', coordinates: [f.lng, f.lat] },
-        properties: { domain: 'AIR', name: f.callsign?.trim() || 'TRACK', source: 'ADS-B / OpenSky' },
-      });
-    }
-
-    // Sea domain
-    const ships = data.maritime_ships || [];
-    const shipStep = Math.max(1, Math.floor(ships.length / 60));
-    for (let i = 0; i < ships.length; i += shipStep) {
-      const s = ships[i];
-      if (!s.lat || !s.lng) continue;
-      sdkEntities.push({
-        type: 'Feature', geometry: { type: 'Point', coordinates: [s.lng, s.lat] },
-        properties: { domain: 'SEA', name: s.name || `MMSI-${s.mmsi}`, source: 'AIS Stream' },
-      });
-    }
-
-    // Events — Earthquakes
-    if (data.earthquakes?.length) {
-      for (const eq of data.earthquakes) {
-        if (!eq.lat || !eq.lng) continue;
-        sdkEntities.push({
-          type: 'Feature', geometry: { type: 'Point', coordinates: [eq.lng, eq.lat] },
-          properties: { domain: 'LAND', name: `M${eq.magnitude} ${eq.place || ''}`, source: 'USGS' },
-        });
-      }
-    }
-
-    // GDELT events
-    if (data.gdelt?.length) {
-      for (const g of data.gdelt) {
-        if (!g.lat || !g.lng) continue;
-        sdkEntities.push({
-          type: 'Feature', geometry: { type: 'Point', coordinates: [g.lng, g.lat] },
-          properties: { domain: 'INTEL', name: g.name || 'GDELT Event', source: 'GDELT Project' },
-        });
-      }
-    }
-
-    // News intel
-    if (data.news?.length) {
-      for (const n of data.news) {
-        if (!n.coords || n.coords.length < 2) continue;
-        sdkEntities.push({
-          type: 'Feature', geometry: { type: 'Point', coordinates: [n.coords[1], n.coords[0]] },
-          properties: { domain: 'INTEL', name: n.title || 'SIGINT', source: n.source || 'RSS Feed' },
-        });
-      }
-    }
-
-    dataRef.current = { ...dataRef.current, sdk_entities: sdkEntities };
-  }, [dataVersion, activeLayers.sdk_stream]);
 
   const totalFlights = useMemo(() => (
     (data.commercial_flights?.length||0)+(data.private_flights?.length||0)+(data.private_jets?.length||0)+(data.military_flights?.length||0)
@@ -497,7 +475,7 @@ export default function Dashboard() {
           >
             {/* ── Scanline CRT overlay ── */}
             <div className="absolute inset-0 pointer-events-none z-[1]" style={{
-              backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(212,175,55,0.015) 2px, rgba(212,175,55,0.015) 4px)',
+              backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(var(--accent-rgb),0.015) 2px, rgba(var(--accent-rgb),0.015) 4px)',
               animation: 'splashScanDrift 8s linear infinite',
             }} />
 
@@ -521,10 +499,10 @@ export default function Dashboard() {
                 animate={{ opacity: 1, scale: 1, rotate: 360 }}
                 transition={{ opacity: { duration: 0.6 }, scale: { duration: 0.8, ease: 'easeOut' }, rotate: { duration: 20, repeat: Infinity, ease: 'linear' } }}
                 className="absolute inset-0 rounded-full"
-                style={{ border: '1px solid rgba(212,175,55,0.2)' }}
+                style={{ border: '1px solid rgba(var(--accent-rgb),0.2)' }}
               >
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full" style={{ background: 'var(--gold-primary)', boxShadow: '0 0 12px var(--gold-primary), 0 0 24px rgba(212,175,55,0.3)' }} />
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-1 h-1 rounded-full" style={{ background: 'rgba(212,175,55,0.5)', boxShadow: '0 0 6px rgba(212,175,55,0.3)' }} />
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full" style={{ background: 'var(--gold-primary)', boxShadow: '0 0 12px var(--gold-primary), 0 0 24px rgba(var(--accent-rgb),0.3)' }} />
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-1 h-1 rounded-full" style={{ background: 'rgba(var(--accent-rgb),0.5)', boxShadow: '0 0 6px rgba(var(--accent-rgb),0.3)' }} />
               </motion.div>
 
               {/* Middle ring — faster counter-clockwise */}
@@ -533,10 +511,10 @@ export default function Dashboard() {
                 animate={{ opacity: 1, scale: 1, rotate: -360 }}
                 transition={{ opacity: { duration: 0.6, delay: 0.15 }, scale: { duration: 0.8, delay: 0.15, ease: 'easeOut' }, rotate: { duration: 12, repeat: Infinity, ease: 'linear' } }}
                 className="absolute rounded-full"
-                style={{ inset: '18px', border: '1px solid rgba(0,229,255,0.15)' }}
+                style={{ inset: '18px', border: '1px solid rgba(var(--accent-2-rgb),0.15)' }}
               >
-                <div className="absolute top-1/2 right-0 translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--cyan-primary)', boxShadow: '0 0 10px var(--cyan-primary), 0 0 20px rgba(0,229,255,0.2)' }} />
-                <div className="absolute bottom-0 left-1/4 translate-y-1/2 w-1 h-1 rounded-full" style={{ background: 'rgba(0,229,255,0.4)' }} />
+                <div className="absolute top-1/2 right-0 translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--cyan-primary)', boxShadow: '0 0 10px var(--cyan-primary), 0 0 20px rgba(var(--accent-2-rgb),0.2)' }} />
+                <div className="absolute bottom-0 left-1/4 translate-y-1/2 w-1 h-1 rounded-full" style={{ background: 'rgba(var(--accent-2-rgb),0.4)' }} />
               </motion.div>
 
               {/* Inner ring — fastest clockwise */}
@@ -545,7 +523,7 @@ export default function Dashboard() {
                 animate={{ opacity: 1, scale: 1, rotate: 360 }}
                 transition={{ opacity: { duration: 0.6, delay: 0.3 }, scale: { duration: 0.8, delay: 0.3, ease: 'easeOut' }, rotate: { duration: 7, repeat: Infinity, ease: 'linear' } }}
                 className="absolute rounded-full"
-                style={{ inset: '40px', border: '1px solid rgba(212,175,55,0.25)' }}
+                style={{ inset: '40px', border: '1px solid rgba(var(--accent-rgb),0.25)' }}
               >
                 <div className="absolute top-0 left-1/4 -translate-y-1/2 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--gold-primary)', boxShadow: '0 0 8px var(--gold-primary)' }} />
               </motion.div>
@@ -556,17 +534,17 @@ export default function Dashboard() {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.4, duration: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
                 className="relative w-12 h-12 rounded-full flex items-center justify-center"
-                style={{ border: '2px solid var(--gold-primary)', boxShadow: '0 0 20px rgba(212,175,55,0.15), inset 0 0 20px rgba(212,175,55,0.05)' }}
+                style={{ border: '2px solid var(--gold-primary)', boxShadow: '0 0 20px rgba(var(--accent-rgb),0.15), inset 0 0 20px rgba(var(--accent-rgb),0.05)' }}
               >
                 <motion.div
                   animate={{ opacity: [0.3, 0.8, 0.3] }}
                   transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
                   className="w-5 h-5 rounded-full"
-                  style={{ background: 'radial-gradient(circle, rgba(212,175,55,0.4) 0%, rgba(212,175,55,0.05) 70%)' }}
+                  style={{ background: 'radial-gradient(circle, rgba(var(--accent-rgb),0.4) 0%, rgba(var(--accent-rgb),0.05) 70%)' }}
                 />
                 {/* Crosshair lines */}
-                <div className="absolute w-[1px] h-full" style={{ background: 'linear-gradient(to bottom, transparent, rgba(212,175,55,0.3), transparent)' }} />
-                <div className="absolute w-full h-[1px]" style={{ background: 'linear-gradient(to right, transparent, rgba(212,175,55,0.3), transparent)' }} />
+                <div className="absolute w-[1px] h-full" style={{ background: 'linear-gradient(to bottom, transparent, rgba(var(--accent-rgb),0.3), transparent)' }} />
+                <div className="absolute w-full h-[1px]" style={{ background: 'linear-gradient(to right, transparent, rgba(var(--accent-rgb),0.3), transparent)' }} />
               </motion.div>
 
               {/* Faint pulsing radar sweep */}
@@ -575,7 +553,7 @@ export default function Dashboard() {
                 animate={{ opacity: [0, 0.15, 0], rotate: [0, 360] }}
                 transition={{ opacity: { duration: 3, repeat: Infinity }, rotate: { duration: 3, repeat: Infinity, ease: 'linear' }, delay: 0.6 }}
                 className="absolute inset-[10px] rounded-full"
-                style={{ background: 'conic-gradient(from 0deg, transparent 0deg, rgba(212,175,55,0.15) 40deg, transparent 80deg)' }}
+                style={{ background: 'conic-gradient(from 0deg, transparent 0deg, rgba(var(--accent-rgb),0.15) 40deg, transparent 80deg)' }}
               />
             </div>
 
@@ -588,7 +566,7 @@ export default function Dashboard() {
                   animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                   transition={{ delay: 0.5 + i * 0.08, duration: 0.5, ease: 'easeOut' }}
                   className="text-4xl md:text-5xl font-bold tracking-[0.5em] font-mono"
-                  style={{ color: 'var(--text-heading)', textShadow: '0 0 30px rgba(212,175,55,0.2)' }}
+                  style={{ color: 'var(--text-heading)', textShadow: '0 0 30px rgba(var(--accent-rgb),0.2)' }}
                 >
                   {letter}
                 </motion.span>
@@ -612,13 +590,13 @@ export default function Dashboard() {
             {/* ── Multi-stage progress bar ── */}
             <div className="w-64 md:w-80 z-[2]">
               {/* Thin progress track */}
-              <div className="relative w-full h-[2px] rounded-full overflow-hidden" style={{ background: 'rgba(212,175,55,0.1)' }}>
+              <div className="relative w-full h-[2px] rounded-full overflow-hidden" style={{ background: 'rgba(var(--accent-rgb),0.1)' }}>
                 <motion.div
                   initial={{ width: '0%' }}
                   animate={{ width: ['0%', '25%', '50%', '78%', '100%'] }}
                   transition={{ duration: 2.2, delay: 0.5, times: [0, 0.25, 0.5, 0.75, 1], ease: 'easeInOut' }}
                   className="absolute inset-y-0 left-0 rounded-full"
-                  style={{ background: 'linear-gradient(90deg, var(--gold-primary), var(--cyan-primary), var(--gold-primary))', boxShadow: '0 0 12px rgba(212,175,55,0.4)' }}
+                  style={{ background: 'linear-gradient(90deg, var(--gold-primary), var(--cyan-primary), var(--gold-primary))', boxShadow: '0 0 12px rgba(var(--accent-rgb),0.4)' }}
                 />
               </div>
 
@@ -647,7 +625,7 @@ export default function Dashboard() {
             {/* ── Decorative grid lines ── */}
             <div className="absolute inset-0 pointer-events-none z-[0]" style={{ opacity: 0.03 }}>
               <div className="absolute inset-0" style={{
-                backgroundImage: 'linear-gradient(rgba(212,175,55,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(212,175,55,0.5) 1px, transparent 1px)',
+                backgroundImage: 'linear-gradient(rgba(var(--accent-rgb),0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(var(--accent-rgb),0.5) 1px, transparent 1px)',
                 backgroundSize: '60px 60px',
               }} />
             </div>
@@ -672,7 +650,12 @@ export default function Dashboard() {
 
 
             {/* ── Inline keyframe for scanline drift ── */}
-
+            <style>{`
+              @keyframes splashScanDrift {
+                0% { background-position: 0 0; }
+                100% { background-position: 0 100vh; }
+              }
+            `}</style>
           </motion.div>
         )}
       </AnimatePresence>
@@ -706,7 +689,7 @@ export default function Dashboard() {
         <button
           onClick={() => setMapProjection(p => p === 'globe' ? 'mercator' : 'globe')}
           className="glass-panel p-2.5 pointer-events-auto hover:border-[var(--gold-primary)]/40 transition-colors group relative"
-          title={mapProjection === 'globe' ? 'Switch to 2D Map' : 'Switch to 3D Globe'}
+          title={mapProjection === 'globe' ? t('dashboard.map.switchTo2d') : t('dashboard.map.switchTo3d')}
         >
           {mapProjection === 'globe' ? (
             <MapPinned className="w-4 h-4 text-[var(--gold-primary)] group-hover:scale-110 transition-transform" />
@@ -714,7 +697,7 @@ export default function Dashboard() {
             <Globe className="w-4 h-4 text-[var(--cyan-primary)] group-hover:scale-110 transition-transform" />
           )}
           <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 text-[9px] font-mono text-[var(--text-muted)] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity glass-panel px-2 py-1 z-[300]">
-            {mapProjection === 'globe' ? '2D MAP' : '3D GLOBE'}
+            {mapProjection === 'globe' ? t('dashboard.map.2d') : t('dashboard.map.3d')}
           </span>
         </button>
 
@@ -722,7 +705,7 @@ export default function Dashboard() {
         <button
           onClick={() => setMapStyle(s => s === 'dark' ? 'satellite' : 'dark')}
           className="glass-panel p-2.5 pointer-events-auto hover:border-[var(--gold-primary)]/40 transition-colors group relative"
-          title={mapStyle === 'dark' ? 'Satellite View' : 'Night View'}
+          title={mapStyle === 'dark' ? t('dashboard.map.satelliteView') : t('dashboard.map.nightView')}
         >
           {mapStyle === 'dark' ? (
             <Satellite className="w-4 h-4 text-[var(--alert-green)] group-hover:scale-110 transition-transform" />
@@ -730,7 +713,7 @@ export default function Dashboard() {
             <Moon className="w-4 h-4 text-[var(--cyan-primary)] group-hover:scale-110 transition-transform" />
           )}
           <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 text-[9px] font-mono text-[var(--text-muted)] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity glass-panel px-2 py-1 z-[300]">
-            {mapStyle === 'dark' ? 'SATELLITE' : 'NIGHT MODE'}
+            {mapStyle === 'dark' ? t('dashboard.map.satellite') : t('dashboard.map.nightMode')}
           </span>
         </button>
       </motion.div>
@@ -758,10 +741,10 @@ export default function Dashboard() {
             <h1 className="text-base md:text-xl font-bold tracking-[0.4em] md:tracking-[0.5em] text-[var(--text-heading)] font-mono">OSIRIS</h1>
             <span className="hidden md:inline-flex items-center gap-1 px-1.5 py-[1px] rounded-sm border border-[var(--cyan-primary)]/40 bg-[var(--cyan-primary)]/10 text-[7px] font-mono font-bold tracking-[0.15em] text-[var(--cyan-primary)] uppercase" style={{ lineHeight: '1.4' }}>
               <Globe className="w-2.5 h-2.5" />
-              OPEN SOURCE
+              {t('dashboard.openSource')}
             </span>
           </div>
-          <span className="text-[8px] md:text-[9px] text-[var(--gold-primary)] font-mono tracking-[0.2em] md:tracking-[0.3em] opacity-80">GLOBAL INTELLIGENCE COMMAND</span>
+          <span className="text-[8px] md:text-[9px] text-[var(--gold-primary)] font-mono tracking-[0.2em] md:tracking-[0.3em] opacity-80">{t('app.subtitle')}</span>
         </div>
       </motion.div>
 
@@ -775,7 +758,10 @@ export default function Dashboard() {
 
         <span className="hidden lg:inline text-[var(--border-primary)]">│</span>
 
-        <span className="flex items-center gap-1">SYS: <span className={backendStatus === 'connected' ? 'text-[var(--alert-green)]' : 'text-[var(--alert-red)]'}>{backendStatus.toUpperCase()}</span></span>
+        <span className="flex items-center gap-1">
+          {t('dashboard.sys')}:{' '}
+          <span className={backendStatus === 'connected' ? 'text-[var(--alert-green)]' : 'text-[var(--alert-red)]'}>{backendStatus.toUpperCase()}</span>
+        </span>
 
         {spaceWeather && <span className="hidden lg:inline">SOLAR: <span style={{ color: spaceWeather.storm_color, fontWeight: 700 }}>Kp{spaceWeather.kp_index}</span></span>}
 
@@ -783,23 +769,39 @@ export default function Dashboard() {
         <span className="hidden lg:inline-flex items-center gap-1">
           <Wifi className="w-3 h-3 text-[var(--cyan-primary)]" />
           <span className="text-[var(--cyan-primary)] font-bold">{Object.values(activeLayers).filter(Boolean).length}</span>
-          <span className="text-[var(--text-muted)]/60">FEEDS</span>
+          <span className="text-[var(--text-muted)]/60">{t('dashboard.feeds')}</span>
         </span>
 
         <UptimeClock />
-        
-        <a href='https://ko-fi.com/M8D41ZYW4Z' target='_blank' className="pointer-events-auto hover:opacity-80 transition-opacity ml-1 flex items-center">
-          <span className="px-3 py-1 rounded-sm border border-[var(--gold-primary)]/40 bg-[var(--gold-primary)]/10 text-[var(--gold-primary)] text-[11px] font-bold tracking-[0.2em]">SUPPORT PROJECT</span>
+
+        <div className="pointer-events-auto hidden md:block">
+          <ThemeSwitcher />
+        </div>
+
+        <div className="pointer-events-auto hidden md:block">
+          <LanguageSwitcher />
+        </div>
+
+        <a href='https://www.instagram.com/sayed_andarabi1937?igsh=NXhoaW12bmQwdnFy' target='_blank' rel="noreferrer" className="pointer-events-auto hover:opacity-80 transition-opacity ml-1 flex items-center">
+          <span className="px-3 py-1 rounded-sm border border-[var(--gold-primary)]/40 bg-[var(--gold-primary)]/10 text-[var(--gold-primary)] text-[11px] font-bold tracking-[0.2em]">
+            {t('dashboard.supportProject')}
+          </span>
         </a>
       </motion.div>
 
       {/* ── MOBILE: Compact top status ── */}
       {isMobile && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 2.5 }} className="absolute top-3 right-3 z-[200] pointer-events-auto flex items-center gap-2">
-          <a href='https://ko-fi.com/M8D41ZYW4Z' target='_blank' className="glass-panel px-2 py-1 flex items-center gap-1.5 text-[7px] font-mono tracking-widest hover:opacity-80 transition-opacity border-[var(--gold-primary)]/40 bg-[var(--gold-primary)]/10">
+          <a href='https://www.instagram.com/sayed_andarabi1937?igsh=NXhoaW12bmQwdnFy' target='_blank' rel="noreferrer" className="glass-panel px-2 py-1 flex items-center gap-1.5 text-[7px] font-mono tracking-widest hover:opacity-80 transition-opacity border-[var(--gold-primary)]/40 bg-[var(--gold-primary)]/10">
             <div className="w-1 h-1 rounded-full bg-[var(--gold-primary)] animate-osiris-pulse" />
-            <span className="text-[var(--gold-primary)] font-bold">SUPPORT PROJECT</span>
+            <span className="text-[var(--gold-primary)] font-bold">{t('dashboard.supportProject')}</span>
           </a>
+          <div className="pointer-events-auto">
+            <ThemeSwitcher />
+          </div>
+          <div className="pointer-events-auto">
+            <LanguageSwitcher />
+          </div>
         </motion.div>
       )}
 
@@ -812,17 +814,16 @@ export default function Dashboard() {
             <LayerPanel data={data} activeLayers={activeLayers} setActiveLayers={setActiveLayers} />
             <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.5 }} className="glass-panel px-3 py-2.5 pointer-events-auto">
               <div className="grid grid-cols-5 gap-2 text-center">
-                <div><div className="hud-label">AIRCRAFT</div><div className="hud-value text-[10px] animate-data-pulse">{globalStats ? globalStats.flights.toLocaleString() : '0'}</div></div>
-                <div><div className="hud-label">SATS</div><div className="hud-value text-[10px]">{globalStats ? globalStats.sats.toLocaleString() : '0'}</div></div>
-                <div><div className="hud-label">CCTV</div><div className="hud-value text-[10px]">{globalStats ? globalStats.cctv.toLocaleString() : '0'}</div></div>
-                <div><div className="hud-label">WEATHER</div><div className="hud-value text-[10px]" style={{ color: 'var(--accent-weather)' }}>{globalStats ? globalStats.weather.toLocaleString() : '0'}</div></div>
-                <div><div className="hud-label">NUCLEAR</div><div className="hud-value text-[10px]" style={{ color: 'var(--accent-nuclear)' }}>{globalStats ? globalStats.nuclear.toLocaleString() : '0'}</div></div>
+                <div><div className="hud-label">{t('dashboard.stats.aircraft')}</div><div className="hud-value text-[10px] animate-data-pulse">{totalFlights.toLocaleString()}</div></div>
+                <div><div className="hud-label">{t('dashboard.stats.satellites')}</div><div className="hud-value text-[10px]">{(data.satellites?.length||0).toLocaleString()}</div></div>
+                <div><div className="hud-label">{t('dashboard.stats.cctv')}</div><div className="hud-value text-[10px]">{(data.cameras?.length||0).toLocaleString()}</div></div>
+                <div><div className="hud-label">{t('dashboard.stats.weather')}</div><div className="hud-value text-[10px]" style={{ color: '#E040FB' }}>{(data.weather_events?.length||0)}</div></div>
+                <div><div className="hud-label">{t('dashboard.stats.nuclear')}</div><div className="hud-value text-[10px]" style={{ color: '#76FF03' }}>{(data.infrastructure?.length||0)}</div></div>
               </div>
             </motion.div>
             <ViewPresets onNavigate={(lat, lng, zoom) => { setFlyToLocation({ lat, lng, ts: Date.now() }); setMapView(v => ({ ...v, zoom })); }} />
           </>
         )}
-        {showScmPanel && <ScmPanel data={data} />}
         {showMarkets && <MarketsPanel data={data} spaceWeather={spaceWeather} />}
         {showIntel && <IntelFeed data={data} onLocate={(lat, lng) => setFlyToLocation({ lat, lng, ts: Date.now() })} />}
       </div>
@@ -831,7 +832,7 @@ export default function Dashboard() {
       <div className="desktop-panel absolute right-5 top-20 bottom-24 w-80 flex flex-col gap-3 z-[200] pointer-events-auto overflow-y-auto styled-scrollbar pr-1">
         <div className="flex gap-2 items-start">
           <div className="flex-1"><SearchBar onLocate={(lat, lng) => setFlyToLocation({ lat, lng, ts: Date.now() })} /></div>
-          <div className="relative"><SharePanel mapView={mapView} activeLayers={activeLayers} mouseCoords={null} /></div>
+          <div className="relative"><SharePanel mapView={mapView} activeLayers={activeLayers} mouseCoords={mouseCoords} /></div>
         </div>
         <OsintPanel onSweepVisualize={setSweepData} onScanGeolocate={(target, data) => {
           setScanTargets(prev => {
@@ -840,6 +841,9 @@ export default function Dashboard() {
           });
           setFlyToLocation({ lat: data.lat, lng: data.lng, ts: Date.now() });
         }} />
+        <GeoLocatePanel onGeolocate={handleGeoResult} />
+        {/* Self-hides (renders null) unless the Strix backend is configured on this deployment. */}
+        <StrixPanel />
         <LiveAlerts data={data} onLocate={(lat, lng) => setFlyToLocation({ lat, lng, ts: Date.now() })} onWatchFeed={(url, name) => { setLiveFeedUrl(url); setLiveFeedName(name); }} />
       </div>
 
@@ -864,19 +868,25 @@ export default function Dashboard() {
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-[#FF4081] animate-osiris-pulse" />
                   <span className="text-[12px] font-mono font-bold text-white tracking-wider">{liveFeedName}</span>
-                  <span className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 font-mono text-[9px] font-bold">LIVE STREAM</span>
+                  <span className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 font-mono text-[9px] font-bold">{t('dashboard.live.liveStream')}</span>
                   {!liveFeedEmbedAllowed && (
-                    <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-mono text-[9px]">EXTERNAL ONLY</span>
+                    <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-mono text-[9px]">{t('dashboard.live.externalOnly')}</span>
                   )}
                 </div>
                 <div className="flex items-center gap-3">
                   <a
-                    href={getYouTubeWatchUrl(liveFeedUrl)}
+                    href={
+                      liveFeedUrl.includes('channel=')
+                        ? `https://www.youtube.com/channel/${liveFeedUrl.split('channel=')[1].split('&')[0]}/live`
+                        : liveFeedUrl.includes('/embed/')
+                        ? `https://www.youtube.com/watch?v=${liveFeedUrl.split('/embed/')[1].split('?')[0]}`
+                        : liveFeedUrl
+                    }
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[var(--border-primary)] hover:bg-[var(--gold-primary)] hover:text-black text-white transition-colors text-[11px] font-mono"
                   >
-                    <span>Open in YouTube</span>
+                    <span>{t('dashboard.live.openInYouTube')}</span>
                     <ExternalLink className="w-3 h-3" />
                   </a>
                   <button onClick={() => setLiveFeedUrl(null)} className="text-white/70 hover:text-white transition-colors p-1">
@@ -901,18 +911,24 @@ export default function Dashboard() {
                     <div className="w-14 h-14 rounded-full bg-[#39FF14]/10 border border-[#39FF14]/20 flex items-center justify-center mx-auto mb-4">
                       <ExternalLink className="w-6 h-6 text-[#39FF14]" />
                     </div>
-                    <p className="text-[13px] font-mono font-bold text-white tracking-widest mb-2">EMBED RESTRICTED</p>
+                    <p className="text-[13px] font-mono font-bold text-white tracking-widest mb-2">{t('dashboard.live.embedRestricted')}</p>
                     <p className="text-[11px] font-mono text-white/50 mb-6 max-w-xs">
-                      {liveFeedName} does not allow third-party embedding. Click below to open the live stream directly.
+                      {t('dashboard.live.embedRestrictedBody', { name: liveFeedName })}
                     </p>
                     <a
-                      href={getYouTubeWatchUrl(liveFeedUrl)}
+                      href={
+                        liveFeedUrl.includes('channel=')
+                          ? `https://www.youtube.com/channel/${liveFeedUrl.split('channel=')[1].split('&')[0]}/live`
+                          : liveFeedUrl.includes('/embed/')
+                          ? `https://www.youtube.com/watch?v=${liveFeedUrl.split('/embed/')[1].split('?')[0]}`
+                          : liveFeedUrl
+                      }
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 px-6 py-2.5 rounded border border-[#39FF14]/40 text-[#39FF14] font-mono text-[12px] hover:bg-[#39FF14]/10 transition-colors tracking-wider"
                     >
                       <ExternalLink className="w-4 h-4" />
-                      OPEN LIVE STREAM
+                      {t('dashboard.live.openLiveStream')}
                     </a>
                   </div>
                 </div>
@@ -923,7 +939,7 @@ export default function Dashboard() {
                 <div className="bg-[#111]/90 px-4 py-2.5 border-t border-[var(--border-primary)] flex items-center gap-2.5">
                   <AlertTriangle className="w-4 h-4 text-[var(--gold-primary)] shrink-0" />
                   <span className="text-[11px] font-mono text-white/70 leading-relaxed">
-                    If you see &ldquo;Video unavailable&rdquo;, use <strong className="text-[var(--gold-primary)]">Open in YouTube</strong> above.
+                    {t('dashboard.live.unavailableHint')}
                   </span>
                 </div>
               )}
@@ -939,16 +955,17 @@ export default function Dashboard() {
           <div className="mobile-nav">
             <div className="glass-panel mobile-nav-inner">
               {[
-                { id: 'layers' as const, icon: Layers, label: 'LAYERS' },
-                { id: 'markets' as const, icon: BarChart3, label: 'MARKETS' },
-                { id: 'intel' as const, icon: Newspaper, label: 'INTEL' },
-                { id: 'recon' as const, icon: Radar, label: 'RECON' },
-                { id: 'search' as const, icon: Search, label: 'SEARCH' },
+                { id: 'layers' as const, icon: Layers, label: t('nav.layers') },
+                { id: 'markets' as const, icon: BarChart3, label: t('nav.markets') },
+                { id: 'intel' as const, icon: Newspaper, label: t('nav.intel') },
+                { id: 'recon' as const, icon: Radar, label: t('nav.recon') },
+                { id: 'geo' as const, icon: Compass, label: t('nav.geo') },
+                { id: 'search' as const, icon: Search, label: t('nav.search') },
               ].map(tab => (
                 <button key={tab.id} onClick={() => setMobilePanel(mobilePanel === tab.id ? null : tab.id)}
                   className={`mobile-nav-btn ${mobilePanel === tab.id ? 'active' : ''}`}>
-                  <tab.icon className={`w-4 h-4 ${tab.id === 'recon' ? 'text-[var(--cyan-primary)]' : ''}`} />
-                  <span className={tab.id === 'recon' ? 'text-[var(--cyan-primary)]' : ''}>{tab.label}</span>
+                  <tab.icon className={`w-4 h-4 ${tab.id === 'recon' || tab.id === 'geo' ? 'text-[var(--cyan-primary)]' : ''}`} />
+                  <span className={tab.id === 'recon' || tab.id === 'geo' ? 'text-[var(--cyan-primary)]' : ''}>{tab.label}</span>
                 </button>
               ))}
             </div>
@@ -967,7 +984,7 @@ export default function Dashboard() {
                 <div className="px-3 pb-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="hud-text text-[9px] text-[var(--text-primary)]">
-                      {mobilePanel === 'layers' ? 'LAYERS & STATS' : mobilePanel === 'markets' ? 'MARKETS & INTEL' : mobilePanel === 'intel' ? 'INTEL FEED' : mobilePanel === 'recon' ? 'OSIRIS RECON' : 'SEARCH'}
+                      {mobilePanel === 'layers' ? t('mobile.layersStats') : mobilePanel === 'markets' ? t('mobile.marketsIntel') : mobilePanel === 'intel' ? t('mobile.intelFeed') : mobilePanel === 'recon' ? t('mobile.osirisRecon') : mobilePanel === 'geo' ? t('geo.title') : t('mobile.search')}
                     </span>
                     <button onClick={() => setMobilePanel(null)} className="text-[var(--text-muted)] p-1"><X className="w-4 h-4" /></button>
                   </div>
@@ -975,11 +992,11 @@ export default function Dashboard() {
                     <>
                       <div className="glass-panel-sm p-2 mb-2">
                         <div className="grid grid-cols-5 gap-1 text-center">
-                          <div><div className="hud-label" style={{fontSize:'6px'}}>AIR</div><div className="hud-value text-[9px]">{totalFlights.toLocaleString()}</div></div>
-                          <div><div className="hud-label" style={{fontSize:'6px'}}>SAT</div><div className="hud-value text-[9px]">{(data.satellites?.length||0)}</div></div>
-                          <div><div className="hud-label" style={{fontSize:'6px'}}>CAM</div><div className="hud-value text-[9px]">{(data.cameras?.length||0)}</div></div>
-                          <div><div className="hud-label" style={{fontSize:'6px'}}>WX</div><div className="hud-value text-[9px]" style={{color:'var(--accent-weather)'}}>{(data.weather_events?.length||0)}</div></div>
-                          <div><div className="hud-label" style={{fontSize:'6px'}}>NUC</div><div className="hud-value text-[9px]" style={{color:'var(--accent-nuclear)'}}>{(data.infrastructure?.length||0)}</div></div>
+                          <div><div className="hud-label" style={{fontSize:'6px'}}>{t('dashboard.statsShort.air')}</div><div className="hud-value text-[9px]">{totalFlights.toLocaleString()}</div></div>
+                          <div><div className="hud-label" style={{fontSize:'6px'}}>{t('dashboard.statsShort.sat')}</div><div className="hud-value text-[9px]">{(data.satellites?.length||0)}</div></div>
+                          <div><div className="hud-label" style={{fontSize:'6px'}}>{t('dashboard.statsShort.cam')}</div><div className="hud-value text-[9px]">{(data.cameras?.length||0)}</div></div>
+                          <div><div className="hud-label" style={{fontSize:'6px'}}>{t('dashboard.statsShort.wx')}</div><div className="hud-value text-[9px]" style={{color:'#E040FB'}}>{(data.weather_events?.length||0)}</div></div>
+                          <div><div className="hud-label" style={{fontSize:'6px'}}>{t('dashboard.statsShort.nuc')}</div><div className="hud-value text-[9px]" style={{color:'#76FF03'}}>{(data.infrastructure?.length||0)}</div></div>
                         </div>
                       </div>
                       <LayerPanel data={data} activeLayers={activeLayers} setActiveLayers={setActiveLayers} />
@@ -993,13 +1010,18 @@ export default function Dashboard() {
                   {mobilePanel === 'search' && (
                     <div className="space-y-2">
                       <SearchBar onLocate={(lat, lng) => { setFlyToLocation({ lat, lng, ts: Date.now() }); setMobilePanel(null); }} />
-                      <SharePanel mapView={mapView} activeLayers={activeLayers} mouseCoords={null} />
+                      <SharePanel mapView={mapView} activeLayers={activeLayers} mouseCoords={mouseCoords} />
                     </div>
                   )}
                   {mobilePanel === 'recon' && (
                     <div className="space-y-2">
                       <OsintPanel isOpen={true} onClose={() => setMobilePanel(null)} isMobile={true} onSweepVisualize={setSweepData} />
+                      {/* Self-hides unless the Strix backend is configured on this deployment. */}
+                      <StrixPanel isMobile={true} onClose={() => setMobilePanel(null)} />
                     </div>
+                  )}
+                  {mobilePanel === 'geo' && (
+                    <GeoLocatePanel isMobile={true} onClose={() => setMobilePanel(null)} onGeolocate={(label, geo) => { handleGeoResult(label, geo); setMobilePanel(null); }} />
                   )}
                 </div>
               </motion.div>
@@ -1011,7 +1033,7 @@ export default function Dashboard() {
       {/* ── BOTTOM CENTER (desktop) ── */}
       {!isMobile && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 3, duration: 0.8 }} className="desktop-only absolute bottom-5 left-1/2 -translate-x-1/2 z-[200] pointer-events-auto">
-          <div className="glass-panel px-5 py-2.5 flex items-center gap-0 osiris-glow relative overflow-hidden" style={{ borderImage: 'linear-gradient(90deg, rgba(212,175,55,0.05), rgba(212,175,55,0.2), rgba(212,175,55,0.05)) 1', borderImageSlice: 1, borderWidth: '1px', borderStyle: 'solid' }}>
+          <div className="glass-panel px-5 py-2.5 flex items-center gap-0 osiris-glow relative overflow-hidden" style={{ borderImage: 'linear-gradient(90deg, rgba(var(--accent-rgb),0.05), rgba(var(--accent-rgb),0.2), rgba(var(--accent-rgb),0.05)) 1', borderImageSlice: 1, borderWidth: '1px', borderStyle: 'solid' }}>
 
             {/* Animated scan line sweeping across the bar */}
             <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
@@ -1020,23 +1042,23 @@ export default function Dashboard() {
 
             {/* COORDINATES */}
             <div className="flex flex-col items-center min-w-[110px] px-3">
-              <div className="hud-label">COORDINATES</div>
-              <div ref={coordsDisplayRef} className="text-[10px] font-mono font-bold text-[var(--gold-primary)] tracking-wide tabular-nums">—</div>
+              <div className="hud-label">{t('dashboard.hud.coordinates')}</div>
+              <div className="text-[10px] font-mono font-bold text-[var(--gold-primary)] tracking-wide tabular-nums">{mouseCoords ? `${mouseCoords.lat.toFixed(4)}, ${mouseCoords.lng.toFixed(4)}` : '—'}</div>
             </div>
 
             <div className="w-px h-8 bg-gradient-to-b from-transparent via-[var(--border-primary)] to-transparent flex-shrink-0" />
 
             {/* LOCATION */}
             <div className="flex flex-col items-center min-w-[160px] max-w-[280px] px-3">
-              <div className="hud-label">LOCATION</div>
-              <div className="text-[9px] text-[var(--text-secondary)] font-mono truncate max-w-[280px]">{locationLabel || 'Hover over map...'}</div>
+              <div className="hud-label">{t('dashboard.hud.location')}</div>
+              <div className="text-[9px] text-[var(--text-secondary)] font-mono truncate max-w-[280px]">{locationLabel || t('dashboard.hud.hover')}</div>
             </div>
 
             <div className="w-px h-8 bg-gradient-to-b from-transparent via-[var(--border-primary)] to-transparent flex-shrink-0" />
 
             {/* ZOOM */}
             <div className="flex flex-col items-center px-3">
-              <div className="hud-label">ZOOM</div>
+              <div className="hud-label">{t('dashboard.hud.zoom')}</div>
               <div className="text-[10px] font-mono font-bold text-[var(--gold-primary)] tabular-nums">{mapView.zoom.toFixed(1)}</div>
             </div>
 
@@ -1044,7 +1066,7 @@ export default function Dashboard() {
 
             {/* ACTIVE LAYERS */}
             <div className="flex flex-col items-center px-3 min-w-[60px]">
-              <div className="hud-label">ACTIVE LAYERS</div>
+              <div className="hud-label">{t('dashboard.hud.activeLayers')}</div>
               <div className="flex items-center gap-1">
                 <Layers className="w-3 h-3 text-[var(--gold-primary)]" />
                 <span className="text-[10px] font-mono font-bold text-[var(--gold-primary)] tabular-nums">{Object.values(activeLayers).filter(Boolean).length}</span>
@@ -1055,7 +1077,7 @@ export default function Dashboard() {
 
             {/* DATA FEEDS */}
             <div className="flex flex-col items-center px-3 min-w-[60px]">
-              <div className="hud-label">FEEDS</div>
+              <div className="hud-label">{t('dashboard.feeds')}</div>
               <div className="flex items-center gap-1">
                 <Activity className="w-3 h-3 text-[var(--cyan-primary)]" />
                 <span className="text-[10px] font-mono font-bold text-[var(--cyan-primary)] tabular-nums">{Object.values(activeLayers).filter(Boolean).length}</span>
@@ -1064,12 +1086,12 @@ export default function Dashboard() {
 
             <div className="w-px h-8 bg-gradient-to-b from-transparent via-[var(--border-primary)] to-transparent flex-shrink-0" />
 
-            {/* ENTITIES */}
+            {/* THROUGHPUT */}
             <div className="flex flex-col items-center px-3 min-w-[70px]">
-              <div className="hud-label">ENTITIES</div>
+              <div className="hud-label">{t('dashboard.hud.throughput')}</div>
               <div className="flex items-center gap-1">
                 <Database className="w-3 h-3 text-[var(--alert-green)]" />
-                <ActiveEntityCount data={data} />
+                <DataThroughput />
               </div>
             </div>
 
@@ -1087,7 +1109,7 @@ export default function Dashboard() {
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="absolute top-16 md:top-20 left-2 right-2 md:left-1/2 md:right-auto md:-translate-x-1/2 z-[300] md:w-[480px] max-h-[65vh] overflow-y-auto styled-scrollbar">
           <div className="glass-panel p-5 osiris-glow">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-mono font-bold text-[var(--gold-primary)] tracking-wider">REGION DOSSIER</h2>
+              <h2 className="text-sm font-mono font-bold text-[var(--gold-primary)] tracking-wider">{t('dashboard.dossier.title')}</h2>
               <button onClick={() => { setRegionDossier(null); setDossierLoading(false); }} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-xs">✕</button>
             </div>
             {dossierLoading ? (
@@ -1108,8 +1130,8 @@ export default function Dashboard() {
                     <div><div className="hud-label mb-0.5">AREA</div><div className="text-xs text-[var(--text-primary)]">{regionDossier.country.area?.toLocaleString()} km²</div></div>
                   </div>
                 )}
-                {regionDossier.head_of_state && (<div><div className="hud-label mb-0.5">HEAD OF STATE</div><div className="text-xs text-[var(--gold-primary)]">{regionDossier.head_of_state.name}</div><div className="text-[8px] text-[var(--text-muted)]">{regionDossier.head_of_state.position}</div></div>)}
-                {regionDossier.wikipedia && (<div><div className="hud-label mb-1">INTELLIGENCE BRIEF</div><div className="flex gap-3">{regionDossier.wikipedia.thumbnail && <img src={regionDossier.wikipedia.thumbnail} alt="" className="w-14 h-14 rounded object-cover flex-shrink-0" />}<p className="text-[8px] text-[var(--text-secondary)] leading-relaxed">{regionDossier.wikipedia.extract}</p></div></div>)}
+                {regionDossier.head_of_state && (<div><div className="hud-label mb-0.5">{t('dashboard.dossier.headOfState')}</div><div className="text-xs text-[var(--gold-primary)]">{regionDossier.head_of_state.name}</div><div className="text-[8px] text-[var(--text-muted)]">{regionDossier.head_of_state.position}</div></div>)}
+                {regionDossier.wikipedia && (<div><div className="hud-label mb-1">{t('dashboard.dossier.intelligenceBrief')}</div><div className="flex gap-3">{regionDossier.wikipedia.thumbnail && <img src={regionDossier.wikipedia.thumbnail} alt="" className="w-14 h-14 rounded object-cover flex-shrink-0" />}<p className="text-[8px] text-[var(--text-secondary)] leading-relaxed">{regionDossier.wikipedia.extract}</p></div></div>)}
               </div>
             )}
           </div>
@@ -1123,22 +1145,19 @@ export default function Dashboard() {
         onLocate={(lat, lng) => setFlyToLocation({ lat, lng, ts: Date.now() })}
       />
 
-
       {/* ── OVERLAYS ── */}
       <div className="vignette absolute inset-0 pointer-events-none z-[2]" />
       <div className="crt-scanlines absolute inset-0 pointer-events-none z-[3] opacity-[0.02]" />
-      {/* Corner frames — using explicit classes for Tailwind JIT compatibility */}
-      {[
-        { pos: 'top-0 left-0', vAnchor: 'top-0', hAnchor: 'left-0', hGrad: 'bg-gradient-to-r', vGrad: 'bg-gradient-to-b' },
-        { pos: 'top-0 right-0', vAnchor: 'top-0', hAnchor: 'right-0', hGrad: 'bg-gradient-to-l', vGrad: 'bg-gradient-to-b' },
-        { pos: 'bottom-0 left-0', vAnchor: 'bottom-0', hAnchor: 'left-0', hGrad: 'bg-gradient-to-r', vGrad: 'bg-gradient-to-t' },
-        { pos: 'bottom-0 right-0', vAnchor: 'bottom-0', hAnchor: 'right-0', hGrad: 'bg-gradient-to-l', vGrad: 'bg-gradient-to-t' },
-      ].map((c, i) => (
-        <div key={i} className={`absolute ${c.pos} w-16 h-16 pointer-events-none z-[1]`}>
-          <div className={`absolute ${c.vAnchor} ${c.hAnchor} w-full h-[1px] ${c.hGrad} from-[var(--gold-primary)]/30 to-transparent`} />
-          <div className={`absolute ${c.vAnchor} ${c.hAnchor} w-[1px] h-full ${c.vGrad} from-[var(--gold-primary)]/30 to-transparent`} />
+      {/* Corner frames */}
+      {['top-0 left-0','top-0 right-0','bottom-0 left-0','bottom-0 right-0'].map((pos, i) => (
+        <div key={i} className={`absolute ${pos} w-16 h-16 pointer-events-none z-[1]`}>
+          <div className={`absolute ${pos.includes('top') ? 'top-0' : 'bottom-0'} ${pos.includes('left') ? 'left-0' : 'right-0'} w-full h-[1px] bg-gradient-to-${pos.includes('left') ? 'r' : 'l'} from-[var(--gold-primary)]/30 to-transparent`} />
+          <div className={`absolute ${pos.includes('top') ? 'top-0' : 'bottom-0'} ${pos.includes('left') ? 'left-0' : 'right-0'} w-[1px] h-full bg-gradient-to-${pos.includes('top') ? 'b' : 't'} from-[var(--gold-primary)]/30 to-transparent`} />
         </div>
       ))}
+
+      {/* Voice Assistant — prominent FAB + panel */}
+      <VoiceAssistant />
 
       {/* Keyboard Shortcuts Overlay */}
       <KeyboardShortcuts />
@@ -1146,9 +1165,12 @@ export default function Dashboard() {
       {/* ── GLOBAL STATUS TICKER (bottom) ── */}
       <GlobalStatusBar />
 
+      {/* ── VOICE CONTROL (OpenAI Realtime) ── */}
+      <VoiceControl enabled={capabilities.voice} handlers={voiceHandlers} data={data} activeLayers={activeLayers} />
+
       {/* Shortcut hint */}
       <div className="desktop-only absolute bottom-[26px] right-5 z-[200] pointer-events-none text-[6px] font-mono text-[var(--text-muted)]/40 tracking-widest">
-        [?] SHORTCUTS · [F] FULLSCREEN · [S] SHARE · [R] RESET VIEW
+        {t('dashboard.shortcutHint')}
       </div>
 
 

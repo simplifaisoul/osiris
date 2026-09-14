@@ -64,7 +64,7 @@ export async function GET() {
     }));
 
     // Enrich risk with live earthquake proximity
-    let quakeRisks: Record<string, number> = {};
+    const quakeRisks: Record<string, number> = {};
     try {
       const res = await fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_day.geojson', {  });
       if (res.ok) {

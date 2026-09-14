@@ -91,9 +91,9 @@ export async function GET() {
             // using word boundary regex
             const regex = new RegExp(`\\b${location}\\b`, 'i');
             if (regex.test(textToSearch)) {
-              // Deterministic jitter based on event index so events in the same country don't overlap
-              const jitterLng = ((eventId * 137.5) % 200 - 100) / 100 * 1.5;
-              const jitterLat = ((eventId * 251.3) % 200 - 100) / 100 * 1.5;
+              // Add slight random jitter so events in the same country don't overlap perfectly
+              const jitterLng = (Math.random() - 0.5) * 2.0;
+              const jitterLat = (Math.random() - 0.5) * 2.0;
               coords = [point[0] + jitterLng, point[1] + jitterLat];
               break;
             }
