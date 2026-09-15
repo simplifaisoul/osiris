@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+process.env.DB_PATH = ':memory:';
+
 import { GET, clearMaritimeSnapshot } from './route';
+import { resetDbForTests } from '@/lib/db/client';
+import { getBaseline } from '@/lib/db/maritime';
 
 /* The route aggregates over the websocket-fed ship map on globalThis, so the
    tests drive it directly rather than standing up an AIS stream. */
@@ -23,6 +28,7 @@ describe('GET /api/maritime', () => {
     vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
     ships().clear();
     clearMaritimeSnapshot();
+    resetDbForTests();
   });
 
   afterEach(() => {
@@ -70,5 +76,12 @@ describe('GET /api/maritime', () => {
     expect(cc).toContain('max-age=5');
     expect(cc).not.toContain('no-store');
     expect(res.headers.get('content-type')).toContain('application/json');
+  });
+
+  it('persists a snapshot for a chokepoint with nearby ships', async () => {
+    addShip(1, 26.57, 56.25); // sits on top of the Strait of Hormuz
+    await GET();
+
+    expect(getBaseline('strait-of-hormuz', 90)).toBe(1);
   });
 });

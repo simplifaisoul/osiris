@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import WebSocket from 'ws';
+import { insertSnapshot as insertMaritimeSnapshot } from '@/lib/db/maritime';
 
 /**
  * OSIRIS — Maritime Intelligence
@@ -78,6 +79,10 @@ const CHOKEPOINTS = [
   { name: 'Taiwan Strait', lat: 24.00, lng: 119.00, traffic: '88% large ships', risk: 'ELEVATED' },
   { name: 'Lombok Strait', lat: -8.47, lng: 115.72, traffic: 'Alt Malacca', risk: 'LOW' },
 ];
+
+function chokepointId(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
 
 // --- Global AIS Stream Client (In-Memory Cache) ---
 // Note: In a true serverless environment, this state would reset per invocation.
@@ -297,6 +302,12 @@ function buildSnapshot(now: number): string {
     if (nearbyCount > 50) dynamicRisk = 'CRITICAL';
     else if (nearbyCount > 20 && dynamicRisk !== 'CRITICAL') dynamicRisk = 'HIGH';
     else if (nearbyCount > 5 && dynamicRisk === 'LOW') dynamicRisk = 'ELEVATED';
+
+    try {
+      insertMaritimeSnapshot(chokepointId(choke.name), nearbyCount, dynamicRisk);
+    } catch (err) {
+      console.error('[maritime] failed to persist snapshot', err);
+    }
 
     return {
       ...choke,
