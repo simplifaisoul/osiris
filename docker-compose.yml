@@ -8,6 +8,8 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: osiris
+    volumes:
+      - osiris-data:/app/data
     # Host port is configurable via OSIRIS_PORT in .env (defaults to 3000).
     ports:
       - "${OSIRIS_PORT:-3000}:3000"
@@ -55,6 +57,7 @@ services:
 
 volumes:
   nginx-cache:
+  osiris-data:
 
 networks:
   umami_default:

@@ -18,7 +18,7 @@ const nextConfig: NextConfig = {
      everywhere except Vercel, so Docker and the platform both get what they
      expect. */
   output: process.env.VERCEL ? undefined : 'standalone',
-  serverExternalPackages: ['ws'],
+  serverExternalPackages: ['ws', 'better-sqlite3'],
   transpilePackages: ['react-map-gl', 'mapbox-gl', 'maplibre-gl'],
   // Type errors block the build again. They were suppressed while 17 stood
   // unfixed; those are cleared, so the gate can do its job — the AstraPanel

@@ -16,6 +16,7 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@vercel/analytics": "^2.0.1",
+    "better-sqlite3": "^13.0.3",
     "framer-motion": "^12.38.0",
     "google-libphonenumber": "^3.2.44",
     "hls.js": "^1.6.16",
@@ -34,6 +35,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/google-libphonenumber": "^7.4.30",
     "@types/node": "^20",
     "@types/react": "^19",
