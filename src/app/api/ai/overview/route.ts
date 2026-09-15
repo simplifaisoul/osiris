@@ -11,20 +11,18 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createGeminiClient, rotateApiKey } from '@/lib/ai-engine';
+import {
+  aiModel,
+  createGeminiClient,
+  getModel,
+  getServerApiKeys,
+  responseText,
+  rotateApiKey,
+} from '@/lib/ai-engine';
 
 export const dynamic = 'force-dynamic';
 
 type Mode = 'alerts' | 'markets' | 'chain';
-
-function getEnvApiKeys(): string[] {
-  const keys: string[] = [];
-  for (let i = 1; i <= 8; i++) {
-    const key = process.env[`GEMINI_API_KEY_${i}`];
-    if (key && key.trim().length > 0) keys.push(key.trim());
-  }
-  return keys;
-}
 
 /* ─────────────────────────── Digest builders ─────────────────────────── */
 
@@ -225,14 +223,13 @@ function heuristicOverview(mode: Mode, digest: Digest): string {
 async function geminiOverview(mode: Mode, digest: Digest, keys: string[]): Promise<string | null> {
   try {
     const client = createGeminiClient(rotateApiKey(keys));
-    const model = client.getGenerativeModel({
-      model: 'gemini-2.0-flash',
-      systemInstruction:
-        'You are OSIRIS, a terse intelligence analyst. Given structured facts, write a sharp 2-4 sentence situational read-out. No preamble, no markdown headers, no hedging. Lead with the bottom line.',
-    });
+    const model = getModel(
+      client,
+      'You are OSIRIS, a terse intelligence analyst. Given structured facts, write a sharp 2-4 sentence situational read-out. No preamble, no markdown headers, no hedging. Lead with the bottom line.'
+    );
     const prompt = `MODE: ${mode.toUpperCase()}\nBOTTOM LINE: ${digest.summaryLine}\nFACTS:\n${digest.facts.map(f => `- ${f}`).join('\n')}\n\nWrite the read-out now.`;
     const result = await model.generateContent(prompt);
-    const text = result.response.text().trim();
+    const text = responseText(result.response).trim();
     return text || null;
   } catch (e) {
     console.warn('[OSIRIS] Gemini overview failed, using heuristic:', e);
@@ -257,7 +254,7 @@ export async function POST(request: NextRequest) {
     : mode === 'chain' ? digestChain(body.payload)
     : digestAlerts(body.payload);
 
-  const keys = getEnvApiKeys();
+  const keys = getServerApiKeys();
   let overview: string | null = null;
   let generatedBy: 'gemini' | 'analyst' = 'analyst';
 
@@ -272,6 +269,7 @@ export async function POST(request: NextRequest) {
     overview,
     highlights: digest.highlights,
     generatedBy,
+    model: generatedBy === 'gemini' ? aiModel() : null,
     generatedAt: new Date().toISOString(),
   });
 }
