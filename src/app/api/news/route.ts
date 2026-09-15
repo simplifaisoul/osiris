@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { insertEvent as insertNewsEvent } from '@/lib/db/news';
 
 /**
  * OSIRIS — Military-Grade Intelligence API
@@ -140,9 +141,27 @@ export async function GET() {
     const newsItems = allArticles.map(article => {
       const riskScore = scoreRisk(article.description || article.title);
       const coords = findCoords(article.description || article.title);
+      const urlHash = crypto.createHash('md5').update((article.link || '') + (article.pubDate || '')).digest('hex');
+      const ts = Date.parse(article.pubDate) || Date.now();
+
+      try {
+        insertNewsEvent({
+          ts,
+          source: article.source,
+          urlHash,
+          text: `${article.title}\n${article.description || ''}`.trim(),
+          sentiment: null,
+          category: null,
+          region: null,
+          lat: coords ? coords[0] : null,
+          lng: coords ? coords[1] : null,
+        });
+      } catch (err) {
+        console.error('[news] failed to persist event', err);
+      }
 
       return {
-        id: crypto.createHash('md5').update((article.link || '') + (article.pubDate || '')).digest('hex'),
+        id: urlHash,
         title: article.title,
         description: article.description,
         link: article.link,
