@@ -41,6 +41,13 @@ import { fetchGeorgiaCameras } from './georgia';
 import { fetchNorthCarolinaCameras } from './northcarolina';
 import { fetchArizonaCameras } from './arizona';
 import { fetchTexasCameras } from './texas';
+import { fetchNewYorkCameras } from './newyork';
+import { fetchPennsylvaniaCameras } from './pennsylvania';
+import { fetchWisconsinCameras } from './wisconsin';
+import { fetchIdahoCameras } from './idaho';
+import { fetchAlaskaCameras } from './alaska';
+import { fetchOntarioCameras } from './ontario';
+import { fetchAlbertaCameras } from './alberta';
 import { fetchEastAsiaCameras, fetchSeAsiaCameras, fetchWestAsiaCameras } from './opencctv';
 import {
   fetchLatamLiveCameras,
@@ -514,6 +521,13 @@ const RAW_REGION_FETCHERS: Record<string, RegionFetcher> = {
   'northcarolina': fetchNorthCarolinaCameras,
   'arizona': fetchArizonaCameras,
   'texas': fetchTexasCameras,
+  'newyork': fetchNewYorkCameras,
+  'pennsylvania': fetchPennsylvaniaCameras,
+  'wisconsin': fetchWisconsinCameras,
+  'idaho': fetchIdahoCameras,
+  'alaska': fetchAlaskaCameras,
+  'ontario': fetchOntarioCameras,
+  'alberta': fetchAlbertaCameras,
   'eastasia': fetchEastAsiaCameras,
   'seasia': fetchSeAsiaCameras,
   'westasia': fetchWestAsiaCameras,
