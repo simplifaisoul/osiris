@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GET, clearMaritimeSnapshot } from './route';
+import { GET, clearMaritimeSnapshot } from './handler';
 
 /* The route aggregates over the websocket-fed ship map on globalThis, so the
    tests drive it directly rather than standing up an AIS stream. */

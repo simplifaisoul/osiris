@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseCandles, RANGES } from './route';
+import { parseCandles, RANGES } from './handler';
 
 describe('RANGES', () => {
   /* The whole reason the route stopped upper-casing its query parameter:

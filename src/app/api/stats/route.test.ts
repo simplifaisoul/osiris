@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GET, clearStatsSnapshot } from './route';
+import { GET, clearStatsSnapshot } from './handler';
 
 /* Each computation fetches six of the app's own feeds. These tests count those
    fetches, because the defect was that every caller paid for all six. */

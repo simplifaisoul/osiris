@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { NUCLEAR_FACILITIES } from './route';
+import { NUCLEAR_FACILITIES } from './handler';
 
 /* The Dutch entries were added by #320 and lost again when that PR was
    reverted, which left the layer with no Netherlands coverage while the issue

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { fetchQuote, fetchAllQuotes, groupQuotes, type Quote } from './route';
+import { fetchQuote, fetchAllQuotes, groupQuotes, type Quote } from './handler';
 
 const TICKER = { symbol: 'LMT', name: 'LMT', group: 'stocks' };
 

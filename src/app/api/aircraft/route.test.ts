@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shardFor, downsample, parseTrace, currentLeg, legEndpoints } from './route';
+import { shardFor, downsample, parseTrace, currentLeg, legEndpoints } from './handler';
 import { nearestAirport } from '@/lib/airports';
 
 describe('shardFor', () => {

@@ -1,0 +1,995 @@
+import { NextResponse } from 'next/server';
+import { stealthFetch } from '@/lib/stealthFetch';
+import { cachedSource, isStale, peekSource, seedSource } from '@/lib/sourceCache';
+import { buildPayload, clearPayload, getPayload, readSnapshot, writeSnapshot, type Payload, type RegionCameras } from '@/lib/cctv-snapshot';
+import { createPool } from '@/lib/fetch-pool';
+
+import { fetchAsfinagCameras } from './asfinag';
+import { fetchNetherlandsCameras } from './netherlands';
+import { fetchBulgariaCameras } from './bulgaria';
+import { fetchGreeceCameras } from './greece';
+import { fetchSerbiaCameras } from './serbia';
+import { fetchMacedoniaCameras } from './macedonia';
+import { fetchTurkeyCameras } from './turkey';
+import { fetchRomaniaCameras } from './romania';
+import { fetchAustraliaCameras } from './australia';
+import { fetchItalyCameras } from './italy';
+import { fetchCzechiaCameras } from './czechia';
+import { fetchSlovakiaCameras } from './slovakia';
+import { fetchGermanyCameras } from './germany';
+import { fetchFranceCameras } from './france';
+import { fetchSpainCameras } from './spain';
+import { fetchPolandCameras } from './poland';
+import { fetchJapanCameras } from './japan';
+import { fetchSwitzerlandCameras } from './switzerland';
+import { fetchFinlandCameras } from './finland';
+import { fetchHongKongCameras } from './hongkong';
+import { fetchUtahCameras } from './utah';
+import { fetchIcelandCameras } from './iceland';
+import { fetchTaiwanCameras } from './taiwan';
+import { fetchThailandCameras } from './thailand';
+import { fetchAsiaLiveCameras } from './asia-live';
+import { fetchNewZealandCameras } from './newzealand';
+import { fetchOregonCameras } from './oregon';
+import { fetchMichiganCameras } from './michigan';
+import { fetchIndianaCameras } from './indiana';
+import { fetchNevadaCameras } from './nevada';
+import { fetchLouisianaCameras } from './louisiana';
+import { fetchFloridaCameras } from './florida';
+import { fetchGeorgiaCameras } from './georgia';
+import { fetchNorthCarolinaCameras } from './northcarolina';
+import { fetchArizonaCameras } from './arizona';
+import { fetchTexasCameras } from './texas';
+import { fetchEastAsiaCameras, fetchSeAsiaCameras, fetchWestAsiaCameras } from './opencctv';
+import {
+  fetchLatamLiveCameras,
+  fetchAfricaLiveCameras,
+  fetchEuropeLiveCameras,
+} from './world-live';
+
+/**
+ * OSIRIS — Worldwide CCTV Camera API v2
+ * Viewport-aware: pass ?region=xx to load cameras for specific regions
+ * Supports: uk, us-east, us-west, us-central, canada, europe, asia
+ * Or pass ?lat=x&lng=y&radius=5 for proximity-based loading
+ */
+
+// ═══ CAMERA SOURCE DEFINITIONS ═══
+
+// ── UK: Transport for London JamCams (~900) ──
+async function fetchTfLCameras(): Promise<any[]> {
+  try {
+    const res = await stealthFetch('https://api.tfl.gov.uk/Place/Type/JamCam', { signal: AbortSignal.timeout(12000) });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data || []).map((cam: any) => {
+      const imgProp = cam.additionalProperties?.find((p: any) => p.key === 'imageUrl');
+      const camId = cam.id?.replace('JamCams_', '') || '';
+      return {
+        id: `tfl-${cam.id}`, lat: cam.lat, lng: cam.lon,
+        name: cam.commonName || 'London JamCam', city: 'London', country: 'UK',
+        feed_url: imgProp?.value || `https://s3-eu-west-1.amazonaws.com/jamcams.tfl.gov.uk/${camId}.jpg`,
+        source: 'TfL',
+      };
+    }).filter((c: any) => c.lat && c.lng);
+  } catch (e) { return []; }
+}
+
+// ── US-WEST: WSDOT Washington State (~500) ──
+async function fetchWSDOTCameras(): Promise<any[]> {
+  try {
+    const res = await stealthFetch('https://data.wsdot.wa.gov/log/public/cameras.json', { signal: AbortSignal.timeout(12000) });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data || []).map((cam: any) => ({
+      id: `wsdot-${cam.CameraID}`, lat: cam.CameraLocation?.Latitude, lng: cam.CameraLocation?.Longitude,
+      name: cam.Title || 'WSDOT Camera', city: 'Washington', country: 'US',
+      feed_url: cam.ImageURL || '', source: 'WSDOT',
+    })).filter((c: any) => c.lat && c.lng && c.feed_url);
+  } catch (e) { return []; }
+}
+
+// ── US-WEST: Caltrans California ──
+async function fetchCaltransCameras(): Promise<any[]> {
+  try {
+    const res = await stealthFetch('https://caltrans-gis.dot.ca.gov/arcgis/rest/services/CHhighway/CCTV/FeatureServer/0/query?where=1%3D1&outFields=*&f=json', { signal: AbortSignal.timeout(12000) });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const cams = [];
+    for (const feature of (data?.features || [])) {
+      const p = feature.attributes;
+      const lat = p.latitude;
+      const lng = p.longitude;
+      const url = p.currentImageURL;
+      if (!lat || !lng || !url) continue;
+      cams.push({
+        id: `cal-${p.OBJECTID}`,
+        lat,
+        lng,
+        name: p.locationName || 'Caltrans',
+        city: p.nearbyPlace || p.county || 'California',
+        country: 'US',
+        feed_url: url,
+        source: 'Caltrans'
+      });
+    }
+    return cams;
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
+ * One sub-source of a multi-source region, fetched with a single retry.
+ *
+ * These blocks swallowed every failure. A region returns whatever it managed
+ * to collect, and sourceCache stores a non-empty result as a success — so one
+ * blip on one source cached the region without it for the full TTL, with
+ * nothing in the log to say which one went missing. Quebec disappeared from
+ * Canada that way for half an hour while its own endpoint was answering in
+ * 300ms. The retry catches the blip; the warning means a real outage is
+ * visible instead of silent.
+ */
+async function subSource(label: string, url: string, timeoutMs: number) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const res = await stealthFetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+      if (res.ok) return await res.json();
+      /* A 4xx is a decision, not a blip: a retired endpoint answers 404 just
+         as fast the second time. Retrying them only spent the region's budget
+         — Montreal (403) and Alberta (400) between them pushed Canada past
+         12s, so the whole country came back empty on a cold cache. */
+      if (res.status >= 400 && res.status < 500) {
+        console.warn(`[OSIRIS] ${label} returned ${res.status} — absent from this refresh, not retried`);
+        return null;
+      }
+      if (attempt === 2) console.warn(`[OSIRIS] ${label} returned ${res.status} — absent from this refresh`);
+    } catch (e) {
+      if (attempt === 2) console.warn(`[OSIRIS] ${label} failed — absent from this refresh:`, e instanceof Error ? e.message : e);
+    }
+  }
+  return null;
+}
+
+// ── CANADA: Ottawa, Toronto, Montreal, Quebec ──
+async function fetchCanadaCameras(): Promise<any[]> {
+  const cams: any[] = [];
+
+  /* All seven run at once. Awaited one after another their timeouts summed
+     to well over the 12s the route allows a region, so Canada kept coming
+     back empty and only filled in on a later poll — the whole country
+     looked like it was failing to load. They share nothing, so there was
+     never a reason to queue them. */
+  const [ottawa, quebec, ontario, montreal, alberta, toronto, drivebc] = await Promise.all([
+    subSource('City of Ottawa', 'https://traffic.ottawa.ca/beta/camera_list', 12000),
+    subSource('Quebec 511', 'https://ws.mapserver.transports.gouv.qc.ca/swtq?service=wfs&version=2.0.0&request=getfeature&typename=ms:infos_cameras&outfile=Camera&srsname=EPSG:4326&outputformat=geojson', 10000),
+    subSource('511 Ontario', 'https://511on.ca/api/v2/get/cameras', 10000),
+    subSource('Ville MTL', 'https://ville.montreal.qc.ca/circulation/sites/ville.montreal.qc.ca.circulation/files/cameras.json', 8000),
+    subSource('511 Alberta', 'https://511.alberta.ca/api/v2/get/cameras', 10000),
+    subSource('City of Toronto', 'https://ckan0.cf.opendata.inter.prod-toronto.ca/dataset/a3309088-5fd4-4d34-8297-77c8301840ac/resource/4a568300-c7f8-496d-b150-dff6f5dc6d4f/download/traffic-camera-list-4326.geojson', 10000),
+    subSource('DriveBC', 'https://drivebc.ca/api/webcams', 10000),
+  ]);
+
+
+  // Ottawa Municipal Cameras (Comprehensive)
+  {
+    const data = ottawa;
+    if (data) {
+      for (const cam of (data || [])) {
+        if (!cam.latitude || !cam.longitude) continue;
+        cams.push({
+          id: `ottawa-muni-${cam.id}`, lat: cam.latitude, lng: cam.longitude,
+          name: cam.description || 'Ottawa Traffic Camera', city: 'Ottawa', country: 'Canada',
+          feed_url: `https://traffic.ottawa.ca/map/camera?id=${cam.number || cam.id}`, source: 'City of Ottawa',
+        });
+      }
+    }
+  }
+
+  // Quebec 511 (Comprehensive - covers Montreal, Quebec City, highways)
+  {
+    const data = quebec;
+    if (data) {
+      for (const feature of (data.features || [])) {
+        const coords = feature.geometry?.coordinates;
+        const p = feature.properties;
+        if (!coords || !p || !p.IDEcamera) continue;
+
+        cams.push({
+          id: `quebec511-${p.IDEcamera}`, lat: coords[1], lng: coords[0],
+          name: p.DescriptionLocalisationEn || p.DescriptionLocalisationFr || 'Quebec 511 Camera', city: p.NomRegionDiffusion || 'Quebec', country: 'Canada',
+          stream_url: p.URL_FLUX_DONNEE ? p.URL_FLUX_DONNEE.replace('FenetreVideo.html', 'camera.ashx') + '&format=mp4' : `https://www.quebec511.info/Carte/Fenetres/camera.ashx?id=${p.IDEcamera}&format=mp4`,
+          stream_type: 'mp4',
+          source: 'Quebec 511',
+        });
+      }
+    }
+  }
+
+  // Ontario 511 (MTO Highway Cameras)
+  {
+    const data = ontario;
+    if (data) {
+      /* MTO capitalises its field names. Reading `cam.latitude` skipped all
+         944 rows, so the only Ontario markers on the map were the three
+         curated Toronto ones below — the province has been empty this whole
+         time. A view's Url serves the JPEG itself, no rewriting needed. */
+      for (const cam of (data || [])) {
+        const view = cam.Views?.find((v: { Status?: string; Url?: string }) => v.Status === 'Enabled') ?? cam.Views?.[0];
+        if (!cam.Latitude || !cam.Longitude || !view?.Url) continue;
+        cams.push({
+          id: `on-${cam.Id}`, lat: cam.Latitude, lng: cam.Longitude,
+          name: cam.Location || cam.Roadway || 'Ontario Camera', city: 'Ontario', country: 'Canada',
+          feed_url: view.Url, source: '511 Ontario',
+        });
+      }
+    }
+  }
+
+  // Ville de Montréal municipal cameras
+  {
+    const data = montreal;
+    if (data) {
+      for (const cam of (data || [])) {
+        cams.push({
+          id: `mtl-muni-${cams.length}`, lat: cam.latitude || cam.lat, lng: cam.longitude || cam.lng,
+          name: cam.description || cam.name || 'Montréal Camera', city: 'Montréal', country: 'Canada',
+          feed_url: cam.url || cam.imageUrl || '', source: 'Ville MTL',
+        });
+      }
+    }
+  }
+
+  // Curated Toronto cameras (fallback if 511ON fails)
+  const curated = [
+    { id: 'tor-1', lat: 43.6532, lng: -79.3832, name: 'Yonge / Dundas Square', city: 'Toronto', country: 'Canada', feed_url: 'https://511on.ca/api/v2/get/cameras', source: '511 Ontario' },
+    { id: 'tor-2', lat: 43.6426, lng: -79.3871, name: 'CN Tower / Lakeshore', city: 'Toronto', country: 'Canada', feed_url: 'https://511on.ca/api/v2/get/cameras', source: '511 Ontario' },
+    { id: 'tor-3', lat: 43.6711, lng: -79.3868, name: 'Bloor / Yonge', city: 'Toronto', country: 'Canada', feed_url: 'https://511on.ca/api/v2/get/cameras', source: '511 Ontario' },
+  ];
+  cams.push(...curated);
+
+  // Alberta 511
+  {
+    const data = alberta;
+    if (data) {
+      for (const cam of (data || [])) {
+        if (!cam.Latitude || !cam.Longitude || !cam.Views?.[0]?.Url) continue;
+        cams.push({
+          id: `ab-${cam.Id || cams.length}`, lat: cam.Latitude, lng: cam.Longitude,
+          name: cam.Location || 'Alberta Camera', city: 'Alberta', country: 'Canada',
+          feed_url: cam.Views[0].Url, source: 'Alberta 511',
+        });
+      }
+    }
+  }
+
+
+  // Toronto Open Data Municipal Traffic Cameras
+  {
+    const data = toronto;
+    if (data) {
+      for (const feature of (data.features || [])) {
+        let coords = feature.geometry?.coordinates;
+        if (Array.isArray(coords) && Array.isArray(coords[0])) coords = coords[0];
+        const p = feature.properties;
+        if (!coords || !p || !p.IMAGEURL) continue;
+        cams.push({
+          id: `tor-open-${p.REC_ID}`, lat: coords[1], lng: coords[0],
+          name: `${p.MAINROAD} / ${p.CROSSROAD}`, city: 'Toronto', country: 'Canada',
+          feed_url: p.IMAGEURL, source: 'City of Toronto',
+        });
+      }
+    }
+  }
+
+  // British Columbia HighwayCams (Live JSON API)
+  {
+    const data = drivebc;
+    if (data) {
+      for (const cam of (data || [])) {
+        if (!cam.location?.coordinates || !cam.links?.imageDisplay) continue;
+        const [lng, lat] = cam.location.coordinates;
+        cams.push({
+          id: `bc-cam-${cam.id}`, lat, lng,
+          name: cam.name || cam.caption || 'BC Highway Camera', city: 'British Columbia', country: 'Canada',
+          feed_url: `https://drivebc.ca${cam.links.imageDisplay}`, source: 'DriveBC',
+        });
+      }
+    }
+  }
+
+  return cams.filter((c: any) => c.lat && c.lng);
+}
+
+// ── US-CENTRAL: Chicago, Houston, Dallas, Denver ──
+async function fetchUSCentralCameras(): Promise<any[]> {
+  const cams: any[] = [];
+  // Illinois DOT
+  {
+    const data = await subSource('IDOT', 'https://www.travelmidwest.com/lmiga/cameraReport.json', 8000);
+    if (data) {
+      /* travelmidwest answers 200 with {updatedMessage, noDataMessage} and no
+         cameras at all — an object, not the array this assumed. That threw a
+         TypeError the old silent catch quietly absorbed; now it would take
+         us-central down with it, so the shape is checked. */
+      const rows = Array.isArray(data?.cameraReports) ? data.cameraReports : Array.isArray(data) ? data : [];
+      for (const cam of rows.slice(0, 800)) {
+        if (!cam.latitude || !cam.longitude) continue;
+        cams.push({
+          id: `ildot-${cams.length}`, lat: cam.latitude, lng: cam.longitude,
+          name: cam.cameraName || cam.description || 'IDOT Camera', city: 'Illinois', country: 'US',
+          feed_url: cam.imageUrl || cam.url || '', source: 'IDOT',
+        });
+      }
+    }
+  }
+
+  return cams.filter((c: any) => c.lat && c.lng);
+}
+
+// ── US-EAST: OH, DC, Florida, Georgia ──
+async function fetchUSEastCameras(): Promise<any[]> {
+  const cams: any[] = [];
+
+  // Butler County, OH (from redhunt45 fork)
+  cams.push(
+    {
+      id: 'butler-oh-hamilton', lat: 39.3988617, lng: -84.5595353,
+      name: 'Hamilton, OH', city: 'Hamilton', country: 'US',
+      feed_url: 'https://gsccam.butlersheriff.org/axis-cgi/jpg/image.cgi',
+      external_url: 'https://gsccam.butlersheriff.org/camera/index.html#/video',
+      source: 'Butler County, OH',
+    },
+    {
+      id: 'butler-oh-129-747', lat: 39.381435, lng: -84.438423,
+      name: 'OH-129 at 747', city: 'Butler County', country: 'US',
+      feed_url: 'https://towercam.butlersheriff.org/axis-cgi/jpg/image.cgi',
+      external_url: 'https://towercam.butlersheriff.org/aca/index.html#view',
+      source: 'Butler County, OH',
+    },
+  );
+
+  // Cincinnati, OH (from redhunt45 fork)
+  cams.push(
+    {
+      id: 'cincinnati-cincyvision-yt', lat: 39.089101, lng: -84.527943,
+      name: 'CincyVision YT', city: 'Cincinnati', country: 'US',
+      external_url: 'https://www.youtube.com/@AaronPreslin/live',
+      source: 'Cincinnati, OH',
+    },
+    {
+      id: 'cincinnati-covington-earthcam', lat: 39.090510, lng: -84.510413,
+      name: 'Cincinnati-Covington EarthCam', city: 'Covington', country: 'US',
+      external_url: 'https://www.earthcam.com/usa/kentucky/covington/?cam=covington',
+      source: 'Cincinnati, OH',
+    },
+  );
+  /* Florida used to be fetched here from fl511.com/api/v2/cameras. That
+     endpoint has returned 404 for some time — and because the block tested
+     `res.ok` before doing anything, it failed without even reaching a catch.
+     ./florida now serves the state from the working IBI index; this is left
+     out rather than kept as a source that can only ever contribute nothing. */
+
+
+  return cams.filter((c: any) => c.lat && c.lng);
+}
+
+// ── EUROPE: Netherlands, Germany, France ──
+async function fetchEuropeCameras(): Promise<any[]> {
+  const cams: any[] = [];
+
+  /* The Netherlands used to be fetched here from opendata.ndw.nu/cameras.json.
+     NDW retired that dataset and it 404s; ./netherlands now serves the country
+     from the Rijkswaterstaat feed, which is still published. */
+  try {
+    cams.push(...await fetchNetherlandsCameras());
+  } catch (e) {
+    console.warn('[OSIRIS] Netherlands cameras failed — absent from this refresh:', e instanceof Error ? e.message : e);
+  }
+
+  cams.push(...await fetchAsfinagCameras());
+
+  return cams.filter((c: any) => c.lat && c.lng);
+}
+
+// ── ASIA/PACIFIC ──
+async function fetchAsiaCameras(): Promise<any[]> {
+  const cams: any[] = [];
+
+  // Singapore Live Traffic Images
+  {
+    const data = await subSource('LTA Singapore', 'https://api.data.gov.sg/v1/transport/traffic-images', 10000);
+    if (data) {
+      const items = data.items?.[0]?.cameras || [];
+      for (const cam of items) {
+        if (!cam.location?.latitude || !cam.location?.longitude || !cam.image) continue;
+        cams.push({
+          id: `sin-${cam.camera_id}`,
+          lat: cam.location.latitude,
+          lng: cam.location.longitude,
+          name: `Camera ${cam.camera_id}`,
+          city: 'Singapore',
+          country: 'Singapore',
+          feed_url: cam.image,
+          source: 'LTA Singapore'
+        });
+      }
+    }
+  }
+
+  return cams;
+}
+
+
+// ── MIDDLE EAST: Israel, Lebanon ──
+async function fetchMiddleEastCameras(): Promise<any[]> {
+  const cams: any[] = [];
+
+  // Israel Curated (Embedded)
+  cams.push(
+    {
+      id: 'il-israel-multicam', lat: 32.0853, lng: 34.7818,
+      name: 'Israel Multi-Cam (Live)', city: 'Tel Aviv', country: 'Israel',
+      stream_url: 'https://www.youtube.com/embed/gmtlJ_m2r5A?autoplay=1&mute=1',
+      stream_type: 'iframe',
+      source: 'YouTube Live',
+    },
+    {
+      id: 'il-jerusalem-live', lat: 31.7767, lng: 35.2345,
+      name: 'Jerusalem Western Wall', city: 'Jerusalem', country: 'Israel',
+      stream_url: 'https://www.youtube.com/embed/77akujLn4k8?autoplay=1&mute=1',
+      stream_type: 'iframe',
+      source: 'YouTube Live',
+    }
+  );
+
+  // Lebanon Curated (Embedded)
+  cams.push(
+    {
+      id: 'lb-beirut-skyline', lat: 33.8938, lng: 35.5018,
+      name: 'Beirut Skyline Live', city: 'Beirut', country: 'Lebanon',
+      stream_url: 'https://www.youtube.com/embed/qJf4NqPKLjI?autoplay=1&mute=1',
+      stream_type: 'iframe',
+      source: 'YouTube Live',
+    },
+    {
+      id: 'lb-me-multicam', lat: 33.2721, lng: 35.2033,
+      name: 'Middle East Multi-Cam (Live)', city: 'Regional', country: 'Middle East',
+      stream_url: 'https://www.youtube.com/embed/oxT5R6I0N6E?autoplay=1&mute=1',
+      stream_type: 'iframe',
+      source: 'YouTube Live',
+    }
+  );
+
+  return cams;
+}
+
+// ═══ REGION MAPPING ═══
+/** Camera records are shaped per source; only `source` is read back here. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type RegionFetcher = () => Promise<any[]>;
+
+const RAW_REGION_FETCHERS: Record<string, RegionFetcher> = {
+  'middle-east': fetchMiddleEastCameras,
+  'uk': fetchTfLCameras,
+  'us-west': async () => { const [w, c] = await Promise.all([fetchWSDOTCameras(), fetchCaltransCameras()]); return [...w, ...c]; },
+  'us-east': fetchUSEastCameras,
+  'us-central': fetchUSCentralCameras,
+  'canada': fetchCanadaCameras,
+  'europe': fetchEuropeCameras,
+  'netherlands': fetchNetherlandsCameras,
+  'asia': fetchAsiaCameras,
+  'bulgaria': fetchBulgariaCameras,
+  'greece': fetchGreeceCameras,
+  'serbia': fetchSerbiaCameras,
+  'macedonia': fetchMacedoniaCameras,
+  'turkey': fetchTurkeyCameras,
+  'romania': fetchRomaniaCameras,
+  'australia': fetchAustraliaCameras,
+  'italy': fetchItalyCameras,
+  'czechia': fetchCzechiaCameras,
+  'slovakia': fetchSlovakiaCameras,
+  'germany': fetchGermanyCameras,
+  'france': fetchFranceCameras,
+  'spain': fetchSpainCameras,
+  'poland': fetchPolandCameras,
+  'japan': fetchJapanCameras,
+  'switzerland': fetchSwitzerlandCameras,
+  'finland': fetchFinlandCameras,
+  'hongkong': fetchHongKongCameras,
+  'utah': fetchUtahCameras,
+  'iceland': fetchIcelandCameras,
+  'taiwan': fetchTaiwanCameras,
+  'thailand': fetchThailandCameras,
+  'asia-live': fetchAsiaLiveCameras,
+  'newzealand': fetchNewZealandCameras,
+  'oregon': fetchOregonCameras,
+  'michigan': fetchMichiganCameras,
+  'indiana': fetchIndianaCameras,
+  'nevada': fetchNevadaCameras,
+  'louisiana': fetchLouisianaCameras,
+  'florida': fetchFloridaCameras,
+  'georgia': fetchGeorgiaCameras,
+  'northcarolina': fetchNorthCarolinaCameras,
+  'arizona': fetchArizonaCameras,
+  'texas': fetchTexasCameras,
+  'eastasia': fetchEastAsiaCameras,
+  'seasia': fetchSeAsiaCameras,
+  'westasia': fetchWestAsiaCameras,
+  'latam-live': fetchLatamLiveCameras,
+  'africa-live': fetchAfricaLiveCameras,
+  'europe-live': fetchEuropeLiveCameras,
+};
+
+/**
+ * Every region is served from the shared source cache.
+ *
+ * Six of these modules cached themselves and thirty-three did not, which meant
+ * a request with no `region` refetched thirty-three upstreams live — several of
+ * them megabytes, two of them long dead. Under real traffic that is one
+ * outbound fetch storm per visitor. Caching here rather than in each module
+ * means a source added later cannot forget to do it.
+ */
+const REGION_FETCHERS: Record<string, RegionFetcher> = Object.fromEntries(
+  Object.entries(RAW_REGION_FETCHERS).map(([region, fetcher]) => [
+    region,
+    cachedSource(`cctv:${region}`, fetcher),
+  ]),
+);
+
+/**
+ * A region that will not answer must not hold the other forty-seven hostage.
+ * The abandoned fetch keeps running inside the cache, so the frame it was
+ * fetching lands in time for the next request rather than being thrown away —
+ * this drops a slow region from the current response, not from the map.
+ */
+const REGION_BUDGET_MS = 12_000;
+
+/**
+ * Regions are fetched a few at a time, not all forty-eight at once.
+ *
+ * Several regions fan out again to their own sub-sources, so the old
+ * all-at-once dispatch opened well over sixty simultaneous connections and
+ * the upstreams started failing on connect. Every host that timed out that
+ * way answered in under a second when asked on its own, and because a failed
+ * region caches empty for a minute, one storm kept the same regions missing
+ * from response after response. Queued regions still run; they just wait
+ * their turn, and whatever misses the deadline lands in the cache for the
+ * next caller.
+ */
+/**
+ * How long a response waits on regions it does not already have.
+ *
+ * A catalogue that already holds 35,000 cameras must not be held hostage by
+ * one upstream that hangs. us-central does exactly that — it burns the full
+ * slot budget on every attempt — and waiting on it turned a 0.2s response
+ * into a 12s one for every visitor, which is what made the cameras take so
+ * long to appear. With cameras already in hand, wait only briefly for the
+ * stragglers and let the rest land in the cache for the next caller. With
+ * nothing in hand there is nothing to show anyway, so a cold start still
+ * waits properly rather than returning an empty map.
+ */
+const WARM_GRACE_MS = 2_000;
+
+const REGION_CONCURRENCY = 4;
+const regionPool = createPool(REGION_CONCURRENCY);
+
+/**
+ * One refresh per region at a time, and never an unbounded slot.
+ *
+ * A pool slot held by an upstream that never answers is worse than the storm
+ * it replaced: four of those and the catalogue stops refreshing entirely. The
+ * budget guarantees the slot comes back. The abandoned fetch keeps running
+ * inside the source cache, where it costs no slot and still lands for the
+ * next caller. Sharing one refresh per region also stops a hundred
+ * simultaneous visitors queueing a hundred copies of the same work.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const refreshing = new Map<string, Promise<any[]>>();
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function refreshRegion(region: string): Promise<any[]> {
+  const existing = refreshing.get(region);
+  if (existing) return existing;
+
+  const started = regionPool.run(async () => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        REGION_FETCHERS[region](),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        new Promise<any[]>(resolve => {
+          timer = setTimeout(() => {
+            console.warn(`[OSIRIS] cctv:${region} over ${REGION_BUDGET_MS}ms — freeing its slot`);
+            resolve([]);
+          }, REGION_BUDGET_MS);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }).finally(() => { refreshing.delete(region); });
+
+  refreshing.set(region, started);
+  return started;
+}
+
+const ALL_REGIONS = () => Object.keys(REGION_FETCHERS);
+
+/** Everything currently held, stale included — what gets written to disk. */
+function currentRegions(): RegionCameras {
+  const regions: RegionCameras = {};
+  for (const region of ALL_REGIONS()) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cameras = peekSource<any>(`cctv:${region}`, true);
+    if (cameras?.length) regions[region] = cameras;
+  }
+  return regions;
+}
+
+/** Serialise and compress the whole-world response once, not per request. */
+function rebuildPayload(): Payload | undefined {
+  const regions = currentRegions();
+  const held = Object.keys(regions);
+  if (!held.length) return undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cameras: any[] = [];
+  const sources: Record<string, number> = {};
+  for (const region of ALL_REGIONS()) {
+    for (const camera of regions[region] ?? []) {
+      cameras.push(camera);
+      const label = String(camera.source ?? 'unknown');
+      sources[label] = (sources[label] || 0) + 1;
+    }
+  }
+  return buildPayload({
+    cameras,
+    total: cameras.length,
+    sources,
+    regions: ALL_REGIONS(),
+    pendingRegions: ALL_REGIONS().filter(region => !regions[region]),
+    timestamp: new Date().toISOString(),
+  }, cameras.length, held.length === ALL_REGIONS().length);
+}
+
+const PERSIST_EVERY_MS = 60_000;
+let lastPersistedAt = 0;
+let lastPersistedTotal = 0;
+
+/**
+ * Saves only ever move forwards.
+ *
+ * A boot that starts empty reaches its first request with a handful of
+ * cameras, and writing that would replace a good saved catalogue with a
+ * near-empty one — the next boot would then restore almost nothing. The
+ * restore seeds the high-water mark, so a fresh process cannot regress what
+ * an earlier one already learned.
+ */
+async function persistCatalogue() {
+  const cameras = Object.values(currentRegions()).reduce((n, list) => n + list.length, 0);
+  if (cameras <= lastPersistedTotal) return;
+  if (Date.now() - lastPersistedAt < PERSIST_EVERY_MS) return;
+  lastPersistedAt = Date.now();
+  lastPersistedTotal = cameras;
+  try {
+    await writeSnapshot(currentRegions());
+  } catch (error) {
+    console.warn('[OSIRIS] Could not save the camera catalogue:', error);
+  }
+}
+
+/**
+ * Fill the catalogue before the first visitor arrives, rather than because of
+ * one. Without this the first request after a deploy pays the whole cold
+ * fan-out and still returns a partial map; with it the pool has usually
+ * finished by the time anyone asks. Called from instrumentation at boot.
+ */
+let restoring: Promise<void> | undefined;
+
+/**
+ * Load the saved catalogue into this module, once.
+ *
+ * The request handler owns this rather than the boot hook: Next loads
+ * instrumentation in its own module graph, so a catalogue restored there
+ * populated a different copy of these caches and every request still started
+ * from nothing. Reading ~2MB from disk costs a few milliseconds and makes the
+ * first request as fast as the thousandth.
+ */
+function ensureRestored(): Promise<void> {
+  restoring ??= (async () => {
+    const saved = await readSnapshot();
+    if (!saved) return;
+    let cameras = 0;
+    for (const [region, list] of Object.entries(saved.regions)) {
+      if (region in REGION_FETCHERS) { seedSource(`cctv:${region}`, list); cameras += list.length; }
+    }
+    rebuildPayload();
+    lastPersistedTotal = cameras;
+    console.log(`[OSIRIS] Camera catalogue restored: ${cameras} cameras from disk`);
+  })().catch(error => { console.warn('[OSIRIS] Could not restore the camera catalogue:', error); });
+  return restoring;
+}
+
+export async function warmCctvCatalog() {
+  await ensureRestored();
+  // Then bring it up to date, and save whatever it became.
+  await collectRegions(ALL_REGIONS());
+  rebuildPayload();
+  await persistCatalogue();
+}
+
+/** Test seam — drops queued refreshes between cases. */
+export function clearCctvRefreshes() {
+  refreshing.clear();
+  regionPool.reset();
+  restoring = undefined;
+  clearPayload();
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function collectRegions(regions: string[]): Promise<{ cameras: Record<string, any[]>; pending: string[] }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cameras: Record<string, any[]> = {};
+  const missing: string[] = [];
+
+  for (const region of regions) {
+    /* Stale cameras beat no cameras: a camera index goes out of date over
+       weeks, so serving yesterday's positions while today's are fetched is
+       always the better trade. The refresh runs behind the response. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cached = peekSource<any>(`cctv:${region}`, true);
+    if (cached) {
+      cameras[region] = cached;
+      if (isStale(`cctv:${region}`)) void refreshRegion(region).catch(() => {});
+    } else {
+      missing.push(region);
+    }
+  }
+  if (!missing.length) return { cameras, pending: [] };
+
+  const fetches = missing.map(region => refreshRegion(region)
+    .then(result => { if (result.length) cameras[region] = result; })
+    .catch(() => { /* the cache logs it and keeps the last good index */ }));
+
+  const budget = Object.keys(cameras).length ? WARM_GRACE_MS : REGION_BUDGET_MS;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<void>(resolve => { timer = setTimeout(resolve, budget); });
+  await Promise.race([Promise.all(fetches), deadline]);
+  clearTimeout(timer);
+
+  const pending = missing.filter(region => !cameras[region]);
+  if (pending.length) console.warn(`[OSIRIS] cctv still filling: ${pending.join(", ")}`);
+  return { cameras, pending };
+}
+
+// Determine which regions to fetch based on viewport bounds
+function getRegionsForBounds(lat: number, lng: number, radius: number): string[] {
+  const regions: string[] = [];
+  // UK
+  if (lat > 49 && lat < 61 && lng > -8 && lng < 2) regions.push('uk');
+  // US-East
+  if (lat > 24 && lat < 49 && lng > -85 && lng < -66) regions.push('us-east');
+  // US-West
+  if (lat > 24 && lat < 49 && lng > -125 && lng < -100) regions.push('us-west');
+  // Utah (UDOT) — explicit, since us-west only covers WA + CA
+  if (lat > 36.9 && lat < 42.1 && lng > -114.2 && lng < -108.9) regions.push('utah');
+  // Oregon (ODOT) — explicit, since us-west only covers WA + CA
+  if (lat > 41.9 && lat < 46.3 && lng > -124.6 && lng < -116.4) regions.push('oregon');
+  // Nevada (NDOT) — explicit, since us-west only covers WA + CA
+  if (lat > 34.9 && lat < 42.1 && lng > -120.1 && lng < -113.9) regions.push('nevada');
+  // Texas (TxDOT), including El Paso west of the central region.
+  if (lat > 25.8 && lat < 36.6 && lng > -106.7 && lng < -93.4) regions.push('texas');
+  // US-Central
+  if (lat > 24 && lat < 49 && lng > -105 && lng < -80) regions.push('us-central');
+  // Michigan (MDOT) — explicit, since us-central only covers Illinois
+  if (lat > 41.6 && lat < 48.3 && lng > -90.5 && lng < -82.1) regions.push('michigan');
+  // Indiana (INDOT TrafficWise) — explicit, since us-central only covers Illinois
+  if (lat > 37.7 && lat < 41.9 && lng > -88.2 && lng < -84.6) regions.push('indiana');
+  // Louisiana (LADOTD 511) — explicit, since neither us-central nor us-east reaches the Gulf coast
+  if (lat > 28.8 && lat < 33.1 && lng > -94.2 && lng < -88.6) regions.push('louisiana');
+  /* The rest of the southern tier, all on the same IBI 511 stack. Each is
+     listed explicitly for the same reason Louisiana is: the broad us-east and
+     us-central boxes cover the latitudes but carry none of these agencies. */
+  if (lat > 24.4 && lat < 31.1 && lng > -87.7 && lng < -79.9) regions.push('florida');
+  if (lat > 30.3 && lat < 35.1 && lng > -85.7 && lng < -80.8) regions.push('georgia');
+  if (lat > 33.8 && lat < 36.6 && lng > -84.4 && lng < -75.4) regions.push('northcarolina');
+  if (lat > 31.3 && lat < 37.1 && lng > -115.0 && lng < -109.0) regions.push('arizona');
+  // Canada
+  if (lat > 42 && lat < 70 && lng > -141 && lng < -52) regions.push('canada');
+  // Europe
+  const inBulgaria = lat > 41 && lat < 44.5 && lng > 22 && lng < 29.5;
+  const inGreece = lat > 34.5 && lat < 41.8 && lng > 19 && lng < 30;
+  const inSerbia = lat > 42 && lat < 46.5 && lng > 18.8 && lng < 23.3;
+  const inMacedonia = lat > 40.8 && lat < 42.8 && lng > 20.4 && lng < 23.2;
+  const inRomania = lat > 43.5 && lat < 48.5 && lng > 20 && lng < 29.8;
+  const inTurkey = lat > 35.5 && lat < 42.5 && lng > 25.5 && lng < 45;
+  const inItaly = lat > 36 && lat < 47.5 && lng > 6.5 && lng < 18.5;
+  const inCzechia = lat > 48.5 && lat < 51.1 && lng > 12 && lng < 18.9;
+  const inSlovakia = lat > 47.7 && lat < 49.6 && lng > 16.8 && lng < 22.6;
+  const inGermany = lat > 47 && lat < 55.1 && lng > 5.8 && lng < 15.1;
+  const inFrance = lat > 42.3 && lat < 51.1 && lng > -5 && lng < 8.3;
+  const inSpain = lat > 27 && lat < 43.8 && lng > -18.2 && lng < 4.4;
+  const inPoland = lat > 49.0 && lat < 55.0 && lng > 14.1 && lng < 24.1;
+  const inFinland = lat > 59.5 && lat < 70.1 && lng > 20 && lng < 31.6;
+  const inIceland = lat > 63.0 && lat < 67.0 && lng > -25.0 && lng < -13.0;
+  const inBalkans = inBulgaria || inGreece || inSerbia || inMacedonia || inRomania || inTurkey;
+  const inWesternEurope = inItaly || inCzechia || inSlovakia || inGermany || inFrance || inSpain || inPoland || inFinland || inIceland;
+
+  if (lat > 35 && lat < 72 && lng > -11 && lng < 40 && !inBalkans && !inWesternEurope) {
+    regions.push('europe');
+  }
+  if (inBulgaria) regions.push('bulgaria');
+  if (inGreece) regions.push('greece');
+  if (inSerbia) regions.push('serbia');
+  if (inMacedonia) regions.push('macedonia');
+  if (inRomania) regions.push('romania');
+  if (inTurkey) regions.push('turkey');
+  if (inItaly) regions.push('italy');
+  if (inCzechia) regions.push('czechia');
+  if (inSlovakia) regions.push('slovakia');
+  if (inGermany) regions.push('germany');
+  if (inFrance) regions.push('france');
+  if (inSpain) regions.push('spain');
+  if (inPoland) regions.push('poland');
+  if (inFinland) regions.push('finland');
+  if (inIceland) regions.push('iceland');
+
+  // Middle East
+  const inMiddleEast = lat > 29 && lat < 34.5 && lng > 34 && lng < 36.5;
+  if (inMiddleEast) regions.push('middle-east');
+
+  // Japan
+  if (lat > 24 && lat < 46 && lng > 122 && lng < 154) regions.push('japan');
+
+  // Hong Kong
+  if (lat > 22.1 && lat < 22.6 && lng > 113.8 && lng < 114.4) regions.push('hongkong');
+
+  // Taiwan
+  if (lat > 21.9 && lat < 25.3 && lng > 119.5 && lng < 122.1) regions.push('taiwan');
+
+  // Thailand — mainland through the Gulf islands
+  if (lat > 5.5 && lat < 20.5 && lng > 97.3 && lng < 105.7) regions.push('thailand');
+
+  // Asia live webcams — spans West Asia (Turkey / Levant / Gulf) through Japan and Indonesia
+  if (lat > -11 && lat < 46 && lng > 25 && lng < 155) regions.push('asia-live');
+
+  // Asia (includes Middle East, SE Asia, overriding parts of china but that's ok they can both load)
+  if ((lat > -10 && lat < 60 && lng > 60 && lng < 150)) regions.push('asia');
+  // OpenCCTV across Asia — the countries with no open traffic-authority index
+  // of their own. Split so a viewport over Jakarta does not also pay for Japan.
+  if (lat > 18 && lat < 46 && lng > 73.5 && lng < 146) regions.push('eastasia');
+  if (lat > -11 && lat < 24 && lng > 92 && lng < 130) regions.push('seasia');
+  if (lat > 5 && lat < 56 && lng > 25 && lng < 92) regions.push('westasia');
+  // Australia explicitly
+  if (lat > -45 && lat < -10 && lng > 110 && lng < 155) regions.push('asia');
+  // New Zealand (NZTA)
+  if (lat > -47.5 && lat < -34 && lng > 166 && lng < 179) regions.push('newzealand');
+
+  // Live webcams for regions with no traffic-authority feed of their own
+  // Latin America + Caribbean (incl. Bermuda at 32.3N)
+  if (lat > -56 && lat < 33 && lng > -119 && lng < -34) regions.push('latam-live');
+  // Africa (Cape Verde in the west through Seychelles in the east)
+  if (lat > -35 && lat < 36 && lng > -26 && lng < 57) regions.push('africa-live');
+  // European gaps (Azores in the west through northern Norway)
+  if (lat > 35 && lat < 72 && lng > -32 && lng < 32) regions.push('europe-live');
+
+  return regions.length > 0 ? regions : ['uk', 'us-east']; // Default fallback
+}
+
+/** How old the prebuilt world payload may get before a rebuild is kicked off. */
+const PAYLOAD_REFRESH_MS = 5 * 60 * 1000;
+const REBUILD_DELAY_MS = 2_000;
+let rebuilding: Promise<void> | undefined;
+
+function rebuildInBackground() {
+  rebuilding ??= (async () => {
+    /* Let the response that triggered this reach the client first. Refreshing
+       48 regions is heavy, single-threaded work, and starting it inline made
+       the first request after a restart take 13s to flush a payload that was
+       already built and sitting in memory. */
+    await new Promise(resolve => setTimeout(resolve, REBUILD_DELAY_MS));
+    await collectRegions(ALL_REGIONS());
+    rebuildPayload();
+    await persistCatalogue();
+  })().catch(error => { console.warn('[OSIRIS] Camera catalogue rebuild failed:', error); })
+    .finally(() => { rebuilding = undefined; });
+  return rebuilding;
+}
+
+/**
+ * The bytes are already serialised and gzipped, so a request costs a buffer
+ * write. An unchanged catalogue answers a returning visitor with a 304.
+ */
+function servePayload(request: Request, ready: Payload) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'public, max-age=60, stale-while-revalidate=600',
+    'Vary': 'Accept-Encoding',
+    'ETag': ready.etag,
+  };
+  if (request.headers.get('if-none-match') === ready.etag) return new Response(null, { status: 304, headers });
+
+  if ((request.headers.get('accept-encoding') || '').includes('gzip')) {
+    headers['Content-Encoding'] = 'gzip';
+    return new Response(new Uint8Array(ready.gzip), { headers });
+  }
+  return new Response(new Uint8Array(ready.json), { headers });
+}
+
+export async function GET(request: Request) {
+  try {
+    await ensureRestored();
+    const { searchParams } = new URL(request.url);
+    const region = searchParams.get('region');
+    const lat = parseFloat(searchParams.get('lat') || '0');
+    const lng = parseFloat(searchParams.get('lng') || '0');
+    const radius = parseFloat(searchParams.get('radius') || '10');
+
+    let regionsToFetch: string[];
+
+    if (region === 'all') {
+      regionsToFetch = Object.keys(REGION_FETCHERS);
+    } else if (region) {
+      regionsToFetch = region.split(',').filter(r => r in REGION_FETCHERS);
+    } else if (lat !== 0 || lng !== 0) {
+      regionsToFetch = getRegionsForBounds(lat, lng, radius);
+    } else {
+      // Default: load all regions for global coverage
+      regionsToFetch = Object.keys(REGION_FETCHERS);
+    }
+
+    if (regionsToFetch.length === ALL_REGIONS().length) {
+      const ready = getPayload();
+      if (ready) {
+        void persistCatalogue();
+        // Past its TTL, refresh behind the response rather than in front of it.
+        /* An incomplete catalogue is chased straight away; a complete one is
+           left alone until its regions actually go stale. */
+        if (!ready.complete || Date.now() - ready.builtAt > PAYLOAD_REFRESH_MS) void rebuildInBackground();
+        return servePayload(request, ready);
+      }
+    }
+
+    const collected = await collectRegions(regionsToFetch);
+
+    const allCameras: any[] = [];
+    const sources: Record<string, number> = {};
+    const pendingRegions = collected.pending;
+
+    for (const region of regionsToFetch) {
+      for (const cam of collected.cameras[region] ?? []) {
+        allCameras.push(cam);
+        sources[cam.source] = (sources[cam.source] || 0) + 1;
+      }
+    }
+
+    /* Cache what was just assembled, so the next caller is served the
+       prebuilt bytes instead of paying to build them again — and so the
+       catalogue reaches disk even when no payload existed to begin with. */
+    if (regionsToFetch.length === ALL_REGIONS().length) {
+      const built = rebuildPayload();
+      if (built) {
+        void persistCatalogue();
+        return servePayload(request, built);
+      }
+    }
+
+    const cacheControl = pendingRegions.length > 0 || allCameras.length < 50
+      ? 'no-store, max-age=0'
+      : 'public, s-maxage=300, stale-while-revalidate=600';
+
+    return NextResponse.json({
+      cameras: allCameras,
+      total: allCameras.length,
+      sources,
+      regions: regionsToFetch,
+      pendingRegions,
+      timestamp: new Date().toISOString(),
+    }, {
+      headers: { 'Cache-Control': cacheControl },
+    });
+  } catch (error) {
+    console.error('CCTV fetch error:', error);
+    return NextResponse.json({ cameras: [], error: 'Failed' }, { status: 500 });
+  }
+}
