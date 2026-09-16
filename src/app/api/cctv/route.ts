@@ -48,6 +48,7 @@ import { fetchIdahoCameras } from './idaho';
 import { fetchAlaskaCameras } from './alaska';
 import { fetchOntarioCameras } from './ontario';
 import { fetchAlbertaCameras } from './alberta';
+import { fetchOhioCameras } from './ohio';
 import { fetchEastAsiaCameras, fetchSeAsiaCameras, fetchWestAsiaCameras } from './opencctv';
 import {
   fetchLatamLiveCameras,
@@ -528,6 +529,7 @@ const RAW_REGION_FETCHERS: Record<string, RegionFetcher> = {
   'alaska': fetchAlaskaCameras,
   'ontario': fetchOntarioCameras,
   'alberta': fetchAlbertaCameras,
+  'ohio': fetchOhioCameras,
   'eastasia': fetchEastAsiaCameras,
   'seasia': fetchSeAsiaCameras,
   'westasia': fetchWestAsiaCameras,
