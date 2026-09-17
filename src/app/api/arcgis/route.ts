@@ -9,12 +9,40 @@ import { NextRequest, NextResponse } from 'next/server';
  *
  *   2. Query:   ?service=<FeatureServiceURL>&bbox=-105,35,-94,42
  *      Runs a spatial query against a specific Feature Service layer and
- *      returns raw GeoJSON.
+ *      returns raw GeoJSON. A service root is resolved to its first
+ *      feature layer first.
  *
  * No API key required — all requests target public data only.
  */
 
 const ARCGIS_SEARCH_URL = 'https://www.arcgis.com/sharing/rest/search';
+
+interface ServiceLayer { id: number; geometryType?: string }
+
+/**
+ * Turns a catalog URL into the layer query URL it needs. Layer ids are
+ * whatever the publisher assigned — Transmission_Line's only layer is 100 —
+ * so a service root is asked for its layer list rather than assumed to hold
+ * a layer 0, which ArcGIS answers with 400 "Invalid URL".
+ */
+export async function resolveQueryUrl(service: string): Promise<{ url: string } | { error: string; status: number }> {
+  const base = service.replace(/\/+$/, '');
+  if (base.endsWith('/query')) return { url: base };
+  if (/\/\d+$/.test(base)) return { url: `${base}/query` };
+
+  const res = await fetch(`${base}?f=json`, { signal: AbortSignal.timeout(20000) });
+  if (!res.ok) return { error: `Feature Service lookup failed (${res.status})`, status: res.status };
+  // Catalog hits include app pages and portals that answer with HTML.
+  const info = await res.json().catch(() => null);
+  if (!info || typeof info !== 'object') return { error: 'Not an ArcGIS REST service', status: 400 };
+  if (info.error) return { error: info.error.message || 'Feature Service error', status: 502 };
+
+  const layers: ServiceLayer[] = Array.isArray(info.layers) ? info.layers : [];
+  // Group layers carry no geometry and cannot be queried.
+  const layer = layers.find(l => l.geometryType) ?? layers[0];
+  if (!layer) return { error: 'Service has no layers to query', status: 400 };
+  return { url: `${base}/${layer.id}/query` };
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -95,15 +123,11 @@ export async function GET(request: NextRequest) {
   // ── Mode 2: Feature Service Spatial Query ───────────────────────────
   if (service) {
     try {
-      // Normalise the URL — ensure it ends with /query
-      let serviceUrl = service.replace(/\/+$/, '');
-      if (!serviceUrl.endsWith('/query')) {
-        // If the URL points at the service root, pick layer 0 by default
-        if (!/\/\d+$/.test(serviceUrl)) {
-          serviceUrl += '/0';
-        }
-        serviceUrl += '/query';
+      const resolved = await resolveQueryUrl(service);
+      if ('error' in resolved) {
+        return NextResponse.json({ error: resolved.error }, { status: resolved.status });
       }
+      const serviceUrl = resolved.url;
 
       const params = new URLSearchParams({
         where: '1=1',
