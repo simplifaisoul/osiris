@@ -43,6 +43,8 @@ import { fetchGeorgiaCameras } from './georgia';
 import { fetchNorthCarolinaCameras } from './northcarolina';
 import { fetchArizonaCameras } from './arizona';
 import { fetchTexasCameras } from './texas';
+import { fetchLandmarkCameras } from './landmarks';
+import { fetchUsSkylineCameras } from './us-skyline.generated';
 import { fetchEastAsiaCameras, fetchSeAsiaCameras, fetchWestAsiaCameras } from './opencctv';
 import {
   fetchLatamLiveCameras,
@@ -524,6 +526,8 @@ const RAW_REGION_FETCHERS: Record<string, RegionFetcher> = {
   'northcarolina': fetchNorthCarolinaCameras,
   'arizona': fetchArizonaCameras,
   'texas': fetchTexasCameras,
+  'landmarks': fetchLandmarkCameras,
+  'us-live': fetchUsSkylineCameras,
   'eastasia': fetchEastAsiaCameras,
   'seasia': fetchSeAsiaCameras,
   'westasia': fetchWestAsiaCameras,
