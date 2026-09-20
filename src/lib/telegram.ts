@@ -23,6 +23,13 @@ export interface TelegramMedia {
   thumb: string | null;
   /** Video length as Telegram prints it, e.g. "0:29". */
   duration: string | null;
+  /**
+   * The lead video's file on Telegram's CDN, playable in place. Null for
+   * photos, and for videos Telegram marks too big to preview — those only
+   * play on Telegram. The URL is tokenised and served for about three hours,
+   * well past the few minutes a channel page is cached for.
+   */
+  video: string | null;
   /** Items in the post — more than one for an album. */
   count: number;
 }
@@ -228,6 +235,16 @@ export function parseViews(raw: string): number | null {
 
 const bgUrl = (fragment: string | undefined) => fragment?.match(/background-image:url\('([^']+)'\)/)?.[1] ?? null;
 
+/** Telegram serves post media from these hosts; a video URL anywhere else is not theirs. */
+const TELEGRAM_CDN = /^https:\/\/(?:[\w-]+\.)*(?:telesco\.pe|cdn-telegram\.org)\//;
+
+function videoSrc(post: string): string | null {
+  const raw = post.match(/<video\b[^>]*\bsrc="([^"]+)"/)?.[1];
+  if (!raw) return null;
+  const url = decodeHtmlEntities(raw);
+  return TELEGRAM_CDN.test(url) ? url : null;
+}
+
 function parseMedia(post: string): TelegramMedia | null {
   const photos = post.match(/<a class="tgme_widget_message_photo_wrap\b[^>]*>/g) || [];
   const videos = post.match(/<i class="tgme_widget_message_video_thumb\b[^>]*>/g) || [];
@@ -243,6 +260,7 @@ function parseMedia(post: string): TelegramMedia | null {
     kind: leadIsVideo ? 'video' : 'photo',
     thumb: bgUrl(leadIsVideo ? videos[0] : photos[0]),
     duration: leadIsVideo ? duration : null,
+    video: leadIsVideo ? videoSrc(post) : null,
     count: photos.length + videos.length,
   };
 }

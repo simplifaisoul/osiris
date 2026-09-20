@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { cachedSource } from '@/lib/sourceCache';
 import { fingerprint, htmlToText, parseChannelPage, type TelegramPost } from '@/lib/telegram';
 import type { Bloc } from '@/lib/alert-digest';
+import { alertKind, locateReport, type AlertKind, type AlertPlace } from '@/lib/alert-places';
 
 /**
  * OSIRIS — Live Alerts news feed.
@@ -192,7 +193,7 @@ function assess(text: string) {
     coords_default: !located,
     /* 'country-anchor' means the marker is a preset centroid for the term
        in `coords_anchor`, not the location of the reported event. */
-    location_precision: located ? 'country-anchor' : null,
+    location_precision: located ? 'country-anchor' as const : null,
     coords_anchor: located ? located.anchor : null,
   };
 }
@@ -218,7 +219,41 @@ type NewsItem = {
   reply_to: string | null;
   views: number | null;
   also_reported_by: Carrier[];
-} & ReturnType<typeof assess>;
+  /** Rocket, event or news — see alertKind. */
+  alert_kind: AlertKind;
+  /** The place the report names, when one resolved; see locateReport. */
+  place: Omit<AlertPlace, 'lat' | 'lng'> | null;
+} & Omit<ReturnType<typeof assess>, 'location_precision'> & {
+  location_precision: 'country-anchor' | AlertPlace['precision'] | null;
+};
+
+/** How long a request waits for place lookups before answering with what it has. */
+const PLACE_BUDGET_MS = 2500;
+
+/**
+ * Pins each item to the place it names, where one resolves. Lookups are
+ * throttled to Nominatim's one a second, so a cold start cannot place every
+ * item inside one request: whatever has not resolved by the budget keeps its
+ * country anchor this time, and the lookup carries on so the next refresh has it.
+ */
+async function placeItems(items: NewsItem[]): Promise<void> {
+  const found = new Map<string, AlertPlace>();
+  const all = Promise.all(items.map(async item => {
+    const place = await locateReport(item.title, item.description).catch(() => null);
+    if (place) found.set(item.id, place);
+  }));
+  await Promise.race([all, new Promise(resolve => setTimeout(resolve, PLACE_BUDGET_MS))]);
+
+  for (const item of items) {
+    const place = found.get(item.id);
+    if (!place) continue;
+    item.coords = [place.lat, place.lng];
+    item.coords_default = false;
+    item.location_precision = place.precision;
+    item.coords_anchor = place.name;
+    item.place = { name: place.name, label: place.label, precision: place.precision };
+  }
+}
 
 export async function GET() {
   try {
@@ -265,6 +300,8 @@ export async function GET() {
         link: c.post.url,
         published: c.post.publishedAt,
       })),
+      alert_kind: alertKind(post.headline, post.text),
+      place: null,
       ...assess(post.text),
     }));
 
@@ -294,9 +331,13 @@ export async function GET() {
         reply_to: null,
         views: null,
         also_reported_by: [],
+        alert_kind: alertKind(article.title, article.description),
+        place: null,
         ...assess(`${article.title}\n${article.description}`),
       }));
     }
+
+    await placeItems(newsItems);
 
     newsItems.sort((a, b) => Date.parse(b.published) - Date.parse(a.published));
 

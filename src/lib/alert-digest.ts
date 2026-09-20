@@ -23,6 +23,16 @@ export const BLOCS: Record<Bloc, { label: string; short: string; color: string }
 
 export const BLOC_ORDER: Bloc[] = ['western', 'russian', 'regional', 'independent'];
 
+/** What a report describes — set by alertKind in alert-places. */
+export type AlertKind = 'rocket' | 'event' | 'news';
+
+/** How each kind is marked, on the map and in the feed. */
+export const ALERT_KINDS: Record<AlertKind, { label: string; color: string }> = {
+  rocket: { label: 'ROCKET', color: '#FF3D3D' },
+  event: { label: 'EVENT', color: '#FF9500' },
+  news: { label: 'NEWS', color: '#00E5FF' },
+};
+
 export interface DigestReport {
   id: string;
   title: string;
