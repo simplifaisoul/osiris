@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import AiOverview from './AiOverview';
 import {
-  BLOCS, BLOC_ORDER, buildThreads, groupStatements, timeAgo, type Bloc, type DigestReport,
+  ALERT_KINDS, BLOCS, BLOC_ORDER, buildThreads, groupStatements, timeAgo, type AlertKind, type Bloc, type DigestReport,
 } from '@/lib/alert-digest';
 
 interface SourceHealth { handle: string; name: string; lean: string; bloc: Bloc; count: number; latest: string | null }
@@ -22,9 +22,12 @@ interface LiveAlertsData {
   news_meta?: { sources?: SourceHealth[]; fetchedAt?: string | null };
 }
 
+/** Where to fly: `alertId` also opens that report's pin on the map. */
+export interface LocateOptions { zoom?: number; alertId?: string }
+
 interface LiveAlertsProps {
   data: LiveAlertsData;
-  onLocate: (lat: number, lng: number) => void;
+  onLocate: (lat: number, lng: number, options?: LocateOptions) => void;
   onWatchFeed?: (url: string, name: string) => void;
   /** Re-pull /api/news. */
   onRefresh?: () => Promise<unknown> | void;
@@ -87,7 +90,10 @@ interface NewsAlert {
   lean: string | null;
   bloc: Bloc | null;
   flag: string | null;
-  media: { kind: 'photo' | 'video'; thumb: string | null; duration: string | null; count: number } | null;
+  alertKind: AlertKind;
+  /** The place the report names, when one resolved; otherwise `anchor` is a country centroid. */
+  place: { name: string; label: string; precision: 'settlement' | 'region' } | null;
+  media: { kind: 'photo' | 'video'; thumb: string | null; duration: string | null; video: string | null; count: number } | null;
   forwarded_from: { name: string; url: string | null } | null;
   reply_to: string | null;
   views: number | null;
@@ -161,7 +167,12 @@ function toNews(raw: unknown): NewsAlert | null {
 
   const m = rec(a.media);
   const media: NewsAlert['media'] = m.kind === 'photo' || m.kind === 'video'
-    ? { kind: m.kind, thumb: webUrl(m.thumb), duration: str(m.duration), count: numOrNull(m.count) ?? 1 }
+    ? { kind: m.kind, thumb: webUrl(m.thumb), duration: str(m.duration), video: webUrl(m.video), count: numOrNull(m.count) ?? 1 }
+    : null;
+  const p = rec(a.place);
+  const placeName = str(p.name);
+  const place: NewsAlert['place'] = placeName && (p.precision === 'settlement' || p.precision === 'region')
+    ? { name: placeName, label: str(p.label) ?? placeName, precision: p.precision }
     : null;
   const fwd = rec(a.forwarded_from);
   const fwdName = str(fwd.name);
@@ -183,6 +194,8 @@ function toNews(raw: unknown): NewsAlert | null {
     lean,
     bloc: isBloc(a.bloc) ? a.bloc : null,
     flag: str(a.flag),
+    alertKind: a.alert_kind === 'rocket' || a.alert_kind === 'event' ? a.alert_kind : 'news',
+    place,
     media,
     forwarded_from: fwdName ? { name: fwdName, url: webUrl(fwd.url) } : null,
     reply_to: webUrl(a.reply_to),
@@ -191,7 +204,7 @@ function toNews(raw: unknown): NewsAlert | null {
     keywords: Array.isArray(a.risk_keywords) ? a.risk_keywords.filter((k): k is string => typeof k === 'string') : [],
     coords,
     anchor: str(a.coords_anchor),
-    haystack: `${title} ${summary} ${sourceName} ${lean ?? ''} ${carriers.map(c => c.source_name).join(' ')}`.toLowerCase(),
+    haystack: `${title} ${summary} ${sourceName} ${lean ?? ''} ${place?.label ?? ''} ${carriers.map(c => c.source_name).join(' ')}`.toLowerCase(),
   };
 }
 
@@ -248,11 +261,14 @@ function Chip({ children, color = '#8A8880', title }: { children: ReactNode; col
 }
 
 function NewsCard({ item, now, open, wide, onToggle, onLocate }: {
-  item: NewsAlert; now: number; open: boolean; wide?: boolean; onToggle: () => void; onLocate: (lat: number, lng: number) => void;
+  item: NewsAlert; now: number; open: boolean; wide?: boolean; onToggle: () => void; onLocate: (lat: number, lng: number, options?: LocateOptions) => void;
 }) {
   const color = blocColor(item.bloc);
   const fresh = now - item.ts < 15 * 60_000;
   const [mediaFailed, setMediaFailed] = useState(false);
+  const [videoFailed, setVideoFailed] = useState(false);
+  const kind = ALERT_KINDS[item.alertKind];
+  const video = item.media?.video && !videoFailed ? item.media.video : null;
 
   return (
     <article
@@ -280,6 +296,12 @@ function NewsCard({ item, now, open, wide, onToggle, onLocate }: {
         )}
 
         <div className="mt-1.5 flex flex-wrap items-center gap-1">
+          {item.alertKind !== 'news' && <Chip color={kind.color}>{kind.label}</Chip>}
+          {item.place && (
+            <Chip color={kind.color} title={`Pinned to ${item.place.label} — the place the post names`}>
+              <MapPin className="w-2 h-2" /> <span className="max-w-[110px] truncate normal-case">{item.place.name}</span>
+            </Chip>
+          )}
           {item.media && (
             <Chip title={item.media.count > 1 ? `${item.media.count} media items` : undefined}>
               {item.media.kind === 'video' ? <Play className="w-2 h-2" /> : <ImageIcon className="w-2 h-2" />}
@@ -311,7 +333,19 @@ function NewsCard({ item, now, open, wide, onToggle, onLocate }: {
 
       {open && (
         <div className="px-2.5 pb-2.5 space-y-2">
-          {item.media?.thumb && !mediaFailed && (
+          {video && (
+            <video
+              src={video}
+              poster={item.media?.thumb ?? undefined}
+              controls
+              playsInline
+              preload="none"
+              onError={() => setVideoFailed(true)}
+              className="block max-h-64 w-full max-w-[560px] rounded-md border border-white/5 bg-black"
+            />
+          )}
+
+          {!video && item.media?.thumb && !mediaFailed && (
             <a href={item.link ?? undefined} target="_blank" rel="noopener noreferrer" className="relative block max-w-[560px] overflow-hidden rounded-md border border-white/5 bg-black/40">
               {/* eslint-disable-next-line @next/next/no-img-element -- remote CDN preview, loaded only on expand */}
               <img
@@ -389,7 +423,18 @@ function NewsCard({ item, now, open, wide, onToggle, onLocate }: {
                 <CornerDownRight className="w-2.5 h-2.5" /> IN REPLY TO
               </a>
             )}
-            {item.coords && (
+            {item.coords && item.place && (
+              <button
+                type="button"
+                onClick={() => onLocate(item.coords![0], item.coords![1], { zoom: item.place!.precision === 'settlement' ? 10 : 7, alertId: item.id })}
+                title={`${item.place.label} — the place the post names. Town-level: a post names a place, not an exact spot.`}
+                className="inline-flex items-center gap-1 rounded border px-2 py-1 text-[9.5px] font-mono tracking-wider hover:bg-white/5"
+                style={{ color: kind.color, borderColor: `${kind.color}55` }}
+              >
+                <MapPin className="w-2.5 h-2.5" /> {item.place.name.toUpperCase()}
+              </button>
+            )}
+            {item.coords && !item.place && (
               <button
                 type="button"
                 onClick={() => onLocate(item.coords![0], item.coords![1])}
@@ -636,9 +681,9 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh }: L
     if (id && tab !== 'all' && tab !== 'news') setTab('news');
   }, [tab]);
 
-  const locate = useCallback((lat: number, lng: number) => {
+  const locate = useCallback((lat: number, lng: number, options?: LocateOptions) => {
     if (maximized) setMaximized(false);
-    onLocate(lat, lng);
+    onLocate(lat, lng, options);
   }, [maximized, onLocate]);
 
   const tabs: { id: Tab; label: string; count: number }[] = [

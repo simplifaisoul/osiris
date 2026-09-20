@@ -46,6 +46,20 @@ const ALBUM_VIDEO = wrap('OSINTtechnical/100', `
 <a class="tgme_widget_message_photo_wrap grouped_media_wrap" style="background-image:url('https://cdn1.telesco.pe/file/second.jpg')"><div class="tgme_widget_message_photo grouped_media"></div></a>
 </div></div></div><div class="tgme_widget_message_text js-message_text" dir="auto"><div class="tgme_widget_message_text js-message_text" dir="auto">Russian SU-25 RF-90958 crashed in Rostov Oblast<br/><br/><a href="https://t.me/osinttechnical">@osinttechnical</a></div></div>`);
 
+// A video Telegram previews in place: the file sits in a <video src>, with
+// an entity-encoded query string.
+const PLAYABLE_VIDEO = wrap('OSINTdefender/20283', `
+<a class="tgme_widget_message_video_player js-message_video_player" href="https://t.me/OSINTdefender/20283"><i class="tgme_widget_message_video_thumb" style="background-image:url('https://cdn4.telesco.pe/file/thumb.jpg')"></i>
+<div class="tgme_widget_message_video_wrap" style="width:1280px;padding-top:56.25%"><video src="https://cdn4.telesco.pe/file/1a30ec3feb.mp4?token=abc&amp;x=1" class="tgme_widget_message_video js-message_video" width="100%" height="100%"></video></div>
+<time class="message_video_duration js-message_video_duration">0:24</time></a>
+<div class="tgme_widget_message_text js-message_text" dir="auto">Missiles are flying over Riyadh tonight.</div>`);
+
+// Same shape, but the file is not on Telegram's CDN.
+const FOREIGN_VIDEO = wrap('OSINTdefender/20284', `
+<a class="tgme_widget_message_video_player js-message_video_player" href="https://t.me/OSINTdefender/20284"><i class="tgme_widget_message_video_thumb" style="background-image:url('https://cdn4.telesco.pe/file/thumb2.jpg')"></i>
+<div class="tgme_widget_message_video_wrap"><video src="https://evil.example/clip.mp4" class="tgme_widget_message_video js-message_video"></video></div></a>
+<div class="tgme_widget_message_text js-message_text" dir="auto">A video served from somewhere else entirely.</div>`);
+
 const SERVICE = wrap('DDGeopolitics/193454', `
 <div class="tgme_widget_message_text js-message_text" dir="auto"><a class="tgme_widget_message_author_name" href="https://t.me/DDGeopolitics"><span dir="auto">DD Geopolitics</span></a> pinned a photo</div>`,
 { cls: 'service_message' });
@@ -53,11 +67,11 @@ const SERVICE = wrap('DDGeopolitics/193454', `
 const UNDATED = wrap('x/1', `<div class="tgme_widget_message_text js-message_text" dir="auto">A post whose footer carries no timestamp at all</div>`, { datetime: null });
 
 describe('parseChannelPage', () => {
-  const page = `<html>${FORWARDED_PHOTO}${REPLY}${ALBUM_VIDEO}${SERVICE}${UNDATED}</html>`;
+  const page = `<html>${FORWARDED_PHOTO}${REPLY}${ALBUM_VIDEO}${PLAYABLE_VIDEO}${FOREIGN_VIDEO}${SERVICE}${UNDATED}</html>`;
   const posts = parseChannelPage(page, 'BellumActaNews');
 
   it('keeps real posts and drops service notices and undated posts', () => {
-    expect(posts.map(p => p.id)).toEqual(['BellumActaNews/177066', 'BellumActaNews/177056', 'OSINTtechnical/100']);
+    expect(posts.map(p => p.id)).toEqual(['BellumActaNews/177066', 'BellumActaNews/177056', 'OSINTtechnical/100', 'OSINTdefender/20283', 'OSINTdefender/20284']);
   });
 
   it('takes the permalink and publish time from the post, even when media precedes the footer', () => {
@@ -87,11 +101,22 @@ describe('parseChannelPage', () => {
   });
 
   it('describes media, forwards and views', () => {
-    expect(posts[0].media).toEqual({ kind: 'photo', thumb: 'https://cdn1.telesco.pe/file/photo.jpg', duration: null, count: 1 });
+    expect(posts[0].media).toEqual({ kind: 'photo', thumb: 'https://cdn1.telesco.pe/file/photo.jpg', duration: null, video: null, count: 1 });
     expect(posts[0].forwardedFrom).toEqual({ name: 'DD Geopolitics', url: 'https://t.me/DDGeopolitics/193490' });
     expect(posts[0].views).toBe(4020);
-    expect(posts[2].media).toEqual({ kind: 'video', thumb: 'https://cdn1.telesco.pe/file/video.jpg', duration: '0:29', count: 2 });
+    expect(posts[2].media).toEqual({ kind: 'video', thumb: 'https://cdn1.telesco.pe/file/video.jpg', duration: '0:29', video: null, count: 2 });
     expect(posts[1].media).toBeNull();
+  });
+
+  it('takes the playable file of a video Telegram previews in place', () => {
+    expect(posts[3].media?.video).toBe('https://cdn4.telesco.pe/file/1a30ec3feb.mp4?token=abc&x=1');
+    expect(posts[3].media?.duration).toBe('0:24');
+  });
+
+  it('leaves the file out when Telegram only offers it in the app, or it is not on Telegram’s CDN', () => {
+    expect(posts[2].media?.video).toBeNull(); // "not_supported": too big to preview
+    expect(posts[4].media?.video).toBeNull();
+    expect(posts[4].media?.kind).toBe('video');
   });
 });
 

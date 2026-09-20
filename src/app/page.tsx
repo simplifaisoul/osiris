@@ -139,6 +139,8 @@ function ViewSegment({ active, onClick, title, icon: Icon, label, layoutId }: {
 const newsTransform = (d: { news?: unknown[]; sources?: unknown[]; timestamp?: string }) => ({
   news: d.news,
   news_meta: { sources: d.sources ?? [], fetchedAt: d.timestamp ?? null },
+  /* The reports that resolved to a place they name — the Live Alert Pins layer. */
+  alert_pins: (d.news ?? []).filter(n => (n as { place?: unknown } | null)?.place),
 });
 
 export default function Dashboard() {
@@ -148,7 +150,7 @@ export default function Dashboard() {
 
   const [backendStatus, setBackendStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
   const [mapView, setMapView] = useState({ zoom: 2.5, latitude: 20 });
-  const [flyToLocation, setFlyToLocation] = useState<{ lat: number; lng: number; zoom?: number; ts: number } | null>(null);
+  const [flyToLocation, setFlyToLocation] = useState<{ lat: number; lng: number; zoom?: number; alertId?: string; ts: number } | null>(null);
   const [globalStats, setGlobalStats] = useState<any>(null);
   const mouseCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
   const coordsDisplayRef = useRef<HTMLDivElement>(null);
@@ -320,6 +322,8 @@ export default function Dashboard() {
     radiation: false,
     infrastructure: false,
     global_incidents: true,
+    /* Live Alerts reports pinned to the place they name — see alert-places. */
+    alert_pins: true,
     war_alerts: false,
     day_night: true,
     cables: true,
@@ -1460,7 +1464,7 @@ export default function Dashboard() {
           <AnimatePresence>
             {showAlerts && (
               <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="absolute right-12 top-1/2 -translate-y-1/2 w-80">
-                <LiveAlerts data={data} onLocate={(lat, lng) => setFlyToLocation({ lat, lng, ts: Date.now() })} onWatchFeed={(url, name) => { setLiveFeedUrl(url); setLiveFeedName(name); }} onRefresh={() => fetchEndpoint('/api/news', newsTransform)} />
+                <LiveAlerts data={data} onLocate={(lat, lng, options) => setFlyToLocation({ lat, lng, zoom: options?.zoom, alertId: options?.alertId, ts: Date.now() })} onWatchFeed={(url, name) => { setLiveFeedUrl(url); setLiveFeedName(name); }} onRefresh={() => fetchEndpoint('/api/news', newsTransform)} />
               </motion.div>
             )}
           </AnimatePresence>
