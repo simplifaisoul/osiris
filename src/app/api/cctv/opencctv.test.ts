@@ -72,6 +72,26 @@ describe('mapRecord', () => {
     expect(mapRecord({ ...sampleRow, id: undefined })).toBeNull();
   });
 
+  it('serves a still through the proxy when the browser cannot load it directly', () => {
+    // Plain http: an https page blocks it as mixed content.
+    const cam = mapRecord({
+      ...sampleRow,
+      feed_type: 'image',
+      feed_url: 'http://infobanjirjps.selangor.gov.my/InfoBanjir.WebAdmin/CCTV_Image/14.jpg',
+    });
+    expect(cam?.feed_url).toBe('/api/cctv/proxy?url=http%3A%2F%2Finfobanjirjps.selangor.gov.my%2FInfoBanjir.WebAdmin%2FCCTV_Image%2F14.jpg');
+    // Everything else is loaded straight from the source.
+    expect(mapRecord({ ...sampleRow, feed_type: 'image', feed_url: 'https://cam.example/1.jpg' })?.feed_url).toBe('https://cam.example/1.jpg');
+  });
+
+  it('drops a camera pointed at its operator’s "offline" placeholder', () => {
+    expect(mapRecord({
+      ...sampleRow,
+      feed_type: 'image',
+      feed_url: 'https://c5.fgies.com/sd-klp/offCam/KLP-03.jpg',
+    })).toBeNull();
+  });
+
   it('leaves Via Lietuva cameras to lithuania.ts, so none lands twice', () => {
     expect(mapRecord({
       ...sampleRow,

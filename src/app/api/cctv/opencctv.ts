@@ -1,6 +1,6 @@
 import { stealthFetch } from '@/lib/stealthFetch';
 import { cachedSource } from '@/lib/sourceCache';
-import type { CctvCamera, CctvStreamType } from './types';
+import { proxiedImageUrl, type CctvCamera, type CctvStreamType } from './types';
 
 /**
  * OSIRIS — Asian cameras via the OpenCCTV directory.
@@ -109,6 +109,10 @@ export function mapRecord(rec: OpenCctvRecord): CctvCamera | null {
   const url = rec.feed_url?.trim();
   if (!url) return null;
   if (coveredElsewhere(url)) return null;
+  /* Malaysia's LLM cameras point at the operator's own "camera offline"
+     placeholder while a camera is down, and that path 404s. A pin that can
+     only ever show a broken image is worse than no pin. */
+  if (/\/offcam\//i.test(url)) return null;
 
   const kind = streamKind(rec.feed_type);
   if (!kind) return null;
@@ -132,7 +136,7 @@ export function mapRecord(rec: OpenCctvRecord): CctvCamera | null {
     city: rec.city?.trim() || '',
     country: rec.country?.trim() || '',
     /* A still is a feed_url; everything else is a stream the player picks up. */
-    ...(kind === 'jpg' ? { feed_url: url } : { stream_url: url, stream_type: kind }),
+    ...(kind === 'jpg' ? { feed_url: proxiedImageUrl(url) } : { stream_url: url, stream_type: kind }),
     source: rec.source?.trim() ? `OpenCCTV / ${rec.source.trim()}` : 'OpenCCTV',
   };
 }
