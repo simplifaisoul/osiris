@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { ATTRIBUTION, nominatim } from '@/lib/nominatim';
 
 /**
  * OSIRIS — Region Dossier API
@@ -12,21 +13,22 @@ export async function GET(request: Request) {
   const lng = parseFloat(searchParams.get('lng') || '0');
 
   try {
-    // Step 1: Reverse geocode to get country (must complete first — other steps depend on it)
-    const geoRes = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=5&addressdetails=1`,
-      {
-        signal: AbortSignal.timeout(8000),
-        headers: { 'User-Agent': 'OsirisIntelPlatform/1.0' },
-      }
-    );
+    /* Step 1: Reverse geocode to get country (must complete first — other steps depend on it).
+       Through lib/nominatim.ts, which holds one budget and one cache for the whole
+       app, and rounded to the degree: a dossier is about a country, so neighbouring
+       right-clicks should not each cost a request. */
+    const geoData = await nominatim<{ address?: Record<string, string>; display_name?: string }>('reverse', {
+      lat: Math.round(lat).toString(),
+      lon: Math.round(lng).toString(),
+      zoom: '5',
+      addressdetails: '1',
+    });
 
     let countryName = '';
     let countryCode = '';
     let locationInfo: any = {};
 
-    if (geoRes.ok) {
-      const geoData = await geoRes.json();
+    if (geoData) {
       const addr = geoData.address || {};
       countryName = addr.country || '';
       countryCode = addr.country_code?.toUpperCase() || '';
@@ -146,6 +148,8 @@ export async function GET(request: Request) {
       country: countryData,
       head_of_state: headOfState,
       wikipedia: wikiSummary,
+      /** The place this dossier is about was named by OpenStreetMap. */
+      attribution: ATTRIBUTION,
       timestamp: new Date().toISOString(),
     }, {
       headers: {

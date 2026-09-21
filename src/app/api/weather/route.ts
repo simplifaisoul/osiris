@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { stealthFetch } from '@/lib/stealthFetch';
+import { cachedSource } from '@/lib/sourceCache';
 
 /**
  * OSIRIS — Severe Weather & Anomalies API
@@ -143,8 +144,36 @@ function parseGdacsRss(xml: string): WeatherEvent[] {
   return events;
 }
 
+/**
+ * One read per window, however many readers.
+ *
+ * Live Alerts lists these warnings, so every open dashboard now asks for them
+ * every five minutes — without this, each of those asks would be three more
+ * requests to NASA, the National Weather Service and GDACS. The cache also
+ * keeps the last good list when a provider has a bad minute, which matters
+ * more here than anywhere else in the app: an empty warnings panel reads as
+ * "nothing is happening", and that is not the same as "we could not ask".
+ */
+const loadEvents = cachedSource<WeatherEvent>('weather:events', collectEvents, 3 * 60_000);
+
 export async function GET() {
   try {
+    const events = await loadEvents();
+    return NextResponse.json({
+      events,
+      total: events.length,
+      timestamp: new Date().toISOString(),
+    }, {
+      headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=600' },
+    });
+  } catch (error) {
+    console.error('Weather API error:', error);
+    return NextResponse.json({ events: [], error: 'Failed to fetch weather data' }, { status: 500 });
+  }
+}
+
+async function collectEvents(): Promise<WeatherEvent[]> {
+  {
     const [eonetRes, nwsRes, gdacsRes] = await Promise.allSettled([
       stealthFetch('https://eonet.gsfc.nasa.gov/api/v3/events?status=open&limit=100', {
         signal: AbortSignal.timeout(10000),
@@ -260,18 +289,11 @@ export async function GET() {
       }
     }
 
-    if (!providerSucceeded) {
-      return NextResponse.json({ events: [], error: 'Failed to fetch weather data' }, { status: 500 });
-    }
+    /* Every provider failed: throw rather than return nothing, so the cache
+       serves the last good warnings instead of an empty panel. */
+    if (!providerSucceeded) throw new Error('no weather provider answered');
 
-    return NextResponse.json({
-      events,
-      total: events.length,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error('Weather API error:', error);
-    return NextResponse.json({ events: [], error: 'Failed to fetch weather data' }, { status: 500 });
+    return events;
   }
 }
 

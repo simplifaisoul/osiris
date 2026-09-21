@@ -1,17 +1,23 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { cachedSource } from '@/lib/sourceCache';
-import { fingerprint, htmlToText, parseChannelPage, type TelegramPost } from '@/lib/telegram';
+import { fingerprint, htmlToText, parseChannelPage, splitHeadline, type TelegramPost } from '@/lib/telegram';
 import type { Bloc } from '@/lib/alert-digest';
-import { alertKind, locateReport, type AlertKind, type AlertPlace } from '@/lib/alert-places';
+import { alertKind, budgetedLookup, locateReport, type AlertKind, type AlertPlace } from '@/lib/alert-places';
 
 /**
  * OSIRIS — Live Alerts news feed.
  *
- * Reads public Telegram OSINT channels, falling back to wire RSS if Telegram
- * blocks the host. Each channel is cached on its own for a few minutes, so a
- * busy dashboard costs Telegram one request per channel per window, and a
- * channel that fails a refresh keeps serving its last good posts.
+ * Reads two kinds of source into one feed: public Telegram OSINT channels,
+ * which are fast and carry footage, and wire services, which cover the ground
+ * the channels ignore and keep publishing if Telegram blocks the host. Both
+ * are read and merged the same way, so a story carried by several of them
+ * folds into one report that names them all.
+ *
+ * Each source is cached on its own for a few minutes, so a busy dashboard
+ * costs an upstream one request per window however many tabs are open, and a
+ * source that fails a refresh keeps serving its last good items instead of
+ * emptying the feed.
  */
 
 // Public Telegram OSINT channels, picked for what they report rather than what
@@ -25,7 +31,9 @@ import { alertKind, locateReport, type AlertKind, type AlertPlace } from '@/lib/
 // quote share, same window): Middle East Spectator 12/41, NEXTA Live 15/45
 // (and 1% English), Bellum Acta 25/44 (also runs advertising in its footer).
 // Earlier: OSINTtechnical (silent since June 2022), Clash Report and Liveuamap.
-const TELEGRAM_CHANNELS: { handle: string; name: string; lean: string; bloc: Bloc }[] = [
+interface Feed { handle: string; name: string; lean: string; bloc: Bloc }
+
+const TELEGRAM_CHANNELS: Feed[] = [
   // Incident feeds: what happened, where, with footage. Least commentary of any source measured.
   { handle: 'Osintdefender',         name: 'OSINTdefender',         lean: 'Global incident OSINT',         bloc: 'independent' },
   { handle: 'WarMonitors',           name: 'War Monitor',           lean: 'Global conflict monitor',       bloc: 'independent' },
@@ -36,20 +44,47 @@ const TELEGRAM_CHANNELS: { handle: string; name: string; lean: string; bloc: Blo
   // Gaza, the West Bank and south Lebanon, from newsrooms on the ground.
   { handle: 'QudsNen',               name: 'Quds News Network',     lean: 'Palestinian / Gaza & West Bank', bloc: 'regional' },
   { handle: 'AlMayadeenEnglish',     name: 'Al Mayadeen English',   lean: 'Lebanese / Resistance Axis',    bloc: 'regional' },
+  // Added 2026-09-20 after measuring the same 72-hour window: both report
+  // events in English more often than they comment on them.
+  { handle: 'intelslava',            name: 'Intel Slava Z',         lean: 'Russian military OSINT',        bloc: 'russian' },
+  { handle: 'PressTV',               name: 'Press TV',              lean: 'Iranian state broadcaster',     bloc: 'regional' },
 ];
-type Channel = (typeof TELEGRAM_CHANNELS)[number];
+type Channel = Feed;
+
+/*
+ * Wire services and national newsrooms. The channels above are fast and carry
+ * footage, but they follow a handful of wars: nothing in the roster reports
+ * Africa, South and East Asia, or Latin America unless a war reaches them, and
+ * if Telegram blocks the host the feed goes dark. These cover that ground,
+ * publish on a schedule, and are labelled for who runs them — a state
+ * broadcaster is a state broadcaster whatever it is reporting.
+ *
+ * Checked 2026-09-20: each answers, carries at least ten items, and its newest
+ * item was under an hour old. Left out because they do not: Reuters (feed
+ * retired), AP and Al Arabiya (403 to any reader), Xinhua and NHK (404),
+ * France 24 (empty), Kyiv Independent (404 — its Telegram channel is above),
+ * Jerusalem Post (items dated 2025).
+ */
+const WIRE_FEEDS: (Feed & { url: string })[] = [
+  { handle: 'bbc',        url: 'https://feeds.bbci.co.uk/news/world/rss.xml',        name: 'BBC World',        lean: 'British public broadcaster',   bloc: 'western' },
+  { handle: 'guardian',   url: 'https://www.theguardian.com/world/rss',              name: 'The Guardian',     lean: 'British newsroom',             bloc: 'western' },
+  { handle: 'aljazeera',  url: 'https://www.aljazeera.com/xml/rss/all.xml',          name: 'Al Jazeera',       lean: 'Qatari broadcaster',           bloc: 'regional' },
+  { handle: 'timesofisrael', url: 'https://www.timesofisrael.com/feed/',             name: 'Times of Israel',  lean: 'Israeli newsroom',             bloc: 'regional' },
+  { handle: 'tass',       url: 'https://tass.com/rss/v2.xml',                        name: 'TASS',             lean: 'Russian state agency',         bloc: 'russian' },
+  { handle: 'anadolu',    url: 'https://www.aa.com.tr/en/rss/default?cat=world',     name: 'Anadolu Agency',   lean: 'Turkish state agency',         bloc: 'regional' },
+  { handle: 'scmp',       url: 'https://www.scmp.com/rss/91/feed',                   name: 'SCMP',             lean: 'Hong Kong newsroom',           bloc: 'regional' },
+  { handle: 'cna',        url: 'https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml', name: 'CNA', lean: 'Singaporean broadcaster', bloc: 'regional' },
+  { handle: 'africanews', url: 'https://www.africanews.com/feed/rss',                name: 'Africanews',       lean: 'Pan-African newsroom',         bloc: 'regional' },
+];
 
 const POSTS_PER_CHANNEL = 8;
+/** A wire publishes far more than a channel, so it contributes fewer items. */
+const ITEMS_PER_WIRE = 5;
 const CHANNEL_TTL_MS = 3 * 60_000;
+const WIRE_TTL_MS = 5 * 60_000;
 /** A live feed shows live posts: anything older is left out, however quiet the channel. */
 export const MAX_POST_AGE_MS = 72 * 3_600_000;
 const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-
-const FALLBACK_FEEDS = {
-  BBC: 'https://feeds.bbci.co.uk/news/world/rss.xml',
-  AlJazeera: 'https://www.aljazeera.com/xml/rss/all.xml',
-  GDACS: 'https://www.gdacs.org/xml/rss.xml'
-};
 
 const RISK_KEYWORDS = ['war','missile','strike','attack','crisis','tension','military','conflict','defense','clash','nuclear','invasion','bomb','drone','weapon','sanctions','ceasefire','escalation', 'killed', 'destroyed', 'operation', 'casualty', 'frontline', 'threat'];
 
@@ -147,7 +182,51 @@ const channelFeeds = TELEGRAM_CHANNELS.map(channel => ({
   }, CHANNEL_TTL_MS),
 }));
 
-interface RssItem { title: string; description: string; link: string; pubDate: string; source: string }
+/**
+ * A wire item in the shape the rest of the route already speaks, so a story
+ * from BBC and the same story from Al Jazeera fold together exactly as two
+ * channels carrying one report do, and every consumer downstream — the cards,
+ * the threads, the place lookup — needs no branch for where an item came from.
+ */
+export function wirePost(item: RssItem, feed: Feed): TelegramPost {
+  const text = item.description && item.description !== item.title
+    ? `${item.title}\n\n${item.description}`
+    : item.title;
+  const { headline, summary, flag } = splitHeadline(text);
+  return {
+    id: `${feed.handle}/${hashId(item.link || item.title).slice(0, 12)}`,
+    channel: feed.handle,
+    url: item.link,
+    publishedAt: item.pubDate,
+    text,
+    headline,
+    flag,
+    summary,
+    // A wire's own pictures are not ours to serve; the item links to its page.
+    media: null,
+    forwardedFrom: null,
+    replyTo: null,
+    views: null,
+  };
+}
+
+const wireFeeds = WIRE_FEEDS.map(feed => ({
+  channel: feed,
+  load: cachedSource<TelegramPost>(`wire:${feed.handle}`, async () => {
+    const res = await fetch(feed.url, {
+      signal: AbortSignal.timeout(8000),
+      headers: { 'User-Agent': BROWSER_UA, Accept: 'application/rss+xml, application/xml;q=0.9, */*;q=0.8' },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const items = parseRSSItems(await res.text(), feed.name).slice(0, ITEMS_PER_WIRE);
+    // Oldest first, as a channel page arrives, so recentPosts takes the newest.
+    return items
+      .map(item => wirePost(item, feed))
+      .sort((a, b) => Date.parse(a.publishedAt) - Date.parse(b.publishedAt));
+  }, WIRE_TTL_MS),
+}));
+
+export interface RssItem { title: string; description: string; link: string; pubDate: string; source: string }
 
 function parseRSSItems(xml: string, sourceName: string): RssItem[] {
   const items: RssItem[] = [];
@@ -200,6 +279,17 @@ function assess(text: string) {
 
 const hashId = (s: string) => crypto.createHash('md5').update(s).digest('hex');
 
+/** How an item names where it came from: the channel, or the wire's own site. */
+export function sourceRef(channel: Channel): string {
+  const wire = WIRE_FEEDS.find(f => f.handle === channel.handle);
+  if (!wire) return `t.me/${channel.handle}`;
+  try {
+    return new URL(wire.url).hostname.replace(/^www\./, '');
+  } catch {
+    return channel.handle;
+  }
+}
+
 interface Carrier { source: string; source_name: string; lean: string; bloc: Bloc; link: string; published: string }
 
 type NewsItem = {
@@ -227,6 +317,9 @@ type NewsItem = {
   location_precision: 'country-anchor' | AlertPlace['precision'] | null;
 };
 
+/** How many questions this feed may put to Nominatim on one refresh. */
+const LOOKUPS_PER_REFRESH = 15;
+
 /** How long a request waits for place lookups before answering with what it has. */
 const PLACE_BUDGET_MS = 2500;
 
@@ -238,8 +331,17 @@ const PLACE_BUDGET_MS = 2500;
  */
 async function placeItems(items: NewsItem[]): Promise<void> {
   const found = new Map<string, AlertPlace>();
-  const all = Promise.all(items.map(async item => {
-    const place = await locateReport(item.title, item.description).catch(() => null);
+  /* One budget of new questions for the whole refresh, claimed by the newest
+     reports first; everything else is placed from names already known. Without
+     it a feed of a hundred reports asks Nominatim several hundred questions
+     every few minutes, which is how this app came to be running at ten times
+     the rate its operators allow — see lib/nominatim.ts. What goes unasked now
+     is asked on a later refresh, and an answer is kept for a month. */
+  const newestFirst = [...items].sort((a, b) => Date.parse(b.published) - Date.parse(a.published));
+  const lookup = budgetedLookup(LOOKUPS_PER_REFRESH);
+
+  const all = Promise.all(newestFirst.map(async item => {
+    const place = await locateReport(item.title, item.description, lookup).catch(() => null);
     if (place) found.set(item.id, place);
   }));
   await Promise.race([all, new Promise(resolve => setTimeout(resolve, PLACE_BUDGET_MS))]);
@@ -255,19 +357,53 @@ async function placeItems(items: NewsItem[]): Promise<void> {
   }
 }
 
-export async function GET() {
-  try {
+/**
+ * The feed, built at most once a minute and shared by every reader.
+ *
+ * Building it resolves places, and a place lookup is a request to somebody
+ * else's server. Built per request, a hundred dashboards polling would have
+ * multiplied that by a hundred — the shape of the problem Nominatim's
+ * operators wrote to us about. Built once, they all read the same answer.
+ */
+let feed: { at: number; body: FeedPayload } | null = null;
+let building: Promise<FeedPayload> | null = null;
+const FEED_TTL_MS = 60_000;
+
+interface SourceHealth {
+  handle: string;
+  name: string;
+  lean: string;
+  bloc: Bloc;
+  kind: 'telegram' | 'wire';
+  count: number;
+  latest: string | null;
+}
+
+interface FeedPayload {
+  news: NewsItem[];
+  total: number;
+  sources: SourceHealth[];
+  timestamp: string;
+}
+
+async function buildFeed(): Promise<FeedPayload> {
+  {
     const now = Date.now();
-    const loaded = await Promise.all(channelFeeds.map(async f => {
-      const all = await f.load();
+    /* Channels and wires are read the same way and fail the same way: one
+       source that is slow or blocked costs its own items, not the feed. */
+    const loaded = await Promise.all([...channelFeeds, ...wireFeeds].map(async f => {
+      const all = await f.load().catch(() => [] as TelegramPost[]);
       return { channel: f.channel, all, posts: recentPosts(all, now) };
     }));
 
+    const wireHandles = new Set(WIRE_FEEDS.map(f => f.handle));
     const sources = loaded.map(({ channel, all, posts }) => ({
       handle: channel.handle,
       name: channel.name,
       lean: channel.lean,
       bloc: channel.bloc,
+      /** Where it was read from, so the panel can say what kind of source it is. */
+      kind: wireHandles.has(channel.handle) ? 'wire' as const : 'telegram' as const,
       /** Posts inside the live window. */
       count: posts.length,
       /** The channel's newest post, even when it is older than the window. */
@@ -276,14 +412,14 @@ export async function GET() {
 
     const stories = mergeCrossPosts(loaded.flatMap(({ channel, posts }) => posts.map(post => ({ post, channel }))));
 
-    let newsItems: NewsItem[] = stories.map(({ lead: { post, channel }, carriedBy }) => ({
+    const newsItems: NewsItem[] = stories.map(({ lead: { post, channel }, carriedBy }) => ({
       id: hashId(post.url),
       title: post.headline,
       summary: post.summary,
       description: post.text,
       link: post.url,
       published: post.publishedAt,
-      source: `t.me/${channel.handle}`,
+      source: sourceRef(channel),
       source_name: channel.name,
       lean: channel.lean,
       bloc: channel.bloc,
@@ -293,7 +429,7 @@ export async function GET() {
       reply_to: post.replyTo,
       views: post.views,
       also_reported_by: carriedBy.map(c => ({
-        source: `t.me/${c.channel.handle}`,
+        source: sourceRef(c.channel),
         source_name: c.channel.name,
         lean: c.channel.lean,
         bloc: c.channel.bloc,
@@ -305,53 +441,35 @@ export async function GET() {
       ...assess(post.text),
     }));
 
-    // FAILSAFE: if Telegram blocks the host entirely, fall back to wire RSS.
-    if (newsItems.length === 0) {
-      const fallback = await Promise.all(Object.entries(FALLBACK_FEEDS).map(async ([source, url]) => {
-        try {
-          const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
-          if (!res.ok) return [];
-          return parseRSSItems(await res.text(), source).slice(0, 5);
-        } catch { return []; }
-      }));
-      newsItems = fallback.flat().map(article => ({
-        id: hashId(article.link + article.pubDate),
-        title: article.title,
-        summary: article.description,
-        description: article.description,
-        link: article.link,
-        published: article.pubDate,
-        source: article.source,
-        source_name: article.source,
-        lean: null,
-        bloc: null,
-        flag: null,
-        media: null,
-        forwarded_from: null,
-        reply_to: null,
-        views: null,
-        also_reported_by: [],
-        alert_kind: alertKind(article.title, article.description),
-        place: null,
-        ...assess(`${article.title}\n${article.description}`),
-      }));
-    }
-
     await placeItems(newsItems);
 
     newsItems.sort((a, b) => Date.parse(b.published) - Date.parse(a.published));
 
-    return NextResponse.json({
+    return {
       news: newsItems,
       total: newsItems.length,
       sources,
       timestamp: new Date().toISOString(),
-    }, {
-      headers: {
-        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
-      },
+    };
+  }
+}
+
+export async function GET() {
+  try {
+    const fresh = feed && Date.now() - feed.at < FEED_TTL_MS;
+    if (!fresh) {
+      // One build at a time: concurrent readers wait for it rather than each
+      // starting their own and spending the place budget several times over.
+      building ??= buildFeed().finally(() => { building = null; });
+      const body = await building;
+      feed = { at: Date.now(), body };
+    }
+    return NextResponse.json(feed!.body, {
+      headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120' },
     });
   } catch {
+    // A build that fails leaves the last good feed in place, if there is one.
+    if (feed) return NextResponse.json(feed.body, { headers: { 'Cache-Control': 'public, s-maxage=30' } });
     return NextResponse.json({ news: [], error: 'Failed to fetch intel' }, { status: 500 });
   }
 }

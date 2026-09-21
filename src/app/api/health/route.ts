@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { nominatimStats } from '@/lib/nominatim';
 
 /**
  * OSIRIS — process liveness.
@@ -25,6 +26,15 @@ export async function GET() {
     platform: 'OSIRIS',
     version: '1.0.0',
     uptime_seconds: process.uptime ? Math.round(process.uptime()) : null,
+    /*
+     * What this process has asked of nominatim.openstreetmap.org since it
+     * started: `sent` is requests that left the building, `served` is how many
+     * times the app wanted an answer, and the gap between them is the cache
+     * doing its job. Reported so the rate can be watched against the one
+     * request a second the service allows, rather than discovered by its
+     * sysadmin — see lib/nominatim.ts and issue #16.
+     */
+    nominatim: nominatimStats(),
     timestamp: new Date().toISOString(),
   });
 }

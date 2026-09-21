@@ -1,4 +1,4 @@
-import { httpJson } from '@/lib/httpJson';
+import { nominatim } from '@/lib/nominatim';
 import { classify, type AlertKind } from '@/lib/alert-digest';
 
 export type { AlertKind };
@@ -66,10 +66,10 @@ export const THEATRE_COUNTRIES: Record<string, string[]> = {
   'iran-gulf': ['ir', 'sa', 'ae', 'qa', 'bh', 'om', 'kw', 'iq'],
   'yemen-red-sea': ['ye', 'sa', 'er', 'dj', 'so', 'sd', 'eg'],
   'syria-iraq': ['sy', 'iq', 'tr', 'lb', 'jo'],
-  'china-pacific': ['cn', 'tw', 'jp', 'ph', 'vn', 'hk'],
+  'china-pacific': ['cn', 'tw', 'jp', 'ph', 'vn', 'hk', 'sg', 'my', 'id'],
   'korea': ['kp', 'kr'],
   'south-asia': ['in', 'pk', 'af', 'bd', 'np', 'lk'],
-  'africa': ['sd', 'ss', 'so', 'et', 'er', 'ml', 'ne', 'bf', 'cd', 'ly', 'ng', 'ke', 'td', 'cf', 'mz'],
+  'africa': ['sd', 'ss', 'so', 'et', 'er', 'ml', 'ne', 'bf', 'cd', 'ly', 'ng', 'ke', 'td', 'cf', 'mz', 'mw', 'zw', 'ug'],
   'americas': ['ve', 'co', 'mx', 'br', 'ar', 'cu', 'ht', 'pa', 'ec', 'pe'],
   'europe-nato': ['de', 'fr', 'pl', 'fi', 'ee', 'lv', 'lt', 'ro', 'md', 'rs', 'xk', 'hu', 'se', 'gb', 'be', 'nl', 'dk', 'no', 'it', 'es'],
   'us-policy': ['us'],
@@ -92,23 +92,23 @@ const NOT_PLACES = new Set(`
   monday tuesday wednesday thursday friday saturday sunday january february march april may june july
   august september october november december jan feb mar apr jun jul aug sep sept oct nov dec
   prime ministry foreign affairs defence defense army armed forces force air navy naval
-  royal military government state department office council security assembly parliament senate congress
+  royal military government state department office council security assembly parliament senate congress duma
   court police agency authority service services guard guards corps brigade battalion division regiment
   group network news media times post report reports reported telegram truth social watch breaking update
   video footage photo photos map live urgent exclusive chronicles digest main points special operation
   region oblast governorate province district county city village town camp base airport port station
-  complex strait strip sea gulf ocean river bay island islands east west north south eastern western northern
+  complex strait strip sea gulf ocean river bay coast island islands east west north south eastern western northern
   atlantic pacific arctic mediterranean caribbean baltic
   southern central occupied greater upper lower
   israeli israelis palestinian palestinians russian russians ukrainian ukrainians iranian iranians american
   americans syrian lebanese yemeni saudi saudis arabia chinese european europeans western british french
   german italian turkish iraqi jordanian egyptian qatari emirati pakistani indian afghan korean japanese
   taiwanese polish belarusian algerian algerians danish dutch australian canadian african arab arabs persian
-  persians kurdish houthi houthis jewish muslim christian
+  persians kurdish nigerian nigerians malawian houthi houthis jewish muslim christian
   un us u.s uk eu nato idf irgc hamas hezbollah ansar allah ansarallah centcom pentagon kremlin white house
   cnn bbc afp reuters tass ria iaea unrwa osce x
   trump putin zelensky zelenskyy netanyahu biden lukashenko erdogan khamenei macron starmer xi jinping kim
-  modi hegseth rubio vance araghchi
+  modi hegseth rubio vance araghchi vladimir volodymyr
   ukraine russia israel iran syria iraq lebanon yemen china taiwan japan india pakistan afghanistan turkey
   türkiye egypt jordan qatar oman bahrain italy france germany poland denmark greenland europe africa asia
   america mexico venezuela australia canada algeria belarus moldova finland sweden norway britain england
@@ -133,8 +133,17 @@ const WORD = String.raw`(?:(?:al|el|ad|an|ar|as|ash|at|az|ed|ez|ul)-)?\p{Lu}[\p{
 const JOIN = String.raw`\s+(?:(?:al|el|de|del|da|di|la|le|bin|bint|ibn|abu|ben|am|on)\s+)?`;
 const PHRASE_RX = new RegExp(`${WORD}(?:${JOIN}${WORD}){0,3}`, 'gu');
 /* A place introduced as one: "in Kharkiv", "near the village of", "over Riyadh". */
-const PREPOSITIONS = ['in', 'near', 'at', 'on', 'over', 'outside', 'around', 'across', 'into', 'toward', 'towards', 'from', 'of', 'within', 'inside', 'along', 'through'];
+const PREPOSITIONS = ['in', 'near', 'at', 'on', 'over', 'outside', 'around', 'across', 'into', 'toward', 'towards', 'from', 'within', 'inside', 'along', 'through'];
 const LOCATIVE_BEFORE = new RegExp(`(?:^|[^\\p{L}])(?:${[...PREPOSITIONS, 'hit', 'struck', 'targeted'].join('|')})\\s+(?:the\\s+)?$`, 'iu');
+/*
+ * "of" introduces a place only after a word for one, or after a bearing:
+ * "the village of Tayasir", "northeast of Tubas". On its own it introduces
+ * anything at all — "the path of Islamic Resistance", "the opening of the
+ * Land of the Two Holy Mosques" — and "Resistance" and "Land" are both
+ * settlements somewhere, so a bare "of" is not enough to trust a name.
+ */
+const OF_PLACE = String.raw`village|town|city|capital|port|district|suburb|neighbourhood|neighborhood|camp|outskirts|centre|center|province|governorate|oblast|region|island|emirate|republic|state|coast|border|out|north|south|east|west|north-?east|north-?west|south-?east|south-?west`;
+const LOCATIVE_OF_BEFORE = new RegExp(`(?:^|[^\\p{L}])(?:${OF_PLACE})\\s+of\\s+(?:the\\s+)?$`, 'iu');
 
 const MAX_CANDIDATES = 3;
 
@@ -175,7 +184,8 @@ export function placeCandidates(text: string): PlaceCandidate[] {
        locative when the text before the phrase says so, or when the word that
        cut it is a preposition: a sentence that opens "In Al-Bureij refugee
        camp" puts the capitalised "In" inside the phrase. */
-    let runLocative: boolean = listed || LOCATIVE_BEFORE.test(hay.slice(Math.max(0, m.index! - 30), m.index));
+    const before = hay.slice(Math.max(0, m.index! - 30), m.index);
+    let runLocative: boolean = listed || LOCATIVE_BEFORE.test(before) || LOCATIVE_OF_BEFORE.test(before);
     let lastLocative = false;
     let run: string[] = [];
     const flush = () => {
@@ -299,64 +309,37 @@ export function pickRow(query: string, rows: GeoRow[], minImportance?: number): 
   return region;
 }
 
-const NOMINATIM = 'https://nominatim.openstreetmap.org/search';
-/* Nominatim's usage policy: at most one request a second, and cache results. */
-const MIN_GAP_MS = 1100;
-const HIT_TTL_MS = 7 * 24 * 3_600_000;   // places do not move
-const FAIL_TTL_MS = 2 * 60_000;          // how long to leave a failed name before asking again
-const MAX_ENTRIES = 5000;
-
-/* `rows: null` is a request that failed — distinct from a name with no match. */
-const cache = new Map<string, { rows: GeoRow[] | null; expires: number }>();
-const inflight = new Map<string, Promise<GeoRow[] | null>>();
-let queue: Promise<unknown> = Promise.resolve();
-let lastRequestAt = 0;
+/**
+ * Search one name through the app's single door to Nominatim, which holds the
+ * request budget and the cache for every caller — see lib/nominatim.ts.
+ * Resolves null when the lookup could not be made, so a caller can tell "not
+ * on the map" from "could not ask".
+ */
+function search(name: string, countries: string[] | null, cacheOnly = false): Promise<GeoRow[] | null> {
+  return nominatim<GeoRow[]>('search', {
+    q: name,
+    limit: '5',
+    featureType: 'settlement',
+    ...(countries ? { countrycodes: countries.join(',') } : {}),
+  }, { cacheOnly });
+}
 
 /**
- * Search one name, one request at a time across the whole process. Resolves
- * null when the request failed, so a caller can tell "not on the map" from
- * "could not ask".
+ * A lookup that may ask Nominatim at most `max` questions it does not already
+ * know the answer to. Anything past that is answered from the cache or not at
+ * all, so one refresh of a feed of a hundred reports cannot turn into a
+ * hundred requests to somebody else's server. What went unasked this time is
+ * asked on a later refresh, and once asked it is remembered for a month.
  */
-function search(name: string, countries: string[] | null): Promise<GeoRow[] | null> {
-  const key = `${countries?.join(',') ?? '*'}|${name.toLowerCase()}`;
-  const hit = cache.get(key);
-  if (hit && hit.expires > Date.now()) return Promise.resolve(hit.rows);
-  const pending = inflight.get(key);
-  if (pending) return pending;
-
-  const params = new URLSearchParams({ q: name, format: 'jsonv2', limit: '5', featureType: 'settlement', 'accept-language': 'en' });
-  if (countries) params.set('countrycodes', countries.join(','));
-
-  const run = queue.then(async () => {
-    const wait = lastRequestAt + MIN_GAP_MS - Date.now();
-    if (wait > 0) await new Promise(r => setTimeout(r, wait));
-    lastRequestAt = Date.now();
-    try {
-      const rows = await httpJson<GeoRow[]>(`${NOMINATIM}?${params}`, { timeoutMs: 8000 });
-      remember(key, Array.isArray(rows) ? rows : [], HIT_TTL_MS);
-    } catch {
-      remember(key, null, FAIL_TTL_MS);
-    }
-    return cache.get(key)!.rows;
-  });
-  queue = run.catch(() => undefined);
-  inflight.set(key, run);
-  return run.finally(() => inflight.delete(key));
-}
-
-function remember(key: string, rows: GeoRow[] | null, ttl: number) {
-  if (cache.size >= MAX_ENTRIES) {
-    const oldest = cache.keys().next().value;
-    if (oldest !== undefined) cache.delete(oldest);
-  }
-  cache.set(key, { rows, expires: Date.now() + ttl });
-}
-
-/** Test seam — forget every lookup. */
-export function clearPlaceCache(): void {
-  cache.clear();
-  inflight.clear();
-  lastRequestAt = 0;
+export function budgetedLookup(max: number): (name: string, countries: string[] | null) => Promise<GeoRow[] | null> {
+  let left = max;
+  return async (name, countries) => {
+    const known = await search(name, countries, true);
+    if (known !== null) return known;
+    if (left <= 0) return null;
+    left--;
+    return search(name, countries);
+  };
 }
 
 /**
@@ -379,7 +362,9 @@ function placeLabel(displayName: string): string {
  * ones that did resolve ("Al-Bureij refugee camp", not "Gaza"), so the report
  * keeps its country anchor until the name can be asked again.
  *
- * `lookup` is injectable for tests; it defaults to the throttled Nominatim search.
+ * `lookup` is injectable for tests; it defaults to the Nominatim search, which
+ * goes through the app's shared budget. Pass `cachedOnly` for a report that may
+ * be placed from names already known but must not spend a request of its own.
  */
 export async function locateReport(
   title: string,

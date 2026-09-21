@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { httpJson, optional } from '@/lib/httpJson';
 import { cachedSource } from '@/lib/sourceCache';
+import { nominatim } from '@/lib/nominatim';
 
 export const maxDuration = 20;
 
@@ -22,7 +23,6 @@ export const maxDuration = 20;
  */
 
 const PHOTON = 'https://photon.komoot.io/api';
-const NOMINATIM = 'https://nominatim.openstreetmap.org/search';
 
 export interface GeoResult {
   name: string;
@@ -151,10 +151,12 @@ async function searchPhoton(q: string, lat?: number, lng?: number): Promise<GeoR
 }
 
 async function searchNominatim(q: string): Promise<GeoResult[]> {
-  const url = `${NOMINATIM}?q=${encodeURIComponent(q)}&format=json&limit=6&addressdetails=0`;
-  const json = await httpJson<NominatimRow[]>(url, { timeoutMs: 8000 });
+  const json = await nominatim<NominatimRow[]>('search', { q, limit: '6', addressdetails: '0' });
   return (Array.isArray(json) ? json : []).map(normalizeNominatim).filter((r): r is GeoResult => r !== null);
 }
+
+/** Photon answers most of what a type-ahead is asked; below this it needs help. */
+const ENOUGH_FROM_PHOTON = 3;
 
 export async function GET(request: Request) {
   try {
@@ -174,11 +176,13 @@ export async function GET(request: Request) {
     const results = await cachedSource<GeoResult>(
       key,
       async () => {
-        const [photon, nominatim] = await Promise.all([
-          optional(searchPhoton(q, lat, lng)),
-          optional(searchNominatim(q)),
-        ]);
-        return mergeResults(photon || [], nominatim || []);
+        /* Photon leads and usually suffices. Nominatim is asked only when
+           Photon comes back thin, because its public instance allows one
+           request a second for everyone using it — see lib/nominatim.ts. */
+        const photon = (await optional(searchPhoton(q, lat, lng))) || [];
+        if (photon.length >= ENOUGH_FROM_PHOTON) return mergeResults(photon, []);
+        const supplement = (await optional(searchNominatim(q))) || [];
+        return mergeResults(photon, supplement);
       },
       10 * 60 * 1000,
     )();

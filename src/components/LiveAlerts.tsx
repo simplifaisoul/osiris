@@ -5,14 +5,14 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronDown, ChevronUp, MapPin, ExternalLink, Radio, Maximize2, Minimize2,
-  Search, X, RefreshCw, Image as ImageIcon, Play, Eye, Repeat2, CornerDownRight, Waves, Layers,
+  Search, X, RefreshCw, Image as ImageIcon, Play, Eye, Repeat2, CornerDownRight, Waves, Layers, AlertTriangle,
 } from 'lucide-react';
 import AiOverview from './AiOverview';
 import {
   ALERT_KINDS, BLOCS, BLOC_ORDER, buildThreads, groupStatements, timeAgo, type AlertKind, type Bloc, type DigestReport,
 } from '@/lib/alert-digest';
 
-interface SourceHealth { handle: string; name: string; lean: string; bloc: Bloc; count: number; latest: string | null }
+interface SourceHealth { handle: string; name: string; lean: string; bloc: Bloc; kind?: 'telegram' | 'wire'; count: number; latest: string | null }
 
 /** The slice of dashboard state this panel reads. */
 interface LiveAlertsData {
@@ -28,6 +28,11 @@ export interface LocateOptions { zoom?: number; alertId?: string }
 interface LiveAlertsProps {
   data: LiveAlertsData;
   onLocate: (lat: number, lng: number, options?: LocateOptions) => void;
+  /** Whether the reports being shown are pinned on the map, and the switch for it. */
+  pinsOn?: boolean;
+  onTogglePins?: (on: boolean) => void;
+  /** The pinned reports the filters currently leave showing, so the map can follow. */
+  onPinnedChange?: (ids: string[]) => void;
   onWatchFeed?: (url: string, name: string) => void;
   /** Re-pull /api/news. */
   onRefresh?: () => Promise<unknown> | void;
@@ -72,7 +77,26 @@ const FEED_REGIONS: Record<string, string> = {
   americas: 'AMERICAS', europe: 'EUROPE', middleeast: 'MIDDLE EAST', asia: 'ASIA PACIFIC', africa: 'AFRICA',
 };
 
-type Tab = 'all' | 'news' | 'quakes' | 'feeds';
+type Tab = 'all' | 'news' | 'warnings' | 'quakes' | 'feeds';
+
+/** The official warnings from /api/weather — NOAA/NWS, GDACS and NASA EONET. */
+export interface WarningAlert {
+  kind: 'warning';
+  id: string;
+  ts: number;
+  title: string;
+  /** "Flash Flood Warning", "Tropical Cyclone" — the issuer's own words. */
+  type: string;
+  severity: 'high' | 'medium' | 'low';
+  /** The counties or region it was issued for, where the issuer names them. */
+  area: string | null;
+  expires: number | null;
+  provider: string;
+  url: string | null;
+  lat: number;
+  lng: number;
+  haystack: string;
+}
 
 interface Carrier { source: string; source_name: string; lean: string | null; bloc: Bloc | null; link: string | null; published: string | null }
 
@@ -119,7 +143,7 @@ interface QuakeAlert {
   lng: number;
 }
 
-type AlertItem = NewsAlert | QuakeAlert;
+type AlertItem = NewsAlert | QuakeAlert | WarningAlert;
 
 /** What the list renders: one alert, or a run of statements from one speaker. */
 type Unit =
@@ -229,6 +253,49 @@ function toQuake(raw: unknown): QuakeAlert | null {
     lat,
     lng,
   };
+}
+
+export function toWarning(raw: unknown): WarningAlert | null {
+  const w = rec(raw);
+  const title = str(w.title);
+  const lat = numOrNull(w.lat);
+  const lng = numOrNull(w.lng);
+  if (!title || lat == null || lng == null) return null;
+
+  const issued = str(w.date);
+  const ts = issued ? Date.parse(issued) : NaN;
+  const expires = str(w.expires);
+  const severity = w.severity === 'high' || w.severity === 'medium' ? w.severity : 'low';
+  const type = str(w.type) ?? str(w.category) ?? 'Warning';
+  const area = str(w.area);
+  const provider = str(w.provider) ?? 'Official warning';
+
+  return {
+    kind: 'warning',
+    id: str(w.id) ?? `${title}-${lat},${lng}`,
+    /* An issuer that dates nothing is shown as current rather than dropped:
+       an active warning is active whether or not it says when it was written. */
+    ts: Number.isFinite(ts) ? ts : Date.now(),
+    title,
+    type,
+    severity,
+    area,
+    expires: expires && Number.isFinite(Date.parse(expires)) ? Date.parse(expires) : null,
+    provider,
+    url: webUrl(w.source),
+    lat,
+    lng,
+    haystack: `${title} ${type} ${area ?? ''} ${provider}`.toLowerCase(),
+  };
+}
+
+const SEVERITY_COLORS: Record<WarningAlert['severity'], string> = { high: '#FF3D3D', medium: '#FF9500', low: '#FFD700' };
+
+/** Which of two alerts posted in the same minute a reader needs first. */
+export function urgency(item: AlertItem): number {
+  if (item.kind === 'warning') return item.severity === 'high' ? 4 : item.severity === 'medium' ? 3 : 1;
+  if (item.kind === 'quake') return item.magnitude >= 6 ? 4 : item.magnitude >= 5 ? 2 : 1;
+  return item.flag ? 3 : item.alertKind === 'rocket' ? 2 : 1;
 }
 
 const quakeColor = (m: number) => (m >= 6 ? '#FF3D3D' : m >= 5 ? '#FF9500' : m >= 4 ? '#FFD700' : '#9CCC65');
@@ -557,13 +624,73 @@ function QuakeCard({ item, now, onLocate }: { item: QuakeAlert; now: number; onL
   );
 }
 
-export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh }: LiveAlertsProps) {
+/** How long a warning has left to run, as its issuer states it. */
+export function expiryLabel(expires: number, now: number): string | null {
+  const left = expires - now;
+  if (left <= 0) return 'expired';
+  const hours = left / 3_600_000;
+  if (hours < 1) return `${Math.max(1, Math.round(left / 60_000))} min left`;
+  if (hours < 48) return `${Math.round(hours)}h left`;
+  return `${Math.round(hours / 24)}d left`;
+}
+
+function WarningCard({ item, now, onLocate }: { item: WarningAlert; now: number; onLocate: (lat: number, lng: number, options?: LocateOptions) => void }) {
+  const color = SEVERITY_COLORS[item.severity];
+  const left = item.expires != null ? expiryLabel(item.expires, now) : null;
+  return (
+    <article className="rounded-lg border border-[#26262A] border-l-2 bg-[#111111]/70 hover:bg-[#17171B] transition-colors" style={{ borderLeftColor: color }}>
+      <div className="px-2.5 py-2">
+        <div className="flex items-start gap-2">
+          <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[9.5px] font-mono uppercase tracking-wider">
+            <AlertTriangle className="w-2.5 h-2.5 flex-shrink-0" style={{ color }} />
+            <span className="font-semibold" style={{ color }}>{item.type}</span>
+            <span className="text-[#8A8880]">{item.provider}</span>
+          </div>
+          <time dateTime={new Date(item.ts).toISOString()} title={new Date(item.ts).toLocaleString()} className="flex-shrink-0 text-[9.5px] font-mono text-[#8A8880]">
+            {timeAgo(item.ts, now)}
+          </time>
+        </div>
+
+        <p className="mt-1 font-sans text-[12px] leading-snug text-[#F2EFE8] line-clamp-3">{item.title}</p>
+
+        {item.area && (
+          <p className="mt-1 font-sans text-[10.5px] leading-snug text-[#9B978E] line-clamp-2" title={item.area}>{item.area}</p>
+        )}
+
+        <div className="mt-1.5 flex flex-wrap items-center gap-1">
+          <Chip color={color} title="As the issuer graded it">{item.severity} severity</Chip>
+          {left && <Chip color={left === 'expired' ? '#5C5A54' : '#8A8880'} title={`Runs until ${new Date(item.expires!).toLocaleString()}`}>{left}</Chip>}
+          <div className="ml-auto flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => onLocate(item.lat, item.lng, { zoom: 6 })}
+              title="Show where this was issued"
+              className="inline-flex items-center gap-1 rounded border px-2 py-1 text-[9.5px] font-mono tracking-wider hover:bg-white/5"
+              style={{ color, borderColor: `${color}55` }}
+            >
+              <MapPin className="w-2.5 h-2.5" /> SHOW
+            </button>
+            {item.url && (
+              <a href={item.url} target="_blank" rel="noopener noreferrer" className="p-1 rounded text-[var(--cyan-primary)] hover:bg-white/10" aria-label={`Open the ${item.provider} notice`}>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh, pinsOn = false, onTogglePins, onPinnedChange }: LiveAlertsProps) {
   const [expanded, setExpanded] = useState(true);
   const [maximized, setMaximized] = useState(false);
   const [tab, setTab] = useState<Tab>('all');
   const [query, setQuery] = useState('');
   const [bloc, setBloc] = useState<Bloc | 'all'>('all');
   const [threadId, setThreadId] = useState<string | null>(null);
+  /** Set from the "right now" strip: show only rocket reports, or only breaking ones. */
+  const [newsKind, setNewsKind] = useState<'rocket' | 'breaking' | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [overviewOpen, setOverviewOpen] = useState(false);
@@ -591,6 +718,15 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh }: L
     () => (data.earthquakes ?? []).map(toQuake).filter((q): q is QuakeAlert => q !== null).sort((a, b) => b.ts - a.ts).slice(0, 15),
     [data.earthquakes],
   );
+  /* Official warnings, gravest first and then newest: a tornado warning
+     outranks a coastal flood statement however recently either was issued. */
+  const warnings = useMemo(() => {
+    const rank = { high: 0, medium: 1, low: 2 };
+    return (data.weather_events ?? [])
+      .map(toWarning)
+      .filter((w): w is WarningAlert => w !== null)
+      .sort((a, b) => rank[a.severity] - rank[b.severity] || b.ts - a.ts);
+  }, [data.weather_events]);
 
   const digestReports = useMemo<DigestReport[]>(() => news.map(n => ({
     id: n.id,
@@ -621,45 +757,69 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh }: L
 
   // A new tab or filter starts at the top, not wherever the last list was scrolled to.
   useEffect(() => { listRef.current?.scrollTo({ top: 0 }); }, [tab, bloc, threadId, q]);
-  const newsFiltersActive = Boolean(activeThread) || bloc !== 'all';
+  const newsFiltersActive = Boolean(activeThread) || bloc !== 'all' || newsKind !== null;
   const threadIds = useMemo(() => (activeThread ? new Set(activeThread.itemIds) : null), [activeThread]);
 
   const visibleNews = useMemo(() => news.filter(n =>
     (!threadIds || threadIds.has(n.id))
     && (bloc === 'all' || n.bloc === bloc || n.carriers.some(c => c.bloc === bloc))
+    && (newsKind === null || (newsKind === 'rocket' ? n.alertKind === 'rocket' : Boolean(n.flag)))
     && (!q || n.haystack.includes(q)),
-  ), [news, threadIds, bloc, q]);
+  ), [news, threadIds, bloc, newsKind, q]);
   const visibleQuakes = useMemo(() => quakes.filter(k => !q || k.place.toLowerCase().includes(q)), [quakes, q]);
+  const visibleWarnings = useMemo(() => warnings.filter(w => !q || w.haystack.includes(q)), [warnings, q]);
   const visibleFeeds = useMemo(() => BUILTIN_FEEDS.filter(f => !q || `${f.name} ${f.city} ${f.country} ${f.category}`.toLowerCase().includes(q)), [q]);
 
   const list: AlertItem[] = useMemo(() => {
     if (tab === 'news') return visibleNews;
+    if (tab === 'warnings') return visibleWarnings;
     if (tab === 'quakes') return visibleQuakes;
     if (tab === 'feeds') return [];
-    // Thread and perspective filters are about news; quakes step aside while they apply.
-    return [...visibleNews, ...(newsFiltersActive ? [] : visibleQuakes)].sort((a, b) => b.ts - a.ts);
-  }, [tab, visibleNews, visibleQuakes, newsFiltersActive]);
+    /* Thread and perspective filters are about reports; warnings and quakes
+       step aside while they apply. In the mixed list a severe warning leads
+       its hour, since that is the one a reader has to act on. */
+    if (newsFiltersActive) return visibleNews;
+    return [...visibleNews, ...visibleQuakes, ...visibleWarnings]
+      .sort((a, b) => b.ts - a.ts || urgency(b) - urgency(a));
+  }, [tab, visibleNews, visibleQuakes, visibleWarnings, newsFiltersActive]);
+
+  /* The reports the filters leave showing that have a place — what the map pins. */
+  const pinned = useMemo(
+    () => (tab === 'quakes' || tab === 'feeds' ? [] : visibleNews.filter(n => n.place && n.coords)),
+    [tab, visibleNews],
+  );
+  const pinnedKey = pinned.map(n => n.id).join(',');
+  useEffect(() => {
+    onPinnedChange?.(pinnedKey ? pinnedKey.split(',') : []);
+  }, [pinnedKey, onPinnedChange]);
 
   const units = useMemo<Unit[]>(() => groupStatements(list.map(item => ({
     item,
-    // Quakes never form statements; a unique source keeps them apart.
-    source: item.kind === 'news' ? item.source : `quake:${item.id}`,
+    // Only reports form statements; a unique source keeps the rest apart.
+    source: item.kind === 'news' ? item.source : `${item.kind}:${item.id}`,
     title: item.kind === 'news' ? item.title : '',
     ts: item.ts,
   }))).map((g): Unit => (g.speaker && g.items.length > 1
     ? { kind: 'statement', key: `stmt:${g.items[0].item.id}`, ts: g.items[0].ts, speaker: g.speaker, items: g.items.map(x => x.item as NewsAlert) }
     : { kind: 'item', key: g.items[0].item.id, ts: g.items[0].ts, item: g.items[0].item })), [list]);
 
+  /* Headings follow the order the list is in: warnings are ranked by how grave
+     they are, everything else by when it landed. Heading by time a list that
+     is not in time order splits one hour into several headings. */
   const grouped = useMemo(() => {
+    const severityLabel = { high: 'SEVERE', medium: 'MODERATE', low: 'ADVISORY' };
     const out: { label: string; units: Unit[] }[] = [];
     for (const unit of units) {
-      const label = BUCKETS.find(b => now - unit.ts < b.max)!.label;
+      const item = unit.kind === 'item' ? unit.item : null;
+      const label = tab === 'warnings' && item?.kind === 'warning'
+        ? severityLabel[item.severity]
+        : BUCKETS.find(b => now - unit.ts < b.max)!.label;
       const last = out[out.length - 1];
       if (last?.label === label) last.units.push(unit);
       else out.push({ label, units: [unit] });
     }
     return out;
-  }, [units, now]);
+  }, [units, now, tab]);
 
   const sources: SourceHealth[] = data.news_meta?.sources ?? [];
   const liveSources = sources.filter(s => s.count > 0).length;
@@ -668,7 +828,21 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh }: L
   const loading = data.news === undefined;
   const filtersActive = newsFiltersActive || Boolean(q);
 
-  const clearFilters = useCallback(() => { setQuery(''); setBloc('all'); setThreadId(null); }, []);
+  const clearFilters = useCallback(() => { setQuery(''); setBloc('all'); setThreadId(null); setNewsKind(null); }, []);
+
+  /*
+   * What a reader would want to know before reading anything: warnings in
+   * force, rockets in the air, what a channel has flagged as breaking, and the
+   * largest quake of the day. Each one is a filter, because the next thing
+   * anybody does with that number is go and look at it.
+   */
+  const rightNow = useMemo(() => {
+    const severe = warnings.filter(w => w.severity === 'high').length;
+    const rockets = news.filter(n => n.alertKind === 'rocket' && now - n.ts < 6 * 3_600_000).length;
+    const breaking = news.filter(n => n.flag && now - n.ts < 6 * 3_600_000).length;
+    const biggest = quakes.reduce<QuakeAlert | null>((top, q) => (!top || q.magnitude > top.magnitude ? q : top), null);
+    return { severe, rockets, breaking, biggest };
+  }, [warnings, news, quakes, now]);
 
   const refresh = useCallback(async () => {
     if (!onRefresh || refreshing) return;
@@ -687,18 +861,76 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh }: L
   }, [maximized, onLocate]);
 
   const tabs: { id: Tab; label: string; count: number }[] = [
-    { id: 'all', label: 'ALL', count: news.length + quakes.length },
+    { id: 'all', label: 'ALL', count: news.length + quakes.length + warnings.length },
     { id: 'news', label: 'NEWS', count: news.length },
-    { id: 'quakes', label: 'QUAKES', count: quakes.length },
+    { id: 'warnings', label: 'WARN', count: warnings.length },
+    { id: 'quakes', label: 'QUAKE', count: quakes.length },
     { id: 'feeds', label: 'FEEDS', count: BUILTIN_FEEDS.length },
   ];
 
+  /* Grouped by where each source is read from, since a channel going quiet
+     and a wire going quiet mean different things. */
   const sourcesTitle = sources.length
-    ? sources.map(s => `${s.name}: ${s.count ? `${s.count} posts, latest ${timeAgo(s.latest, now)}` : s.latest ? `quiet — nothing in 72h (last post ${timeAgo(s.latest, now)})` : 'unreachable'}`).join('\n')
+    ? (['telegram', 'wire'] as const)
+      .map(kind => {
+        const group = sources.filter(s => (s.kind ?? 'telegram') === kind);
+        if (!group.length) return '';
+        const heading = kind === 'telegram' ? 'CHANNELS' : 'WIRES';
+        const lines = group.map(s => `  ${s.name}: ${s.count ? `${s.count} items, latest ${timeAgo(s.latest, now)}` : s.latest ? `quiet — nothing in 72h (last ${timeAgo(s.latest, now)})` : 'unreachable'}`);
+        return `${heading}\n${lines.join('\n')}`;
+      })
+      .filter(Boolean)
+      .join('\n\n')
     : 'Waiting for the source report';
+
+  /* Rocket and breaking are filters over reports; leaving one set while the
+     panel shows warnings would label the list with a filter it is not using. */
+  const selectTab = useCallback((id: Tab) => {
+    setTab(id);
+    if (id !== 'news' && id !== 'all') setNewsKind(null);
+  }, []);
+
+  const nowStats: { key: string; label: string; value: string; color: string; title: string; onClick: () => void }[] = [
+    { key: 'severe', label: 'SEVERE', value: String(rightNow.severe), color: SEVERITY_COLORS.high, title: 'Warnings in force that their issuer graded severe or extreme', onClick: () => { selectTab('warnings'); setQuery(''); } },
+    { key: 'rocket', label: 'ROCKET', value: String(rightNow.rockets), color: ALERT_KINDS.rocket.color, title: 'Reports of rockets or missiles in the last six hours', onClick: () => { selectTab('news'); setNewsKind(newsKind === 'rocket' ? null : 'rocket'); } },
+    { key: 'breaking', label: 'BREAKING', value: String(rightNow.breaking), color: ACCENT, title: 'Reports a channel flagged as breaking in the last six hours', onClick: () => { selectTab('news'); setNewsKind(newsKind === 'breaking' ? null : 'breaking'); } },
+    ...(rightNow.biggest ? [{
+      key: 'quake',
+      label: 'QUAKE',
+      value: `M${rightNow.biggest.magnitude.toFixed(1)}`,
+      color: quakeColor(rightNow.biggest.magnitude),
+      title: `Largest earthquake in the last day — ${rightNow.biggest.place}`,
+      onClick: () => selectTab('quakes'),
+    }] : []),
+  ];
 
   const controls = (
     <div className={`space-y-2 ${maximized ? '' : 'px-3 pt-2'}`}>
+      {/* What needs attention right now */}
+      <div className="flex gap-1">
+        {nowStats.map(stat => {
+          const active = (stat.key === 'rocket' && newsKind === 'rocket')
+            || (stat.key === 'breaking' && newsKind === 'breaking')
+            || (stat.key === 'severe' && tab === 'warnings')
+            || (stat.key === 'quake' && tab === 'quakes');
+          const quiet = stat.value === '0';
+          return (
+            <button
+              key={stat.key}
+              type="button"
+              onClick={stat.onClick}
+              title={stat.title}
+              aria-pressed={active}
+              className={`flex-1 rounded border px-1 py-1 text-center transition-colors ${active ? 'bg-white/[0.06]' : 'hover:bg-white/[0.04]'}`}
+              style={{ borderColor: quiet ? '#26262A' : `${stat.color}55` }}
+            >
+              <div className="text-[12px] font-mono font-bold leading-none tabular-nums" style={{ color: quiet ? '#5C5A54' : stat.color }}>{stat.value}</div>
+              <div className="mt-0.5 text-[7.5px] font-mono tracking-widest text-[#8A8880]">{stat.label}</div>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Tabs */}
       <div className="flex gap-1" role="tablist">
         {tabs.map(t => (
@@ -706,7 +938,7 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh }: L
             key={t.id}
             role="tab"
             aria-selected={tab === t.id}
-            onClick={() => setTab(t.id)}
+            onClick={() => selectTab(t.id)}
             className={`flex-1 rounded px-1.5 py-1 text-[10px] font-mono tracking-wider transition-all ${tab === t.id ? 'bg-[var(--cyan-primary)]/15 text-[var(--cyan-primary)] border border-[var(--cyan-primary)]/45' : 'text-[#8A8880] border border-transparent hover:text-[#E8E6E0] hover:bg-[#2A2A28]'}`}
           >
             {t.label} <span className="opacity-60 tabular-nums">{t.count}</span>
@@ -731,7 +963,7 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh }: L
             </button>
           )}
         </label>
-        {tab !== 'quakes' && tab !== 'feeds' && (
+        {tab !== 'quakes' && tab !== 'warnings' && tab !== 'feeds' && (
           <select
             value={bloc}
             onChange={e => setBloc(e.target.value as Bloc | 'all')}
@@ -746,7 +978,7 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh }: L
       </div>
 
       {/* One-click AI overview of the current alert picture */}
-      {tab !== 'feeds' && (
+      {tab !== 'feeds' && tab !== 'warnings' && (
         <div className={maximized ? '' : 'max-h-[240px] overflow-y-auto styled-scrollbar pr-0.5'}>
           <AiOverview
             mode="alerts"
@@ -761,7 +993,7 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh }: L
       )}
 
       {/* Threads: the same clustering the overview uses, available without a click */}
-      {tab !== 'quakes' && tab !== 'feeds' && threads.length > 0 && !overviewOpen && (
+      {tab !== 'quakes' && tab !== 'warnings' && tab !== 'feeds' && threads.length > 0 && !overviewOpen && (
         <div className={maximized ? 'flex flex-wrap gap-1' : '-mx-3 flex gap-1 overflow-x-auto px-3 pb-0.5 styled-scrollbar'}>
           {threads.map(t => {
             const active = t.id === threadId;
@@ -787,7 +1019,7 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh }: L
       {filtersActive && tab !== 'feeds' && (
         <div className="flex items-center justify-between rounded border border-white/5 bg-white/[0.02] px-2 py-1 text-[9.5px] font-mono text-[#8A8880]">
           <span className="truncate">
-            SHOWING {list.length}{activeThread ? ` · ${activeThread.label.toUpperCase()}` : ''}{bloc !== 'all' ? ` · ${BLOCS[bloc].short}` : ''}
+            SHOWING {list.length}{activeThread ? ` · ${activeThread.label.toUpperCase()}` : ''}{bloc !== 'all' ? ` · ${BLOCS[bloc].short}` : ''}{newsKind ? ` · ${newsKind.toUpperCase()} ONLY` : ''}
           </span>
           <button onClick={clearFilters} className="flex-shrink-0 text-[var(--cyan-primary)] hover:underline">CLEAR</button>
         </div>
@@ -833,7 +1065,7 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh }: L
   ) : list.length === 0 ? (
     filtersActive
       ? <EmptyState text="No alerts match these filters" onClear={clearFilters} />
-      : <EmptyState text={tab === 'quakes' ? 'No recent earthquakes' : 'No reports — the sources did not answer'} onRetry={onRefresh ? refresh : undefined} />
+      : <EmptyState text={tab === 'quakes' ? 'No recent earthquakes' : tab === 'warnings' ? 'No warnings in force' : 'No reports — the sources did not answer'} onRetry={onRefresh ? refresh : undefined} />
   ) : (
     <div className="space-y-3">
       {grouped.map(group => (
@@ -857,7 +1089,9 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh }: L
                 );
               }
               const item = unit.item;
-              return item.kind === 'news' ? (
+              if (item.kind === 'warning') return <WarningCard key={item.id} item={item} now={now} onLocate={locate} />;
+              if (item.kind === 'quake') return <QuakeCard key={item.id} item={item} now={now} onLocate={locate} />;
+              return (
                 <NewsCard
                   key={item.id}
                   item={item}
@@ -867,8 +1101,6 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh }: L
                   onToggle={() => setOpenId(openId === item.id ? null : item.id)}
                   onLocate={locate}
                 />
-              ) : (
-                <QuakeCard key={item.id} item={item} now={now} onLocate={locate} />
               );
             })}
           </div>
@@ -900,6 +1132,20 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh }: L
             <span className="gotham-tag gotham-tag--high" style={{ fontSize: '9px', padding: '1px 5px' }}>{news.length + quakes.length}</span>
           </button>
           <div className="flex items-center gap-0.5 flex-shrink-0">
+            {onTogglePins && (
+              <button
+                onClick={() => onTogglePins(!pinsOn)}
+                aria-pressed={pinsOn}
+                className={`flex items-center gap-0.5 rounded px-1 py-1 transition-colors ${pinsOn ? 'text-[#FF4081] hover:bg-[#FF4081]/15' : 'text-[var(--text-muted)] hover:bg-white/10'}`}
+                title={pinsOn
+                  ? `${pinned.length} of these reports are pinned on the map — click to hide the pins`
+                  : 'Pin these reports on the map'}
+                aria-label={pinsOn ? 'Hide alert pins on the map' : 'Show alert pins on the map'}
+              >
+                <MapPin className="w-3 h-3" />
+                <span className="text-[9px] font-mono tabular-nums">{pinned.length}</span>
+              </button>
+            )}
             {onRefresh && (
               <button onClick={refresh} disabled={refreshing} className="p-1 rounded hover:bg-white/10 transition-colors" title="Refresh (channels are re-read every 3 minutes)" aria-label="Refresh alerts">
                 <RefreshCw className={`w-3 h-3 text-[var(--text-muted)] ${refreshing ? 'animate-spin' : ''}`} />

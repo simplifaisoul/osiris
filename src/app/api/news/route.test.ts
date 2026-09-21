@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { scoreRisk, findCoords, mergeCrossPosts, recentPosts, type ChannelPost } from './route';
+import { scoreRisk, findCoords, mergeCrossPosts, recentPosts, wirePost, sourceRef, type ChannelPost, type RssItem } from './route';
 import type { TelegramPost } from '@/lib/telegram';
 
 describe('scoreRisk', () => {
@@ -111,5 +111,52 @@ describe('mergeCrossPosts', () => {
       { post: post('b/1', 'Map update', '2026-09-17T10:00:00Z'), channel: channel('b') },
     ]);
     expect(stories).toHaveLength(2);
+  });
+});
+
+describe('wirePost', () => {
+  const feed = { handle: 'bbc', name: 'BBC World', lean: 'British public broadcaster', bloc: 'western' as const };
+  const item: RssItem = {
+    title: 'Strikes reported in southern Lebanon',
+    description: 'Residents said three villages were hit overnight.',
+    link: 'https://www.bbc.co.uk/news/articles/abc123',
+    pubDate: '2026-09-20T06:30:00.000Z',
+    source: 'BBC World',
+  };
+
+  it('reads a wire item into the shape a channel post has', () => {
+    const post = wirePost(item, feed);
+    expect(post.channel).toBe('bbc');
+    expect(post.url).toBe(item.link);
+    expect(post.publishedAt).toBe(item.pubDate);
+    expect(post.headline).toBe('Strikes reported in southern Lebanon');
+    expect(post.summary).toBe('Residents said three villages were hit overnight.');
+    // A wire's pictures stay on the wire's own page.
+    expect(post.media).toBeNull();
+  });
+
+  it('lifts a breaking label the same way a channel post does', () => {
+    const post = wirePost({ ...item, title: 'BREAKING: Strikes reported in southern Lebanon' }, feed);
+    expect(post.flag).toBe('BREAKING');
+    expect(post.headline).toBe('Strikes reported in southern Lebanon');
+  });
+
+  it('gives two items from one feed different ids, and one item the same id twice', () => {
+    const other = wirePost({ ...item, link: 'https://www.bbc.co.uk/news/articles/xyz789' }, feed);
+    expect(wirePost(item, feed).id).not.toBe(other.id);
+    expect(wirePost(item, feed).id).toBe(wirePost(item, feed).id);
+  });
+
+  it('does not repeat the headline as its own summary', () => {
+    const post = wirePost({ ...item, description: item.title }, feed);
+    expect(post.text).toBe(item.title);
+  });
+});
+
+describe('sourceRef', () => {
+  it('names a channel by its handle and a wire by its site', () => {
+    expect(sourceRef({ handle: 'QudsNen', name: 'Quds News Network', lean: '', bloc: 'regional' })).toBe('t.me/QudsNen');
+    expect(sourceRef({ handle: 'bbc', name: 'BBC World', lean: '', bloc: 'western' })).toBe('feeds.bbci.co.uk');
+    expect(sourceRef({ handle: 'tass', name: 'TASS', lean: '', bloc: 'russian' })).toBe('tass.com');
   });
 });

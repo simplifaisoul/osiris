@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { alertKind, placeCandidates, pickRow, locateReport, type GeoRow } from './alert-places';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+const gateway = vi.fn();
+vi.mock('@/lib/nominatim', () => ({ nominatim: (...args: unknown[]) => gateway(...args) }));
+
+import { alertKind, placeCandidates, pickRow, locateReport, budgetedLookup, type GeoRow } from './alert-places';
 
 /* Headlines and leads below are real posts from the feed, captured 2026-09-19. */
 
@@ -46,6 +49,20 @@ describe('placeCandidates', () => {
     expect(placeCandidates('In Al-Bureij refugee camp, central Gaza, hundreds of students')[0]).toEqual({ name: 'Al-Bureij', locative: true });
   });
 
+  it('does not read a bare "of" as introducing a place', () => {
+    // Both of these are settlements in OpenStreetMap — a refugee camp in
+    // Syria and a residential area near Giza — and neither post is about one.
+    const resistance = placeCandidates('We will never abandon the path of Islamic Resistance.');
+    expect(resistance.find(c => c.name === 'Resistance')?.locative).not.toBe(true);
+    const land = placeCandidates("the Saudi government's opening of the Land of the Two Holy Mosques to Zionist influence");
+    expect(land.find(c => c.name === 'Land')?.locative).not.toBe(true);
+  });
+
+  it('still reads "of" after a word for a place, or after a bearing', () => {
+    expect(placeCandidates('an explosion in the port of Odesa')[0]).toEqual({ name: 'Odesa', locative: true });
+    expect(placeCandidates('a drone fell 25 km south of Kursk')[0]).toEqual({ name: 'Kursk', locative: true });
+  });
+
   it('finds the place in the lead when the headline has none', () => {
     expect(names("Saudi Arabia's capital was under missile attack overnight.\nAFP reported an explosion in Riyadh")[0]).toBe('Riyadh');
   });
@@ -78,6 +95,14 @@ describe('placeCandidates', () => {
   it('drops compounds, contractions, acronyms, demonyms and countries', () => {
     const found = names("They're saying UK-led talks on Shahed-type drones hit Palestinian-owned land in Ukraine, per AFP and the IDF");
     expect(found).toEqual([]);
+  });
+
+  it('drops an institution, a geography noun and a first name that are villages somewhere', () => {
+    // Duma (Moldova), Coast (Kuwait), Vladimir (Russia) — none of these posts
+    // is about the settlement that carries the name.
+    expect(names('More than 600 Russians cast ballots in Duma elections in New York and Houston')).not.toContain('Duma');
+    expect(names('Ships were warned away from the Red Sea Coast')).not.toContain('Coast');
+    expect(names("Zakharova commented on Vladimir Zelensky's threats")).not.toContain('Vladimir');
   });
 
   it('treats names listed after a place as places', () => {
@@ -206,5 +231,39 @@ describe('locateReport', () => {
   it('returns null when the report names no place that resolves', async () => {
     const { lookup } = fakeLookup({});
     expect(await locateReport('Russian attacks kill 11, injure over 64 in Ukraine over past day.', '', lookup)).toBeNull();
+  });
+});
+
+describe('budgetedLookup', () => {
+  beforeEach(() => gateway.mockReset());
+
+  it('spends its allowance and then asks only what is already known', async () => {
+    // The gateway answers a cacheOnly call with null unless it knows the name.
+    gateway.mockImplementation(async (_endpoint?: string, params?: { q: string }, options?: { cacheOnly?: boolean }) => {
+      if (!params) return null;
+      if (options?.cacheOnly) return params.q === 'Kyiv' ? [{ name: 'Kyiv' }] : null;
+      return [{ name: params.q }];
+    });
+
+    const lookup = budgetedLookup(2);
+    const asked = [];
+    for (const name of ['Sumy', 'Odesa', 'Kharkiv', 'Dnipro']) asked.push(await lookup(name, ['ua']));
+
+    // Two new names were asked for; the rest came back empty-handed.
+    expect(asked[0]).toEqual([{ name: 'Sumy' }]);
+    expect(asked[1]).toEqual([{ name: 'Odesa' }]);
+    expect(asked[2]).toBeNull();
+    expect(asked[3]).toBeNull();
+    const sent = gateway.mock.calls.filter(([, params, options]) => params && !options?.cacheOnly);
+    expect(sent).toHaveLength(2);
+  });
+
+  it('answers a name it already knows without spending anything', async () => {
+    gateway.mockImplementation(async (_e?: string, params?: { q: string }, options?: { cacheOnly?: boolean }) =>
+      (params?.q === 'Kyiv' ? [{ name: 'Kyiv' }] : options?.cacheOnly ? null : []));
+
+    const lookup = budgetedLookup(0);
+    expect(await lookup('Kyiv', ['ua'])).toEqual([{ name: 'Kyiv' }]);
+    expect(gateway.mock.calls.filter(([, params]) => params).every(([, , options]) => options?.cacheOnly)).toBe(true);
   });
 });
