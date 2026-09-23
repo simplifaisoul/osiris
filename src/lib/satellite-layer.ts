@@ -522,8 +522,13 @@ export function createSatelliteLayer(id: string): CustomLayerInterface & {
       if (!points.length) { count = 0; lastProjection = null; return; }
       /* Zoomed past the ceiling the layer draws nothing, and clearing the
          projection with it makes pick() answer null as well — so the click
-         goes to whatever is actually on the ground there. */
-      if (map && map.getZoom() > SAT_MAX_ZOOM) { count = 0; lastProjection = null; return; }
+         goes to whatever is actually on the ground there.
+
+         `count` is left alone. It is how many satellites sit in the GPU
+         buffer, and it is only set again when setPoints() marks the buffer
+         dirty — so zeroing it here meant that after zooming in and back out
+         the layer drew nothing until it was switched off and on again. */
+      if (map && map.getZoom() > SAT_MAX_ZOOM) { lastProjection = null; return; }
       const shader = args?.shaderData;
       if (!shader?.vertexShaderPrelude) return;
 
