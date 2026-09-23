@@ -63,3 +63,7 @@ scanner_backend_backup.js
 
 # Saved camera catalogue
 /.cache/
+
+# Local checkouts of third-party tools; not part of this app
+/scratch/astra/
+/scratch/mast3r/
