@@ -4,7 +4,7 @@ import { buildGeometry, closeRing, drawReducer, initialDrawState, measure, type 
 import { useEffect, useRef, useState, useCallback, memo } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import { installTerrainTileProtocol } from '@/lib/terrain-tiles';
-import { createSatelliteLayer, parseColor, type SatPoint } from '@/lib/satellite-layer';
+import { createSatelliteLayer, parseColor, SAT_MAX_ZOOM, type SatPoint } from '@/lib/satellite-layer';
 import { MAP_DEFAULTS, MAP_PALETTE_KEYS, readMapPalette, satColorFor, type MapPalette } from '@/lib/map-palette';
 import { STYLE_EVENT } from '@/lib/style-tokens';
 import { arrivalBeacons } from '@/lib/malware-intel';
@@ -357,7 +357,12 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
 
     map.on('load', () => {
       mapRef.current = map;
-      
+
+      /* Measure the container once the layout has settled. The constructor
+         may have read it before it had a size, and a map that starts at the
+         400x300 fallback never recovers on its own. */
+      map.resize();
+
       // Theme colors
       const isGhost = theme === 'ghost';
       const phantomPurple = '#B388FF';
@@ -1726,7 +1731,26 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       if (f) openAlertPopup(f, id);
     };
 
-    return () => { cancelAnimationFrame(hoverFrame); map.remove(); mapRef.current = null; };
+    /*
+     * Keep the canvas the size of its container.
+     *
+     * MapLibre reads the container once, when it is constructed, and falls
+     * back to 400x300 if the container has no size yet. Its own trackResize
+     * watches the window, which never fires when the container is what
+     * changed — so a map built a frame too early stayed 400x300 inside a full
+     * screen container for the rest of the session, which is what the live
+     * site was serving: a small square of map in the corner of a black page.
+     * A window resize did not recover it; one resize() call did.
+     */
+    const sizeToContainer = new ResizeObserver(() => map.resize());
+    sizeToContainer.observe(container);
+
+    return () => {
+      sizeToContainer.disconnect();
+      cancelAnimationFrame(hoverFrame);
+      map.remove();
+      mapRef.current = null;
+    };
   }, []);
 
   // Day/Night
@@ -3208,6 +3232,18 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [selectedSat, clearSat]);
+
+  // Zooming past the ceiling takes the satellites off the map, so a readout
+  // left over from before the zoom would be describing something no longer
+  // there — and its ring and orbit are already gone.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map || !selectedSat) return;
+    const onZoom = () => { if (map.getZoom() > SAT_MAX_ZOOM) clearSat(); };
+    onZoom();
+    map.on('zoomend', onZoom);
+    return () => { map.off('zoomend', onZoom); };
+  }, [mapReady, selectedSat, clearSat]);
 
   return (
     <>

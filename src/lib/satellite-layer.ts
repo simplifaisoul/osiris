@@ -49,6 +49,18 @@ const KM_TO_M = 1000;
  * This is a display transform, not a measurement. The popup shows the real
  * altitude in kilometres.
  */
+/*
+ * The zoom past which satellites are neither drawn nor clickable.
+ *
+ * A satellite is drawn at a display altitude of hundreds of kilometres, which
+ * is a sensible place for it while the view covers a country or more. Zoomed
+ * into a city it is nowhere near the street it appears over, and its pick pass
+ * still covers those pixels — so a click meant for a camera was being taken by
+ * a satellite that is not really there. Above this zoom the operator is
+ * looking at the ground, so the layer stands aside.
+ */
+export const SAT_MAX_ZOOM = 7;
+
 const FLOOR_KM = 620;      // clears the globe depth test
 const CEILING_KM = 2500;   // stays inside the frustum at world zoom
 const MIN_ALT_KM = 150;    // lowest catalogue altitude that still orbits
@@ -508,6 +520,10 @@ export function createSatelliteLayer(id: string): CustomLayerInterface & {
       // An inactive satellite layer must not compile three GPU programs on
       // startup or whenever the map switches between globe and flat views.
       if (!points.length) { count = 0; lastProjection = null; return; }
+      /* Zoomed past the ceiling the layer draws nothing, and clearing the
+         projection with it makes pick() answer null as well — so the click
+         goes to whatever is actually on the ground there. */
+      if (map && map.getZoom() > SAT_MAX_ZOOM) { count = 0; lastProjection = null; return; }
       const shader = args?.shaderData;
       if (!shader?.vertexShaderPrelude) return;
 
