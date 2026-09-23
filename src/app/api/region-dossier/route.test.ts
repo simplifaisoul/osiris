@@ -1,5 +1,11 @@
-import { describe, it, expect } from 'vitest';
-import { current, stillHolding, itemId, amountOf, type WdStatement } from './route';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// Photon is faked: its public server cannot be made to fail on demand, and the
+// retry is the part worth pinning down.
+const httpJson = vi.fn();
+vi.mock('@/lib/httpJson', () => ({ httpJson: (...args: unknown[]) => httpJson(...args), OSIRIS_UA: 'test' }));
+
+import { current, stillHolding, itemId, amountOf, placeAt, type WdStatement } from './route';
 
 /* Wikidata keeps every officeholder a country ever had on the same property,
    so picking the right statement is the whole job. Shapes below are trimmed
@@ -52,5 +58,42 @@ describe('reading a quantity', () => {
   it('answers nothing rather than NaN when there is no number', () => {
     expect(amountOf(undefined)).toBeUndefined();
     expect(amountOf({ value: { content: 'Q212' } })).toBeUndefined();
+  });
+});
+
+describe('naming the clicked place, from Photon', () => {
+  const tokyo = { features: [{ properties: { city: 'Tokyo', country: 'Japan', countrycode: 'jp' } }] };
+  beforeEach(() => { httpJson.mockReset(); });
+
+  it('retries once when Photon has a bad moment, then answers', async () => {
+    httpJson.mockRejectedValueOnce(new Error('HTTP 503')).mockResolvedValueOnce(tokyo);
+    expect(await placeAt(35.681, 139.691)).toMatchObject({ city: 'Tokyo', country: 'Japan' });
+    expect(httpJson).toHaveBeenCalledTimes(2);
+  });
+
+  it('gives up after the second failure rather than keep the panel waiting', async () => {
+    httpJson.mockRejectedValue(new Error('HTTP 503'));
+    expect(await placeAt(35.682, 139.692)).toBeNull();
+    expect(httpJson).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not remember a failure, so the next click asks again', async () => {
+    httpJson.mockRejectedValue(new Error('HTTP 503'));
+    expect(await placeAt(35.683, 139.693)).toBeNull();
+    httpJson.mockReset().mockResolvedValue(tokyo);
+    expect(await placeAt(35.683, 139.693)).toMatchObject({ city: 'Tokyo' });
+  });
+
+  it('remembers a real answer, so a second click on the same spot costs nothing', async () => {
+    httpJson.mockResolvedValue(tokyo);
+    await placeAt(35.684, 139.694);
+    await placeAt(35.684, 139.694);
+    expect(httpJson).toHaveBeenCalledTimes(1);
+  });
+
+  it('answers nothing for open sea, without retrying', async () => {
+    httpJson.mockResolvedValue({ features: [] });
+    expect(await placeAt(0, -30)).toBeNull();
+    expect(httpJson).toHaveBeenCalledTimes(1);
   });
 });
