@@ -22,6 +22,8 @@ interface SearchResult {
 interface SearchBarProps {
   onLocate: (lat: number, lng: number, zoom?: number) => void;
   alwaysExpanded?: boolean;
+  /** Where the map is looking. Results near it rank first, as in Directions. */
+  center?: { lat: number; lng: number } | null;
 }
 
 // Map Nominatim result types to appropriate zoom levels
@@ -64,7 +66,7 @@ function formatLabel(displayName: string): { primary: string; secondary: string 
   };
 }
 
-export default function SearchBar({ onLocate, alwaysExpanded = false }: SearchBarProps) {
+export default function SearchBar({ onLocate, alwaysExpanded = false, center = null }: SearchBarProps) {
   const [open, setOpen] = useState(alwaysExpanded);
   const [value, setValue] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -72,6 +74,7 @@ export default function SearchBar({ onLocate, alwaysExpanded = false }: SearchBa
   const [selectedIdx, setSelectedIdx] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Focus input when opened
@@ -146,10 +149,21 @@ export default function SearchBar({ onLocate, alwaysExpanded = false }: SearchBa
        across everybody using it, and this box was a large part of us being
        well over that. The debounce is longer for the same reason. */
     timerRef.current = setTimeout(async () => {
+      /* The same two things Directions does, which is why its results were
+         better. It sends where the map is looking, so "Notre-Dame" over
+         Montreal is the basilica rather than a village in Normandy. And it
+         abandons the lookup for an earlier keystroke, so a slow reply for
+         "Par" can never land after the one for "Paris" and replace it. */
+      abortRef.current?.abort();
+      const ctrl = new AbortController();
+      abortRef.current = ctrl;
+
       setLoading(true);
       try {
-        const res = await fetch(`/api/geosearch?q=${encodeURIComponent(q)}`);
+        const bias = center ? `&lat=${center.lat}&lng=${center.lng}` : '';
+        const res = await fetch(`/api/geosearch?q=${encodeURIComponent(q)}${bias}`, { signal: ctrl.signal });
         const data = await res.json();
+        if (ctrl.signal.aborted) return;
         setResults((data.results || []).map((r: { name: string; context: string; lat: number; lng: number; kind: string; score?: number }) => ({
           label: [r.name, r.context].filter(Boolean).join(', '),
           lat: r.lat,
@@ -159,10 +173,13 @@ export default function SearchBar({ onLocate, alwaysExpanded = false }: SearchBa
           category: r.kind || 'unknown',
           zoomLevel: ZOOM_BY_KIND[r.kind] ?? 13,
         })));
-      } catch { setResults([]); }
-      setLoading(false);
+      } catch {
+        // An abandoned lookup is not a failure; the newer one owns the list.
+        if (!ctrl.signal.aborted) setResults([]);
+      }
+      if (!ctrl.signal.aborted) setLoading(false);
     }, 500);
-  }, []);
+  }, [center]);
 
   const handleSelect = (r: SearchResult) => {
     onLocate(r.lat, r.lng, r.zoomLevel);
