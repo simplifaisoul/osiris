@@ -7,6 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getClientIp } from '@/lib/ssrf-guard';
 import {
   createGeminiClient,
   rotateApiKey,
@@ -96,10 +97,11 @@ interface ErrorResponse {
 export async function POST(
   request: NextRequest
 ): Promise<NextResponse<BriefingResponse | ErrorResponse>> {
-  const ip =
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    request.headers.get('x-real-ip') ||
-    'unknown';
+  /* Through the shared helper. Reading x-forwarded-for[0] here meant reading
+     the one entry in the chain the caller writes: a fresh header bought a
+     fresh bucket, so the five-a-minute limit below did not bind at all and
+     the server's Gemini quota was spendable without limit. */
+  const ip = getClientIp(request);
 
   const rateCheck = checkRateLimit(ip);
   if (!rateCheck.allowed) {

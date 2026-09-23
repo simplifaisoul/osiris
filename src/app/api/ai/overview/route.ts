@@ -12,6 +12,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getClientIp, isRateLimited } from '@/lib/ssrf-guard';
 import { createGeminiClient, rotateApiKey } from '@/lib/ai-engine';
 import {
   BLOCS, buildAlertBrief, timeAgo,
@@ -306,6 +307,12 @@ async function geminiOverview(mode: Mode, digest: Digest, keys: string[], headli
 /* ─────────────────────────── Handler ─────────────────────────── */
 
 export async function POST(request: NextRequest) {
+  /* This reaches Gemini on the server's key, like analyze and briefing, so it
+     gets the same gate they have. It was the only one of the three without. */
+  if (isRateLimited(getClientIp(request), 20)) {
+    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+  }
+
   let body: { mode?: Mode; payload?: any };
   try {
     body = await request.json();
