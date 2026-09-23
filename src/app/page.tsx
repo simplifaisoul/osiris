@@ -790,6 +790,7 @@ export default function Dashboard() {
   // ── LAYER-AWARE POLLING — only poll data for active layers ──
   useEffect(() => {
     const intervals: ReturnType<typeof setInterval>[] = [];
+    const stopFns: (() => void)[] = [];
     if (activeLayers.flights || activeLayers.military || activeLayers.jets || activeLayers.private) {
       intervals.push(setInterval(() => fetchEndpoint('/api/flights'), 300000)); // 5 min (was 2 min)
     }
@@ -801,7 +802,24 @@ export default function Dashboard() {
       intervals.push(setInterval(() => fetchEndpoint('/api/radiation', d => ({ radiation: d.stations })), 300000)); // 5m
     }
     if (activeLayers.maritime) {
-      intervals.push(setInterval(() => fetchEndpoint('/api/maritime', d => ({ maritime_ports: d.ports, maritime_chokepoints: d.chokepoints, maritime_ships: d.ships })), 10000)); // 10s
+      /* Ten seconds is the cadence a moving vessel needs. The other two thirds
+         of this payload — 52 ports and 10 chokepoints — are constants in the
+         route, and their congestion is derived from those vessels, so with no
+         AIS feed the reply is byte-identical poll after poll: 360 requests an
+         hour, per reader, for a fixed document. So the fast rate is earned by
+         actually carrying vessels, and otherwise falls back to the five
+         minutes every other layer here uses. Rescheduled rather than fixed,
+         because the count is read from a ref that no re-render announces. */
+      let vesselTimer: ReturnType<typeof setTimeout>;
+      let stopped = false;
+      const vesselGapMs = () => ((dataRef.current.maritime_ships?.length ?? 0) > 0 ? 10_000 : 300_000);
+      const pollMaritime = () => {
+        if (stopped) return;
+        fetchEndpoint('/api/maritime', d => ({ maritime_ports: d.ports, maritime_chokepoints: d.chokepoints, maritime_ships: d.ships }));
+        vesselTimer = setTimeout(pollMaritime, vesselGapMs());
+      };
+      vesselTimer = setTimeout(pollMaritime, vesselGapMs());
+      stopFns.push(() => { stopped = true; clearTimeout(vesselTimer); });
     }
     if ((activeLayers as any).cyber_attacks) {
       intervals.push(setInterval(() => {
@@ -810,7 +828,7 @@ export default function Dashboard() {
         layerFetchedRef.current.add('cyber_attacks');
       }, 300000)); // 5m — a blocklist turns over in hours, not seconds
     }
-    return () => intervals.forEach(clearInterval);
+    return () => { intervals.forEach(clearInterval); stopFns.forEach(stop => stop()); };
   }, [activeLayers, fetchEndpoint]);
 
   /* ── LIVE MALWARE — pushed over SSE while the layer is on ──
