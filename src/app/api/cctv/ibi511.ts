@@ -76,6 +76,19 @@ export interface Ibi511Source {
   state: string;
   /** Drops mis-geocoded rows — every one of these feeds has a few. */
   bounds: { minLat: number; maxLat: number; minLng: number; maxLng: number };
+  /**
+   * ISO-ish country shown on the camera card. Defaults to `US` because every
+   * deployment here was American until Ontario and Alberta, which run the
+   * identical stack from the other side of the border.
+   */
+  country?: string;
+  /**
+   * What a `county` value is called locally, appended to it. `County` suits
+   * the American deployments; Ontario's column holds regional municipalities
+   * (Niagara, Halton), and "Niagara County" is a different place in New York
+   * State, so those pass `''` and the bare name stands.
+   */
+  countyLabel?: string;
 }
 
 const PAGE_SIZE = 100; // the server caps a response at 100 rows whatever we ask for
@@ -132,11 +145,11 @@ export function cameraLabel(rec: Ibi511Record): string | null {
 }
 
 /** Where the camera is, for the caption under its name. */
-export function cameraCity(rec: Ibi511Record, state: string): string {
+export function cameraCity(rec: Ibi511Record, state: string, countyLabel = 'County'): string {
   const city = rec.city?.trim();
   if (city && city !== 'N/A') return city;
   const county = rec.county?.trim();
-  if (county && county !== 'N/A') return `${county} County`;
+  if (county && county !== 'N/A') return countyLabel ? `${county} ${countyLabel}` : county;
   return state;
 }
 
@@ -177,8 +190,8 @@ export function mapIbi511Record(rec: Ibi511Record, cfg: Ibi511Source): CctvCamer
     lat,
     lng,
     name: cameraLabel(rec) || `${cfg.source} Camera ${rec.id}`,
-    city: cameraCity(rec, cfg.state),
-    country: 'US',
+    city: cameraCity(rec, cfg.state, cfg.countyLabel),
+    country: cfg.country ?? 'US',
     ...(snapshot ? { feed_url: snapshot } : {}),
     ...(video ? { stream_url: video, stream_type: 'hls' as const } : {}),
     source: cfg.source,
@@ -204,9 +217,13 @@ export async function loadIbi511Cameras(cfg: Ibi511Source): Promise<CctvCamera[]
   // The first page also tells us how many there are in total.
   const first = await fetchPage(cfg, 0);
   const seen = new Map<number, CctvCamera>();
+  /* Rows we were handed, mapped or not. The completeness check below counts
+     these rather than cameras — see the note on it. */
+  const rowsSeen = new Set<number>();
 
   const ingest = (rows: Ibi511Record[]) => {
     for (const rec of rows) {
+      if (typeof rec?.id === 'number') rowsSeen.add(rec.id);
       const cam = mapIbi511Record(rec, cfg);
       if (cam) seen.set(rec.id, cam);
     }
@@ -239,13 +256,21 @@ export async function loadIbi511Cameras(cfg: Ibi511Source): Promise<CctvCamera[]
      `Promise.allSettled` made lost pages invisible: a burst that came back
      throttled once cached 200 of Arizona's 644 and 3,143 of Georgia's 4,043,
      and served that for the next half hour. Throwing hands the decision to
-     sourceCache, which keeps the last good index instead — none of these
-     feeds drops rows of its own accord, so anything materially short of
-     `recordsTotal` is pages we did not get. */
-  if (first.total > 0 && cams.length < first.total * 0.95) {
-    throw new Error(`${cfg.source} short read: ${cams.length} of ${first.total}`);
+     sourceCache, which keeps the last good index instead.
+
+     Count ROWS RECEIVED, not cameras mapped. Those were the same number
+     while every deployment here published only usable rows, and the
+     distinction looked academic — then PennDOT and WisDOT arrived and it is
+     the whole thing. PennDOT flags over a hundred of its 1,543 cameras
+     blocked or disabled, and WisDOT ships 34 of its 489 at POINT (0 0);
+     both are rows we are right to refuse, and counting cameras read that
+     correct refusal as a failed fetch. Every page arrived in both cases,
+     and both states stayed dark. Rows are what a page delivers, so rows are
+     what tells us a page went missing. */
+  if (first.total > 0 && rowsSeen.size < first.total * 0.95) {
+    throw new Error(`${cfg.source} short read: ${rowsSeen.size} of ${first.total} rows`);
   }
 
-  console.log(`[OSIRIS] ${cfg.source} cameras: ${cams.length} of ${first.total}`);
+  console.log(`[OSIRIS] ${cfg.source} cameras: ${cams.length} from ${rowsSeen.size} of ${first.total} rows`);
   return cams;
 }
