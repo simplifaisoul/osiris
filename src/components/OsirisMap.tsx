@@ -129,6 +129,11 @@ interface PinnedReport {
 /** A report posted this recently gets the pulsing ring. */
 const ALERT_FRESH_MS = 15 * 60_000;
 
+/** Two right-clicks count as one double right-click this close in time… */
+const DOUBLE_RIGHT_MS = 500;
+/** …and this close on screen, so a second click elsewhere starts afresh. */
+const DOUBLE_RIGHT_SLOP_PX = 12;
+
 /** What a pin carries: flat, as map feature properties must be. */
 interface AlertPinProps {
   id: string;
@@ -897,7 +902,30 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         onMouseCoords?.({ lat: e.lngLat.lat, lng: e.lngLat.lng });
       }
     });
-    map.on('contextmenu', e => { e.preventDefault(); onRightClick?.({ lat: e.lngLat.lat, lng: e.lngLat.lng }); });
+    /* The region dossier opens on a double right-click: two within
+       DOUBLE_RIGHT_MS and a few pixels of each other. A single right-click
+       was too easy to make by accident — it opened a panel and set off a
+       place lookup and a country's worth of Wikidata requests. A touch
+       long-press is already deliberate, so on a phone one still opens it;
+       asking for two there would make it all but unreachable. */
+    let lastRightClick: { at: number; x: number; y: number } | null = null;
+    map.on('contextmenu', e => {
+      e.preventDefault();
+      const open = () => onRightClick?.({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+      if ((e.originalEvent as PointerEvent).pointerType === 'touch') { open(); return; }
+
+      const now = performance.now();
+      const { x, y } = e.point;
+      const isSecond = lastRightClick !== null
+        && now - lastRightClick.at < DOUBLE_RIGHT_MS
+        && Math.hypot(x - lastRightClick.x, y - lastRightClick.y) < DOUBLE_RIGHT_SLOP_PX;
+      if (isSecond) {
+        lastRightClick = null;
+        open();
+      } else {
+        lastRightClick = { at: now, x, y };
+      }
+    });
     const reportViewState = () => { const c = map.getCenter(); onViewStateChange?.({ zoom: map.getZoom(), latitude: c.lat }); };
     map.on('load', reportViewState);
     map.on('moveend', reportViewState);

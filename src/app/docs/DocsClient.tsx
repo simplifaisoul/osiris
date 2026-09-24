@@ -463,7 +463,7 @@ docker compose up -d`}</Pre>
                 },
                 {
                   k: 'Region Dossier',
-                  v: 'Right-click the map for a composite summary of that location from every feed covering it.',
+                  v: 'Double right-click the map for a composite summary of that location from every feed covering it.',
                 },
                 {
                   k: 'Entity Graph',

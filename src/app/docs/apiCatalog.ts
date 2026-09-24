@@ -215,7 +215,7 @@ export const API_GROUPS: ApiGroup[] = [
       {
         path: '/api/region-dossier',
         method: 'GET',
-        summary: 'Composite intelligence summary for a map location — the panel behind a map right-click.',
+        summary: 'Composite intelligence summary for a map location — the panel behind a map double right-click.',
         params: [
           { name: 'lat', required: true, desc: 'Latitude of the region.', example: '48.3794' },
           { name: 'lng', required: true, desc: 'Longitude of the region.', example: '31.1656' },

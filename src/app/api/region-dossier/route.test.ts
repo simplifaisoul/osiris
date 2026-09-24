@@ -91,6 +91,14 @@ describe('naming the clicked place, from Photon', () => {
     expect(httpJson).toHaveBeenCalledTimes(1);
   });
 
+  it('looks far enough to name a place in open country', async () => {
+    // Photon's default radius found nothing on farmland outside Granby, or in
+    // the Sahara, Siberia or the Amazon; 50 km found a place for every one.
+    httpJson.mockResolvedValue(tokyo);
+    await placeAt(45.504, -72.531);
+    expect(String(httpJson.mock.calls[0][0])).toContain('radius=50');
+  });
+
   it('answers nothing for open sea, without retrying', async () => {
     httpJson.mockResolvedValue({ features: [] });
     expect(await placeAt(0, -30)).toBeNull();

@@ -496,7 +496,7 @@ export default function Dashboard() {
     }, 3000); // 3s debounce (was 1.5s)
   }, []);
 
-  // Region dossier (right-click)
+  // Region dossier (double right-click)
   const handleRightClick = useCallback(async (coords: { lat: number; lng: number }) => {
     setDossierLoading(true); setRegionDossier(null);
     try {

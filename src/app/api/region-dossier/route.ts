@@ -5,7 +5,7 @@ import { cachedSource } from '@/lib/sourceCache';
 
 /**
  * OSIRIS — Region Dossier API
- * Provides country intelligence for any coordinate (right-click on map)
+ * Provides country intelligence for any coordinate (double right-click on map)
  * Fix #115: Steps 2-4 now run in parallel via Promise.allSettled
  */
 
@@ -35,8 +35,14 @@ export async function placeAt(lat: number, lng: number): Promise<PhotonPlace | n
        seconds later — and a single miss would otherwise be an empty panel. */
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
+        /* radius=50 (km). Photon names the nearest OpenStreetMap object, and by
+           default looks only a short way — farmland outside Granby, the Sahara,
+           Siberia and the Amazon all came back with nothing, so the dossier
+           was empty for most of the world's land. Fifty is the smallest radius
+           that found a place for each; the nearest still wins, so a click in a
+           city names that city. */
         const json = await httpJson<{ features?: { properties?: PhotonPlace }[] }>(
-          `https://photon.komoot.io/reverse?lat=${lat.toFixed(3)}&lon=${lng.toFixed(3)}&lang=en`,
+          `https://photon.komoot.io/reverse?lat=${lat.toFixed(3)}&lon=${lng.toFixed(3)}&lang=en&radius=50`,
           { timeoutMs: 8000 },
         );
         const found = json.features?.[0]?.properties;
@@ -246,7 +252,13 @@ export async function GET(request: Request) {
       timestamp: new Date().toISOString(),
     }, {
       headers: {
-        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200',
+        /* Only a dossier that found its place is worth keeping. An empty one
+           is either open sea or a lookup that failed — Photon has its bad
+           moments — and cached publicly it would be handed back for an hour,
+           stale-while-revalidate, to the next click on that spot. */
+        'Cache-Control': place
+          ? 'public, s-maxage=3600, stale-while-revalidate=7200'
+          : 'no-store',
       },
     });
   } catch (error) {
