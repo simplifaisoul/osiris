@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, memo } from 'react';
+import dynamic from 'next/dynamic';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -13,6 +14,12 @@ import {
 } from 'lucide-react';
 import { ipToNumber, numberToIp, calculateSubnetStart, classifyDevice, assessRisk, batchFetch, ShodanInternetDBResponse, SweepDevice } from '@/lib/osint-utils';
 import ChainBrief from '@/components/ChainBrief';
+import DigitalDonMark from '@/components/DigitalDonMark';
+import type { DigitalDonCommand } from '@/components/DigitalDonWidget';
+import { cleanQuery, isHighBubbleRisk, type DigitalDonHolders } from '@/lib/digitaldon';
+
+// Browser-only third-party card; nothing of it loads until a token is scanned.
+const DigitalDonWidget = dynamic(() => import('@/components/DigitalDonWidget'), { ssr: false });
 
 /**
  * Tool groups. At 19 modules a flat grid forces 8px truncated labels
@@ -65,6 +72,8 @@ const TABS: ToolDef[] = [
   { id: 'infostealer', label: 'INFOSTEALER', icon: Skull, placeholder: 'Email, domain, username or phone', color: '#FF1744', group: 'threat', blurb: 'Hudson Rock malware-compromised assets' },
 
   { id: 'crypto', label: 'CHAIN INTEL', icon: Bitcoin, placeholder: 'BTC, ETH or SOL wallet address', color: '#F7931A', group: 'chain', blurb: 'Wallet forensics and daily brief' },
+  // DigitalDon's analyzer, embedded. Monochrome by the partner's brand rule.
+  { id: 'token', label: 'TOKEN SCAN', icon: DigitalDonMark, placeholder: 'Token contract address or ticker', color: '#E8E6E0', group: 'chain', blurb: 'Token score and holder cluster map' },
 ];
 
 interface OsintPanelProps { isOpen?: boolean; onClose?: () => void; isMobile?: boolean; onSweepVisualize?: (data: any) => void; onScanGeolocate?: (target: string, data: any) => void; }
@@ -88,6 +97,10 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
   const [chainView, setChainView] = useState<'brief' | 'wallet'>('brief');
   /** Free-text filter over the toolkit — 19 modules is too many to scan. */
   const [toolFilter, setToolFilter] = useState('');
+  /** TOKEN SCAN: the query sent to the DigitalDon card, and its last cluster verdict. */
+  const [tokenRequest, setTokenRequest] = useState<DigitalDonCommand | null>(null);
+  const [tokenHolders, setTokenHolders] = useState<DigitalDonHolders | null>(null);
+  const tokenRiskHigh = isHighBubbleRisk(tokenHolders);
 
   const selectTool = useCallback((id: string) => {
     setActiveTab(id);
@@ -95,6 +108,8 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
     setResults(null);
     setError('');
     setSweepResult(null);
+    setTokenRequest(null);
+    setTokenHolders(null);
   }, []);
 
   // Escape leaves the expanded view — it covers the map, so there must be a
@@ -175,6 +190,18 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
 
   const runLookup = useCallback(async () => {
     if (!query.trim() || loading) return;
+
+    // TOKEN SCAN has no route of ours: the query goes to the DigitalDon card,
+    // which resolves the chain and shows its own progress and errors.
+    if (activeTab === 'token') {
+      const q = cleanQuery(query);
+      setError('');
+      setTokenHolders(null);
+      setTokenRequest({ q, id: Date.now() });
+      setHistory(prev => [{ tab: activeTab, query: q, time: new Date().toLocaleTimeString() }, ...prev.slice(0, 9)]);
+      return;
+    }
+
     setLoading(true); setError(''); setResults(null);
 
     // IP Sweep — separate flow (only for the sweep tab)
@@ -1276,6 +1303,9 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
                           style={{ color: active ? tab.color : 'var(--text-secondary)' }}
                         >
                           {tab.label}
+                          {tab.id === 'token' && tokenRiskHigh && (
+                            <span className="inline-block w-1.5 h-1.5 ml-1.5 rounded-full bg-current align-middle" title="Bubble risk: high" aria-label="bubble risk high" />
+                          )}
                         </span>
                         <span className="block text-[10px] font-mono text-[var(--text-muted)] leading-snug">
                           {tab.blurb}
@@ -1373,11 +1403,14 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
                 <div className="grid grid-cols-4 gap-1">
                   {tools.map(tab => (
                     <button key={tab.id} onClick={() => selectTool(tab.id)}
-                      title={tab.blurb}
-                      className={`flex flex-col items-center gap-1 px-1 py-2 rounded-lg text-[9px] font-mono tracking-wider transition-all border ${activeTab === tab.id ? 'border-opacity-40 bg-opacity-15' : 'border-transparent hover:bg-[var(--hover-accent)]'}`}
+                      title={tab.id === 'token' && tokenRiskHigh ? `${tab.blurb} — bubble risk: high` : tab.blurb}
+                      className={`relative flex flex-col items-center gap-1 px-1 py-2 rounded-lg text-[9px] font-mono tracking-wider transition-all border ${activeTab === tab.id ? 'border-opacity-40 bg-opacity-15' : 'border-transparent hover:bg-[var(--hover-accent)]'}`}
                       style={{ borderColor: activeTab === tab.id ? tab.color : 'transparent', backgroundColor: activeTab === tab.id ? `${tab.color}15` : undefined, color: activeTab === tab.id ? tab.color : 'var(--text-muted)' }}>
                       <tab.icon className="w-3.5 h-3.5" />
                       <span className="leading-tight text-center w-full">{tab.label}</span>
+                      {tab.id === 'token' && tokenRiskHigh && (
+                        <span className="absolute top-1 right-1.5 w-1.5 h-1.5 rounded-full bg-current" aria-label="bubble risk high" />
+                      )}
                     </button>
                   ))}
                 </div>
@@ -1460,6 +1493,28 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
         <div className="p-2.5 rounded-lg border border-red-500/30 bg-red-500/10 text-[10px] font-mono text-red-400 flex items-center gap-2">
           <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />{error}
         </div>
+      )}
+
+      {/* TOKEN SCAN: the idle hint until a first scan, then the DigitalDon card.
+          It mounts on that scan, so nothing of it loads before. */}
+      {activeTab === 'token' && (
+        tokenRequest ? (
+          <div className="space-y-1.5">
+            <DigitalDonWidget request={tokenRequest} search={false} source="recon" onHolders={setTokenHolders} />
+            {tokenHolders && (
+              <div className="px-2 py-1.5 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)]/40 text-[10px] font-mono text-[var(--text-secondary)]">
+                {tokenHolders.symbol && <span className="text-[var(--text-primary)] font-bold">${tokenHolders.symbol} · </span>}
+                BUBBLE RISK <span className="text-[var(--text-primary)] font-bold">{tokenHolders.bubbleRisk === 'Mid' ? 'MEDIUM' : (tokenHolders.bubbleRisk || '—').toUpperCase()}</span>
+                {' · '}<span className="tabular-nums">{tokenHolders.clusteredPct.toFixed(1)}%</span> held by connected wallets
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="px-0.5 text-[10px] font-mono leading-relaxed text-[var(--text-muted)]">
+            Paste a token contract or ticker and press SCAN. The chain is detected for you. You get DigitalDon&apos;s signal
+            score, entry and exit zones, and, one tab over, the holder cluster map with sniper, bundle and insider wallets.
+          </p>
+        )
       )}
 
       {/* Sweep Progress */}

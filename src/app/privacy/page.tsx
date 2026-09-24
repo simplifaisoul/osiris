@@ -14,6 +14,8 @@ export const metadata: Metadata = {
  *
  * Reviewed 2026-09-17 against: src/app/api/geo, src/app/api/osint/*,
  * src/app/api/ai/*, src/app/page.tsx, src/components/LiveAlerts.tsx.
+ * DigitalDon row added with src/components/DigitalDonWidget.tsx and
+ * src/lib/digitaldon.ts.
  */
 
 const SERVICES: { service: string; sent: string; when: string }[] = [
@@ -26,6 +28,7 @@ const SERVICES: { service: string; sent: string; when: string }[] = [
   { service: 'otx.alienvault.com, cve.circl.lu, cveawg.mitre.org', sent: 'The indicator or CVE you search', when: 'Threat and vulnerability lookups' },
   { service: 'Google Gemini', sent: 'The feed context you submit for analysis, including Live Alerts headlines', when: 'AI briefing, analysis and overview requests, when the instance has a Gemini key' },
   { service: 'Telegram (cdn*.telesco.pe)', sent: 'Your IP address, as with any image request', when: 'When you expand a Live Alert that has a photo or video preview' },
+  { service: 'widget.digitaldon.net (and, from inside its frame, api.dexscreener.com, api.geckoterminal.com, api.digitaldon.net)', sent: 'The token address or ticker you search, this site\'s hostname, and your IP address. The widget counts anonymous usage per site with a random id it keeps in its own frame; no cookie', when: 'Only after you open Markets → Crypto → DeFi, or run a RECON Token Scan' },
 ];
 
 export default function PrivacyPage() {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,10 +10,15 @@ import {
   DollarSign, ArrowUpDown, AlertTriangle,
 } from 'lucide-react';
 import AiOverview from './AiOverview';
+import DigitalDonMark from './DigitalDonMark';
+import type { DigitalDonCommand } from './DigitalDonWidget';
+import { DIGITALDON_CHAINS, OSIRIS_TOKEN, type DigitalDonResult } from '@/lib/digitaldon';
 
 // Canvas charting has no business in the server bundle, and it only mounts
 // once a ticker is actually opened.
 const MarketChart = dynamic(() => import('./MarketChart'), { ssr: false });
+// Browser-only third-party card; nothing of it loads until DEFI is opened.
+const DigitalDonWidget = dynamic(() => import('./DigitalDonWidget'), { ssr: false });
 
 interface Quote {
   name: string;
@@ -26,7 +31,12 @@ interface Quote {
   market_open?: boolean;
 }
 
-interface MarketsPanelProps { data: any; spaceWeather?: any; }
+interface MarketsPanelProps {
+  data: any;
+  spaceWeather?: any;
+  /** Rendered beside the desktop rail, vertically centred on its button. */
+  docked?: boolean;
+}
 
 const SECTIONS = [
   { key: 'indices', label: 'INDICES', icon: LineChart },
@@ -124,13 +134,32 @@ function useFeedAge(timestamp?: string): string | null {
   return `${Math.floor(mins / 60)}h ago`;
 }
 
-export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) {
+export default function MarketsPanel({ data, spaceWeather, docked = false }: MarketsPanelProps) {
   const [expanded, setExpanded] = useState(true);
-  const [maximized, setMaximized] = useState(false);
+  const [maximized, setMaximizedState] = useState(false);
   const [activeSection, setActiveSection] = useState('stocks');
   const [sortByMove, setSortByMove] = useState(false);
   /** The instrument whose chart is open, if any. */
   const [selected, setSelected] = useState<{ symbol: string; name: string } | null>(null);
+  /** CRYPTO carries two views: the quote list, and DEFI — DigitalDon's token analyzer. */
+  const [cryptoView, setCryptoView] = useState<'prices' | 'defi'>('prices');
+  const [defiRequest, setDefiRequest] = useState<DigitalDonCommand | null>(null);
+  const [defiResult, setDefiResult] = useState<DigitalDonResult | null>(null);
+  /** The token on screen, so a maximize/restore (which remounts the body) reopens it. */
+  const defiTokenRef = useRef<{ chain: string; address: string } | null>(null);
+  const showDefi = activeSection === 'crypto' && cryptoView === 'defi';
+
+  // Maximize/restore and PRICES/DEFI remount the DeFi card. Hand the new card
+  // the token the last one was showing — which may be one the visitor typed
+  // into the card itself, not the last one we asked for.
+  const resumeDefi = useCallback(() => {
+    const t = defiTokenRef.current;
+    if (t) setDefiRequest({ chain: t.chain, address: t.address, id: Date.now() });
+  }, []);
+  const setMaximized = useCallback((next: boolean) => {
+    setMaximizedState(next);
+    resumeDefi();
+  }, [resumeDefi]);
   // Memoised so the derived lists below don't recompute on every render.
   const markets = useMemo(() => data.markets || {}, [data.markets]);
   const age = useFeedAge(markets.timestamp);
@@ -138,6 +167,36 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
   // Ensure portal only renders on client
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+
+  /* Docked, the panel is centred on the rail button, not on the screen, so
+     the height it may take depends on where that button sits: at its old
+     cap (100vh - 9rem) a full panel started above the top of the window and
+     took its own header with it. Cap the scroll body so the whole panel fits
+     around its anchor. Written straight to the element — it is layout, not
+     state — and re-fitted when the body remounts or the window resizes. */
+  const panelRef = useRef<HTMLDivElement>(null);
+  const dockedBodyRef = useRef<HTMLDivElement | null>(null);
+  const fitDocked = useCallback(() => {
+    const panel = panelRef.current, body = dockedBodyRef.current;
+    if (!docked || !panel || !body) return;
+    const r = panel.getBoundingClientRect();
+    const centre = r.top + r.height / 2;
+    const half = Math.min(centre, window.innerHeight - centre) - 12;
+    const chrome = r.height - body.getBoundingClientRect().height;
+    body.style.maxHeight = `min(calc(100vh - 9rem), ${Math.max(200, Math.floor(2 * half - chrome))}px)`;
+  }, [docked]);
+  const dockedBody = useCallback((node: HTMLDivElement | null) => {
+    dockedBodyRef.current = node;
+    fitDocked();
+  }, [fitDocked]);
+  // React attaches a child's ref before its parent's, so on first mount the
+  // callback above runs before panelRef is set: fit again once both are.
+  useEffect(() => { fitDocked(); }, [fitDocked, expanded, maximized]);
+  useEffect(() => {
+    if (!docked) return;
+    window.addEventListener('resize', fitDocked);
+    return () => window.removeEventListener('resize', fitDocked);
+  }, [docked, fitDocked]);
 
   // Fullscreen covers the map, so Escape has to get you out of it — closing
   // the chart first, since that is the nearer thing to dismiss.
@@ -150,7 +209,12 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [maximized, selected]);
+  }, [maximized, selected, setMaximized]);
+
+  const onDefiResult = useCallback((r: DigitalDonResult) => {
+    setDefiResult(r);
+    if (r.address) defiTokenRef.current = { chain: r.chain, address: r.address };
+  }, []);
 
   /** Every instrument across every section — the basis for the breadth line. */
   const allQuotes = useMemo<Quote[]>(
@@ -257,6 +321,65 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
     </div>
   );
 
+  // Same shape as the CHAIN INTEL brief/wallet switch in the RECON toolkit.
+  const cryptoSwitch = activeSection === 'crypto' && (
+    <div className="flex gap-1" role="tablist" aria-label="Crypto view">
+      {([['prices', 'PRICES'], ['defi', 'DEFI']] as const).map(([id, label]) => {
+        const on = cryptoView === id;
+        return (
+          <button
+            key={id}
+            role="tab"
+            aria-selected={on}
+            onClick={() => {
+              if (id === 'defi' && cryptoView !== 'defi') resumeDefi();
+              setCryptoView(id);
+            }}
+            title={id === 'defi' ? 'Analyze any token by contract or ticker — by DigitalDon' : 'Crypto quotes'}
+            className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono font-bold tracking-wider transition-colors"
+            style={{
+              color: on ? 'var(--gold-primary)' : 'var(--text-muted)',
+              background: on ? 'rgba(var(--gold-rgb),0.1)' : 'transparent',
+              border: `1px solid ${on ? 'rgba(var(--gold-rgb),0.33)' : 'rgba(255,255,255,0.1)'}`,
+            }}
+          >
+            {id === 'defi' && <DigitalDonMark className="w-2.5 h-3" />}
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const defiBlock = showDefi && (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-0.5 text-[9px] font-mono leading-relaxed tracking-wide text-[var(--text-muted)]">
+        <span>ANY TOKEN BY CONTRACT OR TICKER · {DIGITALDON_CHAINS.join(' · ').toUpperCase()}</span>
+        <button
+          onClick={() => setDefiRequest({ chain: OSIRIS_TOKEN.chain, address: OSIRIS_TOKEN.address, id: Date.now() })}
+          title="Run the DigitalDon analysis on $OSIRIS"
+          className="px-1.5 py-0.5 rounded border border-[#14F195]/40 bg-[#14F195]/10 text-[#14F195] font-bold tracking-widest hover:opacity-80 transition-opacity"
+        >
+          TRY $OSIRIS
+        </button>
+      </div>
+
+      {defiResult && (
+        <div className="px-2 py-1.5 rounded-lg border border-[var(--border-primary)] bg-white/[0.02] text-[10px] font-mono text-[var(--text-secondary)] leading-snug">
+          <span className="text-[var(--text-primary)] font-bold">${defiResult.symbol}</span>
+          {' · SIGNAL '}
+          <span className="text-[var(--text-primary)] font-bold tabular-nums">{defiResult.score}</span>/100
+          {defiResult.thesis && <> · {defiResult.thesis}</>}
+          <div className="text-[9px] text-[var(--text-muted)] tracking-wide">
+            Analysis by DigitalDon{defiResult.engine && ` · engine v${defiResult.engine}`} · not financial advice
+          </div>
+        </div>
+      )}
+
+      <DigitalDonWidget request={defiRequest} source="markets" onResult={onDefiResult} />
+    </div>
+  );
+
   const listHeader = rows.length > 0 && (
     <div className="flex items-center justify-between px-2 py-1 shrink-0">
       <span className="flex items-center gap-1 text-[9px] font-mono tracking-widest text-[var(--text-muted)]">
@@ -305,7 +428,7 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
     // the element, and when the panel goes fullscreen that transform offsets a
     // `fixed` box away from its inset — the panel was landing 20px off the left
     // edge of the viewport, because the animation had never settled back to 0.
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6, duration: 0.6 }} className={`glass-panel instrument-grid instrument-corners p-3 pointer-events-auto transition-all duration-300 flex flex-col ${
+    <motion.div ref={panelRef} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6, duration: 0.6 }} className={`glass-panel instrument-grid instrument-corners p-3 pointer-events-auto transition-all duration-300 flex flex-col ${
       // `relative` and `fixed` are both position utilities, so listing them
       // together lets CSS order decide the winner rather than the state —
       // which is what stopped the panel going fullscreen.
@@ -370,10 +493,11 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
                 <div className="min-h-0 flex flex-col lg:border-l lg:border-[var(--border-primary)] lg:pl-3">
                   <div className="shrink-0 space-y-2">
                     {tabsBar}
-                    {listHeader}
+                    {cryptoSwitch}
+                    {!showDefi && listHeader}
                   </div>
                   <div className="flex-1 min-h-0 overflow-y-auto styled-scrollbar space-y-0.5">
-                    {listRows}
+                    {showDefi ? defiBlock : listRows}
                   </div>
                 </div>
               </div>
@@ -382,19 +506,23 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
                  viewport. With a chart open the content is taller than the
                  screen, and nested scrollers here would mean choosing which
                  one you meant to scroll. */
-              <div className="space-y-2 overflow-y-auto styled-scrollbar max-h-[calc(100vh-9rem)] pr-0.5">
+              <div ref={dockedBody} className="space-y-2 overflow-y-auto styled-scrollbar max-h-[calc(100vh-9rem)] pr-0.5">
                 {breadthBlock}
                 {spaceBlock}
                 {aiBlock}
                 {tabsBar}
+                {cryptoSwitch}
                 {scmBlock}
-                {chartBlock}
-                <div>
-                  {listHeader}
-                  <div className="space-y-0.5">
-                    {listRows}
+                {/* A quote's chart belongs to PRICES; docked, DEFI shows the card alone. */}
+                {!showDefi && chartBlock}
+                {showDefi ? defiBlock : (
+                  <div>
+                    {listHeader}
+                    <div className="space-y-0.5">
+                      {listRows}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             )}
           </motion.div>
