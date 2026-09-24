@@ -37,7 +37,7 @@ Osiris is a production-grade OSINT platform that provides situational awareness 
 | **Space** | Solar Weather, Satellites | NOAA SWPC, N2YO |
 | **Cyber** | CVE Threats, Vulnerability Scanning | NVD, Custom Scanner |
 | **Conflict** | 13 Active Zones | Static OSINT Intel |
-| **Crypto** | BTC + ETH Wallet Tracing, OFAC SDN Match | blockstream.info, Blockscout, OpenSanctions |
+| **Crypto** | BTC + ETH Wallet Tracing, OFAC SDN Match, Token Analysis & Holder Clusters | blockstream.info, Blockscout, OpenSanctions, DigitalDon |
 | **Sanctions** | Person / Org / Vessel SDN Search | OpenSanctions (US OFAC SDN mirror) |
 | **Telegram OSINT** | Geoparsed Posts from Public Channels | `t.me/s/<channel>` web preview |
 
@@ -99,6 +99,7 @@ Run `npm test` for offline checks or `RUN_LIVE_TESTS=1 npx vitest run src/app/ap
 - **Vulnerability Scanner** — CVE lookup against NVD database
 - **Crypto Wallet Trace** — BTC + ETH lookup (balance, tx history, OFAC SDN sanctions flag)
 - **OFAC Sanctions Search** — query persons, organizations, vessels and aircraft against the US OFAC SDN list
+- **Token Scan** — any token by contract or ticker on 8 chains: signal score, entry and exit zones, and the holder cluster map (by DigitalDon)
 
 ### Live Broadcast Network
 - **23 live 24/7 news streams** from global broadcasters
@@ -116,6 +117,11 @@ Run `npm test` for offline checks or `RUN_LIVE_TESTS=1 npx vitest run src/app/ap
 - **ETH** lookups via [Blockscout](https://github.com/blockscout/blockscout)'s public ETH instance (`eth.blockscout.com`, keyless)
 - Every lookup is cross-checked against the OFAC SDN sanctioned-address list (mirrored from [`0xB10C/ofac-sanctioned-digital-currency-addresses`](https://github.com/0xB10C/ofac-sanctioned-digital-currency-addresses))
 - Sanctioned wallets surface a red **SANCTIONED — OFAC SDN** badge in the RECON panel
+
+### Token Analysis (DigitalDon)
+- **Markets & Intel → Crypto → DeFi** and **RECON → Blockchain → Token Scan** embed the [DigitalDon](https://analyzer.digitaldon.net) analyzer: paste any token contract or ticker on Solana, Ethereum, Base, BSC, Arbitrum, Mantle, Arc or Robinhood
+- Signal score out of 100, entry and exit zones, and the **holder cluster map**: top wallets as bubbles, connected wallets grouped by funding and transfer links, sniper / bundle / insider / fresh wallets flagged
+- Runs in a sandboxed iframe from `widget.digitaldon.net` — no key, no server route, nothing loads until one of the two views is opened. See [/privacy](https://osirisai.live/privacy) for what it sends
 
 ### OFAC SDN Cross-Check
 - Standalone `SANCTIONS` tab in the RECON toolkit — full-text search across persons, organisations, vessels and aircraft
