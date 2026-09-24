@@ -1,0 +1,12 @@
+# Optional Docker Compose override for connecting OSIRIS to an external Umami analytics stack.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.analytics.yml up -d
+services:
+  osiris:
+    networks:
+      - umami_default
+
+networks:
+  umami_default:
+    external: true

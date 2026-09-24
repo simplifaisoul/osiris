@@ -48,6 +48,14 @@ docker compose up -d --build    # rebuild locally after pulling new code
 docker compose down             # stop & remove
 ```
 
+### Optional: Umami Analytics Network
+
+If you run an external Umami analytics stack on the host (`umami_default` network), connect OSIRIS to it using the analytics compose override:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.analytics.yml up -d
+```
+
 ### Pull the prebuilt image from GHCR
 
 A prebuilt image for `linux/amd64` and `linux/arm64` is published to the GitHub
