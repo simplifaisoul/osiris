@@ -65,6 +65,7 @@ const LAYER_GROUPS: LayerGroupDef[] = [
       { key: 'private', label: 'Private', dataKey: 'private_flights' },
       { key: 'jets', label: 'Private Jets', dataKey: 'private_jets' },
       { key: 'military', label: 'Military', dataKey: 'military_flights' },
+      { key: 'mil_flights', label: 'Unfiltered Mil/VIP', dataKey: 'military_flights' },
     ],
   },
   {
@@ -114,6 +115,7 @@ const LAYER_GROUPS: LayerGroupDef[] = [
     icon: AlertTriangle,
     layers: [
       { key: 'infrastructure', label: 'Nuclear Facilities', dataKey: 'infrastructure' },
+      { key: 'geopolitics', label: 'Geopolitical Conflict', dataKey: 'geopolitics' },
       { key: 'global_incidents', label: 'Global Incidents', dataKey: 'gdelt' },
       { key: 'alert_pins', label: 'Live Alert Pins', dataKey: 'alert_pins' },
       { key: 'gdelt_events', label: 'GDELT Events', dataKey: 'gdelt_events' },
@@ -126,6 +128,7 @@ const LAYER_GROUPS: LayerGroupDef[] = [
     layers: [
       { key: 'malware', label: 'Live Malware', dataKey: 'malware_threats' },
       { key: 'cyber_attacks', label: 'Botnet C2 Servers', dataKey: 'cyber_attacks' },
+      { key: 'cyber_bgp', label: 'BGP Outages', dataKey: 'cyber_bgp' },
     ],
   },
   {

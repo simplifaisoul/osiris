@@ -777,6 +777,21 @@ export default function Dashboard() {
       loadLayerOnce('gdelt_events', '/api/gdelt-events?limit=600', d => ({ gdelt_events: d.events }));
     }
 
+    // Unfiltered Military & VIP Flights
+    if ((activeLayers as any).mil_flights) {
+      loadLayerOnce('mil_flights', '/api/military-flights', d => ({ mil_flights: d.flights }));
+    }
+
+    // Geopolitical Conflict Events
+    if ((activeLayers as any).geopolitics) {
+      loadLayerOnce('geopolitics', '/api/geopolitics', d => ({ geopolitics: d.events }));
+    }
+
+    // BGP Internet Outages
+    if ((activeLayers as any).cyber_bgp) {
+      loadLayerOnce('cyber_bgp', '/api/cyber-bgp', d => ({ cyber_bgp: d.outages }));
+    }
+
     // Cloudflare Radar — one request backs both layers
     if ((activeLayers as any).cf_outages || (activeLayers as any).cf_attacks) {
       loadLayerOnce('cloudflare_radar', '/api/cloudflare-radar', d => ({
