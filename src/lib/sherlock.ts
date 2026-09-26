@@ -316,6 +316,11 @@ export interface ScanOptions {
   /** Re-test positives against a random control username. On by default —
    *  without it roughly one in seven "hits" is a soft 404. */
   verify?: boolean;
+  /** Called as each site answers, before calibration, so a caller can stream
+   *  progress. `total` is the number of sites this scan will check. */
+  onResult?: (result: SiteResult, total: number) => void;
+  /** Stops scheduling further checks once aborted (the client went away). */
+  signal?: AbortSignal;
 }
 
 /** A handle no one can plausibly hold, used to expose soft-404 sites. */
@@ -334,7 +339,7 @@ export async function scanUsername(username: string, opts: ScanOptions = {}): Pr
   // Concurrency is deliberately modest: at 20 the scan was triggering the
   // sites' own rate limiters, and self-inflicted 429s look exactly like a
   // missing account unless treated as blocked.
-  const { all = false, includeNsfw = false, limit, concurrency = 12, timeoutMs = 8000, verify = true } = opts;
+  const { all = false, includeNsfw = false, limit, concurrency = 12, timeoutMs = 8000, verify = true, onResult, signal } = opts;
   const started = Date.now();
 
   const db = await loadSites();
@@ -351,7 +356,15 @@ export async function scanUsername(username: string, opts: ScanOptions = {}): Pr
   }
   if (limit && limit > 0) names = names.slice(0, limit);
 
-  const results = await mapLimit(names, concurrency, n => checkSite(n, db[n], username, timeoutMs));
+  const total = names.length;
+  const results = await mapLimit(names, concurrency, async n => {
+    if (signal?.aborted) {
+      return { site: n, url: fill(db[n].url, username), status: 'skipped' as const, reason: 'scan cancelled', ms: 0 };
+    }
+    const r = await checkSite(n, db[n], username, timeoutMs);
+    onResult?.(r, total);
+    return r;
+  });
 
   let found = results.filter(r => r.status === 'found').sort((a, b) => a.site.localeCompare(b.site));
   const inconclusive: SiteResult[] = [];
@@ -360,7 +373,7 @@ export async function scanUsername(username: string, opts: ScanOptions = {}): Pr
      positive is not evidence. Re-run just the positives with a handle nobody
      can hold: any site that "finds" that one cannot be trusted for this scan.
      Only positives are re-tested, so the extra cost is small. */
-  if (verify && found.length) {
+  if (verify && found.length && !signal?.aborted) {
     /* Two independent controls, not one. With a single sample a soft-404 site
        can slip through whenever that particular control happens to be
        rejected — Roblox and WordPress passed for one handle while being
