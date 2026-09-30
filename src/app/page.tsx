@@ -283,6 +283,7 @@ export default function Dashboard() {
   const [drawnPolygons, setDrawnPolygons] = useState<DrawnShape[]>([]);
   const [demoMode, setDemoMode] = useState(false);
   const [osirisTheme, setOsirisTheme] = useState<'core'|'ghost'>('core');
+  const [layersExpanded, setLayersExpanded] = useState(false);
 
   useEffect(() => {
     document.body.className = osirisTheme === 'core' ? '' : `theme-${osirisTheme}`;
@@ -324,6 +325,8 @@ export default function Dashboard() {
     weather: false,
     radiation: false,
     infrastructure: false,
+    geopolitics: false,
+    cyber_bgp: false,
     global_incidents: true,
     /* Live Alerts reports pinned to the place they name — see alert-places.
        Off until asked for, like the other threat layers: the map opens with
@@ -777,14 +780,10 @@ export default function Dashboard() {
       loadLayerOnce('gdelt_events', '/api/gdelt-events?limit=600', d => ({ gdelt_events: d.events }));
     }
 
-    // Unfiltered Military & VIP Flights
-    if ((activeLayers as any).mil_flights) {
-      loadLayerOnce('mil_flights', '/api/military-flights', d => ({ mil_flights: d.flights }));
-    }
-
-    // Geopolitical Conflict Events
+    // Geopolitical Conflict Events & Active Conflict Zones
     if ((activeLayers as any).geopolitics) {
       loadLayerOnce('geopolitics', '/api/geopolitics', d => ({ geopolitics: d.events }));
+      loadLayerOnce('conflicts', '/api/conflicts', d => ({ conflict_zones: d.zones, conflict_events: d.liveEvents }));
     }
 
     // BGP Internet Outages
@@ -1308,7 +1307,7 @@ export default function Dashboard() {
         <motion.div
           initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }}
           className="absolute top-3 z-[380] w-[min(92vw,290px)] pointer-events-auto
-                     max-h-[calc(100vh-180px)] overflow-y-auto styled-scrollbar"
+                     max-h-[calc(100vh-180px)] overflow-y-auto styled-scrollbar transition-all duration-300"
           style={{ left: isMobile ? '12px' : '120px' }}
         >
           <FlightWatchPanel
@@ -1324,7 +1323,7 @@ export default function Dashboard() {
       {/* ── MAP VIEW CONTROLS ── */}
       <motion.div
         initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 3.5 }}
-        className="absolute bottom-[75px] md:bottom-[100px] z-[200] flex flex-col gap-1.5 pointer-events-none"
+        className="absolute bottom-[75px] md:bottom-[100px] z-[200] flex flex-col gap-1.5 pointer-events-none transition-all duration-300"
         style={{ left: isMobile ? '12px' : '120px' }}
       >
         {/* Unified Control Strip */}
@@ -1886,6 +1885,7 @@ export default function Dashboard() {
         onClose={() => setActiveCamera(null)}
         onLocate={(lat, lng) => setFlyToLocation({ lat, lng, ts: Date.now() })}
       />
+
 
       {/* ── Entity Graph Panel ── */}
       {/* Guidance belongs over the map, where the clicking happens. */}

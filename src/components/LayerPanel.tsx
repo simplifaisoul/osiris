@@ -65,7 +65,6 @@ const LAYER_GROUPS: LayerGroupDef[] = [
       { key: 'private', label: 'Private', dataKey: 'private_flights' },
       { key: 'jets', label: 'Private Jets', dataKey: 'private_jets' },
       { key: 'military', label: 'Military', dataKey: 'military_flights' },
-      { key: 'mil_flights', label: 'Unfiltered Mil/VIP', dataKey: 'military_flights' },
     ],
   },
   {

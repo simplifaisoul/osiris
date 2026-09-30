@@ -397,7 +397,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       createDot(map, 'dot-fire', isGhost ? phantomPurple : '#E65100', 10);
       createDot(map, 'dot-cctv', cameraColor, 10);
 
-      const sources = ['flights','military','jets','private-fl','satellites','earthquakes','gdelt','day-night','cctv','fires','weather','infrastructure','maritime','maritime-choke','maritime-ships','live-news','conflict-zones', 'war-alerts-targets', 'war-alerts-lines', 'balloons', 'radiation', 'ip-sweep-devices', 'ip-sweep-pulse', 'ip-sweep-connections', 'scan-targets', 'sdk-entities', 'sdk-links', 'malware-nodes', 'malware-new', 'network-mesh', 'cyber-heads', 'gdelt-events', 'cf-outages', 'cf-attacks', 'alert-pins'];
+      const sources = ['flights','military','jets','private-fl','satellites','earthquakes','gdelt','day-night','cctv','fires','weather','infrastructure','maritime','maritime-choke','maritime-ships','live-news','conflict-zones', 'war-alerts-targets', 'war-alerts-lines', 'balloons', 'radiation', 'ip-sweep-devices', 'ip-sweep-pulse', 'ip-sweep-connections', 'scan-targets', 'sdk-entities', 'sdk-links', 'malware-nodes', 'malware-new', 'network-mesh', 'cyber-heads', 'gdelt-events', 'cf-outages', 'cf-attacks', 'alert-pins', 'geopolitics', 'cyber-bgp'];
       sources.forEach(s => map.addSource(s, { type: 'geojson', data: EMPTY_FC }));
 
       // ── FLIGHT ROUTE VISUALIZATION SOURCES & LAYERS ──
@@ -600,6 +600,46 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'text-size': 9, 'text-font': ['JetBrains Mono Bold', 'Open Sans Bold'],
         'text-offset': [0, 1.6], 'text-allow-overlap': false,
       }, paint: { 'text-color': '#FF6B6B', 'text-halo-color': '#000', 'text-halo-width': 1.5, 'text-opacity': 0.9 }});
+
+      // ── Geopolitical Conflict Events ──
+      map.addLayer({ id: 'geopolitics-glow', type: 'circle', source: 'geopolitics', paint: {
+        'circle-radius': ['interpolate',['linear'],['zoom'], 1,8, 5,16, 10,24],
+        'circle-color': ['match', ['get','category'], 'strike','#FF1744', 'battle','#FF9500', 'protest','#FFD500', '#00E5FF'],
+        'circle-opacity': 0.12, 'circle-blur': 0.8,
+      }});
+      map.addLayer({ id: 'geopolitics-dots', type: 'circle', source: 'geopolitics', paint: {
+        'circle-radius': ['interpolate',['linear'],['zoom'], 1,4, 5,7, 10,10],
+        'circle-color': ['match', ['get','category'], 'strike','#FF1744', 'battle','#FF9500', 'protest','#FFD500', '#00E5FF'],
+        'circle-opacity': 0.9,
+        'circle-stroke-width': 1.5, 'circle-stroke-color': '#000000', 'circle-stroke-opacity': 0.7,
+      }});
+      map.addLayer({ id: 'geopolitics-label', type: 'symbol', source: 'geopolitics', minzoom: 3, layout: {
+        'text-field': ['get','title'], 'text-size': 9, 'text-font': ['Open Sans Bold'],
+        'text-offset': [0, 1.6], 'text-max-width': 12, 'text-allow-overlap': false,
+      }, paint: {
+        'text-color': ['match', ['get','category'], 'strike','#FF1744', 'battle','#FF9500', 'protest','#FFD500', '#00E5FF'],
+        'text-halo-color': '#000', 'text-halo-width': 1.5, 'text-opacity': 0.9,
+      }});
+
+      // ── Cyber BGP Internet Outages ──
+      map.addLayer({ id: 'cyber-bgp-glow', type: 'circle', source: 'cyber-bgp', paint: {
+        'circle-radius': ['interpolate',['linear'],['zoom'], 1,10, 5,20, 10,32],
+        'circle-color': ['match', ['get','outage_severity'], 'critical','#FF1744', 'major','#FF9500', '#FFD500'],
+        'circle-opacity': 0.15, 'circle-blur': 0.9,
+      }});
+      map.addLayer({ id: 'cyber-bgp-dots', type: 'circle', source: 'cyber-bgp', paint: {
+        'circle-radius': ['interpolate',['linear'],['zoom'], 1,4, 5,7, 10,11],
+        'circle-color': ['match', ['get','outage_severity'], 'critical','#FF1744', 'major','#FF9500', '#FFD500'],
+        'circle-opacity': 0.9,
+        'circle-stroke-width': 1.5, 'circle-stroke-color': '#000000', 'circle-stroke-opacity': 0.8,
+      }});
+      map.addLayer({ id: 'cyber-bgp-label', type: 'symbol', source: 'cyber-bgp', minzoom: 2, layout: {
+        'text-field': ['concat', 'AS', ['to-string', ['get','asn']], ' · ', ['get','name']],
+        'text-size': 9, 'text-font': ['JetBrains Mono Bold', 'Open Sans Bold'],
+        'text-offset': [0, 1.5], 'text-max-width': 12, 'text-allow-overlap': false,
+      }, paint: {
+        'text-color': '#FF9500', 'text-halo-color': '#000', 'text-halo-width': 1.5, 'text-opacity': 0.9,
+      }});
 
       // Weather Events (NASA EONET) — deep violet
       map.addLayer({ id: 'weather-glow', type: 'circle', source: 'weather', paint: {
@@ -1111,7 +1151,8 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       'gdelt-dots','weather-dots','infra-dots','maritime-dots','choke-dots','news-dots',
       'balloon-dots','rad-dots','ship-dots','sweep-device-dots','scan-targets-dots',
       'sdk-sea','sdk-air','sdk-intel','malware-dots','cyber-heads','gdelt-events-dots',
-      'cf-outage-dots','cf-attack-dots','flight-dots','military-dots','jet-dots','private-dots','alert-pin-dots']);
+      'cf-outage-dots','cf-attack-dots','flight-dots','military-dots','jet-dots','private-dots','alert-pin-dots',
+      'geopolitics-dots', 'cyber-bgp-dots']);
 
     // Satellites are picked on the GPU: the pick pass runs the same vertex
     // shader as the visible one, so the target is always exactly where the
@@ -1321,6 +1362,48 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         <div style="margin-top:8px;font-size:9px;color:#5C5A54;line-height:1.5;">
           Share of observed layer-3 attack traffic by origin · Cloudflare Radar
         </div>
+      </div>`);
+    });
+
+    // ── Geopolitical Conflict Events Click ──
+    map.on('click', 'geopolitics-dots', e => {
+      if (!e.features?.length) return;
+      const p = e.features[0].properties as any;
+      const coords = (e.features[0].geometry as any).coordinates;
+      const catColor = p.category === 'strike' ? '#FF1744' : p.category === 'battle' ? '#FF9500' : p.category === 'protest' ? '#FFD500' : '#00E5FF';
+      const srcUrl = urlSafe(p.url);
+      popup(coords, `<div style="${pStyle}border:1px solid ${catColor}66;min-width:240px;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+          <span style="background:${catColor}20;color:${catColor};border:1px solid ${catColor}40;font-size:9px;font-family:monospace;font-weight:bold;padding:1px 6px;border-radius:4px;text-transform:uppercase;">${htmlEsc(p.category || 'EVENT')}</span>
+          <span style="color:#8A8880;font-size:9px;margin-left:auto;">${htmlEsc(p.country || '')}</span>
+        </div>
+        <div style="color:#E8E6E0;font-size:12px;font-weight:700;margin-bottom:6px;line-height:1.35;">${htmlEsc(p.title)}</div>
+        ${p.fatalities > 0 ? `<div style="color:#FF4D4D;font-size:10px;font-family:monospace;margin-bottom:6px;">⚠️ CASUALTIES: ${p.fatalities}</div>` : ''}
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:#5C5A54;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06);">
+          <span>SRC: ${htmlEsc(p.source || 'OSINT')}</span>
+          ${srcUrl !== '#' ? `<a href="${srcUrl}" target="_blank" rel="noopener noreferrer" style="color:${catColor};text-decoration:underline;">LINK ↗</a>` : ''}
+        </div>
+      </div>`);
+    });
+
+    // ── Cyber BGP Outages Click ──
+    map.on('click', 'cyber-bgp-dots', e => {
+      if (!e.features?.length) return;
+      const p = e.features[0].properties as any;
+      const coords = (e.features[0].geometry as any).coordinates;
+      const sevColor = p.outage_severity === 'critical' ? '#FF1744' : p.outage_severity === 'major' ? '#FF9500' : '#FFD500';
+      popup(coords, `<div style="${pStyle}border:1px solid ${sevColor}66;min-width:240px;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+          <span style="background:${sevColor}20;color:${sevColor};border:1px solid ${sevColor}40;font-size:9px;font-family:monospace;font-weight:bold;padding:1px 6px;border-radius:4px;">BGP DISRUPTION</span>
+          <span style="color:#8A8880;font-size:9px;margin-left:auto;">${htmlEsc(p.country || '')}</span>
+        </div>
+        <div style="color:#E8E6E0;font-size:12px;font-weight:700;margin-bottom:2px;">AS${htmlEsc(String(p.asn))} — ${htmlEsc(p.name)}</div>
+        <div style="color:#9B978E;font-size:10px;margin-bottom:6px;">${htmlEsc(p.reason || 'BGP routing instability')}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:9px;background:rgba(0,0,0,0.3);padding:6px;border-radius:4px;margin-bottom:6px;">
+          <div><span style="color:#5C5A54;">SEVERITY</span><br/><span style="color:${sevColor};font-weight:bold;">${htmlEsc(String(p.outage_severity).toUpperCase())}</span></div>
+          <div><span style="color:#5C5A54;">PREFIXES</span><br/><span style="color:#E8E6E0;font-family:monospace;">${Number(p.prefixes_affected || 0).toLocaleString()}</span></div>
+        </div>
+        <div style="font-size:9px;color:#5C5A54;">Status: ${htmlEsc(p.status || 'active')} · ${htmlEsc(String(p.timestamp || '').slice(0,16).replace('T',' '))}Z</div>
       </div>`);
     });
 
@@ -2021,6 +2104,35 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     })) : []);
   }, [mapReady, data.cf_attack_origins, (activeLayers as any).cf_attacks, setGeo]);
 
+  /* ── Geopolitical Conflict Events ── */
+  useEffect(() => {
+    if (!mapReady) return;
+    const al = activeLayers as any;
+    setGeo('geopolitics', al.geopolitics && data.geopolitics ? data.geopolitics.map((g: any) => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [g.lng, g.lat] },
+      properties: {
+        id: g.id, title: g.title, category: g.category, country: g.country,
+        fatalities: g.fatalities, severity: g.severity, source: g.source, url: g.url ?? null,
+      },
+    })) : []);
+  }, [mapReady, data.geopolitics, (activeLayers as any).geopolitics, setGeo]);
+
+  /* ── Cyber BGP Outages ── */
+  useEffect(() => {
+    if (!mapReady) return;
+    const al = activeLayers as any;
+    setGeo('cyber-bgp', al.cyber_bgp && data.cyber_bgp ? data.cyber_bgp.map((b: any) => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [b.lng, b.lat] },
+      properties: {
+        id: b.id, asn: b.asn, name: b.name, country: b.country,
+        outage_severity: b.outage_severity, prefixes_affected: b.prefixes_affected,
+        status: b.status, reason: b.reason, timestamp: b.timestamp,
+      },
+    })) : []);
+  }, [mapReady, data.cyber_bgp, (activeLayers as any).cyber_bgp, setGeo]);
+
   // Malware Threats
   useEffect(() => {
     if (!mapReady) return;
@@ -2290,66 +2402,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
   }, [mapReady, activeLayers.alert_pins]);
 
 
-  useEffect(() => {
-    if (!mapReady) return;
-    // 🔴 CONFLICT ZONES - Live from /api/conflicts 🔴
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/conflicts');
-        if (cancelled) return;
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-        const conflictData = await res.json();
-        if (cancelled) return;
 
-        // Zone anchor markers (war/high/elevated labels)
-        const zoneFeatures = (conflictData.zones || []).map((z: any) => ({
-          type: 'Feature' as const,
-          geometry: { type: 'Point' as const, coordinates: [z.lng, z.lat] },
-          properties: { 
-            label: z.label, 
-            severity: z.severity, 
-            description: `${z.description}${z.eventCount > 0 ? ` [${z.eventCount} live events detected]` : ''}`,
-            sourceUrl: z.sourceUrl,
-            eventCount: z.eventCount,
-          },
-        }));
-
-        // Individual live conflict events (scatter dots across conflict zones)
-        const eventFeatures = (conflictData.liveEvents || [])
-          .filter((e: any) => e.lat && e.lng)
-          .map((e: any) => ({
-            type: 'Feature' as const,
-            geometry: { type: 'Point' as const, coordinates: [e.lng, e.lat] },
-            properties: { 
-              label: (e.title || 'CONFLICT EVENT').substring(0, 60).toUpperCase(),
-              severity: 'war',
-              description: e.title || 'Live conflict event detected by GDELT.',
-              sourceUrl: e.url || '',
-            },
-          }));
-
-        setGeo('conflict-zones', [...zoneFeatures, ...eventFeatures]);
-      } catch (e) {
-        // Fallback: if API fails, use minimal known zones
-        const FALLBACK_ZONES = [
-          { label: 'UKRAINE WAR', severity: 'war', lat: 48.5, lng: 31.2, description: 'Ongoing Russian invasion of Ukraine.', sourceUrl: 'https://liveuamap.com/' },
-          { label: 'GAZA CONFLICT', severity: 'war', lat: 31.35, lng: 34.35, description: 'Active military operations in Gaza.', sourceUrl: 'https://israelpalestine.liveuamap.com/' },
-          { label: 'SUDAN CIVIL WAR', severity: 'war', lat: 15.0, lng: 30.0, description: 'SAF vs RSF armed conflict.', sourceUrl: 'https://sudan.liveuamap.com/' },
-          { label: 'YEMEN WAR', severity: 'war', lat: 15.5, lng: 48.0, description: 'Houthi operations and Red Sea threats.', sourceUrl: 'https://yemen.liveuamap.com/' },
-          { label: 'MYANMAR CONFLICT', severity: 'war', lat: 19.5, lng: 96.5, description: 'Military junta vs opposition forces.', sourceUrl: 'https://myanmar.liveuamap.com/' },
-          { label: 'SYRIA', severity: 'high', lat: 35.0, lng: 38.5, description: 'Ongoing civil conflict.', sourceUrl: 'https://syria.liveuamap.com/' },
-        ];
-        const fallbackFeatures = FALLBACK_ZONES.map(z => ({
-          type: 'Feature' as const,
-          geometry: { type: 'Point' as const, coordinates: [z.lng, z.lat] },
-          properties: { label: z.label, severity: z.severity, description: z.description, sourceUrl: z.sourceUrl },
-        }));
-        setGeo('conflict-zones', fallbackFeatures);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [mapReady, setGeo]);
 
 
   // Visibility
@@ -2385,7 +2438,9 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     setVis(['ship-dots','ship-label'], activeLayers.maritime);
     setVis(['news-glow','news-dots','news-label'], activeLayers.live_news);
     setVis(['alert-pin-glow','alert-pin-dots','alert-pin-label','alert-pin-pulse','alert-pin-selected'], activeLayers.alert_pins);
-    setVis(['conflict-icons'], activeLayers.conflict_zones !== false);
+    setVis(['geopolitics-glow','geopolitics-dots','geopolitics-label'], !!(activeLayers as any).geopolitics);
+    setVis(['conflict-icons'], !!(activeLayers as any).geopolitics);
+    setVis(['cyber-bgp-glow','cyber-bgp-dots','cyber-bgp-label'], !!(activeLayers as any).cyber_bgp);
 
     setVis(['balloon-dots','balloon-label'], activeLayers.balloons);
     setVis(['rad-glow','rad-dots','rad-label'], activeLayers.radiation);
