@@ -763,6 +763,7 @@ export async function warmCctvCatalog() {
 /** Test seam — drops queued refreshes between cases. */
 export function clearCctvRefreshes() {
   refreshing.clear();
+  backedOff.clear();
   regionPool.reset();
   restoring = undefined;
   clearPayload();
