@@ -23,6 +23,14 @@ const ALLOWED_HOSTS = [
   'eismoinfo.lt',
   // Serves over plain http, which an https page blocks as mixed content.
   'infobanjirjps.selangor.gov.my',
+  // Washington State DOT stills, plus the partner hosts the same layer links.
+  'images.wsdot.wa.gov',
+  'www.wsdot.wa.gov',
+  'wsdot.wa.gov',
+  'www.tripcheck.com',
+  'tripcheck.com',
+  'www.seattle.gov',
+  'www.nps.gov',
 ];
 
 // Taiwan Highway Bureau cameras are DigiEver encoders, and they emit a

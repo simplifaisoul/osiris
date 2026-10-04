@@ -35,6 +35,7 @@ import { fetchNewZealandCameras } from './newzealand';
 import { fetchLithuaniaCameras } from './lithuania';
 import { fetchEdmontonCameras } from './edmonton';
 import { fetchOregonCameras } from './oregon';
+import { fetchWashingtonCameras } from './washington';
 import { fetchMichiganCameras } from './michigan';
 import { fetchIndianaCameras } from './indiana';
 import { fetchNevadaCameras } from './nevada';
@@ -82,20 +83,6 @@ async function fetchTfLCameras(): Promise<any[]> {
         source: 'TfL',
       };
     }).filter((c: any) => c.lat && c.lng);
-  } catch (e) { return []; }
-}
-
-// ── US-WEST: WSDOT Washington State (~500) ──
-async function fetchWSDOTCameras(): Promise<any[]> {
-  try {
-    const res = await stealthFetch('https://data.wsdot.wa.gov/log/public/cameras.json', { signal: AbortSignal.timeout(12000) });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return (data || []).map((cam: any) => ({
-      id: `wsdot-${cam.CameraID}`, lat: cam.CameraLocation?.Latitude, lng: cam.CameraLocation?.Longitude,
-      name: cam.Title || 'WSDOT Camera', city: 'Washington', country: 'US',
-      feed_url: cam.ImageURL || '', source: 'WSDOT',
-    })).filter((c: any) => c.lat && c.lng && c.feed_url);
   } catch (e) { return []; }
 }
 
@@ -482,7 +469,8 @@ type RegionFetcher = () => Promise<any[]>;
 const RAW_REGION_FETCHERS: Record<string, RegionFetcher> = {
   'middle-east': fetchMiddleEastCameras,
   'uk': fetchTfLCameras,
-  'us-west': async () => { const [w, c] = await Promise.all([fetchWSDOTCameras(), fetchCaltransCameras()]); return [...w, ...c]; },
+  'us-west': fetchCaltransCameras,
+  'washington': fetchWashingtonCameras,
   'us-east': fetchUSEastCameras,
   'us-central': fetchUSCentralCameras,
   'canada': fetchCanadaCameras,
@@ -813,7 +801,9 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   if (lat > 24 && lat < 49 && lng > -85 && lng < -66) regions.push('us-east');
   // US-West
   if (lat > 24 && lat < 49 && lng > -125 && lng < -100) regions.push('us-west');
-  // Utah (UDOT) — explicit, since us-west only covers WA + CA
+  // Washington (WSDOT) — explicit, since us-west is California
+  if (lat > 45.5 && lat < 49.1 && lng > -125.0 && lng < -116.8) regions.push('washington');
+  // Utah (UDOT) — explicit, since us-west only covers CA
   if (lat > 36.9 && lat < 42.1 && lng > -114.2 && lng < -108.9) regions.push('utah');
   // Oregon (ODOT) — explicit, since us-west only covers WA + CA
   if (lat > 41.9 && lat < 46.3 && lng > -124.6 && lng < -116.4) regions.push('oregon');
