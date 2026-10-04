@@ -102,7 +102,7 @@ export default function NewsChatPanel({ data, isMobile = false, onClose }: NewsC
     >
       {/* Brand — Athens logo, centered */}
       <div className="flex items-center justify-center pt-4 pb-2 shrink-0">
-        <img src="/athens-logo-white.png" alt="Athens" className="h-5 w-auto opacity-90" />
+        <img src="/athens-logo-white.png" alt="Athens" className="h-3.5 w-auto opacity-90" />
       </div>
 
       {/* Summary — Gemini, same component the Alerts panel already uses */}
