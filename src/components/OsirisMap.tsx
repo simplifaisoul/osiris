@@ -3,6 +3,19 @@
 import { useEffect, useRef, useState, useCallback, memo } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { translate } from '@/lib/i18n';
+
+/* ── Локализация HTML-попапов карты (перевод по ключам словаря i18n) ── */
+const L = (key: string) => translate(key, 'ru');
+// Заменяет ТОЛЬКО заглавные метки-ключи внутри HTML-шаблонов попапов.
+// Данные (названия, вызывные сигналы и т.д.) в нижнем регистре — не затрагиваются.
+const locHtml = (html: string) => html.replace(/\b[A-Z][A-Z0-9 /_.+-]{1,40}\b(?!-)/g, (m, off) => {
+  // Не трогать всё, что стоит сразу после '>' или '"' (значения данных), и CSS/URL-фрагменты
+  const before = html.slice(Math.max(0, off - 2), off);
+  if (before.includes('>') || before.includes('"')) return m;
+  const tr = translate(m, 'ru');
+  return tr === m ? m : tr;
+});
 
 interface OsirisMapProps {
   data: any;
@@ -18,6 +31,14 @@ interface OsirisMapProps {
   scanTargets?: any[];
   demoMode?: boolean;
   theme?: 'core' | 'ghost';
+  customMap?: {
+    tiles: string[];
+    center: [number, number]; // [lng, lat]
+    zoom: number;
+    maxZoom?: number;
+    attribution?: string;
+    label?: string;
+  } | null;
 }
 
 function computeSolarTerminator(): [number, number][] {
@@ -42,12 +63,13 @@ function computeSolarTerminator(): [number, number][] {
 
 const EMPTY_FC = { type: 'FeatureCollection' as const, features: [] };
 
-function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, flyToLocation, projection = 'globe', mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core' }: OsirisMapProps) {
+function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, flyToLocation, projection = 'globe', mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', customMap = null }: OsirisMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const prevStyleRef = useRef(mapStyle);
+  const customMapRef = useRef(customMap);
 
   // Create aircraft icon on canvas (for WebGL symbol layer)
   const createIcon = useCallback((map: maplibregl.Map, id: string, color: string, size: number) => {
@@ -579,7 +601,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     // ── POPUP HELPER ──
     const popup = (coords: any, html: string) => {
       popupRef.current?.remove();
-      popupRef.current = new maplibregl.Popup({ closeButton: true, maxWidth: '420px', offset: 14 }).setLngLat(coords).setHTML(html).addTo(map);
+      popupRef.current = new maplibregl.Popup({ closeButton: true, maxWidth: '420px', offset: 14 }).setLngLat(coords).setHTML(locHtml(html)).addTo(map);
     };
     const pStyle = `background:rgba(12,14,26,0.95);backdrop-filter:blur(16px);border-radius:10px;padding:16px;font-family:'JetBrains Mono',monospace;`;
     const linkStyle = `display:inline-block;margin-top:8px;padding:5px 12px;font-size:10px;letter-spacing:0.12em;text-decoration:none;border-radius:5px;font-family:'JetBrains Mono',monospace;`;
@@ -1468,11 +1490,19 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     if (src) src.setData({ type: 'FeatureCollection', features });
   }, [scanTargets, mapReady]);
 
-  // Fly-to
+  // Fly-to (в т.ч. переход к загруженной пользовательской карте)
   useEffect(() => {
     if (!mapReady || !mapRef.current || !flyToLocation) return;
     mapRef.current.flyTo({ center: [flyToLocation.lng, flyToLocation.lat], zoom: flyToLocation.zoom || 8, duration: 2000 });
   }, [mapReady, flyToLocation]);
+
+  // Автоперелёт к центру пользовательской карты при её загрузке
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !customMap) return;
+    const m = mapRef.current;
+    m.jumpTo({ center: customMap.center, zoom: customMap.zoom ?? 7 });
+    try { m.setMaxBounds([[customMap.center[0]-45, customMap.center[1]-40],[customMap.center[0]+45, customMap.center[1]+40]]); } catch {}
+  }, [mapReady, (customMap as any)?._ts]);
 
   // Dynamic projection switching (lightweight — no terrain DEM)
   useEffect(() => {
@@ -1566,26 +1596,41 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     }
   }, [mapReady, activeLayers.terrain_3d]);
 
-  // Satellite / Dark style switching
+  // Satellite / Dark style switching (+ поддержка пользовательских тайловых карт, напр. Яндекс-спутник)
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
-    if (mapStyle === prevStyleRef.current) return;
+    if (mapStyle === prevStyleRef.current && !(customMap as any)?._ts && customMapRef.current === customMap) return;
     prevStyleRef.current = mapStyle;
+    customMapRef.current = customMap;
     const map = mapRef.current;
 
     try {
       if (mapStyle !== 'dark') {
-        // Add satellite raster tiles
+        // Источник растра: пользовательская карта (Яндекс и т.п.) или ESRI World Imagery
+        const tiles = customMap?.tiles?.length
+          ? customMap.tiles
+          : ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'];
+        const maxzoom = customMap?.maxZoom ?? 18;
         if (!map.getSource('satellite-tiles')) {
-          map.addSource('satellite-tiles', {
-            type: 'raster',
-            tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
-            tileSize: 256,
-            maxzoom: 18,
-          });
-          map.addLayer({ id: 'satellite-layer', type: 'raster', source: 'satellite-tiles', paint: { 'raster-opacity': 0.85 } }, 'day-night-fill');
+          map.addSource('satellite-tiles', { type: 'raster', tiles, tileSize: 256, maxzoom });
+          map.addLayer({ id: 'satellite-layer', type: 'raster', source: 'satellite-tiles', paint: { 'raster-opacity': 0.97 } }, 'day-night-fill');
         } else {
-          map.setLayoutProperty('satellite-layer', 'visibility', 'visible');
+          // Пересоздаём источник, если набор тайлов изменился (загружена другая карта)
+          const src = map.getSource('satellite-tiles') as any;
+          const cur = JSON.stringify(src?.tiles || []);
+          if (cur !== JSON.stringify(tiles)) {
+            if (map.getLayer('satellite-layer')) map.removeLayer('satellite-layer');
+            if (src) map.removeSource('satellite-tiles');
+            map.addSource('satellite-tiles', { type: 'raster', tiles, tileSize: 256, maxzoom });
+            map.addLayer({ id: 'satellite-layer', type: 'raster', source: 'satellite-tiles', paint: { 'raster-opacity': 0.97 } }, 'day-night-fill');
+          } else {
+            map.setLayoutProperty('satellite-layer', 'visibility', 'visible');
+          }
+        }
+        // При активном пользовательском слое скрываем тёмный растр CARTO под ним не нужно —
+        // opacity 0.97 почти полностью перекрывает его.
+        if (customMap && map.getLayer('satellite-layer')) {
+          map.setPaintProperty('satellite-layer', 'raster-opacity', 1);
         }
       } else {
         if (map.getLayer('satellite-layer')) {
@@ -1595,9 +1640,18 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     } catch (e) {
       console.warn('Style switch failed:', e);
     }
-  }, [mapReady, mapStyle]);
+  }, [mapReady, mapStyle, customMap]);
 
-  return <div ref={containerRef} className="absolute inset-0 w-full h-full" />;
+  return (
+    <>
+      <div ref={containerRef} className="absolute inset-0 w-full h-full" />
+      {customMap && (
+        <div className="absolute bottom-6 left-2 z-[400] text-[9px] font-mono px-2 py-1 rounded bg-black/60 border border-white/10 text-white/60 pointer-events-none max-w-[320px]">
+          🗺️ {L('CUSTOM MAP')}: {customMap.label || ''}{customMap.attribution ? ` — ${customMap.attribution}` : ''}
+        </div>
+      )}
+    </>
+  );
 }
 
 export default memo(OsirisMap);

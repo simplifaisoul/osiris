@@ -3,12 +3,14 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Target, ChevronDown, ChevronUp, AlertTriangle, Ship, Anchor, AlertCircle, Maximize2, Minimize2 } from 'lucide-react';
+import { useT } from '@/lib/i18n';
 
 interface ScmPanelProps {
   data: any;
 }
 
 export default function ScmPanel({ data }: ScmPanelProps) {
+  const t = useT();
   const [expanded, setExpanded] = useState(true);
   const [maximized, setMaximized] = useState(false);
 
@@ -30,9 +32,9 @@ export default function ScmPanel({ data }: ScmPanelProps) {
       <button onClick={() => setExpanded(!expanded)} className="flex items-center justify-between w-full mb-2">
         <div className="flex items-center gap-2">
           <Target className="w-3.5 h-3.5 text-[#00BCD4]" />
-          <span className="hud-text text-[12px] text-[var(--text-primary)]">SCM RISK COMMAND</span>
+          <span className="hud-text text-[12px] text-[var(--text-primary)]">{t('SCM RISK COMMAND')}</span>
           {totalRisks > 0 && (
-            <span className="gotham-tag gotham-tag--critical" style={{ fontSize: '7px', padding: '1px 4px' }}>{totalRisks} ALERTS</span>
+            <span className="gotham-tag gotham-tag--critical" style={{ fontSize: '7px', padding: '1px 4px' }}>{totalRisks} {t('ALERTS')}</span>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -50,7 +52,7 @@ export default function ScmPanel({ data }: ScmPanelProps) {
                 <div>
                   <div className="flex items-center gap-1.5 mb-1.5">
                     <AlertCircle className="w-3 h-3 text-[#FF9500]" />
-                    <span className="text-[9px] font-mono text-[#FF9500] tracking-widest font-bold">MARKET IMPACT ALERTS</span>
+                    <span className="text-[9px] font-mono text-[#FF9500] tracking-widest font-bold">{t('MARKET IMPACT ALERTS')}</span>
                   </div>
                   <div className="space-y-1">
                     {marketAlerts.map((alert: string, i: number) => (
@@ -66,10 +68,10 @@ export default function ScmPanel({ data }: ScmPanelProps) {
               <div>
                 <div className="flex items-center gap-1.5 mb-1.5">
                   <AlertTriangle className="w-3 h-3 text-[#FF1744]" />
-                  <span className="text-[9px] font-mono text-[var(--text-muted)] tracking-widest">CRITICAL SUPPLIERS</span>
+                  <span className="text-[9px] font-mono text-[var(--text-muted)] tracking-widest">{t('CRITICAL SUPPLIERS')}</span>
                 </div>
                 {criticalSuppliers.length === 0 ? (
-                  <div className="text-[9px] font-mono text-[#00E676] px-2">✓ All monitored Tier 1/2 nodes operational.</div>
+                  <div className="text-[9px] font-mono text-[#00E676] px-2">{t('✓ All monitored Tier 1/2 nodes operational.')}</div>
                 ) : (
                   <div className="space-y-1">
                     {criticalSuppliers.map((s: any, i: number) => {
@@ -92,10 +94,10 @@ export default function ScmPanel({ data }: ScmPanelProps) {
               <div>
                 <div className="flex items-center gap-1.5 mb-1.5">
                   <Anchor className="w-3 h-3 text-[#FF9500]" />
-                  <span className="text-[9px] font-mono text-[var(--text-muted)] tracking-widest">CONGESTED NODES</span>
+                  <span className="text-[9px] font-mono text-[var(--text-muted)] tracking-widest">{t('CONGESTED NODES')}</span>
                 </div>
                 {(congestedPorts.length === 0 && riskyChokes.length === 0) ? (
-                  <div className="text-[9px] font-mono text-[#00E676] px-2">✓ Global maritime flow optimal.</div>
+                  <div className="text-[9px] font-mono text-[#00E676] px-2">{t('✓ Global maritime flow optimal.')}</div>
                 ) : (
                   <div className="space-y-1">
                     {riskyChokes.map((c: any, i: number) => (
@@ -114,7 +116,7 @@ export default function ScmPanel({ data }: ScmPanelProps) {
                           <span className="text-[8px] font-mono font-bold px-1 rounded" style={{ background: p.congestion === 'SEVERE' ? '#FF1744' : '#FF9500', color: '#000' }}>{p.congestion}</span>
                         </div>
                         <div className="flex justify-between items-center text-[8px] font-mono text-[#aaa]">
-                          <span>DWELL: <span className="text-[#fff]">{p.dwell_time}</span></span>
+                          <span>{t('DWELL:')} <span className="text-[#fff]">{p.dwell_time}</span></span>
                           <span>{p.volume.split(' | ')[1]}</span>
                         </div>
                       </div>

@@ -3,9 +3,11 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Newspaper, ChevronDown, ChevronUp, ExternalLink, MapPin, Zap } from 'lucide-react';
+import { useT } from '@/lib/i18n';
 
 /* ═══════════════════════════════════════════════════════════════
    OSIRIS — Intelligence Feed
+   Русская локаль: строки интерфейса вынесены в словарь @/lib/i18n
    SIGINT-style news aggregation with risk scoring
    ═══════════════════════════════════════════════════════════════ */
 
@@ -21,28 +23,29 @@ function getRiskClass(score: number): string {
   return 'risk-low';
 }
 
-function getRiskLabel(score: number): string {
+function getRiskLabelKey(score: number): string {
   if (score >= 8) return 'CRITICAL';
   if (score >= 6) return 'HIGH';
   if (score >= 4) return 'ELEVATED';
   return 'LOW';
 }
 
-function timeAgo(dateStr: string): string {
+function timeAgo(dateStr: string, t: (k: string) => string): string {
   try {
     const date = new Date(dateStr);
     const diff = Date.now() - date.getTime();
     const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `${mins}m ago`;
+    if (mins < 60) return t('{m} min ago').replace('{m}', String(mins));
     const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    return `${Math.floor(hrs / 24)}d ago`;
+    if (hrs < 24) return t('{h} hours ago').replace('{h}', String(hrs));
+    return t('{d} days ago').replace('{d}', String(Math.floor(hrs / 24)));
   } catch {
     return '';
   }
 }
 
 export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
+  const t = useT();
   const [expanded, setExpanded] = useState(true);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const news = data.news || [];
@@ -61,10 +64,10 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
       >
         <div className="flex items-center gap-2">
           <Newspaper className="w-3.5 h-3.5 text-[var(--gold-primary)]" />
-          <span className="hud-text text-[12px] text-[var(--text-primary)]">SIGINT FEED</span>
+          <span className="hud-text text-[12px] text-[var(--text-primary)]">{t('SIGINT FEED')}</span>
           <span className="gotham-tag gotham-tag--info" style={{ fontSize: '8px', padding: '1px 5px' }}>{news.length}</span>
           {news.some((n: any) => n.risk_score >= 8) && (
-            <span className="gotham-tag gotham-tag--critical" style={{ fontSize: '7px', padding: '1px 4px' }}>ALERTS</span>
+            <span className="gotham-tag gotham-tag--critical" style={{ fontSize: '7px', padding: '1px 4px' }}>{t('ALERTS')}</span>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -86,7 +89,7 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
               {news.length === 0 ? (
                 <div className="px-4 py-6 text-center">
                   <span className="text-[11px] font-mono text-[var(--text-muted)] tracking-widest">
-                    AWAITING INTELLIGENCE...
+                    {t('AWAITING INTELLIGENCE...')}
                   </span>
                 </div>
               ) : (
@@ -102,7 +105,7 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
                     {/* Top row: risk badge + source + time */}
                     <div className="flex items-center gap-2 mb-1">
                       <span className={`text-[9px] font-mono font-bold tracking-widest ${getRiskClass(item.risk_score)}`}>
-                        {getRiskLabel(item.risk_score)}
+                        {t(getRiskLabelKey(item.risk_score))}
                       </span>
                       <span className="text-[8px] font-mono text-[var(--text-muted)] bg-[var(--bg-tertiary)] px-1.5 py-0.5 rounded">
                         {item.source}
@@ -119,7 +122,7 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
                         </button>
                       )}
                       <span className="text-[8px] font-mono text-[var(--text-muted)] ml-auto">
-                        {timeAgo(item.published)}
+                        {timeAgo(item.published, t)}
                       </span>
                     </div>
 

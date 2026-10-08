@@ -8,6 +8,7 @@ import {
   Zap, Shield, Droplets, Gem, Bitcoin, LineChart, Maximize2, Minimize2
 } from 'lucide-react';
 import AiOverview from './AiOverview';
+import { useT } from '@/lib/i18n';
 
 interface MarketsPanelProps { data: any; spaceWeather?: any; }
 
@@ -38,6 +39,7 @@ function Ticker({ name, data: d }: { name: string; data: any }) {
 }
 
 export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) {
+  const t = useT();
   const [expanded, setExpanded] = useState(true);
   const [maximized, setMaximized] = useState(false);
   const [activeSection, setActiveSection] = useState('stocks');
@@ -52,12 +54,12 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
       <button onClick={() => setExpanded(!expanded)} className="flex items-center justify-between w-full mb-2">
         <div className="flex items-center gap-2">
           <BarChart3 className="w-3.5 h-3.5 text-[var(--gold-primary)]" />
-          <span className="hud-text text-[12px] text-[var(--text-primary)]">MARKETS & INTEL</span>
+          <span className="hud-text text-[12px] text-[var(--text-primary)]">{t('MARKETS & INTEL')}</span>
           <span className="gotham-tag gotham-tag--low" style={{ fontSize: '7px', padding: '1px 4px' }}>LIVE</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full bg-[var(--alert-green)] animate-osiris-pulse" />
-          <button onClick={(e) => { e.stopPropagation(); setMaximized(!maximized); if (!expanded && !maximized) setExpanded(true); }} className="hover:text-white transition-colors" title={maximized ? "Restore" : "Maximize"}>
+          <button onClick={(e) => { e.stopPropagation(); setMaximized(!maximized); if (!expanded && !maximized) setExpanded(true); }} className="hover:text-white transition-colors" title={maximized ? t('Restore') : t('Maximize')}>
             {maximized ? <Minimize2 className="w-3.5 h-3.5 text-[var(--text-muted)]" /> : <Maximize2 className="w-3.5 h-3.5 text-[var(--text-muted)]" />}
           </button>
           {expanded ? <ChevronUp className="w-3.5 h-3.5 text-[var(--text-muted)]" /> : <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)]" />}
@@ -73,7 +75,7 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <Zap className="w-3 h-3" style={{ color: spaceWeather.storm_color }} />
-                    <span className="text-[10px] font-mono tracking-widest text-[var(--text-muted)]">SPACE WEATHER</span>
+                    <span className="text-[10px] font-mono tracking-widest text-[var(--text-muted)]">{t('SPACE WEATHER')}</span>
                   </div>
                   <span className="text-[10px] font-mono font-bold" style={{ color: spaceWeather.storm_color }}>
                     Kp {spaceWeather.kp_index} — {spaceWeather.storm_level}
@@ -81,7 +83,7 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
                 </div>
                 {spaceWeather.solar_flares?.length > 0 && (
                   <div className="mt-1 text-[8px] font-mono text-[var(--text-muted)]">
-                    Latest flare: {spaceWeather.solar_flares[0].class}
+                    {t('Latest flare:')} {spaceWeather.solar_flares[0].class}
                   </div>
                 )}
               </div>
@@ -100,7 +102,7 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
                   <button key={s.key} onClick={() => setActiveSection(s.key)}
                     className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-[9px] font-mono tracking-wider whitespace-nowrap transition-all ${activeSection === s.key ? 'bg-[var(--hover-accent)] text-[var(--gold-primary)] border border-[var(--border-primary)]' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] border border-transparent'}`}>
                     <Icon className="w-3 h-3" />
-                    {s.label}
+                    {t(s.label)}
                   </button>
                 );
               })}
@@ -120,10 +122,10 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
             {/* Ticker List */}
             <div className="space-y-0.5 overflow-y-auto styled-scrollbar mt-2">
               {markets[activeSection] && Object.entries(markets[activeSection]).map(([name, d]) => (
-                <Ticker key={name} name={name} data={d} />
+                <Ticker key={name} name={t(name)} data={d} />
               ))}
               {(!markets[activeSection] || Object.keys(markets[activeSection]).length === 0) && (
-                <div className="text-center py-3 text-[10px] font-mono text-[var(--text-muted)]">Loading {activeSection}...</div>
+                <div className="text-center py-3 text-[10px] font-mono text-[var(--text-muted)]">{t('Loading')} {activeSection}...</div>
               )}
             </div>
           </motion.div>
