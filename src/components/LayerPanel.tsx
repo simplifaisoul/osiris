@@ -351,7 +351,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
       initial={{ x: -60, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       transition={{ type: 'spring', damping: 30, stiffness: 200, delay: 2.8 }}
-      className="absolute top-0 left-0 h-full w-[48px] flex flex-col items-center pt-24 pb-6 z-50 pointer-events-auto"
+      className="absolute top-0 left-0 h-full w-[48px] flex flex-col items-center pt-24 pb-6 z-[350] pointer-events-auto"
       style={{
         background: 'rgba(0,0,0,0.15)',
         backdropFilter: 'blur(24px) saturate(1.2)',
