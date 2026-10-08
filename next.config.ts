@@ -18,6 +18,15 @@ const nextConfig: NextConfig = {
      everywhere except Vercel, so Docker and the platform both get what they
      expect. */
   output: process.env.VERCEL ? undefined : 'standalone',
+  /* Dev only. Opening the dev server from another machine on the LAN (a phone,
+     a second desktop) makes Next treat its own dev resources as cross-origin
+     and block them: the page arrives, the HMR socket is refused, and the app
+     sits on the splash screen forever. Hosts come from the environment so no
+     address is baked into the repo - e.g. OSIRIS_DEV_ORIGINS=192.168.1.50 */
+  allowedDevOrigins: (process.env.OSIRIS_DEV_ORIGINS ?? '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean),
   serverExternalPackages: ['ws'],
   transpilePackages: ['react-map-gl', 'mapbox-gl', 'maplibre-gl'],
   // Type errors block the build again. They were suppressed while 17 stood
