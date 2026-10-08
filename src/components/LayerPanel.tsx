@@ -2,6 +2,7 @@
 
 import { memo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useT } from '@/lib/i18n';
 import {
   Plane, Satellite, Sun, AlertTriangle, Camera,
   CloudLightning, Ship, Network, Database, Ghost,
@@ -139,6 +140,7 @@ function ToggleSwitch({ active, onClick }: { active: boolean; onClick: () => voi
 }
 
 function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'core', setTheme }: LayerPanelProps) {
+  const t = useT();
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
 
   const toggle = (key: string) => setActiveLayers((prev: any) => ({ ...prev, [key]: !prev[key] }));
@@ -166,7 +168,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
         {LAYER_GROUPS.map((group) => (
           <div key={group.label} className="flex flex-col gap-2">
             <div className="text-[9px] font-mono tracking-[0.2em] uppercase text-white/30 border-b border-white/[0.06] pb-1.5">
-              {group.fullLabel}
+              {t(group.fullLabel)}
             </div>
             <div className="flex flex-col gap-1">
               {group.layers.map((layer) => {
@@ -179,7 +181,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                       onClick={() => toggle(layer.key)}
                     />
                     <span className={`text-[10px] font-mono uppercase tracking-wider flex-1 transition-colors ${isLayerActive ? 'text-white/80' : 'text-white/40'}`}>
-                      {layer.label}
+                      {t(layer.label)}
                     </span>
                     {count !== null && (
                       <span className="text-[8px] font-mono tabular-nums text-white/20">
@@ -196,7 +198,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
         {/* MOBILE GHOST TOGGLE */}
         {setTheme && (
           <div className="flex items-center justify-between mt-2 pt-3 border-t border-white/[0.06] px-1">
-            <span className="text-[9px] font-mono tracking-[0.2em] text-white/25 uppercase">Ghost Protocol</span>
+            <span className="text-[9px] font-mono tracking-[0.2em] text-white/25 uppercase">{t('Ghost Protocol')}</span>
             <button
               onClick={() => setTheme(theme === 'core' ? 'ghost' : 'core')}
               className="w-8 h-8 rounded-full flex items-center justify-center transition-all"
@@ -279,7 +281,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                     }}
                   >
                     <div className="text-[9px] font-mono tracking-[0.2em] uppercase text-white/30 mb-2.5 pb-1.5 border-b border-white/[0.04]">
-                      {group.fullLabel}
+                      {t(group.fullLabel)}
                     </div>
                     <div className="flex flex-col gap-0.5">
                       {group.layers.map((layer) => {
@@ -294,7 +296,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                           >
                             <ToggleSwitch active={!!isLayerActive} onClick={() => {}} />
                             <span className={`text-[10px] font-mono uppercase tracking-wider flex-1 transition-colors duration-200 ${isLayerActive ? 'text-white/70' : 'text-white/35'}`}>
-                              {layer.label}
+                              {t(layer.label)}
                             </span>
                             {count !== null && (
                               <span className="text-[9px] font-mono tabular-nums text-white/20">
@@ -324,7 +326,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
           style={{
             background: theme === 'ghost' ? 'rgba(179, 136, 255, 0.1)' : 'transparent',
           }}
-          title="Ghost Protocol"
+          title={t('Ghost Protocol')}
         >
           <Ghost
             className="transition-all duration-500"

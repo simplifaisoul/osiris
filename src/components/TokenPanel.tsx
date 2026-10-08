@@ -3,8 +3,10 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, TrendingUp } from 'lucide-react';
+import { useT } from '@/lib/i18n';
 
 export default function TokenPanel() {
+  const t = useT();
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -39,7 +41,7 @@ export default function TokenPanel() {
               <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-primary)] bg-black/40">
                 <div className="flex items-center gap-3">
                   <TrendingUp className="w-4 h-4 text-[#14F195]" />
-                  <h2 className="text-xs font-mono font-bold text-white tracking-widest uppercase">$OSIRIS LIVE CHART</h2>
+                  <h2 className="text-xs font-mono font-bold text-white tracking-widest uppercase">{t('$OSIRIS LIVE CHART')}</h2>
                 </div>
                 <button 
                   onClick={() => setIsOpen(false)}

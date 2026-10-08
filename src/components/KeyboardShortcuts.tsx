@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Keyboard, X } from 'lucide-react';
+import { useT } from '@/lib/i18n';
 
 const SHORTCUTS = [
   { key: 'F', desc: 'Toggle fullscreen' },
@@ -16,6 +17,7 @@ const SHORTCUTS = [
 ];
 
 export default function KeyboardShortcuts() {
+  const t = useT();
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
@@ -46,7 +48,7 @@ export default function KeyboardShortcuts() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Keyboard className="w-4 h-4 text-[var(--gold-primary)]" />
-                <span className="text-sm font-mono font-bold text-[var(--text-heading)] tracking-wider">SHORTCUTS</span>
+                <span className="text-sm font-mono font-bold text-[var(--text-heading)] tracking-wider">{t('SHORTCUTS')}</span>
               </div>
               <button onClick={() => setIsOpen(false)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)]">
                 <X className="w-4 h-4" />
@@ -55,7 +57,7 @@ export default function KeyboardShortcuts() {
             <div className="space-y-2">
               {SHORTCUTS.map(s => (
                 <div key={s.key} className="flex items-center justify-between">
-                  <span className="text-[9px] font-mono text-[var(--text-secondary)]">{s.desc}</span>
+                  <span className="text-[9px] font-mono text-[var(--text-secondary)]">{t(s.desc)}</span>
                   <kbd className="px-2 py-0.5 rounded text-[8px] font-mono font-bold text-[var(--gold-primary)] bg-[var(--bg-void)] border border-[var(--border-primary)]">
                     {s.key}
                   </kbd>
@@ -63,7 +65,7 @@ export default function KeyboardShortcuts() {
               ))}
             </div>
             <div className="mt-4 text-center text-[7px] font-mono text-[var(--text-muted)] tracking-widest">
-              PRESS [?] OR [ESC] TO CLOSE
+              {t('PRESS [?] OR [ESC] TO CLOSE')}
             </div>
           </motion.div>
         </motion.div>

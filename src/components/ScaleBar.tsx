@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { useLocale, translate } from '@/lib/i18n';
 
 /* ═══════════════════════════════════════════════════════════════
    OSIRIS — Scale Bar
@@ -15,6 +16,7 @@ interface ScaleBarProps {
 const SCALE_STEPS = [5000, 2000, 1000, 500, 200, 100, 50, 20, 10, 5, 2, 1, 0.5, 0.2, 0.1];
 
 export default function ScaleBar({ zoom, latitude }: ScaleBarProps) {
+  const locale = useLocale();
   const scaleInfo = useMemo(() => {
     // Meters per pixel at given zoom and latitude
     const metersPerPx = 156543.03392 * Math.cos(latitude * Math.PI / 180) / Math.pow(2, zoom);
@@ -29,10 +31,10 @@ export default function ScaleBar({ zoom, latitude }: ScaleBarProps) {
     }
 
     const barWidth = Math.round((bestStep * 1000) / metersPerPx);
-    const label = bestStep >= 1 ? `${bestStep} km` : `${bestStep * 1000} m`;
+    const label = bestStep >= 1 ? `${bestStep} ${translate('km', locale)}` : `${bestStep * 1000} ${translate('m', locale)}`;
 
     return { barWidth, label };
-  }, [zoom, latitude]);
+  }, [zoom, latitude, locale]);
 
   return (
     <div className="flex items-end gap-2 pointer-events-none">

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useT } from '@/lib/i18n';
 
 interface CryptoPrice { symbol: string; price: number; }
 interface CyberThreat { id: string; name: string; vendor: string; product: string; date: string; }
@@ -43,6 +44,7 @@ const formatPrice = (price: number) => {
 };
 
 export default function GlobalStatusBar() {
+  const t = useT();
   const [crypto, setCrypto] = useState<CryptoPrice[]>([]);
   const [quakes, setQuakes] = useState<Earthquake[]>([]);
 
@@ -157,7 +159,7 @@ export default function GlobalStatusBar() {
         
         {/* Static label */}
         <div className="flex-shrink-0 px-3 h-full flex items-center gap-1 border-r border-[var(--cyan-primary)]/30 bg-black pointer-events-auto relative z-10 shadow-[4px_0_10px_rgba(0,0,0,0.5)]">
-          <span className="text-[var(--cyan-primary)] font-bold">LIVE</span>
+          <span className="text-[var(--cyan-primary)] font-bold">{t('LIVE')}</span>
         </div>
 
         {/* CSS-animated ticker */}
@@ -178,15 +180,15 @@ export default function GlobalStatusBar() {
           <div className="glass-panel px-4 py-3 text-[10px] font-mono whitespace-nowrap" style={{ borderColor: '#FF950040' }}>
             <div className="flex items-center gap-2 mb-2">
               <span className="text-[12px] text-[#FF9500]">🌋</span>
-              <span className="font-bold text-[#FF9500]">Magnitude {hoveredQuake.magnitude.toFixed(1)}</span>
+              <span className="font-bold text-[#FF9500]">{t('Magnitude')} {hoveredQuake.magnitude.toFixed(1)}</span>
               <span className="text-[var(--text-muted)] text-[9px] bg-black/40 px-1.5 py-0.5 rounded">USGS</span>
             </div>
             <div className="text-[11px] text-[var(--text-primary)] font-bold mb-2">
               {hoveredQuake.place}
             </div>
             <div className="flex flex-col gap-1 text-[9px]">
-              <div className="text-[var(--text-secondary)]"><span className="opacity-50">Depth:</span> {hoveredQuake.depth} km</div>
-              <div className="text-[var(--text-secondary)] mt-1"><span className="opacity-50">Time:</span> {new Date(hoveredQuake.time).toLocaleString()}</div>
+              <div className="text-[var(--text-secondary)]"><span className="opacity-50">{t('Depth:')}</span> {hoveredQuake.depth} km</div>
+              <div className="text-[var(--text-secondary)] mt-1"><span className="opacity-50">{t('Time:')}</span> {new Date(hoveredQuake.time).toLocaleString()}</div>
             </div>
           </div>
         </div>

@@ -4,8 +4,8 @@ import "./globals.css";
 
 const SITE_URL = "https://osirisai.live";
 const SITE_NAME = "OSIRIS";
-const SITE_TITLE = "OSIRIS — Open Source Intelligence Platform | Live Flight Tracking, CCTV, OSINT Tools & More";
-const SITE_DESCRIPTION = "The open-source Palantir alternative. Track 10,000+ aircraft, 2,000 satellites, and worldwide CCTV cameras in real-time on a 3D globe. Run Nmap scans, DNS lookups, WHOIS queries, SSL cert analysis & threat intelligence — all from your browser. 20+ live data feeds including earthquakes, wildfires, nuclear facilities, cyber threats, and global conflicts. Free & open source.";
+const SITE_TITLE = "OSIRIS — Платформа разведки по открытым источникам | Онлайн-трекинг рейсов, камеры CCTV, OSINT-инструменты и многое другое";
+const SITE_DESCRIPTION = "Открытая альтернатива Palantir. Отслеживайте более 10 000 самолётов, 2 000 спутников и камеры видеонаблюдения по всему миру в реальном времени на 3D-глобусе. Сканирование портов (Nmap), DNS-запросы, WHOIS, анализ SSL-сертификатов и разведка угроз — прямо в браузере. Более 20 живых лент данных: землетрясения, лесные пожары, ядерные объекты, киберугрозы и глобальные конфликты. Бесплатно и с открытым исходным кодом.";
 
 export const viewport: Viewport = {
   themeColor: "#D4AF37",
@@ -91,26 +91,26 @@ export const metadata: Metadata = {
     canonical: SITE_URL,
   },
   openGraph: {
-    title: "OSIRIS — The Open-Source Palantir Alternative | Live Flights, CCTV, Satellites & OSINT Tools",
-    description: "Track 10K+ aircraft, 2K satellites & worldwide CCTV on a 3D globe. Run Nmap, DNS, WHOIS & threat intel scans from your browser. 20+ live intelligence feeds. Free. Open source.",
+    title: "OSIRIS — Открытая альтернатива Palantir | Рейсы, CCTV, спутники и OSINT-инструменты онлайн",
+    description: "Более 10 тыс. самолётов, 2 тыс. спутников и камеры CCTV на 3D-глобусе. Nmap, DNS, WHOIS и разведка угроз прямо в браузере. 20+ живых разведывательных лент. Бесплатно. Открытый код.",
     type: "website",
     siteName: SITE_NAME,
-    locale: "en_US",
+    locale: "ru_RU",
     url: SITE_URL,
     images: [
       {
         url: `${SITE_URL}/og-image.png`,
         width: 1200,
         height: 630,
-        alt: "OSIRIS — Open Source Intelligence Platform with Live Tracking & OSINT Tools",
+        alt: "OSIRIS — платформа разведки по открытым источникам с онлайн-трекингом и OSINT-инструментами",
         type: "image/png",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "🛰️ OSIRIS — Open Source Palantir Alternative | Live Tracking + OSINT Tools",
-    description: "Track 10K+ flights, satellites & CCTV worldwide. Run Nmap, DNS, WHOIS scans from your browser. 20+ live intel feeds. Free & open source.",
+    title: "🛰️ OSIRIS — Открытая альтернатива Palantir | Онлайн-трекинг + OSINT-инструменты",
+    description: "Более 10 тыс. рейсов, спутники и CCTV по всему миру. Nmap, DNS и WHOIS прямо в браузере. 20+ живых лент разведки. Бесплатно и с открытым кодом.",
     creator: "@simplifaisoul",
     site: "@simplifaisoul",
     images: [`${SITE_URL}/og-image.png`],
@@ -131,13 +131,13 @@ export const metadata: Metadata = {
 const jsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: "OSIRIS — OSINT Toolkit & Intelligence Platform",
+  name: "OSIRIS — Набор OSINT-инструментов и разведывательная платформа",
   alternateName: ["OSIRIS", "OsirisAI", "Osiris OSINT"],
   url: SITE_URL,
   description: SITE_DESCRIPTION,
   applicationCategory: "SecurityApplication",
-  operatingSystem: "Web",
-  browserRequirements: "Requires a modern web browser",
+  operatingSystem: "Веб",
+  browserRequirements: "Требуется современный веб-браузер",
   offers: {
     "@type": "Offer",
     price: "0",
@@ -180,7 +180,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" dir="ltr">
+    <html lang="ru" dir="ltr">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
