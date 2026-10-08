@@ -27,11 +27,10 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
-  images: {
-    remotePatterns: [
-      { protocol: 'https', hostname: '**' },
-    ],
-  },
+  /* No images.remotePatterns: nothing renders next/image, and the old
+     `hostname: '**'` let anyone use /_next/image to fetch and resize pictures
+     from any host through this server. A remote image source added later
+     should be listed by exact host. */
   async headers() {
     return [
       /* The worker path carries the MapLibre version, so a given URL never
