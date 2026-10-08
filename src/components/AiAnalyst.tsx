@@ -19,7 +19,6 @@ import {
   Trash2,
 } from 'lucide-react';
 import type { IntelligenceContext } from '@/lib/ai-engine';
-import { useT } from '@/lib/i18n';
 
 /* ═══════════════════════════════════════════════════════════════
    OSIRIS — AI Intelligence Analyst Panel
@@ -189,7 +188,6 @@ function renderMarkdown(text: string): string {
    ───────────────────────────────────────────────────────────── */
 
 export default function AiAnalyst({ data }: AiAnalystProps) {
-  const t = useT();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
@@ -270,11 +268,11 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
       };
       setMessages((prev) => [...prev, analystMsg]);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : t('Analysis failed');
+      const message = err instanceof Error ? err.message : 'Analysis failed';
       const errorMsg: ChatMessage = {
         id: generateId(),
         role: 'analyst',
-        content: `${t('⚠ INTELLIGENCE ANALYSIS ERROR')}\n\n${message}`,
+        content: `⚠ INTELLIGENCE ANALYSIS ERROR\n\n${message}`,
         timestamp: new Date().toISOString(),
         isError: true,
       };
@@ -290,7 +288,7 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
     const userMsg: ChatMessage = {
       id: generateId(),
       role: 'user',
-      content: t('📋 Generate full intelligence briefing from current operational data'),
+      content: '📋 Generate full intelligence briefing from current operational data',
       timestamp: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, userMsg]);
@@ -321,11 +319,11 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
       };
       setMessages((prev) => [...prev, analystMsg]);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : t('Briefing generation failed');
+      const message = err instanceof Error ? err.message : 'Briefing generation failed';
       const errorMsg: ChatMessage = {
         id: generateId(),
         role: 'analyst',
-        content: `${t('⚠ BRIEFING GENERATION ERROR')}\n\n${message}`,
+        content: `⚠ BRIEFING GENERATION ERROR\n\n${message}`,
         timestamp: new Date().toISOString(),
         isError: true,
       };
@@ -380,7 +378,7 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
         boxShadow:
           '0 0 30px rgba(212, 175, 55, 0.2), 0 0 60px rgba(212, 175, 55, 0.1), 0 4px 20px rgba(0, 0, 0, 0.5)',
       }}
-      aria-label={t('Open AI Intelligence Analyst')}
+      aria-label="Open AI Intelligence Analyst"
     >
       <Brain className="w-6 h-6 text-[var(--gold-primary)]" />
       {/* Pulse rings */}
@@ -450,9 +448,9 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                     <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-[var(--alert-green)] animate-osiris-pulse" />
                   </div>
                   <div className="flex flex-col">
-                    <span className="hud-text text-[11px] text-[var(--text-heading)]">{t('OSIRIS ANALYST')}</span>
+                    <span className="hud-text text-[11px] text-[var(--text-heading)]">OSIRIS ANALYST</span>
                     <span className="text-[7px] font-mono tracking-[0.2em] text-[var(--text-muted)]">
-                      {t('GEMINI 2.0 FLASH • ONLINE')}
+                      GEMINI 2.0 FLASH • ONLINE
                     </span>
                   </div>
                 </div>
@@ -462,7 +460,7 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                     <button
                       onClick={clearMessages}
                       className="p-1.5 rounded-lg hover:bg-[var(--hover-accent)] transition-colors group"
-                      title={t('Clear conversation')}
+                      title="Clear conversation"
                     >
                       <Trash2 className="w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--alert-red)]" />
                     </button>
@@ -470,7 +468,7 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                   <button
                     onClick={() => setShowSettings(!showSettings)}
                     className="p-1.5 rounded-lg hover:bg-[var(--hover-accent)] transition-colors group"
-                    title={t('Settings')}
+                    title="Settings"
                   >
                     <Settings
                       className={`w-3.5 h-3.5 transition-colors ${
@@ -481,7 +479,7 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                   <button
                     onClick={() => setIsOpen(false)}
                     className="p-1.5 rounded-lg hover:bg-[var(--hover-accent)] transition-colors group"
-                    title={t('Close')}
+                    title="Close"
                   >
                     <X className="w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)]" />
                   </button>
@@ -508,7 +506,7 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                       <div className="flex items-center gap-2">
                         <Key className="w-3 h-3 text-[var(--gold-dim)]" />
                         <span className="hud-label" style={{ fontSize: '8px' }}>
-                          {t('GEMINI API KEY (OPTIONAL)')}
+                          GEMINI API KEY (OPTIONAL)
                         </span>
                       </div>
                       <div className="flex gap-2">
@@ -549,7 +547,7 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                         )}
                       </div>
                       <p className="text-[8px] font-mono text-[var(--text-muted)] leading-relaxed">
-                        {t('Your key is stored locally and sent only to the OSIRIS server. Get a free key at')}{' '}
+                        Your key is stored locally and sent only to the OSIRIS server. Get a free key at{' '}
                         <a
                           href="https://aistudio.google.com/apikey"
                           target="_blank"
@@ -596,22 +594,22 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
 
                     <div className="space-y-2">
                       <h3 className="hud-text text-[12px] text-[var(--text-heading)]">
-                        {t('INTELLIGENCE ANALYST READY')}
+                        INTELLIGENCE ANALYST READY
                       </h3>
                       <p className="text-[10px] font-mono text-[var(--text-muted)] leading-relaxed max-w-[280px]">
-                        {t('I correlate live seismic, OSINT, threat, and cyber data to deliver actionable intelligence assessments.')}
+                        I correlate live seismic, OSINT, threat, and cyber data to deliver actionable intelligence assessments.
                       </p>
                     </div>
 
                     {/* Quick prompts */}
                     <div className="w-full space-y-1.5">
                       <span className="hud-label block text-center mb-2" style={{ fontSize: '7px' }}>
-                        {t('SUGGESTED {t('QUERIES')}')}
+                        SUGGESTED QUERIES
                       </span>
                       {[
-                        t('What are the top 3 threats right now?'),
-                        t('Are there seismic patterns correlating with conflicts?'),
-                        t('Assess cyber risks to critical infrastructure'),
+                        'What are the top 3 threats right now?',
+                        'Are there seismic patterns correlating with conflicts?',
+                        'Assess cyber risks to critical infrastructure',
                       ].map((prompt) => (
                         <button
                           key={prompt}
@@ -681,7 +679,7 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                               : 'var(--gold-primary)',
                           }}
                         >
-                          {msg.role === 'user' ? t('OPERATOR') : t('OSIRIS ANALYST')}
+                          {msg.role === 'user' ? 'OPERATOR' : 'OSIRIS ANALYST'}
                         </span>
                         <span className="text-[7px] font-mono text-[var(--text-muted)] ml-auto">
                           {new Date(msg.timestamp).toLocaleTimeString([], {
@@ -723,7 +721,7 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                       <Loader2 className="w-3.5 h-3.5 text-[var(--gold-primary)] animate-spin" />
                       <div className="flex items-center gap-1">
                         <span className="text-[9px] font-mono tracking-[0.15em] text-[var(--gold-primary)] uppercase">
-                          {t('Analyzing intelligence')}
+                          Analyzing intelligence
                         </span>
                         <motion.span
                           animate={{ opacity: [0, 1, 0] }}
@@ -761,12 +759,12 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                     }}
                   >
                     <Sparkles className="w-3 h-3" />
-                    {t('GENERATE BRIEFING')}
+                    GENERATE BRIEFING
                   </button>
                   <div className="flex-1" />
                   <span className="flex items-center text-[7px] font-mono text-[var(--text-muted)] tracking-wider">
                     <ChevronDown className="w-2.5 h-2.5 mr-0.5" />
-                    {t('SHIFT+ENTER FOR NEWLINE')}
+                    SHIFT+ENTER FOR NEWLINE
                   </span>
                 </div>
 
@@ -784,7 +782,7 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                       value={inputText}
                       onChange={(e) => setInputText(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      placeholder={t('Query the intelligence analyst...')}
+                      placeholder="Query the intelligence analyst..."
                       rows={1}
                       className="w-full bg-transparent px-3 py-2.5 text-[11px] font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none resize-none"
                       style={{ maxHeight: '120px', minHeight: '36px' }}
@@ -825,10 +823,10 @@ export default function AiAnalyst({ data }: AiAnalystProps) {
                 {/* Footer */}
                 <div className="flex items-center justify-between mt-1.5 px-1">
                   <span className="text-[7px] font-mono text-[var(--text-muted)] tracking-wider">
-                    {keySaved ? t('🔑 CUSTOM KEY') : t('🔧 SERVER KEY')} • {messages.filter((m) => m.role === 'user').length} {t('QUERIES')}
+                    {keySaved ? '🔑 CUSTOM KEY' : '🔧 SERVER KEY'} • {messages.filter((m) => m.role === 'user').length} QUERIES
                   </span>
                   <span className="text-[7px] font-mono text-[var(--text-muted)] tracking-wider">
-                    {t('FEEDS')}: {(data.earthquakes?.length || 0) + (data.news?.length || 0) + (data.gdelt?.length || 0)} {t('ITEMS')}
+                    FEEDS: {(data.earthquakes?.length || 0) + (data.news?.length || 0) + (data.gdelt?.length || 0)} ITEMS
                   </span>
                 </div>
               </div>

@@ -2,8 +2,6 @@
 
 import { useState, useCallback, useRef, useEffect, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { translate as tr } from '@/lib/i18n';
-const T = (k: string) => tr(k, 'ru');
 import dynamic from 'next/dynamic';
 import {
   X, Maximize2, Minimize2, Loader2, AlertTriangle,
@@ -239,7 +237,7 @@ function EntityGraphPanel({ entity, onClose }: Props) {
         <div className="flex items-center justify-between px-6 py-3 border-b border-[var(--border-primary)] bg-[var(--gold-primary)]/5 relative z-20">
           <div className="flex items-center gap-3">
             <div className="w-1.5 h-1.5 bg-[var(--gold-primary)] animate-osiris-pulse shadow-[0_0_8px_var(--gold-primary)]" />
-            <span className="text-[12px] font-mono font-bold tracking-[0.2em] text-[var(--gold-primary)]">{T('[ OSIRIS // ENTITY INTEL ]')}</span>
+            <span className="text-[12px] font-mono font-bold tracking-[0.2em] text-[var(--gold-primary)]">[ OSIRIS // ENTITY INTEL ]</span>
             {loading && <Loader2 className="w-3.5 h-3.5 text-[var(--gold-primary)] animate-spin" />}
           </div>
           <div className="flex items-center gap-2">
@@ -257,12 +255,12 @@ function EntityGraphPanel({ entity, onClose }: Props) {
           <div className="px-6 py-2 border-b border-[var(--border-primary)] flex items-center gap-3 bg-black/20 relative z-20">
             {(() => { const I = TYPE_ICONS[entity.type] || Globe; return <I className="w-4 h-4" style={{ color: TYPE_COLORS[entity.type] }} />; })()}
             <span className="text-xs font-mono text-white/90 tracking-widest uppercase truncate">{entity.label || entity.id}</span>
-            <span className="text-[10px] font-mono text-[var(--gold-primary)]/70 ml-auto tracking-widest">{graphData.nodes.length} {T('NODES')} // {graphData.links.length} {T('LINKS')}</span>
+            <span className="text-[10px] font-mono text-[var(--gold-primary)]/70 ml-auto tracking-widest">{graphData.nodes.length} NODES // {graphData.links.length} LINKS</span>
           </div>
         ) : (
           <div className="px-6 py-3 border-b border-[var(--border-primary)] flex items-center gap-3 bg-black/20 relative z-20">
             <Network className="w-4 h-4 text-[var(--gold-primary)]/50 animate-osiris-pulse" />
-            <span className="text-xs font-mono text-[var(--gold-primary)]/50 tracking-widest uppercase truncate typewriter">{T('[ AWAITING TARGET LOCK ]')}</span>
+            <span className="text-xs font-mono text-[var(--gold-primary)]/50 tracking-widest uppercase truncate typewriter">[ AWAITING TARGET LOCK ]</span>
           </div>
         )}
 
@@ -291,7 +289,7 @@ function EntityGraphPanel({ entity, onClose }: Props) {
           )}
           {graphData.nodes.length === 0 && !loading && (
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-xs font-mono text-white/30">{T('No graph data yet')}</span>
+              <span className="text-xs font-mono text-white/30">No graph data yet</span>
             </div>
           )}
         </div>
@@ -322,7 +320,7 @@ function EntityGraphPanel({ entity, onClose }: Props) {
                       <div className="text-[11px] font-mono text-white/90 truncate flex items-center gap-1 mt-0.5">
                         <span className="w-1 h-1 bg-[var(--gold-primary)]/40 inline-block" />
                         <span className="typewriter" style={{ animationDelay: `${i * 0.1}s` }}>
-                          {typeof v === 'boolean' ? (v ? T('YES') : T('NO')) : String(v || '—')}
+                          {typeof v === 'boolean' ? (v ? 'YES' : 'NO') : String(v || '—')}
                         </span>
                       </div>
                     </div>
@@ -335,7 +333,7 @@ function EntityGraphPanel({ entity, onClose }: Props) {
                   expandEntity(selectedNode.type, rawId);
                 }} className="btn-tactical w-full mt-4 flex items-center justify-center gap-2" disabled={loading}>
                   {loading ? <Loader2 className="w-3.5 h-3.5 text-[var(--gold-primary)] animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 text-[var(--gold-primary)]" />}
-                  <span className="text-[11px] font-mono font-bold text-[var(--gold-primary)] tracking-[0.2em]">{T('[ ACQUIRE TARGET DATA ]')}</span>
+                  <span className="text-[11px] font-mono font-bold text-[var(--gold-primary)] tracking-[0.2em]">[ ACQUIRE TARGET DATA ]</span>
                 </button>
               )}
             </motion.div>
@@ -347,7 +345,7 @@ function EntityGraphPanel({ entity, onClose }: Props) {
           {Object.entries(TYPE_COLORS).map(([t, c]) => (
             <div key={t} className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-full" style={{ background: c }} />
-              <span className="text-[8px] font-mono text-white/40 uppercase">{T(t)}</span>
+              <span className="text-[8px] font-mono text-white/40 uppercase">{t}</span>
             </div>
           ))}
         </div>

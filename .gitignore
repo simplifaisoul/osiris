@@ -1,1 +1,58 @@
-(empty)
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# Testing
+/coverage
+
+# Next.js
+/.next/
+/out/
+
+# Production
+/build
+
+# Misc
+.DS_Store
+*.pem
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local env files
+.env*.local
+.env
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Scanner backend
+scanner/
+
+# Data files
+threatfox.json
+
+# Dev scripts (one-time migration helpers)
+scripts/
+
+# AI agent config files
+CLAUDE.md
+AGENTS.md
+
+# Internal dev notes
+DO_NOT_PUSH.md
+implementation_plan.md
+
+# Security - prevent accidental backup commits
+scanner_backend_backup.js
+
+# Security - Prevent accidental manual leaks
+*Manual*.md

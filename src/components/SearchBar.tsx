@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Search, X, MapPin, Navigation, Building2, Globe2, Landmark } from 'lucide-react';
-import { useT } from '@/lib/i18n';
 
 /* ═══════════════════════════════════════════════════════════════
    OSIRIS — Enhanced Search / Locate Bar
@@ -88,7 +87,6 @@ function formatLabel(displayName: string): { primary: string; secondary: string 
 }
 
 export default function SearchBar({ onLocate, alwaysExpanded = false }: SearchBarProps) {
-  const t = useT();
   const [open, setOpen] = useState(alwaysExpanded);
   const [value, setValue] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -235,7 +233,7 @@ export default function SearchBar({ onLocate, alwaysExpanded = false }: SearchBa
         className="flex items-center gap-1.5 glass-panel-sm px-3 py-2 text-[9px] font-mono tracking-[0.15em] text-[var(--text-muted)] hover:text-[var(--gold-primary)] hover:border-[var(--border-active)] transition-all hover:shadow-[0_0_12px_rgba(212,175,55,0.08)]"
       >
         <Search className="w-3 h-3" />
-        {t('CMD: LOCATE')}
+        CMD: LOCATE
       </button>
     );
   }
@@ -251,7 +249,7 @@ export default function SearchBar({ onLocate, alwaysExpanded = false }: SearchBa
           value={value}
           onChange={(e) => handleSearch(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={t('SEARCH ADDRESS, CITY, OR COORDINATES...')}
+          placeholder="SEARCH ADDRESS, CITY, OR COORDINATES..."
           className="flex-1 bg-transparent text-[10px] text-[var(--text-primary)] font-mono tracking-wider outline-none placeholder:text-[var(--text-muted)]"
           autoComplete="off"
           spellCheck={false}
@@ -294,7 +292,7 @@ export default function SearchBar({ onLocate, alwaysExpanded = false }: SearchBa
                 </div>
                 <div className="flex flex-col items-end flex-shrink-0">
                   <span className="text-[7px] text-[var(--text-muted)] font-mono uppercase tracking-wider">
-                    {r.type === 'coordinate' ? t('COORDS') : r.type}
+                    {r.type === 'coordinate' ? 'COORDS' : r.type}
                   </span>
                   <span className="text-[7px] text-[var(--gold-primary)] font-mono opacity-40">
                     Z{r.zoomLevel}

@@ -15,9 +15,6 @@ import ViewPresets from '@/components/ViewPresets';
 import KeyboardShortcuts from '@/components/KeyboardShortcuts';
 import GlobalStatusBar from '@/components/GlobalStatusBar';
 import LiveAlerts from '@/components/LiveAlerts';
-import MyMapPanel from '@/components/MyMapPanel';
-import { CustomMap, loadCustomMap } from '@/lib/custom-map';
-import { useT, useLocale, translate } from '@/lib/i18n';
 
 const OsirisMap = dynamic(() => import('@/components/OsirisMap'), { ssr: false });
 const LayerPanel = dynamic(() => import('@/components/LayerPanel'));
@@ -45,7 +42,6 @@ function useIsMobile() {
   return isMobile;
 }
 const UptimeClock = () => {
-  const locale = useLocale();
   const [uptime, setUptime] = useState('00:00:00');
   const startTime = useRef(0);
   if (startTime.current === 0) startTime.current = Date.now();
@@ -56,20 +52,19 @@ const UptimeClock = () => {
     }, 1000);
     return () => clearInterval(iv);
   }, []);
-  return <span className="hidden lg:inline">{translate('UPTIME:', locale)} <span className="text-[var(--gold-primary)]">{uptime}</span></span>;
+  return <span className="hidden lg:inline">UPTIME: <span className="text-[var(--gold-primary)]">{uptime}</span></span>;
 };
 
 const ZuluClock = () => {
-  const locale = useLocale();
   const [time, setTime] = useState('');
   useEffect(() => {
     const iv = setInterval(() => {
       const now = new Date();
-      setTime(`${translate('UTC', locale)} ${String(now.getUTCHours()).padStart(2,'0')}:${String(now.getUTCMinutes()).padStart(2,'0')}:${String(now.getUTCSeconds()).padStart(2,'0')}Z`);
+      setTime(`ZULU ${String(now.getUTCHours()).padStart(2,'0')}:${String(now.getUTCMinutes()).padStart(2,'0')}:${String(now.getUTCSeconds()).padStart(2,'0')}Z`);
     }, 1000);
     return () => clearInterval(iv);
   }, []);
-  return <span className="text-[var(--cyan-primary)] font-bold tabular-nums">{time || `${translate('UTC', locale)} --:--:--Z`}</span>;
+  return <span className="text-[var(--cyan-primary)] font-bold tabular-nums">{time || 'ZULU --:--:--Z'}</span>;
 };
 
 /** Real entity count — no fake throughput metrics */
@@ -116,8 +111,6 @@ export default function Dashboard() {
   const [mobilePanel, setMobilePanel] = useState<'layers'|'markets'|'intel'|'search'|'recon'|null>(null);
   const [mapProjection, setMapProjection] = useState<'globe'|'mercator'>('globe');
   const [mapStyle, setMapStyle] = useState<'dark'|'satellite'>('dark');
-  const [customMap, setCustomMap] = useState<CustomMap | null>(null);
-  const [myMapOpen, setMyMapOpen] = useState(false);
   const [sweepData, setSweepData] = useState<any>(null);
   const [scanTargets, setScanTargets] = useState<any[]>([]);
   const [entityGraphTarget, setEntityGraphTarget] = useState<{ type: string; id: string; label?: string; properties?: Record<string, any> } | null>(null);
@@ -129,7 +122,6 @@ export default function Dashboard() {
   }, [osirisTheme]);
 
   const isMobile = useIsMobile();
-  const t = useT();
   const startTime = useRef(Date.now());
   const geocodeCache = useRef<Map<string, string>>(new Map());
   const geocodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -176,12 +168,6 @@ export default function Dashboard() {
   useEffect(() => {
     const splashTimer = setTimeout(() => setShowSplash(false), 2500);
     return () => clearTimeout(splashTimer);
-  }, []);
-
-  // Восстановление пользовательской карты из localStorage
-  useEffect(() => {
-    const m = loadCustomMap();
-    if (m) { setCustomMap(m); setMapStyle('satellite'); }
   }, []);
 
   // On mount: geolocate by IP and fly to user's city (after splash/map init)
@@ -698,7 +684,7 @@ export default function Dashboard() {
                 className="overflow-hidden whitespace-nowrap"
               >
                 <p className="text-[10px] md:text-[11px] font-mono tracking-[0.5em] text-[var(--gold-primary)]" style={{ opacity: 0.8 }}>
-                  {t('GLOBAL INTELLIGENCE PLATFORM')}
+                  GLOBAL INTELLIGENCE PLATFORM
                 </p>
               </motion.div>
             </div>
@@ -719,10 +705,10 @@ export default function Dashboard() {
               {/* Status messages — cycling */}
               <div className="mt-3 h-4 flex items-center justify-center">
                 {[
-                  { text: t('ESTABLISHING SECURE CONNECTION...'), delay: 0.5 },
-                  { text: t('INITIALIZING FEEDS...'), delay: 1.1 },
-                  { text: t('CALIBRATING SENSORS...'), delay: 1.7 },
-                  { text: t('SYSTEM READY'), delay: 2.2 },
+                  { text: 'ESTABLISHING SECURE CONNECTION...', delay: 0.5 },
+                  { text: 'INITIALIZING FEEDS...', delay: 1.1 },
+                  { text: 'CALIBRATING SENSORS...', delay: 1.7 },
+                  { text: 'SYSTEM READY', delay: 2.2 },
                 ].map((stage, i) => (
                   <motion.span
                     key={i}
@@ -790,7 +776,6 @@ export default function Dashboard() {
           scanTargets={scanTargets}
           demoMode={demoMode}
           theme={osirisTheme}
-          customMap={customMap}
         />
       </ErrorBoundary>
 
@@ -805,7 +790,7 @@ export default function Dashboard() {
         <button
           onClick={() => setMapProjection(p => p === 'globe' ? 'mercator' : 'globe')}
           className="glass-panel p-3.5 pointer-events-auto hover:border-[var(--gold-primary)]/40 transition-colors group relative"
-          title={mapProjection === 'globe' ? t('Switch to 2D Map') : t('Switch to 3D Globe')}
+          title={mapProjection === 'globe' ? 'Switch to 2D Map' : 'Switch to 3D Globe'}
         >
           {mapProjection === 'globe' ? (
             <MapPinned className="w-5 h-5 text-[var(--gold-primary)] group-hover:scale-110 transition-transform" />
@@ -813,7 +798,7 @@ export default function Dashboard() {
             <Globe className="w-5 h-5 text-[var(--cyan-primary)] group-hover:scale-110 transition-transform" />
           )}
           <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 text-[9px] font-mono text-[var(--text-muted)] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity glass-panel px-2 py-1 z-[300]">
-            {mapProjection === 'globe' ? t('2D MAP') : t('3D GLOBE')}
+            {mapProjection === 'globe' ? '2D MAP' : '3D GLOBE'}
           </span>
         </button>
 
@@ -821,7 +806,7 @@ export default function Dashboard() {
         <button
           onClick={() => setMapStyle(s => s === 'dark' ? 'satellite' : 'dark')}
           className="glass-panel p-3.5 pointer-events-auto hover:border-[var(--gold-primary)]/40 transition-colors group relative"
-          title={mapStyle === 'dark' ? t('Satellite View') : t('Night View')}
+          title={mapStyle === 'dark' ? 'Satellite View' : 'Night View'}
         >
           {mapStyle === 'dark' ? (
             <Satellite className="w-5 h-5 text-[var(--alert-green)] group-hover:scale-110 transition-transform" />
@@ -829,32 +814,11 @@ export default function Dashboard() {
             <Moon className="w-5 h-5 text-[var(--cyan-primary)] group-hover:scale-110 transition-transform" />
           )}
           <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 text-[9px] font-mono text-[var(--text-muted)] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity glass-panel px-2 py-1 z-[300]">
-            {mapStyle === 'dark' ? t('SATELLITE') : t('NIGHT MODE')}
-          </span>
-        </button>
-
-        {/* My Map — загрузка пользовательской карты (Яндекс и др.) */}
-        <button
-          onClick={() => setMyMapOpen(o => !o)}
-          className={`glass-panel p-3.5 pointer-events-auto hover:border-[var(--gold-primary)]/40 transition-colors group relative ${customMap ? 'border-[var(--gold-primary)]/60' : ''}`}
-          title={t('MY MAP')}
-        >
-          <MapPinned className={`w-5 h-5 ${customMap ? 'text-[var(--gold-primary)]' : 'text-[var(--cyan-primary)]'} group-hover:scale-110 transition-transform`} />
-          <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 text-[9px] font-mono text-[var(--text-muted)] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity glass-panel px-2 py-1 z-[300]">
-            {t('MY MAP')}
+            {mapStyle === 'dark' ? 'SATELLITE' : 'NIGHT MODE'}
           </span>
         </button>
 
       </motion.div>
-
-      {/* ── MY MAP PANEL ── */}
-      <MyMapPanel
-        open={myMapOpen}
-        onClose={() => setMyMapOpen(false)}
-        customMap={customMap}
-        onApply={m => { setCustomMap(m); setMapStyle('satellite'); }}
-        onClear={() => { setCustomMap(null); }}
-      />
 
       {/* ── HEADER ── */}
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, delay: 2.5 }} className={`absolute top-4 z-[200] pointer-events-none flex flex-col`} style={{ left: isMobile ? '24px' : '64px', right: '24px' }}>
@@ -871,7 +835,7 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-3 mt-1.5 pl-[44px] min-w-0 pr-4">
           <span className="text-[5px] md:text-[6px] text-[var(--text-muted)] font-mono tracking-[0.2em] md:tracking-[0.3em] uppercase opacity-40 truncate">
-            {t('POWERED BY OSIRIS OPEN SOURCE INTELLIGENCE')} <span className="hidden md:inline">· {t('C2 ENGINE: PHYSICAL COMMAND CORE · SENSORS: ORBITAL LATTICE · NET: LYCAN NETWORK')}</span>
+            POWERED BY OSIRIS OPEN SOURCE INTELLIGENCE <span className="hidden md:inline">· C2 ENGINE: PHYSICAL COMMAND CORE · SENSORS: ORBITAL LATTICE · NET: LYCAN NETWORK</span>
           </span>
         </div>
       </motion.div>
@@ -884,13 +848,13 @@ export default function Dashboard() {
           <ZuluClock />
         </span>
 
-        <span className="flex items-center gap-1">{t('SYS:')} <span className={backendStatus === 'connected' ? 'text-[var(--alert-green)]' : 'text-[var(--alert-red)]'}>{t(backendStatus)}</span></span>
+        <span className="flex items-center gap-1">SYS: <span className={backendStatus === 'connected' ? 'text-[var(--alert-green)]' : 'text-[var(--alert-red)]'}>{backendStatus.toUpperCase()}</span></span>
 
-        {spaceWeather && <span className="hidden lg:inline">{t('SOLAR:')} <span style={{ color: spaceWeather.storm_color, fontWeight: 700 }}>Kp{spaceWeather.kp_index}</span></span>}
+        {spaceWeather && <span className="hidden lg:inline">SOLAR: <span style={{ color: spaceWeather.storm_color, fontWeight: 700 }}>Kp{spaceWeather.kp_index}</span></span>}
 
         <span className="hidden lg:inline-flex items-center gap-1">
           <span className="text-[var(--cyan-primary)] font-bold">{Object.values(activeLayers).filter(Boolean).length}</span>
-          <span className="text-[var(--text-muted)]/60">{t('FEEDS')}</span>
+          <span className="text-[var(--text-muted)]/60">FEEDS</span>
         </span>
 
         <UptimeClock />
@@ -900,7 +864,7 @@ export default function Dashboard() {
 
         <a href='https://ko-fi.com/M8D41ZYW4Z' target='_blank' rel='noopener noreferrer' className="pointer-events-auto glass-panel px-3 py-1.5 flex items-center gap-1.5 text-[8px] font-mono tracking-widest hover:opacity-80 transition-opacity border-[var(--gold-primary)]/40 bg-[var(--gold-primary)]/10 ml-4 shadow-[0_0_10px_rgba(255,215,0,0.1)]">
           <div className="w-1.5 h-1.5 rounded-full bg-[var(--gold-primary)] animate-osiris-pulse" />
-          <span className="text-[var(--gold-primary)] font-bold">{t('SUPPORT PROJECT')}</span>
+          <span className="text-[var(--gold-primary)] font-bold">SUPPORT PROJECT</span>
         </a>
       </motion.div>
 
@@ -910,7 +874,7 @@ export default function Dashboard() {
           <TokenPanel />
           <a href='https://ko-fi.com/M8D41ZYW4Z' target='_blank' rel='noopener noreferrer' className="glass-panel px-2 py-1 flex items-center gap-1.5 text-[7px] font-mono tracking-widest hover:opacity-80 transition-opacity border-[var(--gold-primary)]/40 bg-[var(--gold-primary)]/10">
             <div className="w-1 h-1 rounded-full bg-[var(--gold-primary)] animate-osiris-pulse" />
-            <span className="text-[var(--gold-primary)] font-bold">{t('SUPPORT PROJECT')}</span>
+            <span className="text-[var(--gold-primary)] font-bold">SUPPORT PROJECT</span>
           </a>
         </motion.div>
       )}
@@ -918,7 +882,7 @@ export default function Dashboard() {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 2.5 }} className="absolute top-3 right-3 z-[200] pointer-events-auto flex items-center gap-2">
           <a href='https://ko-fi.com/M8D41ZYW4Z' target='_blank' className="glass-panel px-2 py-1 flex items-center gap-1.5 text-[7px] font-mono tracking-widest hover:opacity-80 transition-opacity border-[var(--gold-primary)]/40 bg-[var(--gold-primary)]/10">
             <div className="w-1 h-1 rounded-full bg-[var(--gold-primary)] animate-osiris-pulse" />
-            <span className="text-[var(--gold-primary)] font-bold">{t('SUPPORT PROJECT')}</span>
+            <span className="text-[var(--gold-primary)] font-bold">SUPPORT PROJECT</span>
           </a>
         </motion.div>
       )}
@@ -1023,9 +987,9 @@ export default function Dashboard() {
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-[#FF4081] animate-osiris-pulse" />
                   <span className="text-[12px] font-mono font-bold text-white tracking-wider">{liveFeedName}</span>
-                  <span className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 font-mono text-[9px] font-bold">{t('LIVE STREAM')}</span>
+                  <span className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 font-mono text-[9px] font-bold">LIVE STREAM</span>
                   {!liveFeedEmbedAllowed && (
-                    <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-mono text-[9px]">{t('EXTERNAL ONLY')}</span>
+                    <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-mono text-[9px]">EXTERNAL ONLY</span>
                   )}
                 </div>
                 <div className="flex items-center gap-3">
@@ -1035,7 +999,7 @@ export default function Dashboard() {
                     rel="noopener noreferrer"
                     className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[var(--border-primary)] hover:bg-[var(--gold-primary)] hover:text-black text-white transition-colors text-[11px] font-mono"
                   >
-                    <span>{t('Open in YouTube')}</span>
+                    <span>Open in YouTube</span>
                     <ExternalLink className="w-3 h-3" />
                   </a>
                   <button onClick={() => setLiveFeedUrl(null)} className="text-white/70 hover:text-white transition-colors p-1">
@@ -1060,9 +1024,9 @@ export default function Dashboard() {
                     <div className="w-14 h-14 rounded-full bg-[#39FF14]/10 border border-[#39FF14]/20 flex items-center justify-center mx-auto mb-4">
                       <ExternalLink className="w-6 h-6 text-[#39FF14]" />
                     </div>
-                    <p className="text-[13px] font-mono font-bold text-white tracking-widest mb-2">{t('EMBED RESTRICTED')}</p>
+                    <p className="text-[13px] font-mono font-bold text-white tracking-widest mb-2">EMBED RESTRICTED</p>
                     <p className="text-[11px] font-mono text-white/50 mb-6 max-w-xs">
-                      {liveFeedName} — {t('does not allow third-party embedding. Click below to open the live stream directly.')}
+                      {liveFeedName} does not allow third-party embedding. Click below to open the live stream directly.
                     </p>
                     <a
                       href={getYouTubeWatchUrl(liveFeedUrl)}
@@ -1071,7 +1035,7 @@ export default function Dashboard() {
                       className="inline-flex items-center gap-2 px-6 py-2.5 rounded border border-[#39FF14]/40 text-[#39FF14] font-mono text-[12px] hover:bg-[#39FF14]/10 transition-colors tracking-wider"
                     >
                       <ExternalLink className="w-4 h-4" />
-                      {t('OPEN LIVE STREAM')}
+                      OPEN LIVE STREAM
                     </a>
                   </div>
                 </div>
@@ -1082,7 +1046,7 @@ export default function Dashboard() {
                 <div className="bg-[#111]/90 px-4 py-2.5 border-t border-[var(--border-primary)] flex items-center gap-2.5">
                   <AlertTriangle className="w-4 h-4 text-[var(--gold-primary)] shrink-0" />
                   <span className="text-[11px] font-mono text-white/70 leading-relaxed">
-                    {t('If you see “Video unavailable”, use')} <strong className="text-[var(--gold-primary)]">{t('Open in YouTube')}</strong> {t('above.')}
+                    If you see &ldquo;Video unavailable&rdquo;, use <strong className="text-[var(--gold-primary)]">Open in YouTube</strong> above.
                   </span>
                 </div>
               )}
@@ -1096,7 +1060,7 @@ export default function Dashboard() {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 2.5 }} className="absolute top-3 right-3 z-[200] pointer-events-auto flex items-center gap-2">
           <a href='https://ko-fi.com/M8D41ZYW4Z' target='_blank' rel='noopener noreferrer' className="glass-panel px-2 py-1 flex items-center gap-1.5 text-[7px] font-mono tracking-widest hover:opacity-80 transition-opacity border-[var(--gold-primary)]/40 bg-[var(--gold-primary)]/10">
             <div className="w-1 h-1 rounded-full bg-[var(--gold-primary)] animate-osiris-pulse" />
-            <span className="text-[var(--gold-primary)] font-bold">{t('SUPPORT PROJECT')}</span>
+            <span className="text-[var(--gold-primary)] font-bold">SUPPORT PROJECT</span>
           </a>
         </motion.div>
       )}
@@ -1106,11 +1070,11 @@ export default function Dashboard() {
           <div className="mobile-nav">
             <div className="glass-panel mobile-nav-inner">
               {[
-                { id: 'layers' as const, icon: Layers, label: t('LAYERS') },
-                { id: 'markets' as const, icon: BarChart3, label: t('MARKETS') },
-                { id: 'intel' as const, icon: Newspaper, label: t('INTEL') },
-                { id: 'recon' as const, icon: Radar, label: t('RECON') },
-                { id: 'search' as const, icon: Search, label: t('SEARCH') },
+                { id: 'layers' as const, icon: Layers, label: 'LAYERS' },
+                { id: 'markets' as const, icon: BarChart3, label: 'MARKETS' },
+                { id: 'intel' as const, icon: Newspaper, label: 'INTEL' },
+                { id: 'recon' as const, icon: Radar, label: 'RECON' },
+                { id: 'search' as const, icon: Search, label: 'SEARCH' },
               ].map(tab => (
                 <button key={tab.id} onClick={() => setMobilePanel(mobilePanel === tab.id ? null : tab.id)}
                   className={`mobile-nav-btn ${mobilePanel === tab.id ? 'active' : ''}`}>
@@ -1134,7 +1098,7 @@ export default function Dashboard() {
                 <div className="px-3 pb-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="hud-text text-[9px] text-[var(--text-primary)]">
-                      {mobilePanel === 'layers' ? t('LAYERS & STATS') : mobilePanel === 'markets' ? t('MARKETS & INTEL') : mobilePanel === 'intel' ? t('INTEL FEED') : mobilePanel === 'recon' ? t('OSIRIS RECON') : t('SEARCH')}
+                      {mobilePanel === 'layers' ? 'LAYERS & STATS' : mobilePanel === 'markets' ? 'MARKETS & INTEL' : mobilePanel === 'intel' ? 'INTEL FEED' : mobilePanel === 'recon' ? 'OSIRIS RECON' : 'SEARCH'}
                     </span>
                     <button onClick={() => setMobilePanel(null)} className="text-[var(--text-muted)] p-1"><X className="w-4 h-4" /></button>
                   </div>
@@ -1185,7 +1149,7 @@ export default function Dashboard() {
             </div>
             <div className="flex gap-2 items-center">
               <span>LOC</span>
-              <span className="text-[var(--cyan-primary)] truncate max-w-[200px]">{locationLabel || t('HOVER MAP')}</span>
+              <span className="text-[var(--cyan-primary)] truncate max-w-[200px]">{locationLabel || 'HOVER MAP'}</span>
             </div>
             <div className="flex gap-2 items-center">
               <span>Z</span>
@@ -1205,29 +1169,29 @@ export default function Dashboard() {
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="absolute top-16 md:top-20 left-2 right-2 md:left-1/2 md:right-auto md:-translate-x-1/2 z-[300] md:w-[480px] max-h-[65vh] overflow-y-auto styled-scrollbar">
           <div className="glass-panel p-5 osiris-glow">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-mono font-bold text-[var(--gold-primary)] tracking-wider">{t('REGION DOSSIER')}</h2>
+              <h2 className="text-sm font-mono font-bold text-[var(--gold-primary)] tracking-wider">REGION DOSSIER</h2>
               <button onClick={() => { setRegionDossier(null); setDossierLoading(false); }} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-xs">✕</button>
             </div>
             {dossierLoading ? (
               <div className="text-center py-8">
                 <div className="w-5 h-5 border-2 border-[var(--gold-primary)] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                <span className="text-[8px] font-mono text-[var(--text-muted)] tracking-widest">{t('COMPILING INTEL...')}</span>
+                <span className="text-[8px] font-mono text-[var(--text-muted)] tracking-widest">COMPILING INTEL...</span>
               </div>
             ) : regionDossier && (
               <div className="space-y-3">
-                <div><div className="hud-label mb-0.5">{t('LOCATION')}</div><div className="text-xs text-[var(--text-primary)]">{regionDossier.location?.display_name}</div></div>
+                <div><div className="hud-label mb-0.5">LOCATION</div><div className="text-xs text-[var(--text-primary)]">{regionDossier.location?.display_name}</div></div>
                 {regionDossier.country && (
                   <div className="grid grid-cols-2 gap-2">
-                    <div><div className="hud-label mb-0.5">{t('COUNTRY')}</div><div className="text-xs text-[var(--text-primary)]">{regionDossier.country.flag} {regionDossier.country.name}</div></div>
-                    <div><div className="hud-label mb-0.5">{t('CAPITAL')}</div><div className="text-xs text-[var(--text-primary)]">{regionDossier.country.capital}</div></div>
-                    <div><div className="hud-label mb-0.5">{t('POPULATION')}</div><div className="text-xs text-[var(--text-primary)]">{regionDossier.country.population?.toLocaleString()}</div></div>
-                    <div><div className="hud-label mb-0.5">{t('REGION')}</div><div className="text-xs text-[var(--text-primary)]">{regionDossier.country.subregion || regionDossier.country.region}</div></div>
-                    <div><div className="hud-label mb-0.5">{t('LANGUAGES')}</div><div className="text-xs text-[var(--text-primary)]">{regionDossier.country.languages?.join(', ')}</div></div>
-                    <div><div className="hud-label mb-0.5">{t('AREA')}</div><div className="text-xs text-[var(--text-primary)]">{regionDossier.country.area?.toLocaleString()} km²</div></div>
+                    <div><div className="hud-label mb-0.5">COUNTRY</div><div className="text-xs text-[var(--text-primary)]">{regionDossier.country.flag} {regionDossier.country.name}</div></div>
+                    <div><div className="hud-label mb-0.5">CAPITAL</div><div className="text-xs text-[var(--text-primary)]">{regionDossier.country.capital}</div></div>
+                    <div><div className="hud-label mb-0.5">POPULATION</div><div className="text-xs text-[var(--text-primary)]">{regionDossier.country.population?.toLocaleString()}</div></div>
+                    <div><div className="hud-label mb-0.5">REGION</div><div className="text-xs text-[var(--text-primary)]">{regionDossier.country.subregion || regionDossier.country.region}</div></div>
+                    <div><div className="hud-label mb-0.5">LANGUAGES</div><div className="text-xs text-[var(--text-primary)]">{regionDossier.country.languages?.join(', ')}</div></div>
+                    <div><div className="hud-label mb-0.5">AREA</div><div className="text-xs text-[var(--text-primary)]">{regionDossier.country.area?.toLocaleString()} km²</div></div>
                   </div>
                 )}
-                {regionDossier.head_of_state && (<div><div className="hud-label mb-0.5">{t('HEAD OF STATE')}</div><div className="text-xs text-[var(--gold-primary)]">{regionDossier.head_of_state.name}</div><div className="text-[8px] text-[var(--text-muted)]">{regionDossier.head_of_state.position}</div></div>)}
-                {regionDossier.wikipedia && (<div><div className="hud-label mb-1">{t('INTELLIGENCE BRIEF')}</div><div className="flex gap-3">{regionDossier.wikipedia.thumbnail && <img src={regionDossier.wikipedia.thumbnail} alt="" className="w-14 h-14 rounded object-cover flex-shrink-0" />}<p className="text-[8px] text-[var(--text-secondary)] leading-relaxed">{regionDossier.wikipedia.extract}</p></div></div>)}
+                {regionDossier.head_of_state && (<div><div className="hud-label mb-0.5">HEAD OF STATE</div><div className="text-xs text-[var(--gold-primary)]">{regionDossier.head_of_state.name}</div><div className="text-[8px] text-[var(--text-muted)]">{regionDossier.head_of_state.position}</div></div>)}
+                {regionDossier.wikipedia && (<div><div className="hud-label mb-1">INTELLIGENCE BRIEF</div><div className="flex gap-3">{regionDossier.wikipedia.thumbnail && <img src={regionDossier.wikipedia.thumbnail} alt="" className="w-14 h-14 rounded object-cover flex-shrink-0" />}<p className="text-[8px] text-[var(--text-secondary)] leading-relaxed">{regionDossier.wikipedia.extract}</p></div></div>)}
               </div>
             )}
           </div>
@@ -1273,7 +1237,7 @@ export default function Dashboard() {
 
       {/* Shortcut hint */}
       <div className="desktop-only absolute bottom-[26px] right-5 z-[200] pointer-events-none text-[6px] font-mono text-[var(--text-muted)]/40 tracking-widest">
-        [?] {t('SHORTCUTS')} · [F] {t('FULLSCREEN')} · [S] {t('SHARE')} · [R] {t('RESET VIEW')}
+        [?] SHORTCUTS · [F] FULLSCREEN · [S] SHARE · [R] RESET VIEW
       </div>
 
 
