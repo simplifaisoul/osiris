@@ -10,6 +10,8 @@ import { useSyncExternalStore } from 'react';
 import { describeFrame, summariseWatch, type FrameAnalysis, type WatchSummary } from './analysis';
 import { analyseBitmap, forgetSession, grabStill, grabVideo, type Grab } from './client';
 import { sourceOf, type VisionCamera } from './source';
+import { cropOf, pickVehicles, type Identity } from './identify';
+import { errorOf, headersFor, loadEngine, loadKey } from '../oi/client';
 
 export { sourceOf, type VisionCamera };
 
@@ -24,6 +26,8 @@ export interface Look {
   analysis?: FrameAnalysis;
   /** A watch: how long, how far through, and once done what it came to. */
   watch?: { seconds: number; elapsed: number; summary?: WatchSummary };
+  /** The vehicles named by the reader's own model, by their index among the detections. */
+  identify?: { status: 'working' | 'done' | 'error'; error?: string; byIndex: Record<number, Identity> };
 }
 
 const looks = new Map<string, Look>();
@@ -126,5 +130,74 @@ export async function look(camera: VisionCamera, options: { watch?: number; by?:
     throw new Error(message);
   } finally {
     if (running.get(id) === controller) running.delete(id);
+  }
+}
+
+/* ───────────── Naming the vehicles ───────────── */
+
+const base64Of = (blob: Blob) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result).replace(/^data:[^,]*,/, ''));
+  reader.onerror = () => reject(reader.error);
+  reader.readAsDataURL(blob);
+});
+
+/** The vehicles cut out of the frame on screen, each scaled to about 256 px on its long side. */
+async function cropsOf(frame: string, boxes: [number, number, number, number][], size: { width: number; height: number }): Promise<string[]> {
+  const image = await createImageBitmap(await (await fetch(frame)).blob());
+  try {
+    const out: string[] = [];
+    for (const box of boxes) {
+      const [x, y, w, h] = cropOf(box, size);
+      const k = Math.min(4, 256 / Math.max(w, h));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(w * k));
+      canvas.height = Math.max(1, Math.round(h * k));
+      const ctx = canvas.getContext('2d')!;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(image, x, y, w, h, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+      if (blob) out.push(await base64Of(blob));
+    }
+    return out;
+  } finally {
+    image.close();
+  }
+}
+
+/**
+ * Names the largest vehicles in the camera's analysed frame with the reader's
+ * own vision model: make, model, body and colour where it can see them. The
+ * answer is pinned to the boxes it was asked about, and dropped if the frame
+ * has moved on in the meantime.
+ */
+export async function identifyVehicles(camera: VisionCamera): Promise<void> {
+  const id = camera.id;
+  const current = looks.get(id);
+  const a = current?.analysis;
+  if (!current || !a || !current.frame || current.status === 'working') return;
+  const frame = current.frame;
+  const fail = (error: string) => { const now = looks.get(id); if (now?.frame === frame) set(id, { ...now, identify: { status: 'error', error, byIndex: {} } }); };
+  const picked = pickVehicles(a.detections);
+  if (!picked.length) return fail('No vehicle in view is large enough to identify');
+  const engine = loadEngine();
+  const key = engine ? loadKey(engine.provider) : '';
+  if (!engine || (engine.provider !== 'demo' && !key)) return fail('Add your AI key in OI to name makes and models');
+  set(id, { ...current, identify: { status: 'working', byIndex: {} } });
+  try {
+    const crops = await cropsOf(frame, picked.map(i => a.detections[i].box), a);
+    const res = await fetch('/api/oi/identify', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...headersFor(engine, key) },
+      body: JSON.stringify({ camera: camera.name, crops: crops.map((image, j) => ({ n: j + 1, image })) }),
+    });
+    if (!res.ok) return fail(await errorOf(res));
+    const { vehicles } = await res.json() as { vehicles: Identity[] };
+    const byIndex: Record<number, Identity> = {};
+    for (const v of vehicles) if (picked[v.n - 1] !== undefined) byIndex[picked[v.n - 1]] = v;
+    const now = looks.get(id);
+    if (now?.frame === frame) set(id, { ...now, identify: { status: 'done', byIndex } });
+  } catch {
+    fail('The vehicles could not be identified just then');
   }
 }

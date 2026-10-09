@@ -7,6 +7,7 @@
  * those changed. Pure and shared by the browser and the server.
  */
 import { LABELS, VEHICLES, type Detection, type Label } from './detect';
+import type { Colour } from './colour';
 
 /** How light the picture is: measured, not the time of day (a floodlit square at night reads bright). */
 export type Light = 'bright' | 'dim' | 'dark';
@@ -18,6 +19,8 @@ export interface FrameAnalysis {
   height: number;
   detections: Detection[];
   counts: Partial<Record<Label, number>>;
+  /** The vehicles in view by colour; null when the picture has no colour to read. */
+  colours: Partial<Record<Colour, number>> | null;
   light: Light;
   /** The share of the picture that changed since the previous frame, 0–1; null for the first. */
   motion: number | null;
@@ -133,9 +136,15 @@ export function countWords(counts: Partial<Record<Label, number>>): string {
 
 const LIGHT_WORDS: Record<Light, string> = { bright: 'well lit', dim: 'in dim light', dark: 'in the dark' };
 
+/** "8 white, 6 black, 2 red", most first. */
+export function colourWords(colours: Partial<Record<Colour, number>>): string {
+  return (Object.entries(colours) as [Colour, number][]).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]).map(([c, n]) => `${n} ${c}`).join(', ');
+}
+
 /** One line on a frame, for a reader or a model. */
 export function describeFrame(a: FrameAnalysis): string {
-  return `${countWords(a.counts)} in view, ${LIGHT_WORDS[a.light]}`;
+  const colours = a.colours && colourWords(a.colours);
+  return `${countWords(a.counts)} in view, ${LIGHT_WORDS[a.light]}${colours ? `; vehicles by colour: ${colours}` : ''}`;
 }
 
 /** One line on a watch. */
@@ -159,6 +168,7 @@ export function forModel(a: FrameAnalysis, watch?: WatchSummary) {
     frame_at: a.at,
     in_view: a.counts,
     vehicles: vehiclesIn(a.counts),
+    vehicle_colours: a.colours ?? 'not readable (no colour in the picture)',
     light: a.light,
     picture: `${a.width}x${a.height}`,
     ...(watch ? { watch: { seconds: watch.seconds, frames: watch.frames, changed: watch.changed, vehicles: watch.vehicles, counts: watch.counts, motion: watch.motion, trend: watch.trend } } : {}),

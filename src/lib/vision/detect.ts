@@ -12,6 +12,8 @@
  * runtime that actually executes the model lives with each caller.
  */
 
+import type { Colour } from './colour';
+
 /** Where the model is served from, and the size it reads. */
 export const MODEL = {
   name: 'YOLOX-nano',
@@ -38,6 +40,8 @@ export interface Detection {
   score: number;
   /** x, y, width, height in the frame's own pixels */
   box: [number, number, number, number];
+  /** A vehicle's colour; null where the picture has none to read (an infrared night camera). */
+  colour?: Colour | null;
 }
 
 /** How a frame is fitted into the model's square: scaled to fit, padded right and below. */

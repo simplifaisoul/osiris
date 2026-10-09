@@ -13,7 +13,8 @@
  * Messages out: { id, analysis } or { id, error }
  */
 import * as ort from 'onnxruntime-web/wasm';
-import { MODEL, decode, fit, toInput } from './detect';
+import { MODEL, VEHICLES, decode, fit, toInput } from './detect';
+import { paintVehicles } from './colour';
 import { countsOf, lightOf, meanOf, motionBetween, type FrameAnalysis } from './analysis';
 
 type Request =
@@ -55,10 +56,10 @@ async function analyse(image: ImageBitmap, at: string, key: string): Promise<Fra
   const { width, height } = image;
   if (!width || !height) throw new Error('The frame is empty');
   const f = fit(width, height);
-  let input: Float32Array;
+  let scaled: Uint8ClampedArray;
   let grey: Uint8Array;
   try {
-    input = toInput(pixels(image, f.width, f.height), f.width, f.height, 4);
+    scaled = pixels(image, f.width, f.height);
     const th = Math.max(1, Math.round((THUMB * height) / width));
     const small = pixels(image, THUMB, th);
     grey = new Uint8Array(THUMB * th);
@@ -72,14 +73,14 @@ async function analyse(image: ImageBitmap, at: string, key: string): Promise<Fra
   }
   const s = await session();
   const started = performance.now();
-  const out = await s.run({ [s.inputNames[0]]: new ort.Tensor('float32', input, [1, 3, MODEL.input, MODEL.input]) });
+  const out = await s.run({ [s.inputNames[0]]: new ort.Tensor('float32', toInput(scaled, f.width, f.height, 4), [1, 3, MODEL.input, MODEL.input]) });
   const ms = Math.round(performance.now() - started);
-  const detections = decode(out[s.outputNames[0]].data as Float32Array, f.scale, { width, height });
+  const { detections, colours } = paintVehicles(decode(out[s.outputNames[0]].data as Float32Array, f.scale, { width, height }), scaled, f.width, f.height, 4, f.scale, VEHICLES);
   const previous = thumbs.get(key);
   thumbs.set(key, grey);
   if (thumbs.size > 8) thumbs.delete(thumbs.keys().next().value!);
   return {
-    at, width, height, detections, counts: countsOf(detections), light: lightOf(meanOf(grey)),
+    at, width, height, detections, counts: countsOf(detections), colours, light: lightOf(meanOf(grey)),
     motion: previous ? motionBetween(previous, grey) : null, ms,
   };
 }

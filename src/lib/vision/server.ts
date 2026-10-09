@@ -11,7 +11,8 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import type { InferenceSession } from 'onnxruntime-web';
-import { MODEL, decode, fit, toInput } from './detect';
+import { MODEL, VEHICLES, decode, fit, toInput } from './detect';
+import { paintVehicles } from './colour';
 import { countsOf, lightOf, meanOf, type FrameAnalysis } from './analysis';
 
 type Ort = typeof import('onnxruntime-web');
@@ -42,8 +43,8 @@ async function run(bytes: Buffer, at: string): Promise<FrameAnalysis> {
   const started = performance.now();
   const out = await session.run({ [session.inputNames[0]]: new ort.Tensor('float32', toInput(pixels, f.width, f.height, 3), [1, 3, MODEL.input, MODEL.input]) });
   const ms = Math.round(performance.now() - started);
-  const detections = decode(out[session.outputNames[0]].data as Float32Array, f.scale, { width, height });
-  return { at, width, height, detections, counts: countsOf(detections), light: lightOf(meanOf(grey)), motion: null, ms };
+  const { detections, colours } = paintVehicles(decode(out[session.outputNames[0]].data as Float32Array, f.scale, { width, height }), pixels, f.width, f.height, 3, f.scale, VEHICLES);
+  return { at, width, height, detections, counts: countsOf(detections), colours, light: lightOf(meanOf(grey)), motion: null, ms };
 }
 
 let queue: Promise<unknown> = Promise.resolve();

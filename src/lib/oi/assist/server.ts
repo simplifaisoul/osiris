@@ -34,7 +34,7 @@ async function framesFor(last: AssistMessage): Promise<{ images: NonNullable<Cha
   const one = frames.length === 1;
   return {
     images: frames.map(f => f.image),
-    note: `\n\nATTACHED: ${one ? 'the frame' : 'the frames'} from the camera tool, in order: ${frames.map((f, i) => `${i + 1}. ${f.name}, ${f.at.slice(11, 16)} UTC`).join('; ')}. Read ${one ? 'it' : 'them'} for what counts cannot say (weather, the road, queues, incidents, crowds); where you see more or less than the counts, say so.`,
+    note: `\n\nATTACHED: ${one ? 'the frame' : 'the frames'} from the camera tool, in order: ${frames.map((f, i) => `${i + 1}. ${f.name}, ${f.at.slice(11, 16)} UTC`).join('; ')}. Read ${one ? 'it' : 'them'} for what counts cannot say (weather, the road, queues, incidents, crowds); where you see more or less than the counts, say so. Name a vehicle's make or model only where the picture clearly shows it; never read number plates or describe people.`,
   };
 }
 

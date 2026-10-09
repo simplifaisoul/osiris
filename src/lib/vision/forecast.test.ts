@@ -13,7 +13,7 @@ const cam = (id: string, km: number, over: Partial<CatalogueCamera> = {}): Catal
   id, name: `Cam ${id}`, city: 'Madrid', country: 'Spain', source: 'DGT', lat: 40.4, lng: -3.7, still: `https://cams.example/${id}.jpg`, page: 'https://cams.example/', km, ...over,
 });
 
-const analysis = (counts: FrameAnalysis['counts']): FrameAnalysis => ({ at: '2026-10-09T08:15:00.000Z', width: 640, height: 360, detections: [], counts, light: 'bright', motion: null, ms: 90 });
+const analysis = (counts: FrameAnalysis['counts']): FrameAnalysis => ({ at: '2026-10-09T08:15:00.000Z', width: 640, height: 360, detections: [], counts, colours: null, light: 'bright', motion: null, ms: 90 });
 
 function deps(over: Partial<CameraDeps> = {}): CameraDeps & { asked: string[] } {
   const asked: string[] = [];

@@ -8,6 +8,7 @@
 import type { ChatFn, ChatRequest } from './providers';
 import { demoAssist } from './assist/demo';
 import { ASSIST_SYSTEM_START } from './assist/protocol';
+import { IDENTIFY_SYSTEM_START } from '../vision/identify';
 import { planFallback } from './plan';
 
 const ACTORS = [
@@ -79,9 +80,23 @@ function feedSources(u: string): { id: string; says: string }[] {
   }).filter(x => x.says.trim());
 }
 
+/**
+ * Vehicle identification, scripted: the demo has no eyes, so every answer says
+ * "(demo)" in its model name, and one in three is the honest "unclear".
+ */
+const DEMO_VEHICLES = [
+  { make: 'Toyota', model: 'Corolla (demo)', body: 'car', confidence: 'possible' },
+  { make: 'Ford', model: 'Transit (demo)', body: 'van', confidence: 'likely' },
+  { make: null, model: null, body: 'car', confidence: 'unclear' },
+];
+function demoIdentify(count: number): string {
+  return JSON.stringify({ vehicles: Array.from({ length: count }, (_, i) => ({ n: i + 1, colour: null, ...DEMO_VEHICLES[i % DEMO_VEHICLES.length] })) });
+}
+
 function answer(req: ChatRequest): string {
   // OI Assist has its own script: the conversation, not the forecast pipeline.
   if (req.system.startsWith(ASSIST_SYSTEM_START)) return demoAssist(req.user);
+  if (req.system.startsWith(IDENTIFY_SYSTEM_START)) return demoIdentify(req.images?.length ?? 0);
   const u = req.user;
   if (u.includes('Plan the research')) {
     const question = (u.match(/QUESTION: (.*)/)?.[1] ?? '').trim();
