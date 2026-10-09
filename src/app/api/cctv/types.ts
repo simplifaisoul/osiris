@@ -1,4 +1,4 @@
-export type CctvStreamType = 'jpg' | 'hls' | 'iframe' | 'mjpeg';
+export type CctvStreamType = 'jpg' | 'hls' | 'iframe' | 'mjpeg' | 'mp4';
 
 export interface CctvCamera {
   id: string;
