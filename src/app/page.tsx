@@ -53,6 +53,7 @@ import type { Stage } from '@/components/oi/Workspace';
 import { searchObjects, TYPE_LABEL, objectsOf } from '@/lib/oi/objects';
 import { workspaceInsets } from '@/lib/oi/layout';
 import type { OiGlobe, OiHover } from '@/lib/oi/globe';
+import { look } from '@/lib/vision/store';
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
@@ -585,6 +586,12 @@ export default function Dashboard() {
         const hit = (await res.json())?.results?.[0];
         return hit && Number.isFinite(hit.lat) && Number.isFinite(hit.lng) ? { name: hit.name, lat: hit.lat, lng: hit.lng, kind: hit.kind } : null;
       } catch { return null; }
+    },
+    // OI looks through the same overlay the reader uses, so its boxes appear in the open viewer.
+    camera: async (cam, watch) => {
+      setActiveCamera({ ...cam, type: 'cctv' });
+      const out = await look(cam, { watch, by: 'oi' });
+      return { analysis: out.analysis, watch: out.watch };
     },
   }), [openFromAssist]);
   const assist = useAssist({
@@ -2277,6 +2284,7 @@ export default function Dashboard() {
         camera={activeCamera}
         onClose={() => setActiveCamera(null)}
         onLocate={(lat, lng) => setFlyToLocation({ lat, lng, ts: Date.now() })}
+        besideOi={showOi && !oiTheater}
       />
 
       {/* ── Entity Graph Panel ── */}

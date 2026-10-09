@@ -206,6 +206,8 @@ export interface ChatRequest {
   signal?: AbortSignal;
   /** Per-call ceiling. */
   timeoutMs?: number;
+  /** Pictures for the model to look at with the prompt, base64 without the data: prefix. Dropped by a model that cannot read them. */
+  images?: { mime: string; data: string }[];
 }
 
 export interface ChatResult {
@@ -224,9 +226,11 @@ type FetchLike = typeof fetch;
  * newer models want `max_completion_tokens`. On a 400 naming one of these, the
  * call is repeated without it rather than failing the run.
  */
-interface Relax { temperature: boolean; json: boolean; completionTokens: boolean; effort: boolean }
+interface Relax { temperature: boolean; json: boolean; completionTokens: boolean; effort: boolean; images: boolean }
 
-function relaxFor(message: string, r: Relax): Relax | null {
+function relaxFor(message: string, r: Relax, sentImages = false): Relax | null {
+  // A text-only model refusing a picture: ask again with words alone. Checked first, since such errors often mention the content's type or mime too.
+  if (sentImages && !r.images && /image|vision|multimodal|multi-modal|image_url|inline_?data|content.{0,30}(array|list|type|part)|does not support|not supported|unsupported/i.test(message)) return { ...r, images: true };
   if (!r.effort && /reasoning_effort|reasoning effort/i.test(message)) return { ...r, effort: true };
   if (!r.temperature && /temperature/i.test(message)) return { ...r, temperature: true };
   if (!r.completionTokens && /max_tokens|max_completion_tokens/i.test(message)) return { ...r, completionTokens: true };
@@ -239,7 +243,27 @@ function openaiReasoning(model: string): boolean {
   return /^(?:o\d|gpt-5)/i.test(model.replace(/^openai\//, ''));
 }
 
+/**
+ * Whether a model is likely to read pictures, so a camera's frame is worth
+ * sending. A guess from the name: a model that turns out not to is asked again
+ * with words alone (see relaxFor), so a wrong guess costs one refused call.
+ */
+export function canSeeImages(provider: ProviderId, model: string): boolean {
+  const m = model.toLowerCase();
+  switch (provider) {
+    case 'anthropic': case 'google': return true;
+    case 'openai': return /gpt-4o|gpt-4\.1|gpt-4-turbo|gpt-5|^o[134]/.test(m);
+    case 'openrouter': return /gemini|claude|gpt-4o|gpt-4\.1|gpt-5|llama-4|pixtral|qwen.*vl|grok-4|vision|\/o[34]/.test(m);
+    case 'groq': return /llama-4|vision/.test(m);
+    case 'xai': return /grok-4|vision/.test(m);
+    case 'mistral': return /pixtral|mistral-(small|medium)|magistral/.test(m);
+    case 'qwen': return /vl|omni|qvq/.test(m);
+    default: return false;
+  }
+}
+
 function buildRequest(def: ProviderDef, key: string, model: string, req: ChatRequest, r: Relax): { url: string; init: RequestInit } {
+  const images = !r.images && req.images?.length ? req.images : [];
   if (def.wire === 'anthropic') {
     return {
       url: `${def.base}/messages`,
@@ -250,7 +274,12 @@ function buildRequest(def: ProviderDef, key: string, model: string, req: ChatReq
           model,
           max_tokens: req.maxTokens,
           system: req.system,
-          messages: [{ role: 'user', content: req.user }],
+          messages: [{
+            role: 'user',
+            content: images.length
+              ? [...images.map(i => ({ type: 'image', source: { type: 'base64', media_type: i.mime, data: i.data } })), { type: 'text', text: req.user }]
+              : req.user,
+          }],
           ...(req.temperature !== undefined && !r.temperature ? { temperature: req.temperature } : {}),
         }),
       },
@@ -264,7 +293,7 @@ function buildRequest(def: ProviderDef, key: string, model: string, req: ChatReq
         headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: req.system }] },
-          contents: [{ role: 'user', parts: [{ text: req.user }] }],
+          contents: [{ role: 'user', parts: [...images.map(i => ({ inlineData: { mimeType: i.mime, data: i.data } })), { text: req.user }] }],
           generationConfig: {
             // Thinking models spend from the same budget; leave them room to answer.
             maxOutputTokens: Math.max(req.maxTokens, 8192),
@@ -289,7 +318,15 @@ function buildRequest(def: ProviderDef, key: string, model: string, req: ChatReq
       headers,
       body: JSON.stringify({
         model,
-        messages: [{ role: 'system', content: req.system }, { role: 'user', content: req.user }],
+        messages: [
+          { role: 'system', content: req.system },
+          {
+            role: 'user',
+            content: images.length
+              ? [{ type: 'text', text: req.user }, ...images.map(i => ({ type: 'image_url', image_url: { url: `data:${i.mime};base64,${i.data}` } }))]
+              : req.user,
+          },
+        ],
         // Reasoning models spend completion tokens thinking before they answer.
         ...(completion ? { max_completion_tokens: reasoning ? Math.max(req.maxTokens, 8000) : req.maxTokens } : { max_tokens: req.maxTokens }),
         ...(req.temperature !== undefined && !r.temperature && !reasoning ? { temperature: req.temperature } : {}),
@@ -377,7 +414,7 @@ export function createChat(provider: ProviderId, key: string, model: string, f: 
   const def = BY_ID.get(provider);
   if (!def) throw new ProviderError('bad_request', 'Unknown provider');
   if (def.wire === 'demo') return createDemoChat([300, 1400]);
-  let relax: Relax = { temperature: false, json: false, completionTokens: false, effort: false };
+  let relax: Relax = { temperature: false, json: false, completionTokens: false, effort: false, images: false };
 
   return async function chat(req: ChatRequest): Promise<ChatResult> {
     let retried = false;
@@ -390,7 +427,7 @@ export function createChat(provider: ProviderId, key: string, model: string, f: 
       } catch (err) {
         if (!(err instanceof ProviderError)) throw err;
         if (err.code === 'bad_request') {
-          const next = relaxFor(err.message, relax);
+          const next = relaxFor(err.message, relax, Boolean(req.images?.length));
           if (next) { relax = next; continue; }
         }
         if ((err.transient || err.code === 'empty') && !retried) {

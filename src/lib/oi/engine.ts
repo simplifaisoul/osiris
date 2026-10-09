@@ -78,8 +78,13 @@ export interface EngineDeps {
   gather?: (question: string, seed: string, limit: number) => Promise<ContextItem[]>;
   /** The open-web research; tests pass their own. */
   research?: (plan: ResearchPlan, question: string, limit: number, signal: AbortSignal) => Promise<Research>;
+  /** Looking through live cameras at the places the plan named; tests pass their own. */
+  cameras?: (places: string[], signal: AbortSignal) => Promise<ContextItem[]>;
   today?: string;
 }
+
+/** The cameras step, loaded only for a plan that asks for it. */
+const lookThroughCameras = async (places: string[], signal: AbortSignal) => (await import('../vision/forecast')).cameraEvidence(places, signal);
 
 /** A failure that ends the run: the key, the account or the model is wrong, so every further call would fail too. */
 export class FatalError extends Error {}
@@ -172,9 +177,14 @@ export async function runEngine(input: EngineInput, deps: EngineDeps): Promise<v
     s.check();
     const plan = parsePlan(planned, input.question);
     const research = deps.research ?? researchWeb;
-    const [found, feed] = await Promise.all([
+    // Cameras, when the question turns on what they show, alongside the reading rather than after it.
+    const looking = plan.cameras.length
+      ? (deps.cameras ?? lookThroughCameras)(plan.cameras, s.signal).catch(() => [] as ContextItem[])
+      : Promise.resolve([] as ContextItem[]);
+    const [found, feed, seen] = await Promise.all([
       research(plan, input.question, depth.research, s.signal).catch(() => ({ items: [], series: [] }) as Research),
       feeds,
+      looking,
     ]);
     series = found.series;
     // The live feed only where it is about the question: a headline about something else is no evidence.
@@ -182,7 +192,7 @@ export async function runEngine(input: EngineInput, deps: EngineDeps): Promise<v
     const words = terms(input.question);
     const aboutMarkets = plan.desks.some(d => d === 'markets' || d === 'crypto' || d === 'energy' || d === 'business');
     const kept = feed.filter(c => (c.kind === 'news' || c.kind === 'social' ? onTopic(c, words) : c.kind === 'market' ? aboutMarkets && !series.length : true));
-    context = [...found.items, ...kept.map((c, i) => ({ ...c, id: `c${i + 1}` }))];
+    context = [...found.items, ...kept.map((c, i) => ({ ...c, id: `c${i + 1}` })), ...seen];
   }
   s.check();
   s.emit({ t: 'context', items: context });

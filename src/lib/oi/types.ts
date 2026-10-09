@@ -155,7 +155,7 @@ export interface Odds {
  */
 export interface ContextItem extends Located {
   id: string;
-  kind: 'news' | 'social' | 'quake' | 'market' | 'series' | 'odds' | 'data' | 'web' | 'wiki';
+  kind: 'news' | 'social' | 'quake' | 'market' | 'series' | 'odds' | 'data' | 'web' | 'wiki' | 'camera';
   title: string;
   /** The outlet, site or file it came from. */
   source: string;

@@ -14,7 +14,7 @@
 import { createElement, useEffect, useRef, useState, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import {
-  ArrowUp, ArrowUpRight, Eraser, ExternalLink, Globe2, KeyRound, Layers, LayoutDashboard, List, Loader2, LocateFixed, MapPin, Mic, MousePointerClick, Navigation, Orbit, PanelRight,
+  ArrowUp, ArrowUpRight, Cctv, Eraser, ExternalLink, Globe2, KeyRound, Layers, LayoutDashboard, List, Loader2, LocateFixed, MapPin, Mic, MousePointerClick, Navigation, Orbit, PanelRight,
   RotateCcw, ScanSearch, Search, Square, TrendingUp, Volume2, VolumeX, X, type LucideProps,
 } from 'lucide-react';
 import type { OiClient } from '@/lib/oi/client';
@@ -27,7 +27,7 @@ import { OiMark, Segmented } from '../atoms';
 import { canSpeak, useDictation } from './voice';
 
 const TOOL_ICON: Record<ToolName, typeof Navigation> = {
-  go_to: Navigation, layers: Layers, find: Search, scan: ScanSearch, highlight: MapPin, show: List, markets: TrendingUp,
+  go_to: Navigation, layers: Layers, find: Search, scan: ScanSearch, camera: Cctv, highlight: MapPin, show: List, markets: TrendingUp,
   open: PanelRight, map_view: Globe2, forecast: Orbit, workspace: LayoutDashboard, select: MousePointerClick, clear: Eraser,
 };
 
@@ -63,6 +63,7 @@ function describe(a: ActionView): string {
     case 'layers': return `Layers ${[Array.isArray(a.args.on) ? `on: ${(a.args.on as string[]).join(', ')}` : '', Array.isArray(a.args.off) ? `off: ${(a.args.off as string[]).join(', ')}` : ''].filter(Boolean).join(' · ')}`;
     case 'find': return `Find ${g('layer').replace('_', ' ')}${g('text') ? ` “${g('text')}”` : ''}${typeof a.args.near === 'string' ? ` near ${a.args.near}` : ''}`;
     case 'scan': return 'Scan what is in view';
+    case 'camera': return `Look through ${typeof a.args.near === 'string' ? `a camera near ${a.args.near}` : 'a camera'}${Number(a.args.watch_seconds) > 0 ? ` for ${Number(a.args.watch_seconds)} s` : ''}`;
     case 'highlight': return `Mark ${Array.isArray(a.args.points) ? a.args.points.length : 0} places`;
     case 'show': return `Show ${g('title') || 'a list'}`;
     case 'markets': return `Read ${Array.isArray(a.args.symbols) ? (a.args.symbols as string[]).join(', ') : 'the markets'}`;
@@ -161,7 +162,7 @@ function CardView({ card, oi, onLocate, onOpenForecast, onWorkspace }: {
   return (
     <div className="rounded-xl border overflow-hidden" style={{ borderColor: blue(0.18), background: 'rgba(0,0,0,0.25)' }}>
       <div className="flex items-center gap-2 px-3 py-2 border-b" style={{ borderColor: blue(0.12), background: blue(0.04) }}>
-        {createElement(card.kind === 'markets' ? TrendingUp : card.kind === 'place' ? MapPin : List, { className: 'w-3.5 h-3.5 flex-shrink-0', style: { color: T.blue } })}
+        {createElement(card.kind === 'markets' ? TrendingUp : card.kind === 'place' ? MapPin : card.kind === 'camera' ? Cctv : List, { className: 'w-3.5 h-3.5 flex-shrink-0', style: { color: T.blue } })}
         <span className="text-[11.5px] font-medium text-[var(--text-heading)] truncate flex-1">{card.title}</span>
         {card.subtitle && <span className="text-[10px] font-mono text-[var(--text-muted)]">{card.subtitle}</span>}
       </div>
@@ -181,7 +182,7 @@ function CardView({ card, oi, onLocate, onOpenForecast, onWorkspace }: {
             </>
           );
           return placed ? (
-            <button key={i} onClick={() => onLocate(it.lat!, it.lng!, card.kind === 'place' ? undefined : 8)} title="Fly there"
+            <button key={i} onClick={() => onLocate(it.lat!, it.lng!, card.kind === 'place' ? undefined : card.kind === 'camera' ? 14 : 8)} title="Fly there"
               className="group flex items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-[rgba(var(--cyan-rgb),0.06)]">{body}</button>
           ) : it.url ? (
             <a key={i} href={it.url} target="_blank" rel="noopener noreferrer" className="group flex items-center gap-2 px-3 py-1.5 transition-colors hover:bg-[rgba(var(--cyan-rgb),0.06)]">{body}</a>

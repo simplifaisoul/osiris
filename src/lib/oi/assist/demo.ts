@@ -50,6 +50,8 @@ export function demoAssist(prompt: string): string {
     if (quotes.length) {
       return json(quotes.map(q => `- ${q[1]}: ${Number(q[2]).toLocaleString('en-US')}${q[3] !== 'null' ? ` (${Number(q[3]) >= 0 ? '+' : ''}${q[3]}%)` : ''}`).join('\n'));
     }
+    const looked = lines.find(l => l.tool === 'camera');
+    if (looked) return json(`${looked.summary}. The boxes are on the camera now: counted by OSIRIS on your device.`);
     const summary = lines.find(l => l.tool === 'find')?.summary ?? lines.map(l => l.summary).join('; ');
     return json(names.length ? `${summary}. The top ones: ${names.join(', ')}. They are marked on the map; click any in the list to fly to it.` : `${summary}.`);
   }
@@ -87,6 +89,10 @@ export function demoAssist(prompt: string): string {
   if (/\bmilitary\b/.test(t)) return json('Checking military aircraft.', [{ tool: 'find', args: { layer: 'military_flights', limit: 10, ...near, ...(place ? { radius_km: 800 } : {}) } }], false);
   if (/\b(flights?|planes?|aircraft|airliners?)\b/.test(t)) return json('Checking flights.', [{ tool: 'find', args: { layer: 'flights', limit: 10, ...near, ...(place ? { radius_km: 300 } : {}) } }], false);
   if (/\b(fires?|wildfires?)\b/.test(t)) return json('Checking active fires.', [{ tool: 'find', args: { layer: 'fires', sort: 'largest', limit: 10, ...near } }], false);
+  if (/\b(how busy|traffic|congest\w*|crowds?|crowded|look through|analy[sz]e|watch)\b/.test(t) && place) {
+    const watch = /\b(watch|moving|flow\w*)\b/.test(t) ? 20 : 0;
+    return json(`Looking through a camera near ${place}.`, [{ tool: 'camera', args: { near: place, ...(watch ? { watch_seconds: watch } : {}) } }], false);
+  }
   if (/\b(cameras?|cctv|webcams?)\b/.test(t)) return json('Looking for live cameras.', [{ tool: 'find', args: { layer: 'cameras', limit: 10, ...near, ...(place ? { radius_km: 50 } : {}) } }], false);
   if (/\b(ships?|vessels?|ports?|shipping)\b/.test(t)) {
     const actions = [...(place ? [{ tool: 'go_to', args: { place } }] : []), { tool: 'layers', args: { on: ['maritime'] } }, { tool: 'find', args: { layer: 'chokepoints', limit: 10, show: !place } }];

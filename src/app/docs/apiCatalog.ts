@@ -297,6 +297,14 @@ export const API_GROUPS: ApiGroup[] = [
         notes: 'Allow-listed by domain. Not a general-purpose open proxy.',
       },
       {
+        path: '/api/cctv/frame',
+        method: 'GET',
+        summary: "A still camera's current frame, for the built-in detector (AI Analyze, OI Assist, forecasts).",
+        params: [{ name: 'id', required: true, desc: 'Camera id from /api/cctv.' }],
+        returns: ['image/jpeg | image/png | image/webp | image/gif', 'X-Frame-At header'],
+        notes: 'Takes a camera id, never a URL: only cameras in the OSIRIS catalogue. Frames are held for 4 s; 90 requests a minute per client.',
+      },
+      {
         path: '/api/infrastructure',
         method: 'GET',
         summary: 'Fixed strategic infrastructure — nuclear sites, plants, and facilities.',

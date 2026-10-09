@@ -17,7 +17,7 @@
 import { extractJson } from '../parse';
 import { FIND_LAYERS, LAYERS, PANELS, SOURCES } from './catalog';
 
-export const TOOL_NAMES = ['go_to', 'layers', 'find', 'scan', 'highlight', 'show', 'markets', 'open', 'map_view', 'forecast', 'workspace', 'select', 'clear'] as const;
+export const TOOL_NAMES = ['go_to', 'layers', 'find', 'scan', 'camera', 'highlight', 'show', 'markets', 'open', 'map_view', 'forecast', 'workspace', 'select', 'clear'] as const;
 export type ToolName = typeof TOOL_NAMES[number];
 
 /** What the reader asked OI to concentrate on. Auto lets the model choose. */
@@ -76,6 +76,9 @@ ${finds}
 scan {layers?: string[]}
   Count and summarise everything live in the part of the map in view now, layer by layer, with the biggest few of each. Use it for "what am I looking at", "what is happening here". Results come back to you.
 
+camera {id?: string, near?: string | {lat, lng}, radius_km?: number, watch_seconds?: 0-60}
+  Look through a live public camera with OSIRIS's built-in image analysis. It opens the camera for the reader and counts what is in view (people, cars, trucks, buses, motorbikes, bicycles, boats, trains, aircraft) and how light it is; with watch_seconds it follows the feed that long and reports how the counts and the movement changed. Give a camera's id from find (layer cameras), or near: a place, for the nearest camera that can be analysed (radius default 30 km). Results come back to you; when your model can read images, the frame itself is attached too. Use it for "how busy is…", "is there traffic, a crowd, snow or flooding at…", "what does it look like at… right now". One camera per call; a watch of 20 to 30 seconds shows whether traffic is moving.
+
 highlight {points: [{lat, lng, label}], area?: {lat, lng, radius_km, label}, frame?: boolean}
   Mark places on the map with labels, and optionally a circle around an area. frame (default true) moves the camera to them.
 
@@ -118,7 +121,7 @@ Answer with ONE JSON object and nothing else:
 - "done": false when you need the results of your actions before you can answer (you will get them as RESULTS and then reply again); true when this is your final reply for this turn. Actions in a done:true reply are still carried out.
 
 Rules:
-- Never invent live data (positions, counts, quakes, prices, headlines). If the answer depends on what is live, use find or markets with done:false, then answer from the RESULTS.
+- Never invent live data (positions, counts, quakes, prices, headlines). If the answer depends on what is live, use find or markets with done:false, then answer from the RESULTS. For what a place looks like right now (traffic, crowds, weather on the ground), use camera.
 - When asked to go somewhere or to see something, act: go_to, and the layers or find that show it. Prefer one step that does everything.
 - Use find with show (the default) to mark what you found; use show to list it in the conversation when the reader wants the details; use highlight for places you know that are not in the live data.
 - After RESULTS, answer from them in a sentence or two, mention the most relevant items by name, and finish with done:true. If nothing matched, say so plainly and suggest what else to try.

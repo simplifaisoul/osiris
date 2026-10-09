@@ -23,6 +23,8 @@ export interface ResearchPlan {
   instruments: string[];
   /** Searches for prediction markets on the question. */
   markets: string[];
+  /** Places where a live public camera would show what the question turns on (traffic, a crowd, floodwater); usually none. */
+  cameras: string[];
 }
 
 /** A search as GDELT takes it: words of three letters or more, at most five, no operators. */
@@ -87,6 +89,14 @@ export function tickersIn(question: string): string[] {
   return [...new Set(KNOWN.filter(([re]) => re.test(question)).map(([, t]) => t))].slice(0, 2);
 }
 
+/** What a street camera can actually show. A question about anything else gets no cameras. */
+const SEEN_ON_CAMERA = /\b(traffic|congest\w*|gridlock|jams?|commut\w*|rush hour|crowds?|crowded|protests?|protesters|rall(?:y|ies)|demonstrat\w*|marches|queues?|border crossings?|floods?|flooding|floodwater|snow\w*|blizzards?|evacuat\w*|footfall|tourists?)\b/i;
+
+/** Where to look, when the model did not say: the places the question names, if it is about something a camera shows. */
+export function camerasFor(question: string): string[] {
+  return SEEN_ON_CAMERA.test(question) ? namesIn(question).slice(0, 2) : [];
+}
+
 export function planFallback(question: string): ResearchPlan {
   const names = namesIn(question);
   const words = terms(question).filter(t => !names.some(n => n.toLowerCase().includes(t))).sort((a, b) => b.length - a.length);
@@ -102,6 +112,7 @@ export function planFallback(question: string): ResearchPlan {
     desks: desksFor(question),
     instruments,
     markets,
+    cameras: camerasFor(question),
   };
 }
 
@@ -122,5 +133,7 @@ export function parsePlan(raw: Record<string, unknown> | null, question: string)
     instruments: instruments.length ? instruments : fallback.instruments,
     // The model's searches, and the question's own: a market search is cheap, and one phrasing finds what another misses.
     markets: [...new Set([...markets, ...fallback.markets])].slice(0, 3),
+    // The model decides whether cameras can help: an empty list is its answer, not a gap. Only a plan without the field falls back.
+    cameras: Array.isArray(raw?.cameras) ? take(raw.cameras, 2) : fallback.cameras,
   };
 }

@@ -23,6 +23,7 @@
     "lucide-react": "^1.14.0",
     "maplibre-gl": "6.7.0",
     "next": "16.3.4",
+    "onnxruntime-web": "1.30.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-force-graph-2d": "^1.29.1",

@@ -36,14 +36,15 @@ function sourceLabel(c: ContextItem): string {
   if (c.kind === 'series') return `market data, ${c.source}`;
   if (c.kind === 'odds') return `${c.source} prediction market`;
   if (c.kind === 'social') return `${c.source}, a social-media post (an unverified claim, not reporting)`;
+  if (c.kind === 'camera') return `${c.source} live camera, counted by OSIRIS (a snapshot of the ground, its counts a floor)`;
   return c.source;
 }
 
 /**
  * The sources, one per line by id, each with what it says where there is
  * more than a headline: the research's articles (w), market data (q),
- * prediction markets (m), background (b), the live feeds (c) and passages
- * of the asker's data (d).
+ * prediction markets (m), background (b), the live feeds (c), live cameras
+ * (v) and passages of the asker's data (d).
  */
 export function feedBlock(items: ContextItem[]): string {
   const shown = items.filter(c => c.id !== DATA_ID);
@@ -74,9 +75,10 @@ Plan the research for this forecast.
 - "instruments": if the question turns on a price that markets set every day (a coin, a share, an index, a commodity, a currency, a bond yield), its ticker as Yahoo Finance writes it, e.g. "BTC-USD", "SOL-USD", "NVDA", "^GSPC", "BZ=F", "GC=F", "EURUSD=X", "^TNX"; at most 2. Otherwise [].
 - "markets": 1 or 2 short searches (2 to 4 words) that would find prediction markets (Polymarket, Manifold) on this same question, worded the way such markets are titled: for a price, the asset, "price" and the year ("Bitcoin price 2026"); otherwise the subject and the event ("Israel Lebanon invasion", "Fed December rates").
 - "background": 1 or 2 Wikipedia article titles that give the background or the base rate (the institution, the conflict, the market, the recurring event).
+- "cameras": only if the question turns on something a public street camera would show right now (traffic, a crowd or protest, a queue, a border crossing, floodwater, snow), 1 or 2 places to look, as a city or a landmark ("Madrid", "Port of Rotterdam"). OSIRIS looks through the nearest live cameras and counts what is in view. For anything else (prices, elections, decisions), [].
 
 JSON shape:
-{"news": ["…", "…"], "desks": ["…"], "instruments": [], "markets": ["…"], "background": ["…"]}`;
+{"news": ["…", "…"], "desks": ["…"], "instruments": [], "markets": ["…"], "background": ["…"], "cameras": []}`;
 }
 
 /** How an actor or the report cites: by id, the words copied exactly, so a reader can follow every quote to its source. */

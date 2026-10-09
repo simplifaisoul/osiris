@@ -10,6 +10,9 @@
  */
 import type { Call, CallResult } from './protocol';
 import { FIND_LAYERS, LAYERS, PANELS, SOURCES, find, frame, loaded, scan, type Bounds, type Entity, type FindLayer, type Point } from './catalog';
+import { countWords, describeFrame, describeWatch, forModel, type FrameAnalysis, type WatchSummary } from '../../vision/analysis';
+import { sourceOf, type VisionCamera } from '../../vision/source';
+import { haversine } from '../../geo';
 
 export interface HighlightPoint { lat: number; lng: number; label: string }
 export interface Highlight {
@@ -37,13 +40,25 @@ export interface Site {
   workspace?(o: { open?: boolean; view?: WorkspaceView }): { ok: true; summary: string } | { ok: false; error: string };
   /** Open an object of the current forecast by name. */
   select?(name: string): { ok: true; summary: string } | { ok: false; error: string };
+  /** Open a camera for the reader and look through it with the built-in analysis: one frame, or `watch` seconds of them. */
+  camera?(camera: CameraRecord, watch: number): Promise<{ analysis: FrameAnalysis; watch?: WatchSummary }>;
+}
+
+/** A camera as the page holds it. */
+export interface CameraRecord extends VisionCamera {
+  lat: number;
+  lng: number;
+  name?: string;
+  city?: string;
+  country?: string;
+  source?: string;
 }
 
 export type WorkspaceView = 'globe' | 'graph' | 'timeline' | 'table';
 
 /** Something for the reader to look at in the conversation. */
 export interface Card {
-  kind: 'find' | 'show' | 'markets' | 'forecast' | 'place' | 'scan';
+  kind: 'find' | 'show' | 'markets' | 'forecast' | 'place' | 'scan' | 'camera';
   title: string;
   subtitle?: string;
   items: { label: string; detail?: string; lat?: number; lng?: number; url?: string; value?: string; tone?: 'up' | 'down' }[];
@@ -132,6 +147,21 @@ const row = (e: Entity & { km?: number }) => ({
 });
 
 const fmt = (n: number) => (Math.abs(n) >= 1000 ? n.toLocaleString('en-US', { maximumFractionDigits: 0 }) : n.toLocaleString('en-US', { maximumFractionDigits: Math.abs(n) < 10 ? 3 : 2 }));
+
+/** The cameras the page holds, as records the camera tool can open. */
+export function camerasIn(data: Record<string, unknown>): CameraRecord[] {
+  const raw = Array.isArray(data.cameras) ? data.cameras : [];
+  const out: CameraRecord[] = [];
+  for (const r of raw) {
+    if (!r || typeof r !== 'object') continue;
+    const c = r as Record<string, unknown>;
+    const id = typeof c.id === 'number' ? String(c.id) : typeof c.id === 'string' ? c.id : '';
+    const lat = Number(c.lat), lng = Number(c.lng);
+    if (!id || !Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    out.push({ ...(c as object), id, lat, lng } as CameraRecord);
+  }
+  return out;
+}
 
 /** Flattens the page's markets bag into quotes. */
 export function quotesOf(markets: unknown): { name: string; symbol: string; group: string; price: number; change: number | null; currency: string }[] {
@@ -237,6 +267,57 @@ export async function runCall(call: Call, site: Site, signal?: AbortSignal): Pro
             ...(r.top[0]?.lat !== null && r.top[0]?.lng !== null ? { lat: r.top[0].lat!, lng: r.top[0].lng! } : {}),
           })),
         });
+    }
+
+    case 'camera': {
+      if (!site.camera) return fail('camera', 'Cameras cannot be looked through here');
+      const off = SOURCES.cameras.layers.filter(k => !site.layers()[k]);
+      if (off.length) site.setLayers(off, []);
+      if (!(await waitForData(site, 'cameras', signal))) return fail('camera', 'The cameras have not loaded yet; try again in a moment');
+      const all = camerasIn(site.data());
+      const id = str(a.id, 200);
+      let cam: CameraRecord | undefined;
+      let km: number | undefined;
+      if (id) {
+        cam = all.find(c => c.id === id);
+        if (!cam) return fail('camera', `No camera with id "${id}". Use find with layer cameras for ids`);
+      } else if (a.near !== undefined && a.near !== null && a.near !== '') {
+        const place = await placeOf(site, a.near);
+        if (!place) return fail('camera', `Could not find "${str(a.near)}" on the map`);
+        const radius = numIn(a.radius_km, 1, 300) ?? 30;
+        const near = all
+          .filter(c => sourceOf(c))
+          .map(c => ({ c, km: haversine([place.lng, place.lat], [c.lng, c.lat]) }))
+          .filter(x => x.km <= radius)
+          .sort((x, y) => x.km - y.km)[0];
+        if (!near) return fail('camera', `No camera that can be analysed within ${radius} km of ${place.name}`);
+        cam = near.c;
+        km = Math.round(near.km * 10) / 10;
+      } else {
+        return fail('camera', 'Give a camera id (from find) or near: a place');
+      }
+      if (!sourceOf(cam)) return fail('camera', `${cam.name ?? 'That camera'} is a web player, so its picture cannot be read. Try another camera nearby`);
+      const watch = numIn(a.watch_seconds, 0, 60) ?? 0;
+      site.flyTo(cam.lat, cam.lng, 14);
+      let looked: { analysis: FrameAnalysis; watch?: WatchSummary };
+      try {
+        looked = await site.camera(cam, watch);
+      } catch (err) {
+        return fail('camera', `${cam.name ?? 'The camera'}: ${err instanceof Error ? err.message : 'could not be analysed'}`);
+      }
+      const name = cam.name || 'Camera';
+      const where = [cam.city, cam.country].filter(Boolean).join(', ');
+      const seen = describeFrame(looked.analysis);
+      return ok('camera', `${name}: ${seen}${looked.watch ? `; ${describeWatch(looked.watch)}` : ''}`, {
+        camera: { id: cam.id, name, ...(where ? { where } : {}), ...(cam.source ? { source: cam.source } : {}), lat: cam.lat, lng: cam.lng, ...(km !== undefined ? { km } : {}) },
+        ...forModel(looked.analysis, looked.watch),
+      }, {
+        kind: 'camera', title: name, subtitle: where || undefined,
+        items: [
+          { label: countWords(looked.analysis.counts), detail: `in view, ${looked.analysis.light} · ${looked.analysis.at.slice(11, 16)} UTC`, lat: cam.lat, lng: cam.lng },
+          ...(looked.watch ? [{ label: `Over ${looked.watch.seconds} s`, detail: describeWatch(looked.watch), lat: cam.lat, lng: cam.lng }] : []),
+        ],
+      });
     }
 
     case 'highlight': {

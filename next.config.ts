@@ -18,7 +18,14 @@ const nextConfig: NextConfig = {
      everywhere except Vercel, so Docker and the platform both get what they
      expect. */
   output: process.env.VERCEL ? undefined : 'standalone',
-  serverExternalPackages: ['ws'],
+  /* onnxruntime-web runs the camera detector for forecasts, and loads its
+     WebAssembly engine from its own folder at run time: bundling it would
+     move the code away from the engine, so it stays a package, and the
+     standalone build is told to bring the two engine files along. */
+  serverExternalPackages: ['ws', 'onnxruntime-web'],
+  outputFileTracingIncludes: {
+    '/api/**': ['./node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs', './node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm'],
+  },
   transpilePackages: ['react-map-gl', 'mapbox-gl', 'maplibre-gl'],
   // Type errors block the build again. They were suppressed while 17 stood
   // unfixed; those are cleared, so the gate can do its job — the AstraPanel
@@ -41,6 +48,13 @@ const nextConfig: NextConfig = {
          version is in the path. */
       {
         source: '/vendor/maplibre/:version/:file*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
+      // The camera detector's model: versioned in its path like the map worker, so the same URL never changes.
+      {
+        source: '/vendor/yolox/:version/:file*',
         headers: [
           { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
         ],

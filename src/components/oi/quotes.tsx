@@ -23,7 +23,7 @@ export function sourceLabel(c: ContextItem | undefined, id: string): string {
 
 /** What kind of source it is, in a word. */
 export const SOURCE_KIND: Record<ContextItem['kind'], string> = {
-  web: 'Article', wiki: 'Background', news: 'Live feed', social: 'Social media', quake: 'Earthquake', market: 'Markets', series: 'Market data', odds: 'Prediction market', data: 'Your data',
+  web: 'Article', wiki: 'Background', news: 'Live feed', social: 'Social media', quake: 'Earthquake', market: 'Markets', series: 'Market data', odds: 'Prediction market', data: 'Your data', camera: 'Live camera',
 };
 
 /** A source's published page, opened apart from the app. */

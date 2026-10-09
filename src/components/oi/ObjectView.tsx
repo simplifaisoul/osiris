@@ -447,7 +447,7 @@ export function ObjectView({ s, sel, onSelect, onLocate, onAsk, onGraph, variant
           {c.url && (
             <a href={c.url} target="_blank" rel="noopener noreferrer nofollow"
               className="oi-btn self-start">
-              Open the {c.kind === 'wiki' ? 'article on Wikipedia' : c.kind === 'web' ? 'article' : c.kind === 'odds' ? `market on ${c.source}` : c.kind === 'series' ? 'quote on Yahoo Finance' : c.kind === 'social' ? 'post' : 'source'} ↗
+              Open the {c.kind === 'wiki' ? 'article on Wikipedia' : c.kind === 'web' ? 'article' : c.kind === 'odds' ? `market on ${c.source}` : c.kind === 'series' ? 'quote on Yahoo Finance' : c.kind === 'social' ? 'post' : c.kind === 'camera' ? "camera's page" : 'source'} ↗
             </a>
           )}
           {inReport.length > 0 && (

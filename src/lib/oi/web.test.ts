@@ -38,7 +38,7 @@ describe('the research plan', () => {
   });
 });
 
-const plan = (over: Partial<ResearchPlan>): ResearchPlan => ({ news: [], background: [], desks: [], instruments: [], markets: [], ...over });
+const plan = (over: Partial<ResearchPlan>): ResearchPlan => ({ news: [], background: [], desks: [], instruments: [], markets: [], cameras: [], ...over });
 
 const art = (over: Partial<GdeltArticle>): GdeltArticle => ({ url: 'https://a.example/1', title: 'T', domain: 'a.example', seendate: '', language: 'English', sourcecountry: '', ...over });
 
