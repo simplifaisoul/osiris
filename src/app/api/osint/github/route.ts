@@ -7,9 +7,15 @@ export async function GET(req: Request) {
   if (!username) return NextResponse.json({ error: 'Missing username parameter' }, { status: 400 });
 
   try {
+    // GITHUB_TOKEN is optional. Without it GitHub allows 60 requests/hour per
+    // IP, shared by every visitor to a deployment; a scopeless token lifts that
+    // to 5000. Public profile and repo data needs no scopes.
+    const headers: Record<string, string> = { 'User-Agent': 'OSIRIS-Recon' };
+    if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+
     const [userRes, reposRes] = await Promise.all([
-      fetch(`https://api.github.com/users/${encodeURIComponent(username)}`, { signal: AbortSignal.timeout(15000), headers: { 'User-Agent': 'OSIRIS-Recon' } }),
-      fetch(`https://api.github.com/users/${encodeURIComponent(username)}/repos?sort=updated&per_page=5`, { signal: AbortSignal.timeout(15000), headers: { 'User-Agent': 'OSIRIS-Recon' } })
+      fetch(`https://api.github.com/users/${encodeURIComponent(username)}`, { signal: AbortSignal.timeout(15000), headers }),
+      fetch(`https://api.github.com/users/${encodeURIComponent(username)}/repos?sort=updated&per_page=5`, { signal: AbortSignal.timeout(15000), headers })
     ]);
 
     if (userRes.status === 404) return NextResponse.json({ error: 'User not found' }, { status: 404 });
