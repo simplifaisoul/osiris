@@ -1,4 +1,5 @@
 import type { CctvCamera } from './types';
+import { DENMARK_PUBLIC_WEBCAMS } from './denmark';
 import {
   NETHERLANDS_PUBLIC_WEBCAMS,
   EUROPE_PUBLIC_WEBCAMS,
@@ -34,7 +35,7 @@ export async function fetchNlPublicWebcams(): Promise<CctvCamera[]> {
 }
 
 export async function fetchEuropePublicWebcams(): Promise<CctvCamera[]> {
-  return EUROPE_PUBLIC_WEBCAMS;
+  return [...EUROPE_PUBLIC_WEBCAMS, ...DENMARK_PUBLIC_WEBCAMS];
 }
 
 export async function fetchAmericasPublicWebcams(): Promise<CctvCamera[]> {
