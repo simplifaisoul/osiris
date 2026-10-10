@@ -8,9 +8,13 @@
  * stream's frame is taken from the <video> already playing it.
  */
 import type { FrameAnalysis } from './analysis';
+import type { Region } from './scan';
 
-type Waiting = { resolve: (a: FrameAnalysis) => void; reject: (e: Error) => void };
-type Reply = { id: number; analysis?: FrameAnalysis; error?: string };
+/** A pass of the detector beginning: which, of how many, over which part of the frame, and how many objects so far. */
+export interface Pass { pass: number; of: number; region: Region; found: number }
+
+type Waiting = { resolve: (a: FrameAnalysis) => void; reject: (e: Error) => void; onPass?: (p: Pass) => void };
+type Reply = { id: number; analysis?: FrameAnalysis; error?: string; pass?: Pass };
 
 let worker: Worker | null = null;
 let nextId = 0;
@@ -22,6 +26,7 @@ function getWorker(): Worker {
   worker.onmessage = ({ data }: MessageEvent<Reply>) => {
     const job = waiting.get(data.id);
     if (!job) return;
+    if (data.pass) { job.onPass?.(data.pass); return; }
     waiting.delete(data.id);
     if (data.analysis) job.resolve(data.analysis);
     else job.reject(new Error(data.error || 'The frame could not be analysed'));
@@ -36,14 +41,23 @@ function getWorker(): Worker {
   return worker;
 }
 
-/** Counts what is in a frame. The bitmap is handed over to the worker, not copied. */
-export function analyseBitmap(image: ImageBitmap, at: string, session: string): Promise<FrameAnalysis> {
+/**
+ * Counts what is in a frame, in passes over a large one unless `tiles` is off
+ * (a live watch, which wants a frame a second). The bitmap is handed over to
+ * the worker, not copied.
+ */
+export function analyseBitmap(image: ImageBitmap, at: string, session: string, options: { tiles?: boolean; onPass?: (p: Pass) => void } = {}): Promise<FrameAnalysis> {
   const id = ++nextId;
   const target = getWorker();
   return new Promise((resolve, reject) => {
-    waiting.set(id, { resolve, reject });
-    target.postMessage({ type: 'analyse', id, image, at, session }, [image]);
+    waiting.set(id, { resolve, reject, onPass: options.onPass });
+    target.postMessage({ type: 'analyse', id, image, at, session, tiles: options.tiles ?? true }, [image]);
   });
+}
+
+/** Starts the detector loading (the engine and the model, once a session) ahead of the first frame. */
+export function warmUp(): void {
+  getWorker().postMessage({ type: 'warm' });
 }
 
 /** Drops what the worker remembers of a camera, so a later watch starts fresh. */
@@ -58,9 +72,26 @@ export interface Grab {
   at: string;
 }
 
+const frameUrl = (cameraId: string) => `/api/cctv/frame?id=${encodeURIComponent(cameraId)}`;
+
+/** A frame fetched ahead of the click that will want it, and when. */
+let early: { id: string; at: number; res: Promise<Response> } | null = null;
+/** Comfortably inside the 4 s that OSIRIS holds a camera's frame. */
+const EARLY_MS = 3000;
+
+/** Fetches a still camera's frame now, for a grab that is about to ask for it. */
+export function fetchStillEarly(cameraId: string): void {
+  if (early?.id === cameraId && Date.now() - early.at < EARLY_MS) return;
+  const res = fetch(frameUrl(cameraId));
+  res.catch(() => {});
+  early = { id: cameraId, at: Date.now(), res };
+}
+
 /** A still camera's current frame, through OSIRIS. */
 export async function grabStill(cameraId: string, signal?: AbortSignal): Promise<Grab> {
-  const res = await fetch(`/api/cctv/frame?id=${encodeURIComponent(cameraId)}`, { signal });
+  const ready = early?.id === cameraId && Date.now() - early.at < EARLY_MS ? early.res : null;
+  early = null;
+  const res = await (ready ?? fetch(frameUrl(cameraId), { signal }));
   if (!res.ok) {
     const body = await res.json().catch(() => null) as { error?: string } | null;
     throw new Error(body?.error || `The camera's frame could not be fetched (${res.status})`);

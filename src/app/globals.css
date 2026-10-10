@@ -2595,3 +2595,45 @@ path.oi-graph-in { animation: oi-edge-in 0.9s ease-out both; }
 @media (prefers-reduced-motion: reduce) {
   .oi-graph-ping { animation: none; }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   CCTV VISION — AI Analyze on a camera (components/CameraVision)
+   The frame freezes under a scanning grid while the detector
+   reads it; then a sweep crosses it, lifting the veil, and each
+   box locks on as the line passes (its delay is --at).
+   ───────────────────────────────────────────────────────────── */
+.vision-sweep { transform-box: view-box; animation: vision-sweep var(--sweep, 1100ms) linear both; }
+.vision-sweep-loop { transform-box: view-box; animation: vision-sweep 1.6s linear infinite; }
+@keyframes vision-sweep {
+  from { transform: translateY(0); }
+  to   { transform: translateY(120%); }
+}
+.vision-lock { transform-box: fill-box; transform-origin: center; animation: vision-lock 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.15) var(--at, 0ms) both; }
+@keyframes vision-lock {
+  from { opacity: 0; transform: scale(1.6); }
+  50%  { opacity: 1; }
+  to   { opacity: 1; transform: scale(1); }
+}
+.vision-flash { animation: vision-flash 0.7s ease-out var(--at, 0ms) both; }
+@keyframes vision-flash {
+  from { opacity: 0; }
+  20%  { opacity: 0.4; }
+  to   { opacity: 0; }
+}
+.vision-chip { animation: vision-fade 0.4s ease-out calc(var(--at, 0ms) + 300ms) both; }
+@keyframes vision-fade { from { opacity: 0; } }
+.vision-region { transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.vision-acquire { animation: vision-acquire 1.4s linear infinite; }
+@keyframes vision-acquire {
+  from { transform: translateY(-100%); }
+  to   { transform: translateY(500%); }
+}
+.vision-grow { transform-origin: left; animation: vision-grow var(--sweep, 1100ms) cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes vision-grow { from { transform: scaleX(0); } }
+.vision-rise { animation: vision-rise 0.45s ease-out both; }
+@keyframes vision-rise { from { opacity: 0; transform: translateY(-6px); } }
+@media (prefers-reduced-motion: reduce) {
+  .vision-sweep, .vision-sweep-loop, .vision-acquire { display: none; }
+  .vision-lock, .vision-flash, .vision-chip, .vision-grow, .vision-rise { animation: none; }
+  .vision-region { transition: none; }
+}

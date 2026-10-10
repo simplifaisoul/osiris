@@ -6,7 +6,7 @@ import { X, ExternalLink, RefreshCw, MapPin, Camera, CameraOff, Maximize2, PlayC
 import Hls from 'hls.js';
 import { isHostedOffPlatform, liveFeedAtSource, localEmbed, needsResolution, offPlatformView } from '@/lib/camera-feed';
 import { clearLook, registerVideo } from '@/lib/vision/store';
-import CameraVision from './CameraVision';
+import CameraVision, { VisionReport } from './CameraVision';
 
 interface CameraViewerProps {
   camera: any | null;
@@ -394,6 +394,9 @@ export default function CameraViewer({ camera, onClose, onLocate, besideOi = fal
               <div className="w-1 h-1 bg-[var(--gold-primary)]/50 absolute" />
             </div>
           </div>
+
+          {/* What AI Analyze found, below the picture so that it covers none of it. */}
+          <VisionReport camera={camera} />
 
           {/* Advanced Tactical Footer */}
           <div className="bg-black border-t border-[var(--border-primary)] relative z-10">

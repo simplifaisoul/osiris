@@ -4,15 +4,16 @@
  * A forecast runs on the server, so when its plan asks to look at cameras the
  * frames are counted here: ONNX Runtime's WebAssembly build under Node, the
  * same YOLOX-nano file the browser loads from public/, and sharp to decode and
- * scale the picture. One frame at a time, single-threaded, loaded on first use:
- * a forecast that never asks for cameras costs nothing.
+ * scale the picture, read in the same passes as the browser (scan.ts). One
+ * frame at a time, single-threaded, loaded on first use: a forecast that never
+ * asks for cameras costs nothing.
  */
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import type { InferenceSession } from 'onnxruntime-web';
-import { MODEL, VEHICLES, decode, fit, toInput } from './detect';
-import { paintVehicles } from './colour';
+import { MODEL } from './detect';
+import { regionsOf, scan } from './scan';
 import { countsOf, lightOf, meanOf, type FrameAnalysis } from './analysis';
 
 type Ort = typeof import('onnxruntime-web');
@@ -36,15 +37,17 @@ function model() {
 async function run(bytes: Buffer, at: string): Promise<FrameAnalysis> {
   const { width, height } = await sharp(bytes).metadata();
   if (!width || !height) throw new Error('The frame is empty');
-  const f = fit(width, height);
-  const pixels = await sharp(bytes).resize(f.width, f.height, { fit: 'fill' }).removeAlpha().raw().toBuffer();
   const grey = await sharp(bytes).resize(64, Math.max(1, Math.round((64 * height) / width)), { fit: 'fill' }).greyscale().raw().toBuffer();
   const { ort, session } = await model();
-  const started = performance.now();
-  const out = await session.run({ [session.inputNames[0]]: new ort.Tensor('float32', toInput(pixels, f.width, f.height, 3), [1, 3, MODEL.input, MODEL.input]) });
-  const ms = Math.round(performance.now() - started);
-  const { detections, colours } = paintVehicles(decode(out[session.outputNames[0]].data as Float32Array, f.scale, { width, height }), pixels, f.width, f.height, 3, f.scale, VEHICLES);
-  return { at, width, height, detections, counts: countsOf(detections), colours, light: lightOf(meanOf(grey)), motion: null, ms };
+  const read = await scan(
+    { width, height }, regionsOf(width, height), 3,
+    ([left, top, w, h], f) => sharp(bytes).extract({ left, top, width: w, height: h }).resize(f.width, f.height, { fit: 'fill' }).removeAlpha().raw().toBuffer(),
+    async input => (await session.run({ [session.inputNames[0]]: new ort.Tensor('float32', input, [1, 3, MODEL.input, MODEL.input]) }))[session.outputNames[0]].data as Float32Array,
+  );
+  return {
+    at, width, height, detections: read.detections, counts: countsOf(read.detections), colours: read.colours, light: lightOf(meanOf(grey)),
+    motion: null, passes: read.passes, ms: read.ms,
+  };
 }
 
 let queue: Promise<unknown> = Promise.resolve();

@@ -82,7 +82,7 @@ describe('decode', () => {
 });
 
 const frame = (counts: FrameAnalysis['counts'], motion: number | null = null): FrameAnalysis =>
-  ({ at: '2026-10-09T18:00:00Z', width: 640, height: 360, detections: [], counts, colours: null, light: 'bright', motion, ms: 80 });
+  ({ at: '2026-10-09T18:00:00Z', width: 640, height: 360, detections: [], counts, colours: null, light: 'bright', motion, passes: 1, ms: 80 });
 
 describe('analysis', () => {
   it('counts, and counts vehicles', () => {

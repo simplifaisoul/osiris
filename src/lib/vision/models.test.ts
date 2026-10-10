@@ -100,7 +100,7 @@ describe('the assist step after a camera look', () => {
 });
 
 describe('the camera tool', () => {
-  const analysis: FrameAnalysis = { at: '2026-10-09T08:15:00.000Z', width: 640, height: 360, detections: [], counts: { car: 31, truck: 2 }, colours: null, light: 'bright', motion: null, ms: 80 };
+  const analysis: FrameAnalysis = { at: '2026-10-09T08:15:00.000Z', width: 640, height: 360, detections: [], counts: { car: 31, truck: 2 }, colours: null, light: 'bright', motion: null, passes: 1, ms: 80 };
   const CAMS = [
     { id: 'far', name: 'Far', lat: 41.4, lng: 2.17, feed_url: 'https://x/far.jpg' },
     { id: 'yt', name: 'A web player', lat: 40.4169, lng: -3.7036, stream_type: 'iframe', stream_url: 'https://youtube.com/embed/x' },

@@ -8,7 +8,8 @@
  */
 import { useSyncExternalStore } from 'react';
 import { describeFrame, summariseWatch, type FrameAnalysis, type WatchSummary } from './analysis';
-import { analyseBitmap, forgetSession, grabStill, grabVideo, type Grab } from './client';
+import { analyseBitmap, fetchStillEarly, forgetSession, grabStill, grabVideo, warmUp, type Grab } from './client';
+import type { Region } from './scan';
 import { sourceOf, type VisionCamera } from './source';
 import { cropOf, pickVehicles, type Identity } from './identify';
 import { errorOf, headersFor, loadEngine, loadKey } from '../oi/client';
@@ -23,7 +24,15 @@ export interface Look {
   error?: string;
   /** The frame the boxes were found on, as an object URL. */
   frame?: string;
+  /**
+   * While the first frame is read: its size, which pass of how many is
+   * running over which part of it (none yet while the detector loads), and
+   * how many objects the passes so far have found.
+   */
+  scan?: { width: number; height: number; pass: number; of: number; region: Region | null; found: number };
   analysis?: FrameAnalysis;
+  /** The analysis is the look's first, so the overlay reveals it rather than swapping boxes in place. */
+  reveal?: boolean;
   /** A watch: how long, how far through, and once done what it came to. */
   watch?: { seconds: number; elapsed: number; summary?: WatchSummary };
   /** The vehicles named by the reader's own model, by their index among the detections. */
@@ -52,6 +61,16 @@ export function useLook(id: string | null | undefined): Look | null {
 /** The camera viewer says which <video> is playing a stream camera, so its frames can be read. */
 export function registerVideo(id: string, video: HTMLVideoElement | null) {
   if (video) videos.set(id, video); else videos.delete(id);
+}
+
+/**
+ * The reader is about to look at a camera (a pointer over Analyze, a finger
+ * on it): load the detector, and fetch a still camera's frame, so the click
+ * finds both on their way.
+ */
+export function prime(camera: VisionCamera) {
+  warmUp();
+  if (sourceOf(camera) === 'still') fetchStillEarly(camera.id);
 }
 
 /** Stops a look and clears its overlay. */
@@ -99,8 +118,7 @@ export async function look(camera: VisionCamera, options: { watch?: number; by?:
   const mode = seconds > 0 ? 'watch' : 'frame';
   const by = options.by ?? 'you';
   const base: Look = { status: 'working', mode, by, ...(mode === 'watch' ? { watch: { seconds, elapsed: 0 } } : {}) };
-  const keep = looks.get(id)?.frame;
-  set(id, { ...base, frame: keep });
+  set(id, base);
   forgetSession(id);
 
   const samples: FrameAnalysis[] = [];
@@ -109,11 +127,18 @@ export async function look(camera: VisionCamera, options: { watch?: number; by?:
     for (;;) {
       const grab: Grab = source === 'still' ? await grabStill(id, signal) : await grabVideo(await videoFor(id, signal));
       if (signal.aborted) { grab.image.close(); URL.revokeObjectURL(grab.url); throw signal.reason; }
-      const analysis = await analyseBitmap(grab.image, grab.at, id);
-      if (signal.aborted) { URL.revokeObjectURL(grab.url); throw signal.reason; }
+      const first = samples.length === 0;
+      // The first frame is shown as soon as it is in hand, and each pass of the detector as it begins.
+      if (first) set(id, { ...base, frame: grab.url, scan: { width: grab.image.width, height: grab.image.height, pass: 0, of: 0, region: null, found: 0 } });
+      const analysis = await analyseBitmap(grab.image, grab.at, id, {
+        // A live watch wants a frame a second, so it reads each one once.
+        tiles: !(source === 'video' && mode === 'watch'),
+        onPass: first ? p => { const now = looks.get(id); if (now?.scan && !signal.aborted) set(id, { ...now, scan: { ...now.scan, ...p } }); } : undefined,
+      });
+      if (signal.aborted) { if (!first) URL.revokeObjectURL(grab.url); throw signal.reason; }
       samples.push(analysis);
       const elapsed = Math.min(seconds, (Date.now() - started) / 1000);
-      set(id, { ...base, frame: grab.url, analysis, ...(mode === 'watch' ? { watch: { seconds, elapsed } } : {}) });
+      set(id, { ...base, frame: grab.url, analysis, reveal: first, ...(mode === 'watch' ? { watch: { seconds, elapsed } } : {}) });
       if (mode === 'frame' || elapsed >= seconds) break;
       // Frames on a fixed beat from the start, so a slow fetch does not stretch the watch.
       await sleep(Math.max(0, started + samples.length * STEP[source] * 1000 - Date.now()), signal);
@@ -121,7 +146,7 @@ export async function look(camera: VisionCamera, options: { watch?: number; by?:
     const last = samples[samples.length - 1];
     const watch = mode === 'watch' ? summariseWatch(samples, seconds) : undefined;
     const current = looks.get(id);
-    set(id, { ...base, status: 'done', frame: current?.frame, analysis: last, ...(watch ? { watch: { seconds, elapsed: seconds, summary: watch } } : {}) });
+    set(id, { ...base, status: 'done', frame: current?.frame, analysis: last, reveal: current?.reveal, ...(watch ? { watch: { seconds, elapsed: seconds, summary: watch } } : {}) });
     return { camera: id, analysis: last, watch, text: describeFrame(last) };
   } catch (err) {
     if (signal.aborted) throw new Error('The look was stopped');

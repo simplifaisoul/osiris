@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { balanceOf, colourOf, hasColour, paintVehicles } from './colour';
+import { balanceOf, colourOf, coloursOf, hasColour, lensOf, paintVehicles } from './colour';
 
 type RGB = [number, number, number];
 
@@ -66,18 +66,31 @@ describe('paintVehicles', () => {
     { label: 'car', score: 0.9, box: [10, 10, 40, 40] as [number, number, number, number] },
     { label: 'person', score: 0.8, box: [60, 10, 10, 30] as [number, number, number, number] },
   ];
+  const whole = (data: Uint8Array) => ({ data, width: 100, height: 100, channels: 3 as const, scale: 1, x: 0, y: 0 });
 
   it('colours the vehicles, leaves people alone, and tallies', () => {
     const px = picture(100, 100, ROAD, car(10, 10, [200, 30, 40]));
-    const out = paintVehicles(dets, px, 100, 100, 3, 1, ['car']);
-    expect(out.detections[0].colour).toBe('red');
-    expect('colour' in out.detections[1]).toBe(false);
-    expect(out.colours).toEqual({ red: 1 });
+    const lens = lensOf(px, 3);
+    const out = paintVehicles(dets, whole(px), lens, ['car']);
+    expect(out[0].colour).toBe('red');
+    expect('colour' in out[1]).toBe(false);
+    expect(coloursOf(out, lens)).toEqual({ red: 1 });
+  });
+
+  it('reads a box in the frame from pixels of one region of it, scaled', () => {
+    // The region from (100, 50), read at half size: the car at frame (110, 60) is at (5, 5) in its pixels.
+    const px = picture(50, 50, ROAD, [{ x: 5, y: 5, w: 20, h: 20, c: [30, 70, 170] }]);
+    const out = paintVehicles([{ label: 'car', score: 0.9, box: [110, 60, 40, 40] as [number, number, number, number] }],
+      { data: px, width: 50, height: 50, channels: 3, scale: 0.5, x: 100, y: 50 }, [1, 1, 1], ['car']);
+    expect(out[0].colour).toBe('blue');
   });
 
   it('reads no colours from a picture with none, such as an infrared night camera', () => {
     const px = picture(100, 100, [90, 90, 90], car(10, 10, [200, 200, 200]));
     expect(hasColour(px, 3)).toBe(false);
-    expect(paintVehicles(dets, px, 100, 100, 3, 1, ['car']).colours).toBeNull();
+    expect(lensOf(px, 3)).toBeNull();
+    const out = paintVehicles(dets, whole(px), null, ['car']);
+    expect('colour' in out[0]).toBe(false);
+    expect(coloursOf(out, null)).toBeNull();
   });
 });

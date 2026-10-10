@@ -24,7 +24,9 @@ export interface FrameAnalysis {
   light: Light;
   /** The share of the picture that changed since the previous frame, 0–1; null for the first. */
   motion: number | null;
-  /** How long the model took, ms. */
+  /** How many times the detector read the frame: whole, then in corners (see scan.ts). */
+  passes: number;
+  /** How long reading the frame took, every pass, ms. */
   ms: number;
 }
 

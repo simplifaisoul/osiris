@@ -70,7 +70,7 @@ export function hasColour(pixels: ArrayLike<number>, channels: 3 | 4): boolean {
  * Capped, so a scene that really is one colour (snow, a sodium-lit tunnel) is
  * not undone.
  */
-export function balanceOf(pixels: ArrayLike<number>, channels: 3 | 4): [number, number, number] {
+export function balanceOf(pixels: ArrayLike<number>, channels: 3 | 4): Gains {
   let r = 0, g = 0, b = 0, n = 0;
   for (let i = 0; i + 2 < pixels.length; i += channels * 5) {
     const [, s, v] = hsv(pixels[i], pixels[i + 1], pixels[i + 2]);
@@ -87,7 +87,7 @@ export function balanceOf(pixels: ArrayLike<number>, channels: 3 | 4): [number, 
  * The colour of a vehicle filling `box` (x, y, w, h in the pixel array's own
  * coordinates), from the lower middle of the box, white-balanced by `gains`.
  */
-export function colourOf(pixels: ArrayLike<number>, width: number, height: number, channels: 3 | 4, box: readonly [number, number, number, number], gains: readonly [number, number, number] = [1, 1, 1]): Colour | null {
+export function colourOf(pixels: ArrayLike<number>, width: number, height: number, channels: 3 | 4, box: readonly [number, number, number, number], gains: Gains = [1, 1, 1]): Colour | null {
   const [bx, by, bw, bh] = box;
   const x0 = Math.max(0, Math.floor(bx + bw * 0.15)), x1 = Math.min(width, Math.ceil(bx + bw * 0.85));
   const y0 = Math.max(0, Math.floor(by + bh * 0.45)), y1 = Math.min(height, Math.ceil(by + bh * 0.88));
@@ -112,23 +112,38 @@ export function colourOf(pixels: ArrayLike<number>, width: number, height: numbe
   return ranked.find(([c]) => !CHROMATIC.has(c))?.[0] ?? 'black';
 }
 
+/** Gains for red, green and blue that make a picture's greys neutral. */
+export type Gains = readonly [number, number, number];
+
+/** How a picture's colours are read: through its white balance, or not at all when it has none (infrared). */
+export function lensOf(pixels: ArrayLike<number>, channels: 3 | 4): Gains | null {
+  return hasColour(pixels, channels) ? balanceOf(pixels, channels) : null;
+}
+
+/** Pixels the model read: the frame from (`x`, `y`), scaled by `scale` to `width`×`height`, row by row. */
+export interface Pixels { data: ArrayLike<number>; width: number; height: number; channels: 3 | 4; scale: number; x: number; y: number }
+
 /**
- * Colours every vehicle among `detections` from the scaled frame the model read
- * (`scale` maps frame pixels to it), and tallies them. Colours are null for a
- * picture with none, such as an infrared night camera.
+ * Colours every vehicle among `detections` (boxes in the frame's pixels) from
+ * the pixels the model read. Without a lens the picture has no colour, and the
+ * detections are left as they are.
  */
 export function paintVehicles<D extends { label: string; box: readonly [number, number, number, number] }>(
-  detections: D[], pixels: ArrayLike<number>, width: number, height: number, channels: 3 | 4, scale: number, vehicles: readonly string[],
-): { detections: (D & { colour?: Colour | null })[]; colours: Partial<Record<Colour, number>> | null } {
-  if (!hasColour(pixels, channels)) return { detections, colours: null };
-  const gains = balanceOf(pixels, channels);
-  const colours: Partial<Record<Colour, number>> = {};
-  const painted = detections.map(d => {
+  detections: D[], pixels: Pixels, lens: Gains | null, vehicles: readonly string[],
+): (D & { colour?: Colour | null })[] {
+  if (!lens) return detections;
+  const { data, width, height, channels, scale, x: ox, y: oy } = pixels;
+  return detections.map(d => {
     if (!vehicles.includes(d.label)) return d;
     const [x, y, w, h] = d.box;
-    const colour = colourOf(pixels, width, height, channels, [x * scale, y * scale, w * scale, h * scale], gains);
-    if (colour) colours[colour] = (colours[colour] ?? 0) + 1;
-    return { ...d, colour };
+    return { ...d, colour: colourOf(data, width, height, channels, [(x - ox) * scale, (y - oy) * scale, w * scale, h * scale], lens) };
   });
-  return { detections: painted, colours };
+}
+
+/** The vehicles by colour; null for a picture with none to read. */
+export function coloursOf(detections: { colour?: Colour | null }[], lens: Gains | null): Partial<Record<Colour, number>> | null {
+  if (!lens) return null;
+  const out: Partial<Record<Colour, number>> = {};
+  for (const { colour } of detections) if (colour) out[colour] = (out[colour] ?? 0) + 1;
+  return out;
 }
