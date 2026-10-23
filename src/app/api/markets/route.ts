@@ -273,7 +273,9 @@ export async function GET(request: Request) {
       count: quotes.length,
       timestamp: new Date().toISOString(),
     }, {
-      headers: { 'Cache-Control': 'no-store' }, // Prevent caching so alerts update real-time
+      /* Every visitor gets the same quotes, so Cloudflare may share them for
+         30 s. no-store sent each page load's request to this server. */
+      headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60' },
     });
   } catch (error) {
     console.error('Markets fetch error:', error);

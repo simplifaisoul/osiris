@@ -1114,8 +1114,10 @@ export default function Dashboard() {
     if (activeLayers.cables && !layerFetchedRef.current.has('cables')) {
       (async () => {
         try {
-          const ts = Date.now();
-      const res = await fetch(`/data/submarine-cables.json?v=${ts}`);
+          /* One fixed address, so the browser and Cloudflare can reuse it. A
+             timestamp here made every page load a new URL that no cache could
+             answer, and the whole file went out from this server each time. */
+          const res = await fetch('/data/submarine-cables.json');
           if (res.ok) {
              const cablesData = await res.json();
              dataRef.current = { ...dataRef.current, submarine_cables: cablesData.features };

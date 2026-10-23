@@ -87,6 +87,10 @@ export async function GET() {
       alerts,
       solar_flares: flares,
       timestamp: new Date().toISOString(),
+    }, {
+      /* NOAA updates these every few minutes and every visitor gets the same
+         answer. Without a header each page load made three NOAA requests. */
+      headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=600' },
     });
   } catch (error) {
     console.error('Space Weather API error:', error);

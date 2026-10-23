@@ -60,6 +60,19 @@ const nextConfig: NextConfig = {
           { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
         ],
       },
+      /* Every phone that opens the page asks for its icons and manifest, and
+         public/ defaults to max-age=0, so each of those went back to this
+         server. They change only with a redesign. */
+      ...['/apple-touch-icon.png', '/android-chrome-192x192.png', '/android-chrome-512x512.png', '/icon-192.png',
+        '/favicon-16x16.png', '/favicon-32x32.png', '/site.webmanifest', '/manifest.json'].map(source => ({
+        source,
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=86400' }],
+      })),
+      // The submarine-cable data changes only with a deploy; a day at the edge spares this server the file.
+      {
+        source: '/data/:file*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=3600, s-maxage=86400' }],
+      },
       {
         source: '/(.*)',
         headers: [

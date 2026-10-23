@@ -5,11 +5,51 @@ import { visitorIp } from '@/lib/ssrf-guard';
    hand it to the next visitor. */
 const NO_STORE = { 'Cache-Control': 'private, no-store' };
 
+/* Node reads header bytes as Latin-1; Cloudflare sends place names as UTF-8,
+   so "São Paulo" arrives as "SÃ£o Paulo" until it is decoded again. */
+const headerText = (value: string | null) => (value ? Buffer.from(value, 'latin1').toString('utf8') : 'Unknown');
+
+/* Cloudflare already knows where the visitor is. With its "Add visitor
+   location headers" managed transform on, every request arrives with
+   cf-iplatitude / cf-iplongitude, city, region and country, and reading them
+   costs nothing. The providers below are free tiers (ipapi.co allows 1,000 a
+   day) that a busy day exhausts within minutes, after which every visitor
+   waited through three 5 s timeouts while the request held a connection on
+   this server. They remain the fallback for requests Cloudflare did not
+   locate. */
+function fromCloudflare(request: Request, ip: string) {
+  const h = request.headers;
+  const rawLat = h.get('cf-iplatitude');
+  const rawLon = h.get('cf-iplongitude');
+  if (!rawLat || !rawLon) return null;
+  const lat = Number(rawLat);
+  const lon = Number(rawLon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+  const code = h.get('cf-ipcountry') ?? '';
+  let country = code || 'Unknown';
+  try { country = new Intl.DisplayNames(['en'], { type: 'region' }).of(code) ?? country; } catch { /* XX, T1: keep the code */ }
+  return {
+    status: 'success',
+    query: ip || 'unknown',
+    lat,
+    lon,
+    city: headerText(h.get('cf-ipcity')),
+    regionName: headerText(h.get('cf-region')),
+    country,
+    isp: 'Unknown',
+    org: 'Unknown',
+    as: 'Unknown',
+  };
+}
+
 // Server-side proxy for IP geolocation — avoids mixed-content block on HTTPS pages
-// Three providers with cascading fallback for maximum reliability
+// Cloudflare's own location first, then three providers with cascading fallback
 export async function GET(request: Request) {
   try {
     const ip = visitorIp(request) ?? '';
+
+    const located = fromCloudflare(request, ip);
+    if (located) return NextResponse.json(located, { headers: NO_STORE });
 
     /* No public address means the proxy chain lost the visitor's. Asking the
        providers without one locates this server instead, which would fly
