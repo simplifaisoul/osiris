@@ -87,18 +87,23 @@ async function fetchTfLCameras(): Promise<any[]> {
   } catch (e) { return []; }
 }
 
-// ── US-WEST: WSDOT Washington State (~500) ──
+// ── US-WEST: WSDOT Washington State ──
 async function fetchWSDOTCameras(): Promise<any[]> {
   try {
-    const res = await stealthFetch('https://data.wsdot.wa.gov/log/public/cameras.json', { signal: AbortSignal.timeout(12000) });
-    if (!res.ok) return [];
+    const code = process.env.WSDOT_ACCESS_CODE;
+    if (!code) { console.warn('WSDOT_ACCESS_CODE not set, skipping Washington cameras'); return []; }
+    const res = await stealthFetch(
+      `https://wsdot.wa.gov/Traffic/api/HighwayCameras/HighwayCamerasREST.svc/GetCamerasAsJson?AccessCode=${code}`,
+      { signal: AbortSignal.timeout(12000) }
+    );
+    if (!res.ok) { console.error('WSDOT fetch failed:', res.status); return []; }
     const data = await res.json();
     return (data || []).map((cam: any) => ({
       id: `wsdot-${cam.CameraID}`, lat: cam.CameraLocation?.Latitude, lng: cam.CameraLocation?.Longitude,
       name: cam.Title || 'WSDOT Camera', city: 'Washington', country: 'US',
       feed_url: cam.ImageURL || '', source: 'WSDOT',
     })).filter((c: any) => c.lat && c.lng && c.feed_url);
-  } catch (e) { return []; }
+  } catch (e) { console.error('WSDOT error:', e); return []; }
 }
 
 // ── US-WEST: Caltrans California ──
