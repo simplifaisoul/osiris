@@ -5,6 +5,7 @@ import { buildPayload, clearPayload, getPayload, readSnapshot, writeSnapshot, ty
 import { createPool } from '@/lib/fetch-pool';
 
 export const maxDuration = 60;
+import { customCameras } from './taguig';
 import { fetchAsfinagCameras } from './asfinag';
 import { fetchNetherlandsCameras } from './netherlands';
 import { fetchBulgariaCameras } from './bulgaria';
@@ -976,7 +977,7 @@ export async function GET(request: Request) {
         sources[cam.source] = (sources[cam.source] || 0) + 1;
       }
     }
-
+allCameras.push(...customCameras);
     /* Cache what was just assembled, so the next caller is served the
        prebuilt bytes instead of paying to build them again — and so the
        catalogue reaches disk even when no payload existed to begin with. */
