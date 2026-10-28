@@ -376,14 +376,14 @@ export const API_GROUPS: ApiGroup[] = [
       {
         path: '/api/malware',
         method: 'GET',
-        summary: 'Live malware hosts from abuse.ch URLhaus, geolocated per address.',
-        returns: ['threats', 'total', 'cursor', 'last_poll', 'stream', 'source', 'timestamp'],
+        summary: 'Live malware C2 servers from ViriBack C2 Tracker and C2IntelFeeds, geolocated per address.',
+        returns: ['threats', 'total', 'last_poll', 'stream', 'source', 'timestamp'],
       },
       {
         path: '/api/malware/stream',
         method: 'GET',
         summary:
-          'Server-sent events for the malware layer: a snapshot on connect, then new detections as URLhaus reports them.',
+          'Server-sent events for the malware layer: a snapshot on connect, then new detections as the feeds list them.',
         returns: ['snapshot', 'detections', 'status', 'heartbeat'],
       },
     ],

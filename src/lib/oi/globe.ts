@@ -275,9 +275,21 @@ interface Ping { pos: [number, number]; color: [number, number, number]; size: n
 
 const clock = () => performance.now() / 1000;
 
+/** Stamps when each new arc starts drawing, staggered so a burst draws in sequence rather than at once. */
+export function stampBirths(births: Map<string, number>, keys: string[], now = clock()): void {
+  const fresh = keys.filter(k => !births.has(k));
+  const gap = fresh.length > 1 ? Math.min(0.14, 3 / fresh.length) : 0;
+  fresh.forEach((k, i) => births.set(k, now + i * gap));
+}
+
 type Programs = { arc: WebGLProgram; pick: WebGLProgram; ping: WebGLProgram };
 
-function createArcLayer(): CustomLayerInterface & {
+/**
+ * OI's arc layer. Other map layers that draw links (Network Intel) create
+ * their own instance under their own id, so every arc on the map shares one
+ * look: the same ribbons, glow, draw-in, pulses and tones.
+ */
+export function createArcLayer(id: string = OI_ARCS): CustomLayerInterface & {
   setArcs(arcs: ArcSpec[], dim: boolean): void;
   setPings(pings: Ping[]): void;
   setLive(live: boolean): void;
@@ -445,7 +457,7 @@ function createArcLayer(): CustomLayerInterface & {
   };
 
   return {
-    id: OI_ARCS,
+    id,
     type: 'custom',
     renderingMode: '3d',
 
@@ -791,9 +803,7 @@ export function attachOi(map: MlMap, options: OiGlobeOptions = {}): OiGlobe {
     const version = (l: Link) => `${l.id}|${l.round}|${l.tone}`;
     // A quote's thread runs to a headline or a passage, most of them nowhere on Earth: the graph draws those.
     const shown = s.links.filter(l => l.kind !== 'cite');
-    const fresh = shown.filter(l => !births.has(version(l)));
-    const gap = fresh.length > 1 ? Math.min(0.14, 3 / fresh.length) : 0;
-    fresh.forEach((l, i) => births.set(version(l), now + i * gap));
+    stampBirths(births, shown.map(version), now);
     const arcs: ArcSpec[] = [];
     drawn = [];
     for (const l of shown) {
