@@ -218,7 +218,7 @@ export default function Dashboard() {
     };
     place();
     window.addEventListener('resize', place);
-    return () => window.removeEventListener('resize', place);
+    return () => window.removeEventListener('resize', place); 
   }, [showMarkets]);
   const [showAlerts, setShowAlerts] = useState(false);
   const [showSpaceCam, setShowSpaceCam] = useState(false);
@@ -1307,12 +1307,18 @@ export default function Dashboard() {
       });
     }
 
+      // Sea domain
     // Sea domain
-    const ships = data.maritime_ships || [];
-    const shipStep = Math.max(1, Math.floor(ships.length / 60));
-    for (let i = 0; i < ships.length; i += shipStep) {
-      const s = ships[i];
-      if (!s.lat || !s.lng) continue;
+  const ships = (data.maritime_ships as any[]) || [];
+  if (typeof window !== 'undefined') {
+  (window as any).__OSIRIS_SHIPS__ = (data as any).maritime_ships || ships || [];
+}
+const shipStep = Math.max(1, Math.floor(ships.length / 60));
+for (let i = 0; i < ships.length; i += shipStep) {
+  const s = ships[i] as any;
+  if (!s?.lat || !s?.lng) continue;
+  
+      
       sdkEntities.push({
         type: 'Feature', geometry: { type: 'Point', coordinates: [s.lng, s.lat] },
         properties: { domain: 'SEA', name: s.name || `MMSI-${s.mmsi}`, source: 'AIS Stream' },

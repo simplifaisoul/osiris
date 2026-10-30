@@ -154,11 +154,11 @@ function connectAisStream() {
   ws.on("message", (data) => {
     try {
       const parsed = JSON.parse(data.toString());
-      const mmsi = parsed.MetaData?.MMSI;
-      if (!mmsi) return;
+      const  = parsed.MetaData?.;
+      if (!) return;
 
-      const existing = shipsCache.get(mmsi) || {
-        id: mmsi, mmsi: mmsi, timestamp: Date.now()
+      const existing = shipsCache.get() || {
+        id: , : , timestamp: Date.now()
       };
 
       // Extract Name from MetaData if available (present in most messages)
@@ -183,7 +183,7 @@ function connectAisStream() {
 
       // Only store if we have coordinates
       if (existing.lat && existing.lng) {
-        shipsCache.set(mmsi, existing);
+        shipsCache.set(, existing);
       }
 
       // Limit cache size to prevent memory leak (allow up to 20,000 ships)
@@ -236,9 +236,9 @@ const globalForSnapshot = globalThis as unknown as {
 
 function buildSnapshot(now: number): string {
   // Clean up stale ships (older than 10 minutes)
-  for (const [mmsi, ship] of shipsCache.entries()) {
+  for (const [, ship] of shipsCache.entries()) {
     if (now - ship.timestamp > 10 * 60 * 1000) {
-      shipsCache.delete(mmsi);
+      shipsCache.delete();
     }
   }
 
