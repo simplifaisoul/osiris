@@ -180,7 +180,7 @@ Open [http://localhost:3000](http://localhost:3000)
 ```bash
 git clone https://github.com/simplifaisoul/osiris.git
 cd osiris
-cp .env.template .env     # optional — configure keys / port
+cp .env.example .env     # optional — configure keys / port
 docker compose up -d
 ```
 
