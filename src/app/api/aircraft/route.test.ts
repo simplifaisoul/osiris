@@ -1,18 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { shardFor, downsample, parseTrace, currentLeg, legEndpoints } from './route';
+import { downsample, parseTrace, currentLeg, legEndpoints, stopAt, type AircraftDetail } from './route';
 import { nearestAirport } from '@/lib/airports';
-
-describe('shardFor', () => {
-  it('uses the last two hex characters, as readsb shards them', () => {
-    expect(shardFor('ae291a')).toBe('1a');
-    expect(shardFor('ab6fdd')).toBe('dd');
-    expect(shardFor('a0e250')).toBe('50');
-  });
-
-  it('normalises case and whitespace', () => {
-    expect(shardFor(' AE291A ')).toBe('1a');
-  });
-});
 
 describe('downsample', () => {
   it('leaves a short track untouched', () => {
@@ -234,5 +222,81 @@ describe('parseTrace leg trimming', () => {
 
   it('can still return the whole history on request', () => {
     expect(parseTrace({ trace: rows as never }, 700, false).points).toBe(13);
+  });
+});
+
+describe('parseTrace times', () => {
+  it('walks the row offsets from the readsb trace start', () => {
+    const p = parseTrace({
+      timestamp: 1_700_000_000_000,
+      trace: [[0, 40, 10, 30000], [60, 41, 10, 30000]] as never,
+    }, 700, false);
+    expect(p.times).toEqual([1_700_000_000, 1_700_000_060]);
+  });
+
+  // The OpenSky adapter puts the first absolute time in the first row's delta.
+  it('reads an OpenSky-shaped trace as absolute time', () => {
+    const p = parseTrace({
+      trace: [[1_700_000_000, 40, 10, 30000], [30, 41, 10, 30000]] as never,
+    }, 700, false);
+    expect(p.times).toEqual([1_700_000_000, 1_700_000_030]);
+  });
+
+  it('accepts a readsb timestamp already in seconds', () => {
+    const p = parseTrace({
+      timestamp: 1_700_000_000,
+      trace: [[0, 40, 10, 30000]] as never,
+    }, 700, false);
+    expect(p.times).toEqual([1_700_000_000]);
+  });
+
+  it('keeps times aligned with the points after thinning', () => {
+    const rows = Array.from({ length: 3000 }, (_, i) => [i === 0 ? 0 : 1, 50, 10, 30000]);
+    const p = parseTrace({ trace: rows as never }, 700, false);
+    expect(p.times).toHaveLength(p.track.length);
+    expect(p.times[0]).toBe(0);
+    expect(p.times.at(-1)).toBe(2999);
+  });
+});
+
+describe('stopAt', () => {
+  const detail: AircraftDetail = {
+    icao24: 'abc123',
+    registration: null,
+    typeCode: null,
+    model: null,
+    operator: null,
+    track: [[10, 50], [10.1, 50.1], [10.2, 50.2]],
+    altitudes: [30000, 30000, 30000],
+    times: [100, 200, 300],
+    points: 3,
+    departure: null,
+    arrival: { iata: 'LAX' } as AircraftDetail['arrival'],
+    source: 'opensky',
+  };
+
+  it('drops the points the feed has not reached yet', () => {
+    const out = stopAt(detail, 200);
+    expect(out.track).toEqual([[10, 50], [10.1, 50.1]]);
+    expect(out.altitudes).toEqual([30000, 30000]);
+    expect(out.points).toBe(2);
+  });
+
+  it('drops the known arrival once the path no longer reaches it', () => {
+    expect(stopAt(detail, 200).arrival).toBeNull();
+  });
+
+  it('leaves a path that already ends at the feed position alone', () => {
+    const out = stopAt(detail, 300);
+    expect(out.track).toHaveLength(3);
+    expect(out.arrival?.iata).toBe('LAX');
+  });
+
+  it('does not trim below the two points a line needs', () => {
+    expect(stopAt(detail, 50).points).toBe(2);
+  });
+
+  it('ignores the cut-off when the source carries no clock', () => {
+    expect(stopAt({ ...detail, times: [0, 0, 0] }, 200).points).toBe(3);
   });
 });

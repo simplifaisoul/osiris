@@ -1,7 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import { stealthFetch } from '@/lib/stealthFetch';
-
+import { hasOpenSkyCreds, openskyToken, openskyTokenOk } from '@/lib/opensky';
 export const maxDuration = 60;
 
 // 30 regions covering every major aviation corridor at 250 nm radius.
@@ -155,6 +155,15 @@ function classifyFlight(f: any) {
   if (lat == null || lon == null) return null;
 
   const callsign = flightStr || f.hex || 'UNKNOWN';
+  /* When the position was actually observed, in Unix seconds. OpenSky reports
+     it directly; adsb.fi only reports how long ago, which is enough to anchor
+     it to the wall clock. The aircraft detail route uses it to stop the flown
+     track at the point the map is drawing the plane. */
+  const timePosition = typeof f.time_position === 'number'
+    ? f.time_position
+    : typeof f.seen_pos === 'number'
+      ? Math.round(Date.now() / 1000 - f.seen_pos)
+      : null;
   const altRaw = f.alt_baro;
   const altMeters = typeof altRaw === 'number' ? altRaw * 0.3048 : 0;
   const speedKnots = typeof f.gs === 'number' ? Math.round(f.gs * 10) / 10 : null;
@@ -213,6 +222,7 @@ function classifyFlight(f: any) {
     category,
     grounded: isGrounded,
     nac_p: f.nac_p,
+    time_position: timePosition,
     type: 'flight',
   };
 }
@@ -232,8 +242,6 @@ const CACHE_TTL = 90000;
 // after which every call 429s and the route sits permanently in the cooldown
 // branch below. That is what emptied the map: no credentials were configured,
 // so the budget was gone and the feeds it fell back to were the dead ones above.
-const hasOpenSkyCreds = () =>
-  Boolean(process.env.OPENSKY_CLIENT_ID && process.env.OPENSKY_CLIENT_SECRET);
 const openSkyInterval = () => (hasOpenSkyCreds() ? 90000 : 900000);
 
 // The last good OpenSky snapshot is kept and reused between those calls. On the
@@ -249,43 +257,6 @@ let fetchPromise: Promise<any> | null = null;
 // Re-poking a limited endpoint on every cache miss keeps the IP throttled.
 let openSkyCooldownUntil = 0;
 const OPENSKY_COOLDOWN = 15 * 60 * 1000; // 15 min
-
-// OpenSky OAuth2 — optional but recommended for VPS deployments.
-// Without keys: anonymous, works fine on residential IPs. VPS IPs can
-// be throttled by OpenSky's anonymous per-IP pool. Setting these env
-// vars bypasses the per-IP pool (account pool: 4000 credits/day).
-let osToken: string | null = null;
-let osTokenExpiry = 0;
-
-async function getOpenSkyToken(): Promise<string | null> {
-  const id = process.env.OPENSKY_CLIENT_ID;
-  const secret = process.env.OPENSKY_CLIENT_SECRET;
-  if (!id || !secret) return null;
-  if (osToken && Date.now() < osTokenExpiry) return osToken;
-  try {
-    const res = await fetch(
-      'https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ grant_type: 'client_credentials', client_id: id, client_secret: secret }),
-        signal: AbortSignal.timeout(10000),
-      }
-    );
-    if (!res.ok) { console.warn('[OSIRIS] OpenSky token failed:', res.status); return null; }
-    const data = await res.json();
-    if (!data.access_token) {
-      console.warn('[OSIRIS] OpenSky token response missing access_token');
-      return null;
-    }
-    osToken = data.access_token;
-    osTokenExpiry = Date.now() + ((data.expires_in || 1800) - 60) * 1000;
-    return osToken;
-  } catch (e) {
-    console.warn('[OSIRIS] OpenSky token error:', e);
-    return null;
-  }
-}
 
 function ingestAc(raw: any[], into: any[], seen: Set<string>) {
   for (const ac of raw) {
@@ -329,7 +300,7 @@ export async function GET() {
     const skipOpenSky =
       Date.now() < openSkyCooldownUntil ||
       Date.now() - osSnapshotTime < openSkyInterval();
-    const token = skipOpenSky ? null : await getOpenSkyToken();
+    const token = skipOpenSky ? null : await openskyToken();
     const osInit: RequestInit = token
       ? { signal: AbortSignal.timeout(30000), headers: { Authorization: `Bearer ${token}` } }
       : { signal: AbortSignal.timeout(30000) };
@@ -378,6 +349,10 @@ export async function GET() {
               flight: s[1]?.trim(),
               lon: s[5],
               lat: s[6],
+              // State vector time_position only. last_contact is not a position
+              // fix, so using it as a fallback would trim the track past the
+              // aircraft. Null means "no trim" rather than a wrong trim.
+              time_position: typeof s[3] === 'number' ? s[3] : null,
               alt_baro: typeof s[7] === 'number' ? s[7] * 3.28084 : null,
               gs: typeof s[9] === 'number' ? s[9] * 1.94384 : null,
               track: s[10],
@@ -463,7 +438,7 @@ export async function GET() {
         adsbfi_mil:      milCount,
         adsbfi_regional: openSkyWorked ? 0 : allRaw.length - milCount,
         opensky:         osSnapshot.length,
-        opensky_auth:    hasOpenSkyCreds(),
+        opensky_auth:    openskyTokenOk(),
         opensky_age_s:   osSnapshotTime ? Math.round((Date.now() - osSnapshotTime) / 1000) : null,
       },
       timestamp:          new Date().toISOString(),

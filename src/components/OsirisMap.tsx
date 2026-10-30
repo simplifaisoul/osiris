@@ -11,8 +11,8 @@ import { attachOi, type OiGlobe, type OiHover } from '@/lib/oi/globe';
 import { attachHighlights, type Highlighter } from '@/lib/oi/highlights';
 import type { Highlight } from '@/lib/oi/assist/tools';
 import { createSatelliteLayer, parseColor, SAT_MAX_ZOOM, type SatPoint } from '@/lib/satellite-layer';
-import { MAP_DEFAULTS, MAP_PALETTE_KEYS, readMapPalette, satColorFor, type MapPalette } from '@/lib/map-palette';
-import { STYLE_EVENT } from '@/lib/style-tokens';
+import { COMMERCIAL_SAMPLE_RATIO, trackFeatures } from '@/lib/aviation';
+import { MAP_DEFAULTS, MAP_PALETTE_KEYS, readMapPalette, satColorFor, type MapPalette } from '@/lib/map-palette';import { STYLE_EVENT } from '@/lib/style-tokens';
 import { arrivalBeacons } from '@/lib/malware-intel';
 import { ALERT_KINDS, timeAgo, type AlertKind } from '@/lib/alert-digest';
 import SatelliteCard, { type SatelliteDetail } from '@/components/SatelliteCard';
@@ -114,6 +114,8 @@ interface OsirisMapProps {
   navigating?: boolean;
   /** Corroborated endpoint airports for watched aircraft, keyed by icao24. */
   aircraftAirports?: Record<string, Array<{ icao: string; iata?: string; city?: string; lat: number; lng: number }>>;
+  /** Aircraft the operator is watching. Each keeps a persistent flown track. */
+  watchedFlights?: Array<{ icao24: string; callsign?: string }>;
   /** Hands the page OI's globe layer, so a run draws without re-rendering the map. Null when it goes. */
   onOiGlobe?: (globe: OiGlobe | null) => void;
   /** A piece of OI's analysis was clicked: an arc ("link:<id>") or a point ("a:<actor>", "e:<event>"…); null for empty map. */
@@ -148,6 +150,16 @@ function computeSolarTerminator(): [number, number][] {
 
 const EMPTY_FC = { type: 'FeatureCollection' as const, features: [] };
 
+/** Module-level so a theme remount does not discard watched aircraft history and
+ *  re-spend the credits that fetched it. */
+const watchTrackCache: Record<string, { track: any[]; altitudes: any[]; at: number }> = {};
+const watchTrackPending = new Set<string>();
+/**
+ * OpenSky charges four credits per track request, so a watched aircraft's
+ * history refreshes slowly. Fifteen minutes is 96 requests per day per plane,
+ * which leaves most of the daily budget for manually selected aircraft.
+ */
+const WATCH_TRACK_REFRESH_MS = 15 * 60 * 1000;
 /** A colour, or an expression for one, as addLayer takes it. */
 type LayerColor = NonNullable<Extract<Parameters<maplibregl.Map['addLayer']>[0], { type: 'circle' }>['paint']>['circle-color'];
 
@@ -201,7 +213,7 @@ interface AlertPinFeature {
   properties: AlertPinProps;
 }
 
-function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, onReady, flyToLocation, alertPinIds = null, projection = 'globe', terrainEnabled = false, terrainRetry = 0, terrainFocus = 0, onTerrainStatusChange, onLayerOff, mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', drawnPolygons = [], arcgisLayers = [], drawMode = null, onDrawComplete, onDrawProgress, onDrawCancel, drawCommand = null, onMapCenter, onTransitStatus, route = null, userLocation = null, followUser = false, onFollowInterrupt, navigating = false, aircraftAirports = {}, onOiGlobe, onOiSelect, onOiHover, onOiFollow, oiHighlight = null }: OsirisMapProps) {
+function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, onReady, flyToLocation, alertPinIds = null, projection = 'globe', terrainEnabled = false, terrainRetry = 0, terrainFocus = 0, onTerrainStatusChange, onLayerOff, mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', drawnPolygons = [], arcgisLayers = [], drawMode = null, onDrawComplete, onDrawProgress, onDrawCancel, drawCommand = null, onMapCenter, onTransitStatus, route = null, userLocation = null, followUser = false, onFollowInterrupt, navigating = false, aircraftAirports = {}, watchedFlights = [], onOiGlobe, onOiSelect, onOiHover, onOiFollow, oiHighlight = null }: OsirisMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
@@ -211,6 +223,11 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
   const openAlertPinRef = useRef<((id: string) => void) | null>(null);
   const [mapReady, setMapReady] = useState(false);
 
+  const [watchTrackRevision, setWatchTrackRevision] = useState(0);
+
+  /** The track currently drawn for the selected aircraft, so its closing
+   *  segment can follow the plane between feed refreshes. */
+  const selectedTrackRef = useRef<{ icao24: string; track: any[]; altitudes: any[]; final: { lng: number; lat: number; alt: number | null } } | null>(null);
   // Do not replay an earlier explicit zoom request after theme/retry remounts.
   const lastTerrainFocus = useRef(terrainFocus);
   const wasNavigating = useRef(false);
@@ -839,6 +856,44 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'text-offset': [0, 2], 'text-max-width': 14, 'text-allow-overlap': false,
       }, paint: { 'text-color': '#D32F2F', 'text-halo-color': '#000', 'text-halo-width': 1.5, 'text-opacity': 0.9 }});
 
+      // The selected aircraft's flown track — empty until a plane is clicked.
+      // Drawn beneath the glyphs, one segment per report pair so the colour can
+      // follow altitude: MapLibre cannot gradient along a line from a
+      // per-vertex property. See the flight click handler.
+      map.addSource('flight-track', { type: 'geojson', data: EMPTY_FC });
+      map.addLayer({ id: 'flight-track-glow', type: 'line', source: 'flight-track', layout: {
+        'line-cap': 'round', 'line-join': 'round',
+      }, paint: {
+        'line-color': ['interpolate', ['linear'], ['get', 'alt'], 0, '#FFB300', 10000, '#7FE9FF', 30000, '#00E5FF'],
+        'line-width': ['interpolate', ['linear'], ['zoom'], 2, 3, 6, 6, 12, 10],
+        'line-opacity': 0.18, 'line-blur': 4,
+      }});
+      map.addLayer({ id: 'flight-track-line', type: 'line', source: 'flight-track', layout: {
+        'line-cap': 'round', 'line-join': 'round',
+      }, paint: {
+        'line-color': ['interpolate', ['linear'], ['get', 'alt'], 0, '#FFB300', 10000, '#7FE9FF', 30000, '#00E5FF'],
+        'line-width': ['interpolate', ['linear'], ['zoom'], 2, 1.2, 6, 2.2, 12, 3.5],
+        'line-opacity': 0.85,
+      }});
+
+      // Watched aircraft keep their tracks on the map. Drawn dimmer than the
+      // selected path so several can share the globe without competing.
+      map.addSource('flight-watch-tracks', { type: 'geojson', data: EMPTY_FC });
+      map.addLayer({ id: 'flight-watch-track-glow', type: 'line', source: 'flight-watch-tracks', layout: {
+        'line-cap': 'round', 'line-join': 'round',
+      }, paint: {
+        'line-color': ['interpolate', ['linear'], ['get', 'alt'], 0, '#FFB300', 10000, '#7FE9FF', 30000, '#00E5FF'],
+        'line-width': ['interpolate', ['linear'], ['zoom'], 2, 2.5, 6, 5, 12, 8],
+        'line-opacity': 0.12, 'line-blur': 4,
+      }});
+      map.addLayer({ id: 'flight-watch-track-line', type: 'line', source: 'flight-watch-tracks', layout: {
+        'line-cap': 'round', 'line-join': 'round',
+      }, paint: {
+        'line-color': ['interpolate', ['linear'], ['get', 'alt'], 0, '#FFB300', 10000, '#7FE9FF', 30000, '#00E5FF'],
+        'line-width': ['interpolate', ['linear'], ['zoom'], 2, 1, 6, 1.6, 12, 2.6],
+        'line-opacity': 0.5,
+      }});
+
       // Flight layers (WebGL symbol — GPU rendered, handles 50K+ smooth)
       const flightLayers = [
         { id: 'fl-commercial', src: 'flights', icon: 'plane-cyan' },
@@ -1001,7 +1056,24 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     reportCamera();
 
     // ── POPUP HELPER ──
+    /* The selected aircraft's track lives as long as its popup. Every popup
+       change bumps the request counter, so a slow identity response for the
+       plane clicked a moment ago cannot paint over the current selection. */
+    let trackRequest = 0;
+    const clearFlightTrack = () => {
+      const track = map.getSource('flight-track') as maplibregl.GeoJSONSource | undefined;
+      track?.setData(EMPTY_FC as never);
+      selectedTrackRef.current = null;
+    };
+    const drawFlightTrack = (track: unknown, altitudes: unknown, final?: { lng: number; lat: number; alt?: number | null }) => {
+      const features = trackFeatures(track, altitudes, final);
+      if (!features.length) return;
+      const trackSource = map.getSource('flight-track') as maplibregl.GeoJSONSource | undefined;
+      trackSource?.setData({ type: 'FeatureCollection', features } as never);
+    };
     const popup = (coords: any, html: string) => {
+      trackRequest++;
+      clearFlightTrack();
       popupRef.current?.remove();
       popupRef.current = new maplibregl.Popup({ closeButton: true, maxWidth: '420px', offset: 14 }).setLngLat(coords).setHTML(html).addTo(map);
     };
@@ -1060,12 +1132,40 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
           </div>
         </div>`);
 
+        // This selection owns the track until the popup closes.
+        const thisTrack = trackRequest;
+        popupRef.current?.once('close', () => { trackRequest++; clearFlightTrack(); });
+
         // The transponder only reports a type code (often nothing at all), so
         // resolve the real manufacturer/model and registration out of band.
         if (p.icao24) {
-          fetch(`/api/aircraft?icao24=${encodeURIComponent(p.icao24)}`)
+          const detailParams = new URLSearchParams({ icao24: p.icao24 });
+          // End the path where the plane on the map is, not at the live tip.
+          if (typeof p.time_position === 'number') detailParams.set('until', String(p.time_position));
+          fetch(`/api/aircraft?${detailParams}`)
             .then(r => (r.ok ? r.json() : null))
             .then((d) => {
+              if (thisTrack !== trackRequest) return;
+              // The trim leaves the path at the feed's last fix, a few
+              // kilometres behind the icon; close that gap so the line ends
+              // under the aircraft rather than short of it.
+              drawFlightTrack(d?.track, d?.altitudes, {
+                lng: coords[0],
+                lat: coords[1],
+                alt: typeof p.alt === 'number' ? p.alt * 3.28084 : null,
+              });
+              if (Array.isArray(d?.track) && d.track.length) {
+                selectedTrackRef.current = {
+                  icao24: p.icao24,
+                  track: d.track,
+                  altitudes: Array.isArray(d.altitudes) ? d.altitudes : [],
+                  final: {
+                    lng: coords[0],
+                    lat: coords[1],
+                    alt: typeof p.alt === 'number' ? p.alt * 3.28084 : null,
+                  },
+                };
+              }
               const el = document.getElementById(`ac-${p.icao24}`);
               if (!el || !d || d.error) {
                 if (el) el.innerHTML = '<span style="color:#5C5A54;font-size:9px;">AIRFRAME NOT IN REGISTRY</span>';
@@ -1082,7 +1182,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
 
         // Resolve origin/destination for the readout only. The line this used
         // to draw was a straight hop between two airports, which is not the
-        // path flown — watched aircraft draw their real reported track instead.
+        // path flown — the real reported track comes from /api/aircraft above.
         const cleanCallsign = cs.replace(/\s+/g, '');
         const routeParams = new URLSearchParams({
           callsign: cleanCallsign,
@@ -1876,20 +1976,129 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
   useEffect(() => {
     if (!mapReady) return;
     const toFeatures = (arr: any[], decimate: number = 1) => {
-      let filtered = arr || [];
-      if (decimate > 1) {
-        filtered = filtered.filter((_, i) => i % decimate === 0);
-      }
-      return filtered.map((f: any) => ({
+      const kept = decimate > 1 ? (arr || []).filter((_: any, i: number) => i % decimate === 0) : (arr || []);
+      return kept.map((f: any) => ({
         type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: [f.lng, f.lat] },
-        properties: { callsign: f.callsign, heading: f.heading || 0, alt: f.alt, model: f.model, speed_knots: f.speed_knots, registration: f.registration, icao24: f.icao24 },
+        properties: { callsign: f.callsign, heading: f.heading || 0, alt: f.alt, model: f.model, speed_knots: f.speed_knots, registration: f.registration, icao24: f.icao24, time_position: f.time_position },
       }));
     };
-    setGeo('flights', activeLayers.flights ? toFeatures(data.commercial_flights, 10) : []);
-    setGeo('private-fl', activeLayers.private ? toFeatures(data.private_flights, 2) : []);
-    setGeo('jets', activeLayers.jets ? toFeatures(data.private_jets, 2) : []);
+    /* Draw 10% of the commercial feed while the sub-toggle is on, which is the
+       upstream default; private, jets and military are small enough to draw
+       whole — see lib/aviation. */
+    const commercialRatio = activeLayers.flights_10percent ? COMMERCIAL_SAMPLE_RATIO : 1;
+    setGeo('flights', activeLayers.flights ? toFeatures(data.commercial_flights, commercialRatio) : []);
+    setGeo('private-fl', activeLayers.private ? toFeatures(data.private_flights) : []);
+    setGeo('jets', activeLayers.jets ? toFeatures(data.private_jets) : []);
     setGeo('military', activeLayers.military ? toFeatures(data.military_flights) : []);
-  }, [mapReady, data.commercial_flights, data.private_flights, data.private_jets, data.military_flights, activeLayers.flights, activeLayers.private, activeLayers.jets, activeLayers.military]);
+  }, [mapReady, data.commercial_flights, data.private_flights, data.private_jets, data.military_flights, activeLayers.flights, activeLayers.private, activeLayers.jets, activeLayers.military, activeLayers.flights_10percent]);
+
+  /**
+   * Keep a flown path on the map for every watched aircraft.
+   *
+   * The feed already gives us each watched plane's current position every
+   * couple of minutes, but the history costs four OpenSky credits per request.
+   * So the path is fetched once when the aircraft is watched and refreshed on
+   * a slow clock; between fetches the final segment is redrawn from the cached
+   * tip to the live feed position, keeping the line attached to the icon
+   * without spending credits. Failures are cached too, so a spent quota is not
+   * retried on every feed poll.
+   */
+  useEffect(() => {
+    if (!mapReady) return;
+    const map = mapRef.current;
+    if (!map) return;
+
+    const wanted = new Set(watchedFlights.map((w) => w.icao24).filter(Boolean));
+    const cache = watchTrackCache;
+    for (const id of Object.keys(cache)) {
+      if (!wanted.has(id)) delete cache[id];
+    }
+
+    const positions: Record<string, any> = {};
+    for (const bucket of [data?.commercial_flights, data?.private_flights, data?.private_jets, data?.military_flights]) {
+      for (const f of bucket || []) {
+        if (f?.icao24 && wanted.has(f.icao24)) positions[f.icao24] = f;
+      }
+    }
+
+    const paint = () => {
+      const source = map.getSource('flight-watch-tracks') as maplibregl.GeoJSONSource | undefined;
+      if (!source) return;
+      const features: any[] = [];
+      for (const id of wanted) {
+        const entry = cache[id];
+        if (!entry?.track?.length) continue;
+        const p = positions[id];
+        const final = p && Number.isFinite(p.lng) && Number.isFinite(p.lat)
+          ? { lng: p.lng, lat: p.lat, alt: typeof p.alt === 'number' ? p.alt * 3.28084 : null }
+          : undefined;
+        features.push(...trackFeatures(entry.track, entry.altitudes, final));
+      }
+      source.setData({ type: 'FeatureCollection', features } as never);
+    };
+    paint();
+
+    const now = Date.now();
+    for (const id of wanted) {
+      const entry = cache[id];
+      if (entry && now - entry.at < WATCH_TRACK_REFRESH_MS) continue;
+      if (watchTrackPending.has(id)) continue;
+      watchTrackPending.add(id);
+
+      const p = positions[id];
+      const params = new URLSearchParams({ icao24: id });
+      // End the cached path where the feed's fix is; the closing segment is
+      // drawn separately so it can follow the plane in between fetches.
+      if (p && typeof p.time_position === 'number' && p.time_position > 0) {
+        params.set('until', String(p.time_position));
+      }
+
+      fetch(`/api/aircraft?${params}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          cache[id] = {
+            track: Array.isArray(d?.track) ? d.track : [],
+            altitudes: Array.isArray(d?.altitudes) ? d.altitudes : [],
+            at: Date.now(),
+          };
+        })
+        .catch(() => {
+          cache[id] = { track: [], altitudes: [], at: Date.now() };
+        })
+        .finally(() => {
+          watchTrackPending.delete(id);
+          setWatchTrackRevision((n) => n + 1);
+        });
+    }
+  }, [mapReady, watchedFlights, data.commercial_flights, data.private_flights, data.private_jets, data.military_flights, watchTrackRevision]);
+
+  /**
+   * Keep the selected aircraft's closing segment attached to the icon between
+   * feed refreshes, mirroring the watched-plane behaviour: the cached path is
+   * trimmed to the feed's fix time, and the gap is re-drawn to the live fix.
+   */
+  useEffect(() => {
+    if (!mapReady) return;
+    const map = mapRef.current;
+    if (!map) return;
+    const sel = selectedTrackRef.current;
+    if (!sel) return;
+
+    const positions: Record<string, any> = {};
+    for (const bucket of [data?.commercial_flights, data?.private_flights, data?.private_jets, data?.military_flights]) {
+      for (const f of bucket || []) {
+        if (f?.icao24 && f.icao24 === sel.icao24) positions[f.icao24] = f;
+      }
+    }
+    const p = positions[sel.icao24];
+    const final = p && Number.isFinite(p.lng) && Number.isFinite(p.lat)
+      ? { lng: p.lng, lat: p.lat, alt: typeof p.alt === 'number' ? p.alt * 3.28084 : null }
+      : sel.final;
+
+    const features = trackFeatures(sel.track, sel.altitudes, final);
+    const source = map.getSource('flight-track') as maplibregl.GeoJSONSource | undefined;
+    if (source && features.length) source.setData({ type: 'FeatureCollection', features } as never);
+  }, [mapReady, data.commercial_flights, data.private_flights, data.private_jets, data.military_flights]);
 
   /**
    * Pull the palette out of the document whenever it can have changed.

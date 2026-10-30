@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import StyleStudio from './StyleStudio';
 import { TERRAIN_MIN_ZOOM, type TerrainStatus } from '@/lib/map-terrain';
+import { COMMERCIAL_SAMPLE_RATIO } from '@/lib/aviation';
 
 interface LayerPanelProps {
   data: any;
@@ -42,6 +43,9 @@ interface LayerDef {
   /** Key of the layer this one modifies. Renders indented beneath it, and reads
    *  as inert while that parent is off — it has nothing to act on. */
   parent?: string;
+  /** The map draws one item in this many while the row is on. The count
+   *  beside the row then reports the drawn number instead of the feed total. */
+  sampleRatio?: number;
 }
 
 interface LayerGroupDef {
@@ -71,6 +75,7 @@ const LAYER_GROUPS: LayerGroupDef[] = [
     icon: Plane,
     layers: [
       { key: 'flights', label: 'Commercial', dataKey: 'commercial_flights' },
+      { key: 'flights_10percent', label: `Sample ${Math.round(100 / COMMERCIAL_SAMPLE_RATIO)}%`, dataKey: 'commercial_flights', parent: 'flights', sampleRatio: COMMERCIAL_SAMPLE_RATIO },
       { key: 'private', label: 'Private', dataKey: 'private_flights' },
       { key: 'jets', label: 'Private Jets', dataKey: 'private_jets' },
       { key: 'military', label: 'Military', dataKey: 'military_flights' },
@@ -283,6 +288,16 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
     return found ? total : null;
   };
 
+  /* A sampled row reports what the map draws, not what the feed returned — the
+     two numbers are far apart on purpose, and the reader is choosing between
+     them. */
+  const drawnCount = (layer: LayerDef, count: number | null): number | null => {
+    if (count === null) return null;
+    return layer.sampleRatio && activeLayers[layer.key]
+      ? Math.ceil(count / layer.sampleRatio)
+      : count;
+  };
+
   /* ── MOBILE ── */
   if (isMobile) {
     return (
@@ -295,7 +310,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
             <div className="flex flex-col gap-1">
               {group.layers.map((layer) => {
                 const isLayerActive = activeLayers[layer.key];
-                const count = getCount(layer.dataKey, layer.catKey);
+                const count = drawnCount(layer, getCount(layer.dataKey, layer.catKey));
                 const dormant = !!layer.parent && !activeLayers[layer.parent];
                 return (
                   <button
@@ -484,7 +499,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                     <div className="flex flex-col gap-0.5">
                       {group.layers.map((layer) => {
                         const isLayerActive = activeLayers[layer.key];
-                        const count = getCount(layer.dataKey, layer.catKey);
+                        const count = drawnCount(layer, getCount(layer.dataKey, layer.catKey));
                         const dormant = !!layer.parent && !activeLayers[layer.parent];
 
                         return (
