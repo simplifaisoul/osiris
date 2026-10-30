@@ -211,7 +211,7 @@ export default function PrivacyPage() {
                 not yours. Your key is used for that request and nothing else.
               </>}
               services={[
-                { name: 'The provider you choose', what: 'OpenAI, Anthropic, Google, OpenRouter, Groq, DeepSeek, xAI, Mistral or Alibaba Cloud: your key and your request' },
+                { name: 'The provider you choose', what: 'OpenAI, Anthropic, Google, OpenRouter, Groq, DeepSeek, xAI, Mistral, Alibaba Cloud or Cheaper Inference: your key and your request' },
                 { name: 'News publishers’ feeds, GDELT, Wikipedia', what: 'a few keywords from your question, to find the reporting and background a prediction reads; the articles found are then read from their publishers' },
                 { name: 'Yahoo Finance', what: 'the ticker of a price your question is about, for its price history and its news' },
                 { name: 'Polymarket and Manifold', what: 'a few keywords from your question, to find what prediction markets price it at; and, for the suggestions on the ask form, nothing about you at all' },
