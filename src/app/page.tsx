@@ -464,6 +464,8 @@ export default function Dashboard() {
   // ── DEFAULT: Most layers OFF — fast initial load ──
   const [activeLayers, setActiveLayers] = useState({
     flights: false,
+    /* Show only 10% of commercial flights */
+    flights_10percent: true,
     private: false,
     jets: false,
     military: false,
@@ -1167,7 +1169,26 @@ export default function Dashboard() {
     const intervals: ReturnType<typeof setInterval>[] = [];
     const stopFns: (() => void)[] = [];
     if (activeLayers.flights || activeLayers.military || activeLayers.jets || activeLayers.private) {
-      intervals.push(setInterval(() => fetchEndpoint('/api/flights'), 300000)); // 5 min (was 2 min)
+      /* OpenSky's budget is per day, so the useful cadence depends on whether
+         the server actually authenticated: an authenticated deployment can
+         afford a global snapshot about every 90s, an anonymous one only every
+         15 minutes. Poll at the rate the reply advertises; the server's own
+         gate is 90s (auth) or 15 min (anon), so a 5-minute client poll on the
+         anonymous path mostly returns the cached snapshot. Rescheduled rather
+         than fixed because the flag arrives with the data. */
+      let flightTimer: ReturnType<typeof setTimeout>;
+      let stopped = false;
+      // Before the first reply lands there is no flag to read. Checking back in
+      // two minutes costs an anonymous reader one cached request and gets an
+      // authenticated deployment onto the fast cadence straight away.
+      const flightGapMs = () => (dataRef.current.providers?.opensky_auth === false ? 300_000 : 120_000);
+      const pollFlights = async () => {
+        if (stopped) return;
+        await fetchEndpoint('/api/flights');
+        if (!stopped) flightTimer = setTimeout(pollFlights, flightGapMs());
+      };
+      flightTimer = setTimeout(pollFlights, flightGapMs());
+      stopFns.push(() => { stopped = true; clearTimeout(flightTimer); });
     }
 
     if (activeLayers.balloons) {
@@ -1598,6 +1619,7 @@ export default function Dashboard() {
           onDrawComplete={handleDrawComplete}
           drawnPolygons={drawnPolygons}
           aircraftAirports={aircraftAirports}
+          watchedFlights={watchedFlights}
           onOiGlobe={handleOiGlobe}
           onOiSelect={handleOiSelect}
           onOiHover={setOiHover}

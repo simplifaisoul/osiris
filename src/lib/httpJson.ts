@@ -62,8 +62,8 @@ function request(url: string, { timeoutMs = 20000, headers = {} }: RequestOption
         }
 
         // Some hosts serve pre-compressed static JSON and set Content-Encoding
-        // regardless of what we asked for — adsb.lol's trace files do exactly
-        // that — so decode by the header rather than by what we requested.
+        // regardless of what we asked for, so decode by the header rather than
+        // by what we requested.
         const encoding = (res.headers['content-encoding'] || '').toLowerCase();
         let stream: Readable = res;
         if (encoding === 'gzip') stream = res.pipe(zlib.createGunzip());

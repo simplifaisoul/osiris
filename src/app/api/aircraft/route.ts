@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { httpJson, optional } from '@/lib/httpJson';
 import { cachedSource } from '@/lib/sourceCache';
 import { nearestAirport, type Airport } from '@/lib/airports';
+import { openskyToken } from '@/lib/opensky';
 
 export const maxDuration = 20;
 
@@ -14,13 +15,14 @@ export const maxDuration = 20;
  * which is not the path the aircraft actually flew — an orbit or a hold showed
  * as a straight line to the destination.
  *
- * adsb.lol publishes readsb trace files that answer both at once: the real
- * flown track, plus the aircraft's registration, type code and full model name.
- * adsbdb fills in the registered operator, which the traces do not carry.
+ * OpenSky's tracks endpoint supplies the real flown path, and adsbdb fills in
+ * the registered operator and any identity the track source did not carry.
  */
 
-const TRACE_BASE = 'https://adsb.lol/data/traces';
 const ADSBDB = 'https://api.adsbdb.com/v0/aircraft';
+const OPENSKY_TRACK = 'https://opensky-network.org/api/tracks/all';
+/** A hole in coverage longer than this is a missing leg, not a flown line. */
+const OPENSKY_MAX_GAP_S = 45 * 60;
 
 export interface AircraftDetail {
   icao24: string;
@@ -33,17 +35,17 @@ export interface AircraftDetail {
   track: [number, number][];
   /** Altitude in feet at each track point, aligned by index. */
   altitudes: (number | null)[];
+  /**
+   * Unix time of each track point, aligned by index. Used to stop the drawn
+   * path where the feed's own position fix was taken; stripped from the reply.
+   */
+  times: number[];
   points: number;
   /** Airport this leg was seen to leave, read off the track. Null if unknown. */
   departure: Airport | null;
   /** Airport this leg was seen to land at. Null while still airborne. */
   arrival: Airport | null;
   source: string;
-}
-
-/** readsb shards traces by the last two characters of the hex address. */
-export function shardFor(icao24: string): string {
-  return icao24.trim().toLowerCase().slice(-2);
 }
 
 interface TraceFile {
@@ -153,9 +155,24 @@ export function parseTrace(
 ): Omit<AircraftDetail, 'operator' | 'source'> {
   const track: [number, number][] = [];
   const altitudes: (number | null)[] = [];
+  const times: number[] = [];
 
-  const rows = legOnly ? currentLeg(json?.trace || []) : (json?.trace || []);
-  for (const row of rows) {
+  const raw = json?.trace || [];
+  const rows = legOnly ? currentLeg(raw) : raw;
+  /* currentLeg returns a slice of the same row objects, so the leg's first row
+     can be found in the untouched trace. The row offsets are deltas against
+     the previous row, so the clock has to be walked from the real start even
+     when earlier flights are not drawn. */
+  const legStart = rows.length ? Math.max(0, raw.indexOf(rows[0])) : 0;
+  // readsb stamps the start of the trace in Unix seconds; OpenSky's adapter
+  // carries the first absolute time in the first row's delta instead. Both walk
+  // to absolute time. A millisecond stamp (some mirrors emit one) is normalised.
+  const stamped = typeof json?.timestamp === 'number' ? json.timestamp : 0;
+  let clock = stamped > 1e12 ? stamped / 1000 : stamped;
+  for (let r = 0; r < raw.length; r++) {
+    const row = raw[r];
+    if (typeof row?.[0] === 'number') clock += row[0];
+    if (r < legStart) continue;
     const lat = row?.[1];
     const lng = row?.[2];
     if (typeof lat !== 'number' || typeof lng !== 'number') continue;
@@ -164,6 +181,7 @@ export function parseTrace(
     // Altitude is feet, or the string "ground".
     const alt = row?.[3];
     altitudes.push(typeof alt === 'number' ? alt : null);
+    times.push(clock);
   }
 
   const idx = track.map((_, i) => i);
@@ -171,7 +189,6 @@ export function parseTrace(
 
   // Trailing ground reports are trimmed off the leg, so the landing has to be
   // read from the untrimmed trace.
-  const raw = json?.trace || [];
   const landed = raw.length > 0 && raw[raw.length - 1]?.[3] === 'ground';
 
   return {
@@ -181,6 +198,7 @@ export function parseTrace(
     model: json?.desc?.trim() || null,
     track: keep.map((i) => track[i]),
     altitudes: keep.map((i) => altitudes[i]),
+    times: keep.map((i) => times[i]),
     points: keep.length,
     ...legEndpoints(track, altitudes, landed),
   };
@@ -198,55 +216,161 @@ interface AdsbdbResponse {
   };
 }
 
-async function fetchTrace(icao24: string, full: boolean): Promise<TraceFile> {
-  const kind = full ? 'full' : 'recent';
-  const url = `${TRACE_BASE}/${shardFor(icao24)}/trace_${kind}_${icao24.toLowerCase()}.json`;
-  return httpJson<TraceFile>(url, { timeoutMs: 12000 });
+/** OpenSky hands back [time, lat, lon, altitude m, heading, onGround]. */
+interface OpenSkyTrackFile {
+  path?: Array<Array<number | boolean | null>>;
+}
+
+/** Rewrite an OpenSky track as readsb trace rows so the leg logic applies. */
+function openskyTrace(icao24: string, path: Array<Array<number | boolean | null>>): TraceFile {
+  const trace: Array<Array<number | string | null>> = [];
+  let prev = 0;
+  for (const row of path) {
+    if (!Array.isArray(row)) continue;
+    const [time, lat, lon, altitude, , ground] = row;
+    if (typeof lat !== 'number' || typeof lon !== 'number') continue;
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+    const t = typeof time === 'number' ? time : prev;
+    trace.push([
+      t - prev,
+      lat,
+      lon,
+      ground === true ? 'ground' : typeof altitude === 'number' ? Math.round(altitude * 3.28084) : null,
+      null,
+      null,
+      null,
+    ]);
+    prev = t;
+  }
+  return { icao: icao24, trace };
+}
+
+/**
+ * The flown path from OpenSky. Same shape as a trace, so the reader does not
+ * care which source answered.
+ */
+async function fetchOpenSkyTrack(icao24: string, legOnly: boolean) {
+  // OpenSky's anonymous pool is shared and easily spent on a server address,
+  // after which every track answers 429 and the path silently disappears.
+  // Sign in when credentials are configured; a single token also serves the
+  // live state feed in the flights route.
+  const token = await openskyToken();
+  let json: OpenSkyTrackFile;
+  try {
+    json = await httpJson<OpenSkyTrackFile>(
+      `${OPENSKY_TRACK}?icao24=${encodeURIComponent(icao24)}&time=0`,
+      {
+        timeoutMs: 8000,
+        ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+      },
+    );
+  } catch (e) {
+    console.warn('[OSIRIS] OpenSky track failed:', e instanceof Error ? e.message : e);
+    throw e;
+  }
+  const path = json.path || [];
+  if (!path.length) return null;
+
+  // A day's history is several flights strung together, and the position is
+  // simply absent while the aircraft is out of range. Keep the run since the
+  // last such hole so the map does not draw a straight line across it.
+  let start = 0;
+  if (legOnly) {
+    for (let i = 1; i < path.length; i++) {
+      const t = path[i]?.[0];
+      const prev = path[i - 1]?.[0];
+      if (typeof t === 'number' && typeof prev === 'number' && t - prev > OPENSKY_MAX_GAP_S) start = i;
+    }
+  }
+
+  return parseTrace(openskyTrace(icao24, path.slice(start)), 700, legOnly);
+}
+
+/**
+ * Stop the drawn path where the map is already showing the aircraft.
+ *
+ * OpenSky's track endpoint is live while the flight feed can be a snapshot some
+ * minutes old, so the polyline ran ahead of the icon and the plane appeared to
+ * jump forward when selected. The feed hands its position-fix time in as
+ * `until` (Unix seconds); points after it are dropped, and a path that already
+ * ends at or before it is left alone. Both endpoints can cross a zero timestamp
+ * (no clock in the source), so only positive times are compared.
+ */
+export function stopAt(detail: AircraftDetail, until: number): Omit<AircraftDetail, 'times'> {
+  const last = detail.track.length - 1;
+  let end = last;
+  if (until > 0 && detail.times.length === detail.track.length) {
+    while (end > 1 && detail.times[end] > until) end--;
+  }
+
+  const trimmed = end < last;
+  const track = trimmed ? detail.track.slice(0, end + 1) : detail.track;
+  const altitudes = trimmed ? detail.altitudes.slice(0, end + 1) : detail.altitudes;
+  const departure = trimmed
+    ? legEndpoints(track, altitudes, false).departure
+    : detail.departure;
+
+  return {
+    icao24: detail.icao24,
+    registration: detail.registration,
+    typeCode: detail.typeCode,
+    model: detail.model,
+    operator: detail.operator,
+    track,
+    altitudes,
+    points: track.length,
+    departure,
+    // A trimmed path no longer reaches the point where a landing was seen.
+    arrival: trimmed ? null : detail.arrival,
+    source: detail.source,
+  };
 }
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const icao24 = (searchParams.get('icao24') || '').trim().toLowerCase();
-    const full = searchParams.get('detail') !== 'recent';
     // ?legs=all draws the whole 24h history instead of just this flight.
     const legOnly = searchParams.get('legs') !== 'all';
+    // ?until=<unix s> is the aircraft's last position fix, so the path can stop
+    // at the aircraft instead of running past it.
+    const untilRaw = Number(searchParams.get('until'));
+    const until = Number.isFinite(untilRaw) && untilRaw > 0 ? untilRaw : 0;
 
     if (!/^[0-9a-f]{6}$/.test(icao24)) {
       return NextResponse.json({ error: 'icao24 must be a 6-character hex address' }, { status: 400 });
     }
 
     const detail = await cachedSource<AircraftDetail>(
-      `aircraft:${icao24}:${full ? 'full' : 'recent'}:${legOnly ? 'leg' : 'all'}`,
+      `aircraft:${icao24}:${legOnly ? 'leg' : 'all'}`,
       async () => {
-        const [trace, db] = await Promise.all([
-          optional(fetchTrace(icao24, full)),
+        const [flown, db] = await Promise.all([
+          optional(fetchOpenSkyTrack(icao24, legOnly)),
           optional(httpJson<AdsbdbResponse>(`${ADSBDB}/${icao24}`, { timeoutMs: 8000 })),
         ]);
 
         const ac = db?.response?.aircraft;
-        const parsed = trace ? parseTrace(trace, 700, legOnly) : null;
 
-        // Neither source knew this airframe.
-        if (!parsed && !ac) return [];
+        // No identity from either source, and no path to draw either.
+        if (!ac && !flown?.track.length) return [];
 
-        const model = parsed?.model
-          || (ac?.manufacturer && ac?.type ? `${ac.manufacturer} ${ac.type}` : null)
-          || ac?.type
-          || null;
+        const model = ac?.manufacturer && ac?.type
+          ? `${ac.manufacturer} ${ac.type}`
+          : ac?.type || null;
 
         return [{
           icao24,
-          registration: parsed?.registration || ac?.registration || null,
-          typeCode: parsed?.typeCode || ac?.icao_type || null,
-          model,
+          registration: flown?.registration || ac?.registration || null,
+          typeCode: flown?.typeCode || ac?.icao_type || null,
+          model: model || flown?.model || null,
           operator: ac?.registered_owner || null,
-          track: parsed?.track || [],
-          altitudes: parsed?.altitudes || [],
-          points: parsed?.points || 0,
-          departure: parsed?.departure || null,
-          arrival: parsed?.arrival || null,
-          source: parsed ? 'adsb.lol' : 'adsbdb',
+          track: flown?.track || [],
+          altitudes: flown?.altitudes || [],
+          times: flown?.times || [],
+          points: flown?.points || 0,
+          departure: flown?.departure || null,
+          arrival: flown?.arrival || null,
+          source: flown?.track.length ? 'opensky' : 'adsbdb',
         }];
       },
       // Identity is effectively static; the track only matters for the current
@@ -258,7 +382,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Aircraft not found', icao24 }, { status: 404 });
     }
 
-    return NextResponse.json(detail[0], {
+    return NextResponse.json(stopAt(detail[0], until), {
       headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=600' },
     });
   } catch (error) {
