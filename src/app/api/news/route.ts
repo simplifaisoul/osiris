@@ -317,7 +317,7 @@ type NewsItem = {
   location_precision: 'country-anchor' | AlertPlace['precision'] | null;
 };
 
-/** How many questions this feed may put to Nominatim on one refresh. */
+/** How many questions this feed may put to the geocoder on one refresh. */
 const LOOKUPS_PER_REFRESH = 15;
 
 /** How long a request waits for place lookups before answering with what it has. */
@@ -325,18 +325,17 @@ const PLACE_BUDGET_MS = 2500;
 
 /**
  * Pins each item to the place it names, where one resolves. Lookups are
- * throttled to Nominatim's one a second, so a cold start cannot place every
- * item inside one request: whatever has not resolved by the budget keeps its
- * country anchor this time, and the lookup carries on so the next refresh has it.
+ * budgeted, so a cold start cannot place every item inside one request:
+ * whatever has not resolved by the budget keeps its country anchor this time,
+ * and the lookup carries on so the next refresh has it.
  */
 async function placeItems(items: NewsItem[]): Promise<void> {
   const found = new Map<string, AlertPlace>();
   /* One budget of new questions for the whole refresh, claimed by the newest
      reports first; everything else is placed from names already known. Without
-     it a feed of a hundred reports asks Nominatim several hundred questions
-     every few minutes, which is how this app came to be running at ten times
-     the rate its operators allow — see lib/nominatim.ts. What goes unasked now
-     is asked on a later refresh, and an answer is kept for a month. */
+     it a feed of a hundred reports asks the geocoder several hundred questions
+     every few minutes — see lib/photon.ts. What goes unasked now is asked on a
+     later refresh, and an answer is kept for a month. */
   const newestFirst = [...items].sort((a, b) => Date.parse(b.published) - Date.parse(a.published));
   const lookup = budgetedLookup(LOOKUPS_PER_REFRESH);
 
@@ -360,10 +359,9 @@ async function placeItems(items: NewsItem[]): Promise<void> {
 /**
  * The feed, built at most once a minute and shared by every reader.
  *
- * Building it resolves places, and a place lookup is a request to somebody
- * else's server. Built per request, a hundred dashboards polling would have
- * multiplied that by a hundred — the shape of the problem Nominatim's
- * operators wrote to us about. Built once, they all read the same answer.
+ * Building it resolves places, and a place lookup is a request to the
+ * geocoder. Built per request, a hundred dashboards polling would have
+ * multiplied that by a hundred. Built once, they all read the same answer.
  */
 let feed: { at: number; body: FeedPayload } | null = null;
 let building: Promise<FeedPayload> | null = null;

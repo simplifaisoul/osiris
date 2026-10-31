@@ -352,7 +352,7 @@ function PlaceInput({
       };
       try {
         const near = biasLat !== undefined && biasLng !== undefined ? { lat: biasLat, lng: biasLng } : null;
-        const found = await searchPlaces(q, near, ctrl.signal, show);
+        const found = await searchPlaces(q, near, ctrl.signal);
         if (ctrl.signal.aborted) return;
         show(found);
       } catch {

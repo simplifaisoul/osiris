@@ -376,7 +376,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       attributionControl: {
         compact: true,
         // The style credits CARTO and OSM for the map; this credits OSM for the
-        // search results, place names and pins that come from Nominatim.
+        // search results, place names and pins that come from our geocoder.
         customAttribution: 'Geocoding © OpenStreetMap contributors',
       } as const,
       maxPitch: 85,

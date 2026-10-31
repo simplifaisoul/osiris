@@ -854,9 +854,8 @@ export default function Dashboard() {
       const gk = `${coords.lat.toFixed(1)},${coords.lng.toFixed(1)}`; // coarser grid = more cache hits
       if (geocodeCache.current.has(gk)) { setLocationLabel(geocodeCache.current.get(gk)!); lastGeocodedPos.current = coords; return; }
       try {
-        /* Our own route, not Nominatim directly: it rounds the coordinate,
-           caches the answer for everyone, and holds the app's request budget
-           for the service — see lib/nominatim.ts. */
+        /* Our own route, never a geocoder directly: it rounds the coordinate
+           and caches the answer for everyone — see lib/photon.ts. */
         const res = await fetch(`/api/geo/reverse?lat=${coords.lat}&lng=${coords.lng}`);
         if (res.ok) {
           const d = await res.json();

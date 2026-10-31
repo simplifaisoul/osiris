@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 const gateway = vi.fn();
-vi.mock('@/lib/nominatim', () => ({ nominatim: (...args: unknown[]) => gateway(...args) }));
+vi.mock('@/lib/photon', () => ({ photon: (...args: unknown[]) => gateway(...args) }));
 
-import { alertKind, placeCandidates, pickRow, locateReport, budgetedLookup, type GeoRow } from './alert-places';
+import { alertKind, placeCandidates, pickRow, locateReport, budgetedLookup, toRow, type GeoRow } from './alert-places';
 
 /* Headlines and leads below are real posts from the feed, captured 2026-09-19. */
 
@@ -130,7 +130,7 @@ describe('pickRow', () => {
     expect(pick?.precision).toBe('settlement');
   });
 
-  it('keeps Nominatim’s order among places of the same name', () => {
+  it('keeps the geocoder’s order among places of the same name', () => {
     const pick = pickRow('Kohat', [
       row({ name: 'Kohat', addresstype: 'city', importance: 0.46, display_name: 'Kohat, Khyber Pakhtunkhwa, Pakistan' }),
       row({ name: 'Kohat', addresstype: 'hamlet', importance: 0.13, display_name: 'Kohat, Mohkhed Tahsil, India' }),
@@ -162,7 +162,7 @@ describe('pickRow', () => {
 });
 
 describe('locateReport', () => {
-  /** A stand-in for Nominatim: answers from a table, and records what was asked. */
+  /** A stand-in for the geocoder: answers from a table, and records what was asked. */
   function fakeLookup(table: Record<string, GeoRow[]>) {
     const asked: string[] = [];
     const lookup = async (name: string, countries: string[] | null) => {
@@ -236,13 +236,15 @@ describe('locateReport', () => {
 
 describe('budgetedLookup', () => {
   beforeEach(() => gateway.mockReset());
+  /** A Photon answer naming each place given. */
+  const hits = (...names: string[]) => ({ features: names.map(name => ({ properties: { name } })) });
 
   it('spends its allowance and then asks only what is already known', async () => {
     // The gateway answers a cacheOnly call with null unless it knows the name.
     gateway.mockImplementation(async (_endpoint?: string, params?: { q: string }, options?: { cacheOnly?: boolean }) => {
       if (!params) return null;
-      if (options?.cacheOnly) return params.q === 'Kyiv' ? [{ name: 'Kyiv' }] : null;
-      return [{ name: params.q }];
+      if (options?.cacheOnly) return params.q === 'Kyiv' ? hits('Kyiv') : null;
+      return hits(params.q);
     });
 
     const lookup = budgetedLookup(2);
@@ -250,8 +252,8 @@ describe('budgetedLookup', () => {
     for (const name of ['Sumy', 'Odesa', 'Kharkiv', 'Dnipro']) asked.push(await lookup(name, ['ua']));
 
     // Two new names were asked for; the rest came back empty-handed.
-    expect(asked[0]).toEqual([{ name: 'Sumy' }]);
-    expect(asked[1]).toEqual([{ name: 'Odesa' }]);
+    expect(asked[0]).toMatchObject([{ name: 'Sumy' }]);
+    expect(asked[1]).toMatchObject([{ name: 'Odesa' }]);
     expect(asked[2]).toBeNull();
     expect(asked[3]).toBeNull();
     const sent = gateway.mock.calls.filter(([, params, options]) => params && !options?.cacheOnly);
@@ -260,10 +262,48 @@ describe('budgetedLookup', () => {
 
   it('answers a name it already knows without spending anything', async () => {
     gateway.mockImplementation(async (_e?: string, params?: { q: string }, options?: { cacheOnly?: boolean }) =>
-      (params?.q === 'Kyiv' ? [{ name: 'Kyiv' }] : options?.cacheOnly ? null : []));
+      (params?.q === 'Kyiv' ? hits('Kyiv') : options?.cacheOnly ? null : hits()));
 
     const lookup = budgetedLookup(0);
-    expect(await lookup('Kyiv', ['ua'])).toEqual([{ name: 'Kyiv' }]);
+    expect(await lookup('Kyiv', ['ua'])).toMatchObject([{ name: 'Kyiv' }]);
     expect(gateway.mock.calls.filter(([, params]) => params).every(([, , options]) => options?.cacheOnly)).toBe(true);
+  });
+});
+
+describe('reading a Photon answer', () => {
+  it('reads a place node and a boundary as rows, with importance from the stored records', () => {
+    const rows = toRow({
+      features: [
+        {
+          geometry: { coordinates: [35.40, 32.34] },
+          properties: { name: 'Tayasir', county: 'Tubas', state: 'West Bank', country: 'Palestinian Territories', osm_key: 'place', osm_value: 'village' },
+        },
+        {
+          geometry: { coordinates: [30.52, 50.45] },
+          properties: { name: 'Kyiv', country: 'Ukraine', osm_key: 'boundary', osm_value: 'administrative', type: 'city' },
+        },
+      ],
+      properties: { raw_data: [{ infos: { importance: 0.31 } }, { infos: { importance: 0.78 } }] },
+    })!;
+
+    expect(rows[0]).toEqual({
+      name: 'Tayasir', display_name: 'Tayasir, Tubas, West Bank, Palestinian Territories',
+      lat: '32.34', lon: '35.4', addresstype: 'village', importance: 0.31,
+    });
+    expect(rows[1]).toMatchObject({ name: 'Kyiv', addresstype: 'city', importance: 0.78 });
+  });
+
+  it('keeps "could not ask" apart from "not on the map"', () => {
+    expect(toRow(null)).toBeNull();
+    expect(toRow({ features: [] })).toEqual([]);
+  });
+
+  it('asks for settlements in the theatre’s countries, with their importance', async () => {
+    gateway.mockReset().mockResolvedValue({ features: [] });
+    await budgetedLookup(1)('Sumy', ['ua', 'ru']);
+    const [endpoint, params] = gateway.mock.calls.at(-1)!;
+    expect(endpoint).toBe('api');
+    expect(params).toMatchObject({ q: 'Sumy', debug: '1', countrycode: ['UA', 'RU'] });
+    expect(params.layer).toContain('city');
   });
 });

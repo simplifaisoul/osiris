@@ -117,7 +117,7 @@ export default function SearchBar({ onLocate, center = null, onClose, onDirectio
     }
     if (q.trim().length < 2) { abortRef.current?.abort(); setResults([]); setLoading(false); setAnswered(q); return; }
 
-    /* Photon from the browser, Nominatim only through our own route (see
+    /* Through our own route, which asks the deployment's geocoder (see
        lib/geosearch.ts). It sends where the map is looking, so "Notre-Dame"
        over Montreal is the basilica rather than a village in Normandy, and
        abandons the lookup for an earlier keystroke, so a slow reply for "Par"
@@ -131,7 +131,7 @@ export default function SearchBar({ onLocate, center = null, onClose, onDirectio
         label: r.name, context: r.context, lat: r.lat, lng: r.lng, kind: r.kind || 'place', zoom: ZOOM_BY_KIND[r.kind] ?? 13,
       })));
       try {
-        const found = await searchPlaces(q, center, ctrl.signal, show);
+        const found = await searchPlaces(q, center, ctrl.signal);
         if (ctrl.signal.aborted) return;
         show(found);
       } catch {
