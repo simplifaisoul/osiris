@@ -1,4 +1,7 @@
 import type { CctvCamera } from './types';
+import { createPool } from '@/lib/fetch-pool';
+import { APRR_CAMERAS } from './aprr.generated';
+import { fetchInforouteCameras } from './inforoute';
 
 // ── Existing YouTube Live Streams ──
 const YOUTUBE_LIVE: CctvCamera[] = [
@@ -42,51 +45,133 @@ const SKYLINE_FRANCE: CctvCamera[] = [
   { id: 'sky-fr-menton', lat: 43.7750, lng: 7.4990, name: 'Menton - Vue Panoramique', city: 'Menton', country: 'France', feed_url: '/api/cctv/proxy?url=https%3A%2F%2Fcdn.skylinewebcams.com%2Flive1242.jpg', external_url: 'https://www.skylinewebcams.com/en/webcam/france/provence-alpes-cote-dazur/menton/vue-panoramique.html', source: 'SkylineWebcams' },
 ];
 
-// ── APRR / AREA — French Highway Webcams ──
-// Source: https://voyage.aprr.fr/carte-itineraires?type=webcam
-// Note: APRR blocks iframe embedding. These are external-link-only cams
-// with position on the map but link out to the APRR map for live view.
-const APRR_HIGHWAY: CctvCamera[] = [
-  // A6 — Paris-Lyon corridor
-  { id: 'aprr-a6-beaune', lat: 47.0245, lng: 4.8390, name: 'A6 Beaune — Péage', city: 'Beaune', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'APRR' },
-  { id: 'aprr-a6-auxerre', lat: 47.7990, lng: 3.5700, name: 'A6 Auxerre Nord', city: 'Auxerre', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'APRR' },
-  { id: 'aprr-a6-macon', lat: 46.3070, lng: 4.8330, name: 'A6 Mâcon Sud', city: 'Mâcon', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'APRR' },
-  { id: 'aprr-a6-villefranche', lat: 45.9900, lng: 4.7200, name: 'A6 Villefranche-sur-Saône', city: 'Villefranche', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'APRR' },
-  { id: 'aprr-a6-avallon', lat: 47.4860, lng: 3.9080, name: 'A6 Avallon', city: 'Avallon', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'APRR' },
-  { id: 'aprr-a6-chalon', lat: 46.7810, lng: 4.8540, name: 'A6 Chalon-sur-Saône', city: 'Chalon-sur-Saône', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'APRR' },
-  { id: 'aprr-a6-tournus', lat: 46.5710, lng: 4.9080, name: 'A6 Tournus', city: 'Tournus', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'APRR' },
-  // A31 — Dijon-Nancy-Luxembourg
-  { id: 'aprr-a31-dijon', lat: 47.3220, lng: 5.0415, name: 'A31 Dijon Nord', city: 'Dijon', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'APRR' },
-  { id: 'aprr-a31-langres', lat: 47.8620, lng: 5.3330, name: 'A31 Langres Sud', city: 'Langres', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'APRR' },
-  { id: 'aprr-a31-toul', lat: 48.6750, lng: 5.8890, name: 'A31 Toul', city: 'Toul', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'APRR' },
-  // A36 — Beaune-Mulhouse
-  { id: 'aprr-a36-besancon', lat: 47.2378, lng: 6.0241, name: 'A36 Besançon Ouest', city: 'Besançon', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'APRR' },
-  { id: 'aprr-a36-belfort', lat: 47.6400, lng: 6.8600, name: 'A36 Belfort', city: 'Belfort', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'APRR' },
-  { id: 'aprr-a36-mulhouse', lat: 47.7508, lng: 7.3359, name: 'A36 Mulhouse', city: 'Mulhouse', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'APRR' },
-  // A39 — Dijon-Bourg
-  { id: 'aprr-a39-dole', lat: 47.0930, lng: 5.4900, name: 'A39 Dole', city: 'Dole', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'APRR' },
-  { id: 'aprr-a39-lons', lat: 46.6730, lng: 5.5550, name: 'A39 Lons-le-Saunier', city: 'Lons-le-Saunier', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'APRR' },
-  // A40 — Mâcon-Chamonix (Autoroute Blanche)
-  { id: 'aprr-a40-bourg', lat: 46.2056, lng: 5.2254, name: 'A40 Bourg-en-Bresse', city: 'Bourg-en-Bresse', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'AREA' },
-  { id: 'aprr-a40-nantua', lat: 46.1530, lng: 5.6080, name: 'A40 Nantua', city: 'Nantua', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'AREA' },
-  { id: 'aprr-a40-annecy', lat: 46.0592, lng: 6.0710, name: 'A40 Annecy Nord', city: 'Annecy', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'AREA' },
-  { id: 'aprr-a40-chamonix', lat: 45.9237, lng: 6.8694, name: 'A40 Chamonix - Mont Blanc Tunnel', city: 'Chamonix', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'AREA' },
-  // A43 — Lyon-Chambéry-Turin
-  { id: 'aprr-a43-chambery', lat: 45.5646, lng: 5.9178, name: 'A43 Chambéry', city: 'Chambéry', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'AREA' },
-  { id: 'aprr-a43-modane', lat: 45.1940, lng: 6.6580, name: 'A43 Modane - Fréjus Tunnel', city: 'Modane', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'AREA' },
-  { id: 'aprr-a43-albertville', lat: 45.6756, lng: 6.3927, name: 'A43 Albertville', city: 'Albertville', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'AREA' },
-  // A5 — Paris-Troyes-Langres
-  { id: 'aprr-a5-troyes', lat: 48.2973, lng: 4.0744, name: 'A5 Troyes', city: 'Troyes', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'APRR' },
-  { id: 'aprr-a5-sens', lat: 48.1985, lng: 3.2838, name: 'A5 Sens', city: 'Sens', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'APRR' },
-  // A71 — Orléans-Clermont
-  { id: 'aprr-a71-bourges', lat: 47.0833, lng: 2.3960, name: 'A71 Bourges', city: 'Bourges', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'APRR' },
-  { id: 'aprr-a71-clermont', lat: 45.7772, lng: 3.0870, name: 'A71 Clermont-Ferrand Nord', city: 'Clermont-Ferrand', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'APRR' },
-  // A77 — Nevers
-  { id: 'aprr-a77-nevers', lat: 46.9896, lng: 3.1590, name: 'A77 Nevers', city: 'Nevers', country: 'France', external_url: 'https://voyage.aprr.fr/carte-itineraires?type=webcam', source: 'APRR' },
+// ── APRR / AREA — motorway webcams ──
+// Where the cameras are is read ahead of time (./aprr.generated, written by
+// tools/generate-aprr-catalogue.mjs). Whether each one is up is not: Viewsurf
+// answers a camera that is down with a redirect to its "indisponibilite.mp4"
+// placeholder, or with a 500, and about a quarter are down at any one time.
+// So every refresh asks — one redirect per camera, about two seconds for all
+// of them — and leaves those out. A camera that cannot be asked is kept.
+const aprrPool = createPool(12);
+
+async function isDown(url: string): Promise<boolean> {
+  try {
+    const res = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(5000) });
+    return res.status >= 500 || /indisponibilite/i.test(res.headers.get('location') ?? '');
+  } catch {
+    return false;
+  }
+}
+
+async function fetchAprrCameras(): Promise<CctvCamera[]> {
+  const down = await Promise.all(APRR_CAMERAS.map(c => aprrPool.run(() => isDown(c.stream_url!))));
+  return APRR_CAMERAS.filter((_, i) => !down[i]);
+}
+
+// ── DIR Centre-Est — national roads around Lyon, Saint-Étienne, Grenoble ──
+// Source: https://www.webcams-dir.centre-est.developpement-durable.gouv.fr
+// The map page declares every camera inline (`var donneesCamera = [...]`). Each
+// camera uploads a 25-second clip every 5 minutes to /streams/last/nce.<id>.mp4.
+// The same array also holds the map's sector framings ({id, latitude,
+// longitude, zoom}); the pattern only matches entries with a description.
+const DIRCE_BASE = 'https://www.webcams-dir.centre-est.developpement-durable.gouv.fr';
+
+async function fetchDirCentreEstCameras(): Promise<CctvCamera[]> {
+  const res = await fetch(`${DIRCE_BASE}/`, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`returned ${res.status}`);
+  const html = await res.text();
+  const re = /\{id:\s*(\d+),\s*latitude:\s*(-?[\d.]+),\s*longitude:\s*(-?[\d.]+),[^{}]*?description:"([^"]*)",\s*direction:"([^"]*)"\}/g;
+  return [...html.matchAll(re)].map(([, id, lat, lng, description, direction]) => ({
+    id: `dirce-${id}`,
+    lat: Number(lat),
+    lng: Number(lng),
+    name: direction ? `${description} (${direction})` : description,
+    city: 'Auvergne-Rhône-Alpes',
+    country: 'France',
+    stream_url: `${DIRCE_BASE}/streams/last/nce.${id}.mp4`,
+    stream_type: 'mp4' as const,
+    external_url: `${DIRCE_BASE}/`,
+    source: 'DIR Centre-Est',
+  }));
+}
+
+// ── DIR Est — national roads in Lorraine, Alsace, Franche-Comté ──
+// Source: https://webcam.dir-est.fr
+// The map page declares its cameras inline (`var liens= [...]`), and
+// /lastimg/<id> always answers the newest frame. etat:0 marks a camera the
+// DIR has switched off.
+const DIREST_BASE = 'https://webcam.dir-est.fr';
+
+async function fetchDirEstCameras(): Promise<CctvCamera[]> {
+  const res = await fetch(`${DIREST_BASE}/`, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`returned ${res.status}`);
+  const html = await res.text();
+  const re = /\{nom:"([^"]*)",\s*x\s*:\s*(-?[\d.]+)\s*,\s*y\s*:\s*(-?[\d.]+)\s*,\s*add:"chargerFenetreModale\((\d+)\)",\s*etat:(\d)\}/g;
+  return [...html.matchAll(re)]
+    .filter(m => m[5] === '1')
+    .map(([, nom, x, y, id]) => ({
+      id: `direst-${id}`,
+      lat: Number(y),
+      lng: Number(x),
+      name: nom,
+      city: 'Grand Est',
+      country: 'France',
+      feed_url: `${DIREST_BASE}/lastimg/${id}`,
+      stream_type: 'jpg' as const,
+      external_url: `${DIREST_BASE}/`,
+      source: 'DIR Est',
+    }));
+}
+
+// ── Métropole de Lyon — Criter traffic cameras ──
+// Source: https://data.grandlyon.com (dataset pvo_patrimoine_voirie.pvocameracriter)
+// Frames are re-extracted from the video every minute and feed Onlymoov.
+const LYON_WFS = 'https://data.grandlyon.com/geoserver/metropole-de-lyon/ows?SERVICE=WFS&VERSION=2.0.0&request=GetFeature&typename=metropole-de-lyon:pvo_patrimoine_voirie.pvocameracriter&outputFormat=application/json&SRSNAME=EPSG:4326';
+
+interface LyonFeature {
+  geometry?: { coordinates?: [number, number] };
+  properties?: { identifiant?: number; nom?: string; libellelong?: string; url?: string };
+}
+
+async function fetchLyonCameras(): Promise<CctvCamera[]> {
+  const res = await fetch(LYON_WFS, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`returned ${res.status}`);
+  const data = await res.json() as { features?: LyonFeature[] };
+  const cams: CctvCamera[] = [];
+  for (const f of data.features ?? []) {
+    const p = f.properties;
+    const [lng, lat] = f.geometry?.coordinates ?? [NaN, NaN];
+    if (!p?.url || !Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    cams.push({
+      id: `lyon-${p.identifiant}`,
+      lat, lng,
+      name: p.nom ? `${p.libellelong} (vers ${p.nom})` : p.libellelong || 'Lyon traffic camera',
+      city: 'Lyon',
+      country: 'France',
+      feed_url: p.url,
+      stream_type: 'jpg',
+      external_url: 'https://www.onlymoov.com/',
+      source: 'Métropole de Lyon',
+    });
+  }
+  return cams;
+}
+
+const LIVE_SOURCES: [string, () => Promise<CctvCamera[]>][] = [
+  ['APRR', fetchAprrCameras],
+  ['DIR Centre-Est', fetchDirCentreEstCameras],
+  ['DIR Est', fetchDirEstCameras],
+  ['Métropole de Lyon', fetchLyonCameras],
+  ['Inforoute', fetchInforouteCameras],
 ];
 
-const FRANCE_CAMERAS: CctvCamera[] = [...YOUTUBE_LIVE, ...SKYLINE_FRANCE, ...APRR_HIGHWAY];
-
+/** The fixed lists plus every live source; one that fails is logged and left out. */
 export async function fetchFranceCameras(): Promise<CctvCamera[]> {
-  return FRANCE_CAMERAS;
+  const results = await Promise.allSettled(LIVE_SOURCES.map(([, fetcher]) => fetcher()));
+  const cams: CctvCamera[] = [...YOUTUBE_LIVE, ...SKYLINE_FRANCE];
+  results.forEach((r, i) => {
+    if (r.status === 'fulfilled') cams.push(...r.value);
+    else console.warn(`[OSIRIS] France ${LIVE_SOURCES[i][0]} failed — absent from this refresh:`, r.reason instanceof Error ? r.reason.message : r.reason);
+  });
+  return cams;
 }
