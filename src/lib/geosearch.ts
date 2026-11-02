@@ -1,27 +1,15 @@
 /**
  * OSIRIS — place search, shared by the browser and /api/geosearch.
  *
- * Nominatim alone was the problem: it is a *geocoder*, not a type-ahead index,
- * so it needs near-complete input. Measured side by side, "eiffel tow" returns
- * nothing from Nominatim and the correct Paris landmark from Photon; "sydny
- * opera house" (typo) returns one weak hit vs six good ones.
+ * Photon is an autocomplete index over OpenStreetMap — prefix and typo
+ * tolerant, so "eiffel tow" and "sydny opera house" both find their place,
+ * where a plain geocoder needs near-complete input.
  *
- * Photon is Komoot's autocomplete index over the same OSM data — prefix and
- * fuzzy tolerant — so it leads. Nominatim still runs as a supplement because it
- * resolves some structured/administrative phrasings Photon ranks poorly, and
- * merging the two is what closes the "location is 100% missing" gap.
- *
- * The browser asks Photon itself (it allows any origin) rather than going
- * through our server. Photon judges fair use per address, and with every
- * visitor's type-ahead sent from the same two server addresses, Photon stopped
- * answering them: requests from the production hosts time out, so search sat
- * on that timeout and then showed nothing. Asked from the browser, each
- * visitor uses their own allowance. Nominatim stays server-only (see
- * lib/nominatim.ts), so the browser asks /api/geosearch only when Photon comes
- * back thin.
+ * The browser asks our own route, never a geocoder: the route asks the Photon
+ * server this deployment runs (see lib/photon.ts), and its answers are cached
+ * for every visitor at the edge and in the server. The public Photon and
+ * Nominatim servers are not used.
  */
-
-const PHOTON = 'https://photon.komoot.io/api';
 
 export interface GeoResult {
   name: string;
@@ -29,34 +17,12 @@ export interface GeoResult {
   lat: number;
   lng: number;
   kind: string;
-  source: 'photon' | 'nominatim';
-  /** Nominatim importance, when the hit came from there. Ranking only. */
-  score?: number;
 }
 
-interface PhotonFeature {
+export interface PhotonFeature {
   geometry?: { coordinates?: [number, number] };
   properties?: Record<string, string | undefined>;
 }
-
-export interface NominatimRow {
-  display_name?: string;
-  lat?: string;
-  lon?: string;
-  class?: string;
-  type?: string;
-  name?: string;
-  importance?: number;
-}
-
-/**
- * Nominatim's importance above which a hit is treated as globally prominent.
- * Photon is the better prefix matcher but ranks purely lexically — searching
- * "heathrow" puts Heathrow, Florida above London Heathrow Airport. Nominatim
- * scores the airport 0.606 and the town 0.352, so this promotes the former
- * without disturbing queries Nominatim can't answer at all.
- */
-const PROMINENT = 0.5;
 
 /** Collapse OSM class/value pairs into the handful of kinds the UI icons. */
 export function classifyKind(key?: string, value?: string): string {
@@ -89,72 +55,22 @@ export function normalizePhoton(f: PhotonFeature): GeoResult | null {
     .slice(0, 3)
     .join(', ');
 
-  return { name, context, lat, lng, kind: classifyKind(p.osm_key, p.osm_value), source: 'photon' };
+  return { name, context, lat, lng, kind: classifyKind(p.osm_key, p.osm_value) };
 }
-
-export function normalizeNominatim(r: NominatimRow): GeoResult | null {
-  const lat = parseFloat(r?.lat || '');
-  const lng = parseFloat(r?.lon || '');
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-
-  const parts = (r.display_name || '').split(',').map((s) => s.trim()).filter(Boolean);
-  return {
-    name: r.name || parts[0] || 'Unnamed place',
-    context: parts.slice(1, 4).join(', '),
-    lat,
-    lng,
-    kind: classifyKind(r.class, r.type),
-    source: 'nominatim',
-    score: typeof r.importance === 'number' ? r.importance : undefined,
-  };
-}
-
-/** Roughly 100 m — close enough that two hits are the same place. */
-const DEDUPE_DEG = 0.001;
 
 /**
- * Merge provider results, Photon first, dropping anything the other provider
- * already covers at effectively the same coordinate with the same name.
+ * Where the operator is looking, to the nearest tenth of a degree (about
+ * 11 km). That is all the bias needs, and it lets everyone looking at the
+ * same city share one cached answer instead of one per pixel of map.
  */
-export function mergeResults(primary: GeoResult[], secondary: GeoResult[], limit = 8): GeoResult[] {
-  const out: GeoResult[] = [];
-
-  const isDuplicate = (r: GeoResult) =>
-    out.some(
-      (o) =>
-        Math.abs(o.lat - r.lat) < DEDUPE_DEG &&
-        Math.abs(o.lng - r.lng) < DEDUPE_DEG &&
-        o.name.toLowerCase() === r.name.toLowerCase(),
-    );
-
-  // A landmark the world knows leads, whichever index found it; everything else
-  // keeps Photon's ordering, which is what makes partial input work.
-  const prominent = secondary
-    .filter((r) => (r.score ?? 0) >= PROMINENT)
-    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-  const rest = secondary.filter((r) => (r.score ?? 0) < PROMINENT);
-
-  for (const r of [...prominent, ...primary, ...rest]) {
-    if (out.length >= limit) break;
-    if (!isDuplicate(r)) out.push(r);
-  }
-  return out;
+export function biasOf(near?: { lat: number; lng: number } | null): { lat: number; lng: number } | null {
+  if (!near || !Number.isFinite(near.lat) || !Number.isFinite(near.lng)) return null;
+  if (Math.abs(near.lat) > 90 || Math.abs(near.lng) > 180) return null;
+  return { lat: Math.round(near.lat * 10) / 10, lng: Math.round(near.lng * 10) / 10 };
 }
 
-export function photonUrl(q: string, near?: { lat: number; lng: number } | null): string {
-  let url = `${PHOTON}/?q=${encodeURIComponent(q)}&limit=8&lang=en`;
-  // Bias toward what the operator is currently looking at
-  if (near && Number.isFinite(near.lat) && Number.isFinite(near.lng)) url += `&lat=${near.lat}&lon=${near.lng}`;
-  return url;
-}
-
-/** Photon answers most of what a type-ahead is asked; below this it needs help. */
-export const ENOUGH_FROM_PHOTON = 3;
-
-/** Photon normally answers in well under a second; past this it is not coming. */
-const PHOTON_TIMEOUT_MS = 5_000;
-/** Our route can wait on Nominatim's queue; past this, show what Photon found. */
-const SUPPLEMENT_TIMEOUT_MS = 12_000;
+/** The geocoder answers in well under a second; past this it is not coming. */
+const TIMEOUT_MS = 8_000;
 
 /**
  * GET a JSON body, or null if it fails or takes longer than `ms`. Throws only
@@ -178,24 +94,16 @@ async function getJson<T>(url: string, signal: AbortSignal | undefined, ms: numb
 }
 
 /**
- * Search from the browser: Photon directly, then our server's Nominatim
- * supplement when Photon is thin or unreachable. If Photon found something but
- * not enough, `onPartial` gets it straight away, so a slow supplement never
- * holds back what is already known. Throws only when `signal` aborts.
+ * Search from the browser, through our route, biased toward where the map is
+ * looking. Throws only when `signal` aborts.
  */
 export async function searchPlaces(
   q: string,
   near?: { lat: number; lng: number } | null,
   signal?: AbortSignal,
-  onPartial?: (results: GeoResult[]) => void,
 ): Promise<GeoResult[]> {
-  const photon = await getJson<{ features?: PhotonFeature[] }>(photonUrl(q, near), signal, PHOTON_TIMEOUT_MS);
-  const direct = (photon?.features || []).map(normalizePhoton).filter((r): r is GeoResult => r !== null);
-  if (direct.length >= ENOUGH_FROM_PHOTON) return mergeResults(direct, []);
-  if (direct.length) onPartial?.(mergeResults(direct, []));
-
-  const server = await getJson<{ results?: GeoResult[] }>(
-    `/api/geosearch?q=${encodeURIComponent(q)}`, signal, SUPPLEMENT_TIMEOUT_MS,
-  );
-  return mergeResults(direct, server?.results || []);
+  const bias = biasOf(near);
+  const url = `/api/geosearch?q=${encodeURIComponent(q)}${bias ? `&lat=${bias.lat}&lng=${bias.lng}` : ''}`;
+  const json = await getJson<{ results?: GeoResult[] }>(url, signal, TIMEOUT_MS);
+  return json?.results || [];
 }

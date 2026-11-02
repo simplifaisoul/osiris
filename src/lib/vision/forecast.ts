@@ -8,7 +8,7 @@
  * dated source the actors and the report can quote and cite, like any article.
  * Two cameras a place, four at most: a glimpse of the ground, not a survey.
  */
-import { nominatim } from '@/lib/nominatim';
+import { photon } from '@/lib/photon';
 import type { ContextItem } from '@/lib/oi/types';
 import { describeFrame, type FrameAnalysis } from './analysis';
 import { frameOf, stillsNear, type CatalogueCamera, type Frame } from './frames';
@@ -20,12 +20,12 @@ export interface CameraDeps {
   analyse(bytes: Buffer, at: string): Promise<FrameAnalysis>;
 }
 
-interface NominatimRow { lat?: string; lon?: string }
+interface PhotonHits { features?: { geometry?: { coordinates?: [number, number] } }[] }
 
 const live: CameraDeps = {
   async geocode(place) {
-    const rows = await nominatim<NominatimRow[]>('search', { q: place, limit: '1' });
-    const lat = Number(rows?.[0]?.lat), lng = Number(rows?.[0]?.lon);
+    const json = await photon<PhotonHits>('api', { q: place, limit: '1' });
+    const [lng = NaN, lat = NaN] = json?.features?.[0]?.geometry?.coordinates ?? [];
     return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
   },
   near: stillsNear,

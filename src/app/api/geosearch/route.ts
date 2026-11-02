@@ -1,28 +1,30 @@
 import { NextResponse } from 'next/server';
 import { cachedSource } from '@/lib/sourceCache';
-import { nominatim } from '@/lib/nominatim';
-import { mergeResults, normalizeNominatim, type GeoResult, type NominatimRow } from '@/lib/geosearch';
+import { photon } from '@/lib/photon';
+import { biasOf, normalizePhoton, type GeoResult, type PhotonFeature } from '@/lib/geosearch';
 
 export const maxDuration = 20;
 
 /**
- * OSIRIS — the Nominatim half of place search.
+ * OSIRIS — place search.
  *
- * The browser asks Photon itself and comes here only when Photon comes back
- * thin (see lib/geosearch.ts). This route used to ask Photon first as well,
- * but Photon stopped answering the production hosts, so every search waited
- * out that timeout before it reached Nominatim.
+ * The browser's type-ahead asks this route, and this route asks the Photon
+ * server the deployment runs, through lib/photon.ts, which caches answers and
+ * keeps bursts off it. `lat`/`lng` bias the answer toward where the map is
+ * looking; the browser rounds them (see biasOf) so the edge can share answers.
  *
- * Nominatim's public instance allows one request a second for everyone using
- * it, so the lookup goes through lib/nominatim.ts, which caches, queues and
- * refuses bursts. A refused or failed lookup comes back as an empty list that
- * is not cached anywhere, so the next search asks again instead of being
- * served a remembered blank.
+ * A refused or failed lookup comes back as an empty list that is not cached
+ * anywhere, so the next search asks again instead of being served a
+ * remembered blank.
  */
 
-async function searchNominatim(q: string): Promise<GeoResult[]> {
-  const json = await nominatim<NominatimRow[]>('search', { q, limit: '6', addressdetails: '0' });
-  return (Array.isArray(json) ? json : []).map(normalizeNominatim).filter((r): r is GeoResult => r !== null);
+async function searchPhoton(q: string, near: { lat: number; lng: number } | null): Promise<GeoResult[]> {
+  const json = await photon<{ features?: PhotonFeature[] }>('api', {
+    q,
+    limit: '8',
+    ...(near ? { lat: String(near.lat), lon: String(near.lng) } : {}),
+  });
+  return (json?.features || []).map(normalizePhoton).filter((r): r is GeoResult => r !== null);
 }
 
 export async function GET(request: Request) {
@@ -32,9 +34,10 @@ export async function GET(request: Request) {
 
     if (q.length < 2) return NextResponse.json({ results: [] });
 
+    const near = biasOf({ lat: parseFloat(searchParams.get('lat') || ''), lng: parseFloat(searchParams.get('lng') || '') });
     const results = await cachedSource<GeoResult>(
-      `geosearch:${q.toLowerCase()}`,
-      async () => mergeResults([], await searchNominatim(q)),
+      `geosearch:${q.toLowerCase()}:${near ? `${near.lat},${near.lng}` : ''}`,
+      () => searchPhoton(q, near),
       10 * 60 * 1000,
     )();
 

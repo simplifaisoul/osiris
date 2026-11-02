@@ -1,3 +1,4 @@
+import http from 'http';
 import https from 'https';
 import zlib from 'zlib';
 import type { IncomingHttpHeaders } from 'http';
@@ -39,7 +40,8 @@ interface RawResponse {
  */
 function request(url: string, { timeoutMs = 20000, headers = {} }: RequestOptions): Promise<RawResponse> {
   return new Promise<RawResponse>((resolve, reject) => {
-    const req = https.get(
+    // Plain http only for a service the deployment runs on its own network, such as its geocoder.
+    const req = (url.startsWith('http:') ? http : https).get(
       url,
       {
         headers: { 'User-Agent': OSIRIS_UA, Accept: 'application/json', 'Accept-Language': 'en', ...headers },

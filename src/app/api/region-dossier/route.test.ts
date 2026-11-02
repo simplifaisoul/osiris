@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Photon is faked: its public server cannot be made to fail on demand, and the
-// retry is the part worth pinning down.
+// The geocoder is faked, so it can be made to fail on demand.
 const httpJson = vi.fn();
 vi.mock('@/lib/httpJson', () => ({ httpJson: (...args: unknown[]) => httpJson(...args), OSIRIS_UA: 'test' }));
+process.env.OSIRIS_PHOTON_CACHE = 'off';
 
 import { current, stillHolding, itemId, amountOf, placeAt, type WdStatement } from './route';
+import { clearPhotonCache } from '@/lib/photon';
 
 /* Wikidata keeps every officeholder a country ever had on the same property,
    so picking the right statement is the whole job. Shapes below are trimmed
@@ -61,27 +62,30 @@ describe('reading a quantity', () => {
   });
 });
 
-describe('naming the clicked place, from Photon', () => {
+describe('naming the clicked place, from the deployment’s geocoder', () => {
   const tokyo = { features: [{ properties: { city: 'Tokyo', country: 'Japan', countrycode: 'jp' } }] };
-  beforeEach(() => { httpJson.mockReset(); });
+  beforeEach(() => {
+    process.env.PHOTON_URL = 'http://geocoder.test:2322';
+    clearPhotonCache();
+    httpJson.mockReset();
+  });
 
-  it('retries once when Photon has a bad moment, then answers', async () => {
-    httpJson.mockRejectedValueOnce(new Error('HTTP 503')).mockResolvedValueOnce(tokyo);
+  it('asks the configured geocoder, never a public one', async () => {
+    httpJson.mockResolvedValue(tokyo);
     expect(await placeAt(35.681, 139.691)).toMatchObject({ city: 'Tokyo', country: 'Japan' });
-    expect(httpJson).toHaveBeenCalledTimes(2);
+    expect(String(httpJson.mock.calls[0][0])).toMatch(/^http:\/\/geocoder\.test:2322\/reverse\?/);
   });
 
-  it('gives up after the second failure rather than keep the panel waiting', async () => {
-    httpJson.mockRejectedValue(new Error('HTTP 503'));
+  it('answers nothing, without asking anyone, when no geocoder is configured', async () => {
+    delete process.env.PHOTON_URL;
     expect(await placeAt(35.682, 139.692)).toBeNull();
-    expect(httpJson).toHaveBeenCalledTimes(2);
+    expect(httpJson).not.toHaveBeenCalled();
   });
 
-  it('does not remember a failure, so the next click asks again', async () => {
+  it('answers nothing when the lookup fails, rather than keep the panel waiting', async () => {
     httpJson.mockRejectedValue(new Error('HTTP 503'));
     expect(await placeAt(35.683, 139.693)).toBeNull();
-    httpJson.mockReset().mockResolvedValue(tokyo);
-    expect(await placeAt(35.683, 139.693)).toMatchObject({ city: 'Tokyo' });
+    expect(httpJson).toHaveBeenCalledTimes(1);
   });
 
   it('remembers a real answer, so a second click on the same spot costs nothing', async () => {

@@ -1,4 +1,4 @@
-import { nominatim } from '@/lib/nominatim';
+import { photon } from '@/lib/photon';
 import { classify, type AlertKind } from '@/lib/alert-digest';
 
 export type { AlertKind };
@@ -231,7 +231,7 @@ export function placeCandidates(text: string): PlaceCandidate[] {
 
 /* ───────────────────────────── The lookup ───────────────────────────── */
 
-/** One Nominatim search row — only the fields we consume. */
+/** One search row — only the fields we consume, read from a Photon hit by `toRow`. */
 export interface GeoRow {
   name?: string;
   display_name?: string;
@@ -269,7 +269,8 @@ const REGION_TYPES = new Set(['state', 'region', 'province', 'county', 'district
 export interface RowPick { row: GeoRow; specificity: number; precision: AlertPlace['precision'] }
 
 /*
- * Nominatim importance a city needs before a name is trusted without "in" or
+ * OpenStreetMap importance (the score Nominatim computes, which Photon's data
+ * carries) a city needs before a name is trusted without "in" or
  * "near" in front of it. Worldwide the bar is higher: Pretoria (0.66) and
  * Ceuta (0.65) clear it, Independence, Missouri (0.57) — "the War of
  * Independence" — does not.
@@ -278,7 +279,7 @@ const THEATRE_MIN_IMPORTANCE = 0.5;
 const WORLD_MIN_IMPORTANCE = 0.6;
 
 /**
- * The row to pin a name to. Nominatim ranks same-named places by prominence,
+ * The row to pin a name to. The geocoder ranks same-named places by prominence,
  * so the first acceptable row wins — "Kohat" is the Pakistani city before the
  * Indian hamlet — and a settlement beats a region of the same name.
  *
@@ -309,26 +310,61 @@ export function pickRow(query: string, rows: GeoRow[], minImportance?: number): 
   return region;
 }
 
+/** A Photon search answer. `debug=1` adds each hit's stored record, which carries its importance. */
+export interface PhotonSearch {
+  features?: { geometry?: { coordinates?: [number, number] }; properties?: Record<string, string | undefined> }[];
+  properties?: { raw_data?: { infos?: { importance?: number } }[] };
+}
+
+/* Photon's names for a boundary's rank, as the place types above. */
+const LAYER_TYPE: Record<string, string> = { district: 'city_district' };
+
 /**
- * Search one name through the app's single door to Nominatim, which holds the
- * request budget and the cache for every caller — see lib/nominatim.ts.
- * Resolves null when the lookup could not be made, so a caller can tell "not
- * on the map" from "could not ask".
+ * A Photon hit as a row. A place node says what it is (`place=village`); a
+ * boundary only says what rank it holds (`type: city`). The label runs from
+ * the place out to its country, as `placeLabel` expects.
  */
-function search(name: string, countries: string[] | null, cacheOnly = false): Promise<GeoRow[] | null> {
-  return nominatim<GeoRow[]>('search', {
+export function toRow(answer: PhotonSearch | null): GeoRow[] | null {
+  if (!answer) return null;
+  return (answer.features ?? []).map((f, i) => {
+    const p = f.properties ?? {};
+    const [lon, lat] = f.geometry?.coordinates ?? [];
+    return {
+      name: p.name,
+      display_name: [p.name, p.district, p.city, p.county, p.state, p.country]
+        .filter((v, j, a) => v && a.indexOf(v) === j).join(', '),
+      lat: lat === undefined ? undefined : String(lat),
+      lon: lon === undefined ? undefined : String(lon),
+      addresstype: p.osm_key === 'place' ? p.osm_value : LAYER_TYPE[p.type ?? ''] ?? p.type,
+      importance: answer.properties?.raw_data?.[i]?.infos?.importance,
+    };
+  });
+}
+
+/* The layers a settlement or the region around it can be in. */
+const SETTLEMENT_LAYERS = ['city', 'district', 'locality', 'county', 'state'];
+
+/**
+ * Search one name through the app's single door to the geocoder, which holds
+ * the cache for every caller — see lib/photon.ts. Resolves null when the
+ * lookup could not be made, so a caller can tell "not on the map" from "could
+ * not ask".
+ */
+async function search(name: string, countries: string[] | null, cacheOnly = false): Promise<GeoRow[] | null> {
+  return toRow(await photon<PhotonSearch>('api', {
     q: name,
     limit: '5',
-    featureType: 'settlement',
-    ...(countries ? { countrycodes: countries.join(',') } : {}),
-  }, { cacheOnly });
+    layer: SETTLEMENT_LAYERS,
+    debug: '1',
+    ...(countries ? { countrycode: countries.map(c => c.toUpperCase()) } : {}),
+  }, { cacheOnly }));
 }
 
 /**
- * A lookup that may ask Nominatim at most `max` questions it does not already
+ * A lookup that may ask the geocoder at most `max` questions it does not already
  * know the answer to. Anything past that is answered from the cache or not at
  * all, so one refresh of a feed of a hundred reports cannot turn into a
- * hundred requests to somebody else's server. What went unasked this time is
+ * hundred requests at once, crowding out searches. What went unasked this time is
  * asked on a later refresh, and once asked it is remembered for a month.
  */
 export function budgetedLookup(max: number): (name: string, countries: string[] | null) => Promise<GeoRow[] | null> {
@@ -362,8 +398,8 @@ function placeLabel(displayName: string): string {
  * ones that did resolve ("Al-Bureij refugee camp", not "Gaza"), so the report
  * keeps its country anchor until the name can be asked again.
  *
- * `lookup` is injectable for tests; it defaults to the Nominatim search, which
- * goes through the app's shared budget. Pass `cachedOnly` for a report that may
+ * `lookup` is injectable for tests; it defaults to the geocoder search, which
+ * goes through the app's shared cache. Pass `cachedOnly` for a report that may
  * be placed from names already known but must not spend a request of its own.
  */
 export async function locateReport(
