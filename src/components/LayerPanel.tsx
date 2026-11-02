@@ -132,6 +132,7 @@ const LAYER_GROUPS: LayerGroupDef[] = [
     icon: AlertTriangle,
     layers: [
       { key: 'infrastructure', label: 'Nuclear Facilities', dataKey: 'infrastructure' },
+      { key: 'geopolitics', label: 'Geopolitical Conflict', dataKey: 'geopolitics' },
       { key: 'global_incidents', label: 'Global Incidents', dataKey: 'gdelt' },
       { key: 'alert_pins', label: 'Live Alert Pins', dataKey: 'alert_pins' },
       { key: 'gdelt_events', label: 'GDELT Events', dataKey: 'gdelt_events' },
@@ -144,6 +145,7 @@ const LAYER_GROUPS: LayerGroupDef[] = [
     layers: [
       { key: 'malware', label: 'Live Malware', dataKey: 'malware_threats' },
       { key: 'cyber_attacks', label: 'Botnet C2 Servers', dataKey: 'cyber_attacks' },
+      { key: 'cyber_bgp', label: 'BGP Outages', dataKey: 'cyber_bgp' },
     ],
   },
   {
@@ -367,9 +369,9 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
   return (
     <motion.div
       initial={{ x: -60, opacity: 0 }}
-      animate={revealed ? { x: 0, opacity: 1 } : { x: -60, opacity: 0 }}
+animate={revealed ? { x: 0, opacity: 1 } : { x: -60, opacity: 0 }}
       transition={{ type: 'spring', damping: 30, stiffness: 200, delay: 0.25 }}
-      className="absolute top-0 left-0 h-full w-[48px] flex flex-col items-center pt-24 pb-6 z-50 pointer-events-auto"
+      className="absolute top-0 left-0 h-full w-[48px] flex flex-col items-center pt-24 pb-6 z-[350] pointer-events-auto"
       style={{
         background: 'rgba(0,0,0,0.15)',
         backdropFilter: 'blur(24px) saturate(1.2)',
@@ -452,11 +454,11 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                     transition={{ duration: 0.18, ease: 'easeOut' }}
                     className={`absolute left-[52px] ${index === 0 ? 'top-0' : 'top-1/2 -translate-y-1/2'} min-w-[220px] rounded-xl p-3 z-[100] pointer-events-auto`}
                     style={{
-                      background: 'rgba(0,0,0,0.6)',
+                      background: 'rgba(8, 8, 14, 0.94)',
                       backdropFilter: 'blur(40px) saturate(1.5)',
                       WebkitBackdropFilter: 'blur(40px) saturate(1.5)',
-                      border: '1px solid rgba(255,255,255,0.06)',
-                      boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      boxShadow: '0 12px 48px rgba(0,0,0,0.85)',
                     }}
                   >
                     <div className="flex items-center gap-2 mb-2.5 pb-1.5 border-b border-white/[0.04]">

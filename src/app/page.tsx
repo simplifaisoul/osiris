@@ -443,6 +443,7 @@ export default function Dashboard() {
   const [drawnPolygons, setDrawnPolygons] = useState<DrawnShape[]>([]);
   const [demoMode, setDemoMode] = useState(false);
   const [osirisTheme, setOsirisTheme] = useState<'core'|'ghost'>('core');
+  const [layersExpanded, setLayersExpanded] = useState(false);
 
   useEffect(() => {
     document.body.className = osirisTheme === 'core' ? '' : `theme-${osirisTheme}`;
@@ -489,6 +490,8 @@ export default function Dashboard() {
     weather: false,
     radiation: false,
     infrastructure: false,
+    geopolitics: false,
+    cyber_bgp: false,
     global_incidents: true,
     /* Live Alerts reports pinned to the place they name — see alert-places.
        Off until asked for, like the other threat layers: the map opens with
@@ -1151,6 +1154,17 @@ export default function Dashboard() {
       loadLayerOnce('gdelt_events', '/api/gdelt-events?limit=600', d => ({ gdelt_events: d.events }));
     }
 
+    // Geopolitical Conflict Events & Active Conflict Zones
+    if ((activeLayers as any).geopolitics) {
+      loadLayerOnce('geopolitics', '/api/geopolitics', d => ({ geopolitics: d.events }));
+      loadLayerOnce('conflicts', '/api/conflicts', d => ({ conflict_zones: d.zones, conflict_events: d.liveEvents }));
+    }
+
+    // BGP Internet Outages
+    if ((activeLayers as any).cyber_bgp) {
+      loadLayerOnce('cyber_bgp', '/api/cyber-bgp', d => ({ cyber_bgp: d.outages }));
+    }
+
     // Cloudflare Radar — one request backs both layers
     if ((activeLayers as any).cf_outages || (activeLayers as any).cf_attacks) {
       loadLayerOnce('cloudflare_radar', '/api/cloudflare-radar', d => ({
@@ -1705,7 +1719,7 @@ export default function Dashboard() {
         <motion.div
           initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }}
           className="absolute top-3 z-[380] w-[min(92vw,290px)] pointer-events-auto
-                     max-h-[calc(100vh-180px)] overflow-y-auto styled-scrollbar"
+                     max-h-[calc(100vh-180px)] overflow-y-auto styled-scrollbar transition-all duration-300"
           style={{ left: isMobile ? '12px' : '120px' }}
         >
           <FlightWatchPanel
@@ -1720,10 +1734,10 @@ export default function Dashboard() {
 
       {/* ── MAP VIEW CONTROLS ── */}
       <motion.div
-        data-hud
+data-hud
         initial={{ opacity: 0, y: 20 }} animate={revealed ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }} transition={hudIn(0.45)}
-        className="absolute bottom-[75px] md:bottom-[100px] z-[200] flex flex-col gap-1.5 pointer-events-none"
-        style={{ left: isMobile ? '12px' : '120px' }}
+        className="absolute bottom-[75px] md:bottom-[100px] z-[200] flex flex-col gap-1.5 pointer-events-none transition-all duration-300"
+        style={{ left: isMobile ? '12px' : '64px' }}
       >
         {/* Unified Control Strip */}
         <div className="flex items-center gap-[3px] p-[3px] pointer-events-auto rounded-xl border border-[var(--border-primary)] bg-[var(--bg-panel)] backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.55)]">
@@ -2254,7 +2268,7 @@ export default function Dashboard() {
 
       {/* ── BOTTOM CURSOR INFO (desktop) ── */}
       {!isMobile && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: revealed ? 1 : 0 }} transition={hudIn(0.6)} className="desktop-only absolute bottom-8 z-[200] pointer-events-auto" style={{ left: '72px' }}>
+<motion.div initial={{ opacity: 0 }} animate={{ opacity: revealed ? 1 : 0 }} transition={hudIn(0.6)} className="desktop-only absolute bottom-8 z-[200] pointer-events-auto" style={{ left: '64px' }}>
           <div className="flex items-center gap-5 text-[9px] font-mono tracking-widest text-[var(--text-muted)] opacity-60">
             <div className="flex gap-2 items-center" title="Cursor coordinates (hover over map)">
               <span>CURSOR</span>
@@ -2315,6 +2329,7 @@ export default function Dashboard() {
         onLocate={(lat, lng) => setFlyToLocation({ lat, lng, ts: Date.now() })}
         besideOi={showOi && !oiTheater}
       />
+
 
       {/* ── Entity Graph Panel ── */}
       {/* Guidance belongs over the map, where the clicking happens. */}

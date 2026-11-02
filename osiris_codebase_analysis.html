@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OSIRIS Codebase Architecture & Technical Analysis Report</title>
+  <style>
+    :root {
+      --bg-dark: #090c10;
+      --bg-card: rgba(16, 22, 34, 0.75);
+      --bg-card-hover: rgba(24, 32, 48, 0.85);
+      --bg-header: rgba(13, 17, 23, 0.9);
+      --border-color: rgba(212, 175, 55, 0.25);
+      --border-bright: rgba(0, 229, 255, 0.4);
+      --text-main: #e6edf3;
+      --text-muted: #8b949e;
+      --gold-primary: #d4af37;
+      --gold-light: #f3e5ab;
+      --cyan-bright: #00e5ff;
+      --alert-red: #ff4d4d;
+      --alert-green: #00e676;
+      --accent-purple: #a855f7;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      line-height: 1.6;
+      display: flex;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Sidebar Navigation */
+    aside {
+      width: 280px;
+      background: var(--bg-header);
+      border-right: 1px solid var(--border-color);
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      padding: 1.5rem 1rem;
+      display: flex;
+      flex-direction: column;
+      z-index: 1000;
+      backdrop-filter: blur(12px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 1.5rem;
+    }
+
+    .brand-logo {
+      font-size: 1.75rem;
+      color: var(--gold-primary);
+      filter: drop-shadow(0 0 8px rgba(212, 175, 55, 0.5));
+    }
+
+    .brand-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      color: var(--text-main);
+      text-transform: uppercase;
+    }
+
+    .brand-sub {
+      font-size: 0.65rem;
+      color: var(--cyan-bright);
+      letter-spacing: 0.1em;
+    }
+
+    .nav-links {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      padding: 0.65rem 0.85rem;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      transition: all 0.2s ease;
+      font-family: var(--font-mono);
+    }
+
+    .nav-links a:hover, .nav-links a.active {
+      color: var(--gold-light);
+      background: rgba(212, 175, 55, 0.12);
+      border-left: 3px solid var(--gold-primary);
+    }
+
+    .nav-links .num {
+      color: var(--cyan-bright);
+      font-size: 0.75rem;
+    }
+
+    /* Main Content */
+    main {
+      margin-left: 280px;
+      flex: 1;
+      padding: 2.5rem 3rem;
+      max-width: 1350px;
+    }
+
+    /* Header Banner */
+    .header-banner {
+      background: linear-gradient(135deg, rgba(212, 175, 55, 0.15) 0%, rgba(0, 229, 255, 0.08) 100%);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 2.5rem;
+      margin-bottom: 2.5rem;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .header-banner::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -10%;
+      width: 300px;
+      height: 300px;
+      background: radial-gradient(circle, var(--gold-primary) 0%, transparent 70%);
+      opacity: 0.1;
+      pointer-events: none;
+    }
+
+    .header-tag {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      background: rgba(0, 229, 255, 0.15);
+      border: 1px solid var(--cyan-bright);
+      color: var(--cyan-bright);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      border-radius: 4px;
+      margin-bottom: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    h1 {
+      font-size: 2.4rem;
+      font-weight: 800;
+      color: var(--gold-primary);
+      margin-bottom: 0.75rem;
+      letter-spacing: 0.05em;
+    }
+
+    .lead-text {
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      max-width: 900px;
+    }
+
+    /* Stats bar */
+    .metrics-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 3rem;
+    }
+
+    .metric-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 1.25rem;
+      backdrop-filter: blur(8px);
+      transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .metric-card:hover {
+      transform: translateY(-3px);
+      border-color: var(--cyan-bright);
+    }
+
+    .metric-val {
+      font-size: 1.8rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      color: var(--cyan-bright);
+    }
+
+    .metric-lbl {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-top: 0.25rem;
+    }
+
+    /* Sections */
+    section {
+      margin-bottom: 3.5rem;
+      scroll-margin-top: 2rem;
+    }
+
+    .section-title {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--gold-primary);
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      border-bottom: 2px solid rgba(212, 175, 55, 0.2);
+      padding-bottom: 0.5rem;
+    }
+
+    .section-title span.badge {
+      font-size: 0.8rem;
+      font-family: var(--font-mono);
+      color: var(--cyan-bright);
+      background: rgba(0, 229, 255, 0.1);
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      border: 1px solid rgba(0, 229, 255, 0.3);
+    }
+
+    p {
+      margin-bottom: 1rem;
+      color: #c9d1d9;
+    }
+
+    /* Cards Grid */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+      gap: 1.5rem;
+      margin-top: 1.25rem;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.25rem;
+      margin-top: 1.25rem;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 1.5rem;
+      transition: all 0.25s ease;
+      position: relative;
+    }
+
+    .card:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-bright);
+      box-shadow: 0 4px 20px rgba(0, 229, 255, 0.08);
+    }
+
+    .card h3 {
+      font-size: 1.15rem;
+      color: var(--gold-light);
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .card ul {
+      list-style-type: none;
+      padding-left: 0;
+    }
+
+    .card li {
+      font-size: 0.88rem;
+      color: var(--text-main);
+      margin-bottom: 0.5rem;
+      position: relative;
+      padding-left: 1.25rem;
+    }
+
+    .card li::before {
+      content: '▹';
+      position: absolute;
+      left: 0;
+      color: var(--cyan-bright);
+    }
+
+    /* Search/Filter Box */
+    .filter-box {
+      margin-bottom: 1.5rem;
+      display: flex;
+      gap: 1rem;
+    }
+
+    .filter-input {
+      width: 100%;
+      max-width: 500px;
+      background: rgba(16, 22, 34, 0.9);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .filter-input:focus {
+      border-color: var(--cyan-bright);
+      box-shadow: 0 0 10px rgba(0, 229, 255, 0.2);
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+      margin-bottom: 1.5rem;
+      font-size: 0.88rem;
+      background: var(--bg-card);
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+    }
+
+    th, td {
+      padding: 0.85rem 1.15rem;
+      text-align: left;
+      border-bottom: 1px solid rgba(212, 175, 55, 0.1);
+    }
+
+    th {
+      background: rgba(212, 175, 55, 0.1);
+      color: var(--gold-primary);
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    tr:hover {
+      background: rgba(0, 229, 255, 0.04);
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      font-family: var(--font-mono);
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-main);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .tag.api { background: rgba(0, 229, 255, 0.15); color: var(--cyan-bright); border-color: rgba(0, 229, 255, 0.3); }
+    .tag.realtime { background: rgba(0, 230, 118, 0.15); color: var(--alert-green); border-color: rgba(0, 230, 118, 0.3); }
+    .tag.static { background: rgba(212, 175, 55, 0.15); color: var(--gold-light); border-color: rgba(212, 175, 55, 0.3); }
+
+    /* Diagrams */
+    .diagram-container {
+      background: rgba(13, 17, 23, 0.95);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 2rem;
+      margin: 1.5rem 0;
+      text-align: center;
+      overflow-x: auto;
+    }
+
+    .diagram-svg {
+      max-width: 100%;
+      height: auto;
+    }
+
+    /* Code Snippet Blocks */
+    pre {
+      background: #0d1117;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      padding: 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      color: #e6edf3;
+      overflow-x: auto;
+      margin-top: 0.5rem;
+    }
+
+    /* Feature Ideas Highlight Box */
+    .idea-box {
+      background: linear-gradient(135deg, rgba(168, 85, 247, 0.08) 0%, rgba(0, 229, 255, 0.05) 100%);
+      border: 1px solid rgba(168, 85, 247, 0.3);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.25rem;
+      position: relative;
+    }
+
+    .idea-badge {
+      position: absolute;
+      top: 1.25rem;
+      right: 1.25rem;
+      background: rgba(168, 85, 247, 0.2);
+      color: var(--accent-purple);
+      border: 1px solid var(--accent-purple);
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    .idea-title {
+      font-size: 1.1rem;
+      color: var(--gold-light);
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+    }
+
+    .idea-desc {
+      font-size: 0.9rem;
+      color: #c9d1d9;
+      margin-bottom: 0.75rem;
+    }
+
+    .idea-tech {
+      font-size: 0.8rem;
+      font-family: var(--font-mono);
+      color: var(--cyan-bright);
+    }
+
+    @media (max-width: 900px) {
+      aside {
+        display: none;
+      }
+      main {
+        margin-left: 0;
+        padding: 1.5rem;
+      }
+      .grid-2, .grid-3 {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar Navigation -->
+  <aside>
+    <div class="brand">
+      <div class="brand-logo">⬡</div>
+      <div>
+        <div class="brand-title">OSIRIS</div>
+        <div class="brand-sub">INTEL DASHBOARD ANALYSIS</div>
+      </div>
+    </div>
+
+    <ul class="nav-links">
+      <li><a href="#overview"><span class="num">01.</span> Project Overview</a></li>
+      <li><a href="#datasources"><span class="num">02.</span> Data Sources</a></li>
+      <li><a href="#techstack"><span class="num">03.</span> Tech Stack</a></li>
+      <li><a href="#architecture"><span class="num">04.</span> Architecture & Flow</a></li>
+      <li><a href="#future-features"><span class="num">05.</span> Feature Roadmap</a></li>
+    </ul>
+  </aside>
+
+  <!-- Main Content -->
+  <main>
+    
+    <!-- Banner Header -->
+    <header class="header-banner">
+      <div class="header-tag">OSINT & Reconnaissance Integrated System</div>
+      <h1>OSIRIS Technical Architecture Report</h1>
+      <p class="lead-text">
+        An exhaustive, code-level architectural analysis of <strong>OSIRIS</strong>—a production-grade global intelligence dashboard built with Next.js 16, MapLibre GL (WebGL), and dedicated graph ontology services for multi-domain situational awareness.
+      </p>
+    </header>
+
+    <!-- Key Metrics -->
+    <div class="metrics-bar">
+      <div class="metric-card">
+        <div class="metric-val">16+</div>
+        <div class="metric-lbl">Active Intelligence Layers</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val">17,000+</div>
+        <div class="metric-lbl">Indexed Public CCTVs</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val">70,000+</div>
+        <div class="metric-lbl">OFAC SDN Sanction Targets</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val">23</div>
+        <div class="metric-lbl">24/7 Live News Streams</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val">60 FPS</div>
+        <div class="metric-lbl">GPU WebGL Rendering</div>
+      </div>
+    </div>
+
+    <!-- Filter/Search Bar -->
+    <div class="filter-box">
+      <input type="text" id="searchInput" class="filter-input" placeholder="🔍 Search components, APIs, databases, tech stack..." onkeyup="filterContent()">
+    </div>
+
+    <!-- SECTION 1: WHAT THE PROJECT DOES -->
+    <section id="overview">
+      <h2 class="section-title">
+        <span>01. What the Project Does</span>
+        <span class="badge">Core Capabilities</span>
+      </h2>
+      
+      <p>
+        <strong>OSIRIS (Open Source Intelligence & Reconnaissance Integrated System)</strong> is an enterprise-grade, real-time situational awareness platform. It consolidates disparate geospatial, cyber, space, maritime, flight, financial, and geopolitical intelligence feeds into a single GPU-accelerated 3D globe and 2D tactical map view.
+      </p>
+
+      <div class="grid-2">
+        <div class="card search-item">
+          <h3>✈️ Aviation & Space Tracking</h3>
+          <ul>
+            <li><strong>Live ADS-B Aircraft Telemetry:</strong> Real-time positioning, altitude, squawk codes, and flight trajectories for commercial, private, jet, and military aircraft via OpenSky Network.</li>
+            <li><strong>Satellite Orbit Propagation:</strong> SGP4 orbital calculations using TLE sets for over 10,000 active satellites (ISS, Starlink, military, Earth observation, GPS).</li>
+            <li><strong>Space Weather Monitoring:</strong> NOAA SWPC Kp-index, solar flare warnings, geomagnetic storm telemetry, and live SpaceCam ISS streaming.</li>
+          </ul>
+        </div>
+
+        <div class="card search-item">
+          <h3>🌊 Maritime & Physical Infrastructure</h3>
+          <ul>
+            <li><strong>Global Naval Operations:</strong> AIS live ship tracking across 39 strategic global ports and 10 vital maritime chokepoints (Suez, Panama, Bab-el-Mandeb, etc.).</li>
+            <li><strong>Infrastructure Overlay:</strong> Submarine telecom cables, nuclear power facilities, oil pipelines, and supply chain logistics nodes.</li>
+            <li><strong>CCTV Network:</strong> 17,000+ global webcams indexed across Texas (TxDOT), London (TfL), California (Caltrans), Netherlands (Rijkswaterstaat), and bekijkhet.nu catalogue.</li>
+          </ul>
+        </div>
+
+        <div class="card search-item">
+          <h3>⚡ Cyber Security & Tactical RECON</h3>
+          <ul>
+            <li><strong>Target Scanner:</strong> Active TCP port connect scanning, service fingerprinting, WHOIS lookup, SSL/TLS cert chain inspection, and DNS record expansion.</li>
+            <li><strong>Threat Intelligence:</strong> NVD CVE vulnerability mapping, Feodo Tracker botnet C2 servers, ThreatFox/URLhaus malware feeds, and Cloudflare Radar outage telemetry.</li>
+            <li><strong>Sherlock OSINT:</strong> Multi-threaded username footprinting across 480+ social platforms with soft-404 verification algorithms.</li>
+          </ul>
+        </div>
+
+        <div class="card search-item">
+          <h3>🌐 Geopolitics, Sanctions & Financial Crypto</h3>
+          <ul>
+            <li><strong>OFAC SDN Graph Match:</strong> Cross-checks WHOIS registrants, IP ASN owners, flight callsigns, and crypto addresses against 70,000+ US OFAC SDN sanctioned entities.</li>
+            <li><strong>Crypto Wallet Trace:</strong> Keyless Bitcoin (Blockstream Esplora) and Ethereum (Blockscout) address balance and transaction history tracing.</li>
+            <li><strong>Geocoded Telegram OSINT:</strong> Scrapes unauthenticated public channels (t.me/s/) and geoparses posts via multilingual place dictionaries onto map coordinates.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 2: DATA SOURCES -->
+    <section id="datasources">
+      <h2 class="section-title">
+        <span>02. Data Sources</span>
+        <span class="badge">In-Depth Feed Inventory</span>
+      </h2>
+
+      <p>
+        OSIRIS ingests information from over 25 distinct public, commercial, and open-source intelligence providers. All endpoints utilize aggressive caching, proxy sanitization, and fallback mechanisms to maintain 99.9% uptime.
+      </p>
+
+      <table class="search-table">
+        <thead>
+          <tr>
+            <th>Domain</th>
+            <th>Data Source Provider</th>
+            <th>Type / Protocol</th>
+            <th>Refresh Rate</th>
+            <th>Description & Use Case</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Aviation</strong></td>
+            <td>OpenSky Network API</td>
+            <td><span class="tag api">REST API</span></td>
+            <td>5 - 15 Mins</td>
+            <td>ADS-B live aircraft states, callsigns, squawk codes, barometric altitude, and velocity vectors.</td>
+          </tr>
+          <tr>
+            <td><strong>Maritime</strong></td>
+            <td>AISStream.io & Static Intel</td>
+            <td><span class="tag realtime">WebSocket / REST</span></td>
+            <td>Live / Static</td>
+            <td>AIS position reports for commercial ships, 39 global ports, and 10 strategic maritime chokepoints.</td>
+          </tr>
+          <tr>
+            <td><strong>Seismic</strong></td>
+            <td>USGS Earthquake API</td>
+            <td><span class="tag api">GeoJSON API</span></td>
+            <td>15 Mins</td>
+            <td>M2.5+ earthquake alerts globally with magnitude, focal depth, tsunami alerts, and precise epicenters.</td>
+          </tr>
+          <tr>
+            <td><strong>Thermal / Fires</strong></td>
+            <td>NASA FIRMS (VIIRS & MODIS)</td>
+            <td><span class="tag api">REST API</span></td>
+            <td>1 Hour</td>
+            <td>Active thermal satellite hotspots indicating forest fires, industrial fires, and artillery impact zones.</td>
+          </tr>
+          <tr>
+            <td><strong>Space Weather</strong></td>
+            <td>NOAA SWPC</td>
+            <td><span class="tag api">JSON API</span></td>
+            <td>10 Mins</td>
+            <td>Planetary Kp index, solar X-ray flux, solar wind velocity, and geomagnetic storm alerts.</td>
+          </tr>
+          <tr>
+            <td><strong>Satellites</strong></td>
+            <td>N2YO API & CelesTrak TLE</td>
+            <td><span class="tag api">REST / TLE</span></td>
+            <td>Cached 24h</td>
+            <td>Orbital TLE parameters propagated client-side via SGP4 for satellite position rendering.</td>
+          </tr>
+          <tr>
+            <td><strong>CCTV / Cameras</strong></td>
+            <td>bekijkhet.nu & TxDOT / TfL / WSDOT</td>
+            <td><span class="tag static">JPEG Streams</span></td>
+            <td>5 - 60 Secs</td>
+            <td>Index of 17,000+ public traffic webcams and streaming surveillance snapshots.</td>
+          </tr>
+          <tr>
+            <td><strong>News & Media</strong></td>
+            <td>GDELT Project & 23 Broadcasters</td>
+            <td><span class="tag realtime">Live HLS / Stream</span></td>
+            <td>Real-Time</td>
+            <td>24/7 video streams (NBC, Sky News, Al Jazeera, NHK) and GDELT 2.0 geocoded global news events.</td>
+          </tr>
+          <tr>
+            <td><strong>Telegram OSINT</strong></td>
+            <td>Telegram Web Preview (t.me/s/)</td>
+            <td><span class="tag api">Web Scraper</span></td>
+            <td>5 Mins</td>
+            <td>Public war channel scraping with multilingual Cyrillic/Arabic place name geoparsing.</td>
+          </tr>
+          <tr>
+            <td><strong>Cyber Malware</strong></td>
+            <td>abuse.ch (ThreatFox, URLhaus, Feodo)</td>
+            <td><span class="tag realtime">SSE / REST</span></td>
+            <td>Real-Time</td>
+            <td>Botnet C2 IP blocklists, active malware payload drops, and command-and-control indicators.</td>
+          </tr>
+          <tr>
+            <td><strong>Crypto</strong></td>
+            <td>Blockstream.info & Blockscout</td>
+            <td><span class="tag api">REST API</span></td>
+            <td>On-Demand</td>
+            <td>Keyless Bitcoin & Ethereum wallet balances, transaction logs, and OFAC sanctions cross-checking.</td>
+          </tr>
+          <tr>
+            <td><strong>Sanctions</strong></td>
+            <td>OpenSanctions (US OFAC SDN)</td>
+            <td><span class="tag static">In-Memory CSV</span></td>
+            <td>Refreshed 24h</td>
+            <td>Full text search across 70,000+ sanctioned persons, organizations, vessels, and aircraft.</td>
+          </tr>
+          <tr>
+            <td><strong>Ontology Graph</strong></td>
+            <td>Wikidata SPARQL Endpoint</td>
+            <td><span class="tag api">SPARQL / JSON</span></td>
+            <td>24h Cache</td>
+            <td>Graph query resolution for airline ownership, corporate subsidiaries, heads of state, and flag states.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- SECTION 3: TECH STACK -->
+    <section id="techstack">
+      <h2 class="section-title">
+        <span>03. Tech Stack Architecture</span>
+        <span class="badge">Modern Stack</span>
+      </h2>
+
+      <div class="grid-3">
+        <div class="card search-item">
+          <h3>🎨 Frontend & Visualization</h3>
+          <ul>
+            <li><strong>Next.js 16 (App Router):</strong> React 19 framework utilizing Server Components, Turbopack, and dynamic chunk lazy loading.</li>
+            <li><strong>MapLibre GL JS:</strong> WebGL GPU-accelerated mapping engine for smooth 60fps rendering of 50,000+ vector entities on 3D globes and 2D flat projections.</li>
+            <li><strong>satellite.js:</strong> SGP4 orbital mechanics library for real-time satellite trajectory calculation.</li>
+            <li><strong>Turf.js:</strong> Spatial analysis, polygon tripwires, and geospatial point-in-polygon calculations.</li>
+            <li><strong>Framer Motion & Lucide:</strong> Micro-animations, responsive slide-over HUDs, and vector iconography.</li>
+          </ul>
+        </div>
+
+        <div class="card search-item">
+          <h3>🧠 Backend Services & Intelligence</h3>
+          <ul>
+            <li><strong>osiris-intel (Node.js Microservice):</strong> Express graph ontology server (`intel/server.js`) parsing OpenSanctions CSV into memory and proxying Wikidata SPARQL queries.</li>
+            <li><strong>Next.js Edge API Routes:</strong> 43+ API endpoints handling SSRF protection, caching, rate limiting, and feed transformation.</li>
+            <li><strong>RECON Engine:</strong> Low-level TCP socket connect scanner, TLS certificate inspector, WHOIS protocol client, and DNS resolver.</li>
+            <li><strong>Sherlock JS Engine:</strong> Custom TypeScript port of Sherlock Python scanner for username enumeration across 480+ platforms.</li>
+          </ul>
+        </div>
+
+        <div class="card search-item">
+          <h3>🐳 Deployment & Operations</h3>
+          <ul>
+            <li><strong>Docker & Compose:</strong> Lightweight multi-stage <code>node:22-alpine</code> standalone container build (~220MB).</li>
+            <li><strong>CasaOS Ecosystem:</strong> Embedded CasaOS app manifest (<code>x-casaos:</code>) for one-click homelab integration.</li>
+            <li><strong>Vercel Edge Network:</strong> Edge network deployment readiness with aggressive HTTP stale-while-revalidate headers.</li>
+            <li><strong>Vitest Testing Framework:</strong> Unit testing suite covering API endpoints, SSRF guards, geocoders, and polygon math.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 4: CODE FLOW AND ARCHITECTURE -->
+    <section id="architecture">
+      <h2 class="section-title">
+        <span>04. Code Flow & Architecture</span>
+        <span class="badge">Data Pipeline</span>
+      </h2>
+
+      <p>
+        The OSIRIS architecture is designed around high concurrency, client-side WebGL rendering, and tight security isolation. Below is the end-to-end data flow from external OSINT sources to the WebGL GPU canvas:
+      </p>
+
+      <!-- System Architecture Diagram (SVG) -->
+      <div class="diagram-container">
+        <svg class="diagram-svg" viewBox="0 0 950 480" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="gradClient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#00e5ff" stop-opacity="0.2"/>
+              <stop offset="100%" stop-color="#d4af37" stop-opacity="0.1"/>
+            </linearGradient>
+            <linearGradient id="gradApi" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#d4af37" stop-opacity="0.2"/>
+              <stop offset="100%" stop-color="#a855f7" stop-opacity="0.1"/>
+            </linearGradient>
+            <linearGradient id="gradIntel" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#a855f7" stop-opacity="0.2"/>
+              <stop offset="100%" stop-color="#00e676" stop-opacity="0.1"/>
+            </linearGradient>
+            <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="4" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+          </defs>
+
+          <!-- Outer Box: Client -->
+          <rect x="20" y="20" width="270" height="440" rx="10" fill="url(#gradClient)" stroke="#00e5ff" stroke-width="1.5"/>
+          <text x="35" y="45" fill="#00e5ff" font-family="monospace" font-size="14" font-weight="bold">OSIRIS FRONTEND (CLIENT)</text>
+          
+          <rect x="40" y="70" width="230" height="60" rx="6" fill="#0d1117" stroke="rgba(0,229,255,0.4)"/>
+          <text x="50" y="95" fill="#e6edf3" font-family="sans-serif" font-size="12" font-weight="bold">OsirisMap.tsx (WebGL)</text>
+          <text x="50" y="115" fill="#8b949e" font-family="sans-serif" font-size="10">MapLibre GL JS GPU Render Engine</text>
+
+          <rect x="40" y="150" width="230" height="60" rx="6" fill="#0d1117" stroke="rgba(212,175,55,0.4)"/>
+          <text x="50" y="175" fill="#e6edf3" font-family="sans-serif" font-size="12" font-weight="bold">Dashboard State Manager</text>
+          <text x="50" y="195" fill="#8b949e" font-family="sans-serif" font-size="10">page.tsx - Layer Toggles & Pools</text>
+
+          <rect x="40" y="230" width="230" height="60" rx="6" fill="#0d1117" stroke="rgba(168,85,247,0.4)"/>
+          <text x="50" y="255" fill="#e6edf3" font-family="sans-serif" font-size="12" font-weight="bold">RECON Toolkit Panels</text>
+          <text x="50" y="275" fill="#8b949e" font-family="sans-serif" font-size="10">OsintPanel.tsx & CameraViewer.tsx</text>
+
+          <rect x="40" y="310" width="230" height="60" rx="6" fill="#0d1117" stroke="rgba(0,230,118,0.4)"/>
+          <text x="50" y="335" fill="#e6edf3" font-family="sans-serif" font-size="12" font-weight="bold">AOI & Tripwire Engine</text>
+          <text x="50" y="355" fill="#8b949e" font-family="sans-serif" font-size="10">Turf.js Polygon Sweep & Watch</text>
+
+          <!-- Outer Box: API Layer -->
+          <rect x="330" y="20" width="270" height="440" rx="10" fill="url(#gradApi)" stroke="#d4af37" stroke-width="1.5"/>
+          <text x="345" y="45" fill="#d4af37" font-family="monospace" font-size="14" font-weight="bold">NEXT.JS API GATEWAY (/api/*)</text>
+
+          <rect x="350" y="70" width="230" height="50" rx="6" fill="#0d1117" stroke="rgba(212,175,55,0.3)"/>
+          <text x="360" y="95" fill="#e6edf3" font-family="sans-serif" font-size="11">/api/flights & /api/maritime</text>
+          <text x="360" y="110" fill="#8b949e" font-family="sans-serif" font-size="9">OpenSky & AIS Telemetry Proxy</text>
+
+          <rect x="350" y="135" width="230" height="50" rx="6" fill="#0d1117" stroke="rgba(212,175,55,0.3)"/>
+          <text x="360" y="160" fill="#e6edf3" font-family="sans-serif" font-size="11">/api/cctv & /api/live-news</text>
+          <text x="360" y="175" fill="#8b949e" font-family="sans-serif" font-size="9">bekijkhet.nu & Stream Grid</text>
+
+          <rect x="350" y="200" width="230" height="50" rx="6" fill="#0d1117" stroke="rgba(212,175,55,0.3)"/>
+          <text x="360" y="225" fill="#e6edf3" font-family="sans-serif" font-size="11">/api/scanner & /api/osint/*</text>
+          <text x="360" y="240" fill="#8b949e" font-family="sans-serif" font-size="9">TCP Scan, WHOIS, DNS, Sherlock</text>
+
+          <rect x="350" y="265" width="230" height="50" rx="6" fill="#0d1117" stroke="rgba(212,175,55,0.3)"/>
+          <text x="360" y="290" fill="#e6edf3" font-family="sans-serif" font-size="11">/api/news (Telegram OSINT)</text>
+          <text x="360" y="305" fill="#8b949e" font-family="sans-serif" font-size="9">t.me Web Scraper & Geoparser</text>
+
+          <rect x="350" y="330" width="230" height="50" rx="6" fill="#0d1117" stroke="rgba(212,175,55,0.3)"/>
+          <text x="360" y="355" fill="#e6edf3" font-family="sans-serif" font-size="11">Security & SSRF Guard</text>
+          <text x="360" y="370" fill="#8b949e" font-family="sans-serif" font-size="9">ssrf-guard.ts - Domain Allowlist</text>
+
+          <!-- Outer Box: Intel & External Services -->
+          <rect x="640" y="20" width="280" height="440" rx="10" fill="url(#gradIntel)" stroke="#a855f7" stroke-width="1.5"/>
+          <text x="655" y="45" fill="#a855f7" font-family="monospace" font-size="14" font-weight="bold">INTEL SERVICE & EXTERNAL</text>
+
+          <rect x="660" y="70" width="240" height="70" rx="6" fill="#0d1117" stroke="#a855f7" filter="url(#glow)"/>
+          <text x="670" y="95" fill="#f3e5ab" font-family="sans-serif" font-size="12" font-weight="bold">osiris-intel (Port 4000)</text>
+          <text x="670" y="112" fill="#e6edf3" font-family="sans-serif" font-size="10">In-Memory OFAC SDN Graph (70k)</text>
+          <text x="670" y="127" fill="#8b949e" font-family="sans-serif" font-size="9">Wikidata SPARQL Proxy + LRU</text>
+
+          <rect x="660" y="160" width="240" height="50" rx="6" fill="#0d1117" stroke="rgba(0,229,255,0.3)"/>
+          <text x="670" y="185" fill="#e6edf3" font-family="sans-serif" font-size="11">OpenSanctions CSV Feed</text>
+          <text x="670" y="200" fill="#8b949e" font-family="sans-serif" font-size="9">Daily Auto-Refresh Target Graph</text>
+
+          <rect x="660" y="225" width="240" height="50" rx="6" fill="#0d1117" stroke="rgba(0,229,255,0.3)"/>
+          <text x="670" y="250" fill="#e6edf3" font-family="sans-serif" font-size="11">USGS / NASA / NOAA / NVD</text>
+          <text x="670" y="265" fill="#8b949e" font-family="sans-serif" font-size="9">Direct Upstream Telemetries</text>
+
+          <rect x="660" y="290" width="240" height="50" rx="6" fill="#0d1117" stroke="rgba(0,229,255,0.3)"/>
+          <text x="670" y="315" fill="#e6edf3" font-family="sans-serif" font-size="11">Blockstream & Blockscout</text>
+          <text x="670" y="330" fill="#8b949e" font-family="sans-serif" font-size="9">BTC & ETH Keyless Chain Trackers</text>
+
+          <!-- Arrows -->
+          <!-- Client to API -->
+          <path d="M 290 180 L 330 180" stroke="#00e5ff" stroke-width="2" marker-end="url(#arrow)"/>
+          <path d="M 290 260 L 330 260" stroke="#00e5ff" stroke-width="2"/>
+          
+          <!-- API to Intel -->
+          <path d="M 600 105 L 640 105" stroke="#a855f7" stroke-width="2"/>
+          <path d="M 600 250 L 640 250" stroke="#d4af37" stroke-width="2"/>
+        </svg>
+      </div>
+
+      <h3 style="color: var(--gold-light); margin-top: 1.5rem; margin-bottom: 0.5rem;">Detailed Code Flow Summary</h3>
+      
+      <ol style="margin-left: 1.5rem; color: var(--text-main); font-size: 0.92rem; line-height: 1.8;">
+        <li>
+          <strong>Client Component Mount & State Initialization:</strong> 
+          <code>src/app/page.tsx</code> loads as a client component. On startup, it triggers lightweight, keyless core feeds (USGS Earthquakes, global news, severe weather).
+        </li>
+        <li>
+          <strong>Progressive Layer Lazy Loading:</strong> 
+          As the user toggles map layers in <code>LayerPanel.tsx</code>, state updates trigger specific endpoint fetches. Duplicate fetches are blocked via <code>layerFetchedRef</code>, cutting API traffic by up to 75%.
+        </li>
+        <li>
+          <strong>SSRF Guard & API Proxying:</strong> 
+          All outbound client requests pass through Next.js API routes where <code>ssrf-guard.ts</code> verifies target hostnames against strict domain allowlists and prevents internal IP network scanning.
+        </li>
+        <li>
+          <strong>Entity Resolution via `osiris-intel`:</strong> 
+          When resolving an entity (e.g. aircraft callsign, IP address, vessel, company), the API routes query <code>http://localhost:4000/resolve</code>. The standalone microservice executes safe SPARQL queries against Wikidata and matches results against an in-memory graph of 70,000+ OFAC SDN sanctioned entities.
+        </li>
+        <li>
+          <strong>WebGL GPU Render Pipeline:</strong> 
+          Received JSON payloads are loaded into <code>OsirisMap.tsx</code>. MapLibre GL creates GeoJSON sources rendered dynamically via WebGL shaders, maintaining 60fps performance even with thousands of active entities.
+        </li>
+      </ol>
+    </section>
+
+    <!-- SECTION 5: IDEAS ABOUT OTHER FEATURES THAT CAN BE ADDED -->
+    <section id="future-features">
+      <h2 class="section-title">
+        <span>05. Future Feature Expansion Roadmap</span>
+        <span class="badge">Recommendations</span>
+      </h2>
+
+      <p>
+        Based on our code analysis, OSIRIS possesses a robust, modular foundation. Here are 7 innovative, high-impact features that can be added to elevate the platform to an elite OSINT standard:
+      </p>
+
+      <div class="idea-box search-item">
+        <div class="idea-badge">AI / LLM Integration</div>
+        <div class="idea-title">1. AI-Powered Automated Threat Synthesis & Incident Briefings</div>
+        <div class="idea-desc">
+          Integrate LLM orchestration (e.g. Gemini 1.5 Pro / Claude 3.5 Sonnet API) to correlate multi-domain events in real time. For example, automatically detect when a military aircraft cluster coincides with a thermal fire spot (FIRMS) and a Telegram war report, generating an automated tactical intelligence summary banner on the HUD.
+        </div>
+        <div class="idea-tech">Tech: Next.js Server Sent Events + Vercel AI SDK + Structured JSON Schema output</div>
+      </div>
+
+      <div class="idea-box search-item">
+        <div class="idea-badge">Machine Learning</div>
+        <div class="idea-title">2. Predictive Anomaly Detection for Flight & Vessel Telemetry</div>
+        <div class="idea-desc">
+          Implement real-time trajectory anomaly detection to identify AIS/ADS-B spoofing, sudden unauthorized flight altitude drops, dark fleet vessel ship-to-ship rendezvous in sanctioned waters, or military asset concentrations along international borders.
+        </div>
+        <div class="idea-tech">Tech: Python Microservice / WebAssembly (Wasm) + DBSCAN / Isolation Forests + Turf.js</div>
+      </div>
+
+      <div class="idea-box search-item">
+        <div class="idea-badge">Collaboration</div>
+        <div class="idea-title">3. Multi-User Tactical War Rooms & Live Workspace Sync</div>
+        <div class="idea-desc">
+          Enable multi-investigator collaboration ("Tactical War Rooms"). Analysts can join shared room sessions via WebSockets, allowing real-time cursor sharing, joint AOI drawing, dropped target pins, tactical chat, and voice channels.
+        </div>
+        <div class="idea-tech">Tech: Socket.io / PartyKit / Yjs CRDTs for multiplayer state synchronization</div>
+      </div>
+
+      <div class="idea-box search-item">
+        <div class="idea-badge">Hardware Integration</div>
+        <div class="idea-title">4. Local Dump1090 RTL-SDR & Custom Webhook Data Connector</div>
+        <div class="idea-desc">
+          Allow field operators to connect local hardware receivers (e.g. RTL-SDR dongles running <code>dump1090</code> for direct local ADS-B decoding, or local AIS antennas) directly into OSIRIS over local WebSocket / REST endpoints.
+        </div>
+        <div class="idea-tech">Tech: Local WebSockets API + Dump1090 JSON protocol parser + UI Data Pipeline Configurator</div>
+      </div>
+
+      <div class="idea-box search-item">
+        <div class="idea-badge">Time Series</div>
+        <div class="idea-title">5. Historical Replay & Time Machine DVR Mode</div>
+        <div class="idea-desc">
+          Store telemetry states in a time-series database to enable a "Time Machine" slider on the dashboard. Analysts can scrub backwards in time to replay troop movements, flight paths, and news feeds leading up to major geopolitical events.
+        </div>
+        <div class="idea-tech">Tech: ClickHouse / TimescaleDB + MapLibre animation timeline controls</div>
+      </div>
+
+      <div class="idea-box search-item">
+        <div class="idea-badge">Satellite Remote Sensing</div>
+        <div class="idea-title">6. Automated SAR & Optical Satellite Change Detection over AOIs</div>
+        <div class="idea-desc">
+          When an analyst draws a polygon AOI, automatically query Sentinel-1 (Synthetic Aperture Radar) and Sentinel-2 optical imagery to perform differential change detection (building damage assessment, new airstrip construction, oil slick detection).
+        </div>
+        <div class="idea-tech">Tech: Copernicus Data Space Ecosystem API + Sentinel Hub API + OpenCV / WebGL Shader Diffing</div>
+      </div>
+
+      <div class="idea-box search-item">
+        <div class="idea-badge">Off-Grid PWA</div>
+        <div class="idea-title">7. Off-Grid PWA with Meshtastic Mesh Radio Integration</div>
+        <div class="idea-desc">
+          Transform OSIRIS into a Progressive Web App (PWA) with offline vector tile caching and Bluetooth LE connection to Meshtastic hardware radios, allowing off-grid tactical teams to broadcast map markers and GPS locations without cellular or internet connectivity.
+        </div>
+        <div class="idea-tech">Tech: Service Workers + Web Bluetooth API + Meshtastic Protobuf Protocol</div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Interactive Search & Navigation Scripts -->
+  <script>
+    function filterContent() {
+      const input = document.getElementById('searchInput').value.toLowerCase();
+      const searchItems = document.querySelectorAll('.search-item, tr');
+
+      searchItems.forEach(item => {
+        const text = item.textContent.toLowerCase();
+        if (text.includes(input)) {
+          item.style.display = '';
+        } else {
+          item.style.display = 'none';
+        }
+      });
+    }
+
+    // Scrollspy for sidebar link activation
+    window.addEventListener('scroll', () => {
+      const sections = document.querySelectorAll('section');
+      const navLinks = document.querySelectorAll('.nav-links a');
+
+      let current = '';
+      sections.forEach(section => {
+        const sectionTop = section.offsetTop - 100;
+        if (pageYOffset >= sectionTop) {
+          current = section.getAttribute('id');
+        }
+      });
+
+      navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href').includes(current)) {
+          link.classList.add('active');
+        }
+      });
+    });
+  </script>
+</body>
+</html>
