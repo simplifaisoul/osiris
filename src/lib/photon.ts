@@ -11,11 +11,14 @@ import { httpJson } from '@/lib/httpJson';
  * download away, and a server of our own has no usage policy for our traffic
  * to outgrow.
  *
- * Without PHOTON_URL nothing is asked here, and the browser searches
- * Wikipedia, Wikidata and the built-in place list instead (lib/geosearch.ts).
- * The public Photon and Nominatim servers are never used: their operators
- * asked OSIRIS to stop, and a map with many visitors cannot stay inside their
- * fair-use limits. So the rules are:
+ * Without PHOTON_URL, a copy asks the shared search of an OSIRIS deployment
+ * that runs one — osirisai.live unless SHARED_SEARCH_URL says otherwise — so
+ * it gets the same streets and addresses with nothing to set up. When that
+ * cannot answer either, the browser searches Wikipedia, Wikidata and the
+ * built-in place list instead (lib/geosearch.ts). The public Photon and
+ * Nominatim servers are never used: their operators asked OSIRIS to stop, and
+ * a map with many visitors cannot stay inside their fair-use limits. So the
+ * rules are:
  *
  *   • The browser never asks the geocoder; only the server does, through this
  *     module, so one cache serves every visitor and the geocoder can stay on
@@ -34,6 +37,15 @@ import { httpJson } from '@/lib/httpJson';
 
 /** The geocoder's address, e.g. `http://geocoder.internal:2322`; empty turns lookups off. */
 const baseUrl = () => (process.env.PHOTON_URL || '').trim().replace(/\/+$/, '');
+
+/** Where a copy without a geocoder searches instead: the deployment that runs osirisai.live. */
+export const DEFAULT_SHARED_SEARCH = 'https://osirisai.live/api/geosearch/shared';
+
+/** The shared search to ask; empty when SHARED_SEARCH_URL is `off`. Unset or blank means the default. */
+const sharedUrl = () => {
+  const set = (process.env.SHARED_SEARCH_URL || '').trim();
+  return set.toLowerCase() === 'off' ? '' : set || DEFAULT_SHARED_SEARCH;
+};
 
 /** Places do not move. */
 const HIT_TTL_MS = 30 * 24 * 3_600_000;
@@ -136,6 +148,9 @@ export function photonConfigured(): boolean {
   return baseUrl() !== '';
 }
 
+/** The same question in any parameter order is one cache entry. */
+const keyOf = (query: URLSearchParams) => [...query.entries()].map(([k, v]) => `${k}=${v}`).sort().join('&');
+
 /**
  * Ask the geocoder's search, or answer from what we already know.
  *
@@ -146,15 +161,36 @@ export function photonConfigured(): boolean {
 export async function photon<T>(params: PhotonParams): Promise<T | null> {
   const base = baseUrl();
   if (!base) return null;
-  await ensureLoaded();
 
   const query = new URLSearchParams({ lang: 'en' });
   for (const [k, v] of Object.entries(params)) {
     query.delete(k);
     for (const one of [v].flat()) query.append(k, one);
   }
-  const key = [...query.entries()].map(([k, v]) => `${k}=${v}`).sort().join('&');
+  return ask<T>(`${base}/api?${query}`, keyOf(query));
+}
 
+/**
+ * Ask the shared search (`q`, and `lat`/`lng` for the bias), for a copy with
+ * no geocoder of its own. It answers `{ results }` already in OSIRIS's shape,
+ * under the same cache, queue and rest as the geocoder. Resolves null when it
+ * is off, refused or did not answer.
+ */
+export async function sharedSearch<T>(params: Record<string, string>): Promise<T | null> {
+  const base = sharedUrl();
+  if (!base) return null;
+  const query = new URLSearchParams(params);
+  return ask<T>(`${base}?${query}`, `shared:${keyOf(query)}`);
+}
+
+/** Whether a copy with no geocoder of its own asks the shared search (on unless SHARED_SEARCH_URL is `off`). */
+export function sharedSearchConfigured(): boolean {
+  return sharedUrl() !== '';
+}
+
+/** One question, answered from the cache, from the same question already on its way, or by a request — under the rules above. */
+async function ask<T>(url: string, key: string): Promise<T | null> {
+  await ensureLoaded();
   stats.served++;
   const hit = cache.get(key);
   if (hit && hit.expires > Date.now()) {
@@ -179,14 +215,14 @@ export async function photon<T>(params: PhotonParams): Promise<T | null> {
       return null;
     }
     try {
-      const value = await httpJson<T>(`${base}/api?${query}`, { timeoutMs: TIMEOUT_MS });
+      const value = await httpJson<T>(url, { timeoutMs: TIMEOUT_MS });
       stats.sent++;
       remember(key, value);
       return value;
     } catch (error) {
       stats.failed++;
       downUntil = Date.now() + BACKOFF_MS;
-      console.warn('[OSIRIS] Photon search failed:', error instanceof Error ? error.message : error);
+      console.warn('[OSIRIS] Place search failed:', error instanceof Error ? error.message : error);
       return null;
     } finally {
       release();
@@ -199,7 +235,7 @@ export async function photon<T>(params: PhotonParams): Promise<T | null> {
 
 /** How much we have asked of the geocoder since this process started. */
 export function photonStats() {
-  return { ...stats, cached: cache.size, active, queued: waiting.length, configured: photonConfigured() };
+  return { ...stats, cached: cache.size, active, queued: waiting.length, configured: photonConfigured(), shared: photonConfigured() ? null : sharedUrl() || null };
 }
 
 /** Test seam — forget every answer and reset the counters. */

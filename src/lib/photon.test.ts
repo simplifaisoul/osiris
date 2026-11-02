@@ -9,12 +9,40 @@ vi.mock('@/lib/httpJson', () => ({
   OSIRIS_UA: 'test',
 }));
 
-const { photon, photonStats, clearPhotonCache } = await import('./photon');
+const { photon, photonStats, clearPhotonCache, sharedSearch, sharedSearchConfigured } = await import('./photon');
 
 beforeEach(() => {
   process.env.PHOTON_URL = 'http://geocoder.test:2322/';
+  delete process.env.SHARED_SEARCH_URL;
   clearPhotonCache();
   httpJson.mockReset();
+});
+
+describe('sharedSearch', () => {
+  it('asks osirisai.live by default, so a copy needs nothing set up', async () => {
+    httpJson.mockResolvedValue({ results: [] });
+    await sharedSearch({ q: 'Lviv', lat: '49.8', lng: '24' });
+    expect(httpJson.mock.calls[0][0]).toBe('https://osirisai.live/api/geosearch/shared?q=Lviv&lat=49.8&lng=24');
+  });
+
+  it('asks another deployment when told to, and nothing when it is off', async () => {
+    process.env.SHARED_SEARCH_URL = 'https://osiris.example/api/geosearch/shared';
+    httpJson.mockResolvedValue({ results: [] });
+    await sharedSearch({ q: 'Lviv' });
+    expect(httpJson.mock.calls[0][0]).toBe('https://osiris.example/api/geosearch/shared?q=Lviv');
+
+    process.env.SHARED_SEARCH_URL = 'off';
+    expect(sharedSearchConfigured()).toBe(false);
+    expect(await sharedSearch({ q: 'Odesa' })).toBeNull();
+    expect(httpJson).toHaveBeenCalledTimes(1);
+  });
+
+  it('remembers answers and rests after a failure, like the geocoder', async () => {
+    httpJson.mockRejectedValueOnce(new Error('HTTP 404')).mockResolvedValue({ results: [] });
+    expect(await sharedSearch({ q: 'Kyiv' })).toBeNull();
+    expect(await sharedSearch({ q: 'Lviv' })).toBeNull();
+    expect(httpJson).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('photon', () => {

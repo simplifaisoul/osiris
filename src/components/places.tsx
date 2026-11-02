@@ -10,7 +10,7 @@
  */
 import { createElement, type ReactNode } from 'react';
 import {
-  Building2, Clock, Globe2, Home, Landmark, LocateFixed, MapPin, Mountain, Signpost, type LucideIcon,
+  Building2, Clock, Globe2, Home, Landmark, LocateFixed, MapPin, Mountain, Search, Signpost, type LucideIcon,
 } from 'lucide-react';
 import { haversine } from '@/lib/geo';
 
@@ -32,6 +32,7 @@ const KIND: Record<string, { icon: LucideIcon; label: string }> = {
   coordinate: { icon: MapPin, label: 'Coordinates' },
   current: { icon: LocateFixed, label: 'You' },
   recent: { icon: Clock, label: 'Recent' },
+  osm: { icon: Search, label: 'Search' },
 };
 
 export const kindIcon = (kind?: string): LucideIcon => KIND[kind ?? '']?.icon ?? MapPin;

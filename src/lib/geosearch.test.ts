@@ -3,7 +3,8 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import {
   wikiKind, describedKind, notAPlace, normalizeWikiPage, normalizeWikidataItem, wikipediaUrl, wikidataUrl,
-  samePlace, mergeResults, classifyKind, normalizePhoton, biasOf, type WikiPage, type WikidataItem, type GeoResult,
+  samePlace, mergeResults, classifyKind, normalizePhoton, normalizeNominatim, biasOf,
+  type WikiPage, type WikidataItem, type GeoResult,
 } from './geosearch';
 
 const PLACES = readFileSync(join(process.cwd(), 'public', 'places.json'), 'utf8');
@@ -219,6 +220,26 @@ describe('normalizePhoton', () => {
   });
 });
 
+describe('normalizeNominatim', () => {
+  it('maps a named place, with the next parts of its address as the context', () => {
+    expect(normalizeNominatim({
+      name: 'Eiffel Tower', display_name: 'Eiffel Tower, 5, Avenue Anatole France, Gros-Caillou, Paris, France',
+      lat: '48.8582', lon: '2.2945', category: 'man_made', type: 'tower',
+    })).toEqual({ name: 'Eiffel Tower', context: '5, Avenue Anatole France, Gros-Caillou', lat: 48.8582, lng: 2.2945, kind: 'poi' });
+  });
+
+  it('names an address by its number and street', () => {
+    expect(normalizeNominatim({
+      name: '', display_name: '12, Rue de Rivoli, Quartier Saint-Merri, Paris 4e Arrondissement, Paris, France',
+      lat: '48.8556', lon: '2.3589', category: 'place', type: 'house',
+    })).toMatchObject({ name: '12 Rue de Rivoli', context: 'Quartier Saint-Merri, Paris 4e Arrondissement, Paris', kind: 'address' });
+  });
+
+  it('rejects rows without a usable position', () => {
+    expect(normalizeNominatim({ name: 'X', lat: 'nope', lon: '2' })).toBeNull();
+  });
+});
+
 describe('biasOf', () => {
   it('rounds where the map is looking to a tenth of a degree, so answers can be shared', () => {
     expect(biasOf({ lat: 41.230154255243164, lng: -72.86821861538982 })).toEqual({ lat: 41.2, lng: -72.9 });
@@ -242,10 +263,10 @@ describe('lookups from the browser', () => {
   const serve = (
     wikipedia: () => Promise<unknown>,
     wikidata: () => Promise<unknown>,
-    geocoder: () => Promise<unknown> = () => json({ results: [] }, 501),
+    geocoder: (url: string) => Promise<unknown> = () => json({ results: [] }, 501),
   ) => fetchMock.mockImplementation((url: string) =>
     url === '/places.json' ? json(JSON.parse(PLACES))
-      : url.startsWith('/api/geosearch?') ? geocoder()
+      : url.startsWith('/api/geosearch?') ? geocoder(url)
         : url.startsWith('https://en.wikipedia.org/') ? wikipedia()
           : url.startsWith('https://www.wikidata.org/') ? wikidata()
             : Promise.reject(new Error(`unexpected request: ${url}`)));
@@ -334,6 +355,39 @@ describe('lookups from the browser', () => {
 
     expect(asked('/api/geosearch?')).toHaveLength(1);
     expect(asked('https://www.wikidata.org/')).toHaveLength(2);
+  });
+
+  it('offers Search OpenStreetMap only when the deployment says it is on, and never asks it while typing', async () => {
+    const noWiki = () => json({ query: { pages: [] } });
+    serve(noWiki, noWiki, () => json({ results: [] }, 501, { 'X-OSIRIS-Nominatim': 'on' }));
+    expect(geo.canSearchOpenStreetMap()).toBe(false);
+
+    await geo.searchPlaces('rue de rivoli');
+
+    expect(geo.canSearchOpenStreetMap()).toBe(true);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('source=nominatim'))).toBe(false);
+
+    vi.resetModules();
+    geo = await import('./geosearch');
+    serve(noWiki, noWiki, () => json({ results: [] }, 501, { 'X-OSIRIS-Nominatim': 'off' }));
+    await geo.searchPlaces('rue de rivoli');
+    expect(geo.canSearchOpenStreetMap()).toBe(false);
+  });
+
+  it('asks Nominatim through the server when chosen, in front of what was shown', async () => {
+    const rivoli = { name: '12 Rue de Rivoli', context: 'Paris, France', lat: 48.8556, lng: 2.3589, kind: 'address' };
+    const shown: GeoResult[] = [{ name: 'Rue de Rivoli', context: 'Paris', lat: 48.86, lng: 2.34, kind: 'street' }];
+    serve(nothing, nothing, () => json({ results: [rivoli] }));
+
+    const found = await geo.searchOpenStreetMap('12 rue de rivoli', shown);
+
+    expect(asked('/api/geosearch?')[0][0]).toBe('/api/geosearch?source=nominatim&q=12%20rue%20de%20rivoli');
+    expect(found).toEqual([rivoli, shown[0]]);
+  });
+
+  it('says so when Nominatim does not answer, so what was shown can stay', async () => {
+    serve(nothing, nothing, () => json({ results: [] }, 503));
+    expect(await geo.searchOpenStreetMap('12 rue de rivoli', [])).toBeNull();
   });
 
   it('throws when the search is abandoned, instead of answering late', async () => {

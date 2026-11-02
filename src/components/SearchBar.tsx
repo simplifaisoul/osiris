@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useId } from 'react';
 import { Loader2, Navigation, Route, Search, SearchX, X } from 'lucide-react';
-import { searchPlaces, type GeoResult } from '@/lib/geosearch';
+import { canSearchOpenStreetMap, searchOpenStreetMap, searchPlaces, type GeoResult } from '@/lib/geosearch';
 import { forgetRecent, loadRecent, rememberPlace, type RecentPlace } from '@/lib/recent-places';
 import { Key, PlaceRow, type PlaceLike } from './places';
 
@@ -46,6 +46,10 @@ const ZOOM_BY_KIND: Record<string, number> = {
 
 const TRY = ['Eiffel Tower', '10 Downing Street', '35.6586, 139.7454'];
 
+const toHit = (r: GeoResult): Hit => ({
+  label: r.name, context: r.context, lat: r.lat, lng: r.lng, kind: r.kind || 'place', zoom: ZOOM_BY_KIND[r.kind] ?? 13,
+});
+
 const parseCoords = (s: string): { lat: number; lng: number } | null => {
   const m = s.trim().match(/^([+-]?\d+\.?\d*)[,\s]+([+-]?\d+\.?\d*)$/);
   if (!m) return null;
@@ -63,6 +67,8 @@ export default function SearchBar({ onLocate, center = null, onClose, onDirectio
   const [recent, setRecent] = useState<RecentPlace[]>(() => (typeof window === 'undefined' ? [] : loadRecent()));
   const [locating, setLocating] = useState(false);
   const [locateNote, setLocateNote] = useState('');
+  // "Search OpenStreetMap", for the query it was chosen for.
+  const [osm, setOsm] = useState<{ q: string; state: 'asking' | 'failed' | 'done' } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -99,7 +105,20 @@ export default function SearchBar({ onLocate, center = null, onClose, onDirectio
 
   const typing = value.trim().length > 0;
   const you: Hit = { label: 'Your location', context: locateNote || 'Fly to where you are', lat: 0, lng: 0, kind: 'current', zoom: 14 };
-  const items: Hit[] = typing ? results : [you, ...recent.map(r => ({ ...r, zoom: ZOOM_BY_KIND[r.kind ?? ''] ?? 13 }))];
+  /* When this copy's operator turned the Nominatim backup on, the last row
+     asks it, once, for what is in the box; Nominatim's usage policy rules out
+     asking as you type (see lib/nominatim.ts). */
+  const osmState = osm?.q === value ? osm.state : null;
+  const offerOsm = typing && canSearchOpenStreetMap() && value.trim().length >= 2 && !parseCoords(value)
+    && answered === value && !loading && osmState !== 'done';
+  const osmRow: Hit = {
+    label: `Search OpenStreetMap for “${value.trim()}”`,
+    context: osmState === 'asking' ? 'Asking OpenStreetMap…' : osmState === 'failed' ? 'OpenStreetMap did not answer. Try again' : 'Streets and addresses, from Nominatim',
+    lat: 0, lng: 0, kind: 'osm', zoom: 0,
+  };
+  const items: Hit[] = typing
+    ? (offerOsm ? [...results, osmRow] : results)
+    : [you, ...recent.map(r => ({ ...r, zoom: ZOOM_BY_KIND[r.kind ?? ''] ?? 13 }))];
   const active = Math.min(selected, Math.max(0, items.length - 1));
 
   const search = useCallback((q: string) => {
@@ -128,9 +147,7 @@ export default function SearchBar({ onLocate, center = null, onClose, onDirectio
       abortRef.current?.abort();
       const ctrl = new AbortController();
       abortRef.current = ctrl;
-      const show = (found: GeoResult[]) => setResults(found.map(r => ({
-        label: r.name, context: r.context, lat: r.lat, lng: r.lng, kind: r.kind || 'place', zoom: ZOOM_BY_KIND[r.kind] ?? 13,
-      })));
+      const show = (found: GeoResult[]) => setResults(found.map(toHit));
       try {
         const found = await searchPlaces(q, center, ctrl.signal, show);
         if (ctrl.signal.aborted) return;
@@ -172,8 +189,24 @@ export default function SearchBar({ onLocate, center = null, onClose, onDirectio
     setLocating(false);
   }, [onLocate, onClose]);
 
+  /** Nominatim's answer for what is in the box, in front of what is listed; typing again abandons it. */
+  const askOsm = async () => {
+    const q = value;
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setOsm({ q, state: 'asking' });
+    const shown = results.map(h => ({ name: h.label, context: h.context ?? '', lat: h.lat, lng: h.lng, kind: h.kind ?? 'place' }));
+    try {
+      const found = await searchOpenStreetMap(q.trim(), shown, ctrl.signal);
+      if (found) { setResults(found.map(toHit)); setSelected(0); }
+      setOsm({ q, state: found ? 'done' : 'failed' });
+    } catch { /* abandoned: a newer search owns the list */ }
+  };
+
   const go = (h: Hit) => {
     if (h.kind === 'current') { void locate(); return; }
+    if (h.kind === 'osm') { if (osmState !== 'asking') void askOsm(); return; }
     onLocate(h.lat, h.lng, h.zoom);
     setRecent(rememberPlace({ label: h.label, context: h.context, lat: h.lat, lng: h.lng, kind: h.kind }));
     setValue('');
@@ -182,7 +215,7 @@ export default function SearchBar({ onLocate, center = null, onClose, onDirectio
   };
 
   const directions = (h: Hit) => {
-    if (!onDirections || h.kind === 'current') return;
+    if (!onDirections || h.kind === 'current' || h.kind === 'osm') return;
     setRecent(rememberPlace({ label: h.label, context: h.context, lat: h.lat, lng: h.lng, kind: h.kind }));
     onDirections({ label: h.label, context: h.context, lat: h.lat, lng: h.lng, kind: h.kind });
   };
@@ -203,7 +236,8 @@ export default function SearchBar({ onLocate, center = null, onClose, onDirectio
     }
   };
 
-  const noResults = typing && !loading && answered === value && value.trim().length >= 2 && results.length === 0;
+  const noResults = typing && !loading && answered === value && value.trim().length >= 2 && results.length === 0 && osmState !== 'asking';
+  const busy = loading || osmState === 'asking';
 
   return (
     <div ref={boxRef} className={embedded ? 'flex flex-col' : 'glass-panel tool-glass relative overflow-hidden flex flex-col max-h-[min(72vh,600px)]'}>
@@ -227,7 +261,7 @@ export default function SearchBar({ onLocate, center = null, onClose, onDirectio
           autoComplete="off"
           spellCheck={false}
         />
-        {loading && <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin text-[var(--gold-primary)]" aria-label="Searching" />}
+        {busy && <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin text-[var(--gold-primary)]" aria-label="Searching" />}
         {value ? (
           <button onClick={() => { search(''); inputRef.current?.focus(); }} aria-label="Clear the search"
             className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[var(--text-muted)] hover:text-[var(--text-heading)] hover:bg-white/[0.06] transition-colors">
@@ -237,7 +271,7 @@ export default function SearchBar({ onLocate, center = null, onClose, onDirectio
           <span className="hidden md:flex items-center gap-1 flex-shrink-0" aria-hidden><Key>Ctrl</Key><Key>F</Key></span>
         )}
         {/* While a search is on its way, a line of gold runs under the box. */}
-        {loading && !embedded && <span aria-hidden className="absolute left-0 right-0 bottom-[-1px] h-px overflow-hidden"><span className="tool-scan block h-full w-1/3" /></span>}
+        {busy && !embedded && <span aria-hidden className="absolute left-0 right-0 bottom-[-1px] h-px overflow-hidden"><span className="tool-scan block h-full w-1/3" /></span>}
       </div>
 
       {/* ── what to choose from ── */}
@@ -250,11 +284,11 @@ export default function SearchBar({ onLocate, center = null, onClose, onDirectio
         <div id={listId} role="listbox" aria-label={typing ? 'Places found' : 'Suggestions'} className="flex flex-col gap-0.5">
           {items.map((h, i) => (
             <PlaceRow key={`${h.kind}-${h.label}-${h.lat}-${i}`} id={`${listId}-${i}`} place={h} query={typing ? value : ''} on={i === active}
-              onPick={() => go(h)} onHover={() => setSelected(i)} from={center}
+              onPick={() => go(h)} onHover={() => setSelected(i)} from={h.kind === 'osm' ? null : center}
               kindOverride={!typing && h.kind !== 'current' ? 'recent' : undefined}
               trailing={h.kind === 'current'
                 ? (locating ? <Loader2 className="w-4 h-4 mr-2 animate-spin text-[var(--gold-primary)]" /> : undefined)
-                : onDirections && (
+                : h.kind !== 'osm' && onDirections && (
                   <button onClick={() => directions(h)} aria-label={`Directions to ${h.label}`} title="Directions (Shift+Enter)"
                     className={`w-8 h-8 rounded-full flex items-center justify-center border transition-all ${i === active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus:opacity-100'} border-[rgba(var(--gold-rgb),0.35)] text-[var(--gold-light)] bg-[rgba(var(--gold-rgb),0.06)] hover:bg-[rgba(var(--gold-rgb),0.16)]`}>
                     <Route className="w-4 h-4" />
