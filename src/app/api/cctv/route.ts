@@ -51,6 +51,7 @@ import { fetchMarylandCameras } from './maryland';
 import { fetchTexasCameras } from './texas';
 import { fetchDelawareCameras } from './delaware';
 import { fetchVirginiaCameras } from './virginia';
+import { fetchBasqueCameras } from './basque';
 import { fetchEastAsiaCameras, fetchSeAsiaCameras, fetchWestAsiaCameras } from './opencctv';
 import {
   fetchLatamLiveCameras,
@@ -489,6 +490,7 @@ const RAW_REGION_FETCHERS: Record<string, RegionFetcher> = {
   'texas': fetchTexasCameras,
   'delaware': fetchDelawareCameras,
   'virginia': fetchVirginiaCameras,
+  'basque': fetchBasqueCameras,
   'eastasia': fetchEastAsiaCameras,
   'seasia': fetchSeAsiaCameras,
   'westasia': fetchWestAsiaCameras,
@@ -852,6 +854,8 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   if (inGermany) regions.push('germany');
   if (inFrance) regions.push('france');
   if (inSpain) regions.push('spain');
+  // Basque Country (Open Data Euskadi) — explicit, since the DGT feed behind 'spain' does not cover it
+  if (lat > 42.4 && lat < 43.6 && lng > -3.6 && lng < -1.6) regions.push('basque');
   if (inPoland) regions.push('poland');
   if (inFinland) regions.push('finland');
   /* Not folded into inWesternEurope: Sweden's box overlaps Norway, and

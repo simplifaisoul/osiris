@@ -1260,30 +1260,130 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     "vehiclesAtProbe": 19
   },
   {
+    "id": "arrasate-urban-bus-arrasate-mondragon",
+    "provider": "Arrasate urban bus (Arrasate-Mondragón)",
+    "country": "ES",
+    "region": "Arrasate-Mondragón",
+    "url": "https://opendata.euskadi.eus/transport/moveuskadi/arrasate/gtfsrt_arrasate_vehicle_position.pb",
+    "bbox": [
+      -2.51,
+      43.05,
+      -2.46,
+      43.08
+    ],
+    "center": [
+      -2.485,
+      43.065
+    ],
+    "core": [
+      -2.51,
+      43.05,
+      -2.46,
+      43.08
+    ],
+    "license": "https://opendata.euskadi.eus/general/-/informacion-legal-opendata/",
+    "vehiclesAtProbe": 0
+  },
+  {
+    "id": "bermibusa-bermeo",
+    "provider": "Bermibusa (Bermeo)",
+    "country": "ES",
+    "region": "Bermeo",
+    "url": "https://opendata.euskadi.eus/transport/moveuskadi/bermibusa/gtfsrt_bermibusa_vehicle_positions.pb",
+    "bbox": [
+      -2.74,
+      43.41,
+      -2.71,
+      43.43
+    ],
+    "center": [
+      -2.725,
+      43.42
+    ],
+    "core": [
+      -2.74,
+      43.41,
+      -2.71,
+      43.43
+    ],
+    "license": "https://opendata.euskadi.eus/general/-/informacion-legal-opendata/",
+    "vehiclesAtProbe": 0
+  },
+  {
+    "id": "bilbobus-bilbao",
+    "provider": "Bilbobus (Bilbao)",
+    "country": "ES",
+    "region": "Bilbao",
+    "url": "https://opendata.euskadi.eus/transport/moveuskadi/bilbobus/gtfsrt_bilbobus_vehicle_positions.pb",
+    "bbox": [
+      -2.98,
+      43.22,
+      -2.87,
+      43.3
+    ],
+    "center": [
+      -2.925,
+      43.26
+    ],
+    "core": [
+      -2.98,
+      43.22,
+      -2.87,
+      43.3
+    ],
+    "license": "https://opendata.euskadi.eus/general/-/informacion-legal-opendata/",
+    "vehiclesAtProbe": 0
+  },
+  {
+    "id": "bizkaibus-bizkaia",
+    "provider": "Bizkaibus (Bizkaia)",
+    "country": "ES",
+    "region": "Bizkaia",
+    "url": "https://opendata.euskadi.eus/transport/moveuskadi/bizkaibus/gtfsrt_Bizkaibus_vehicle_positions.pb",
+    "bbox": [
+      -3.45,
+      42.98,
+      -2.38,
+      43.44
+    ],
+    "center": [
+      -2.942,
+      43.282
+    ],
+    "core": [
+      -3.1173,
+      43.1577,
+      -2.4744,
+      43.3694
+    ],
+    "license": "https://opendata.euskadi.eus/general/-/informacion-legal-opendata/",
+    "vehiclesAtProbe": 59
+  },
+  {
     "id": "dbus-donostiabus",
     "provider": "dBus (Donostiabus)",
     "country": "ES",
     "region": "San Sebastián",
     "url": "https://opendata.euskadi.eus/transport/moveuskadi/dbus/gtfsrt_dbus_vehicle_positions.pb",
     "bbox": [
-      -1.992,
-      43.2702,
-      -1.8866,
-      43.3702
+      -2.06,
+      43.27,
+      -1.91,
+      43.34
     ],
     "center": [
-      -1.9366,
-      43.3202
+      -1.9819,
+      43.3153
     ],
     "core": [
-      -1.962,
-      43.3002,
-      -1.9166,
-      43.3402
+      -2.0252,
+      43.2695,
+      -1.9076,
+      43.3439
     ],
-    "license": "https://nap.transportes.gob.es/licencia-datos",
+    "license": "https://opendata.euskadi.eus/general/-/informacion-legal-opendata/",
     "mdb": "3066",
-    "vehiclesAtProbe": 0
+    "vehiclesAtProbe": 15
   },
   {
     "id": "empresa-malaguena-de-transportes-emt",
@@ -1336,6 +1436,156 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     "vehiclesAtProbe": 1
   },
   {
+    "id": "erandio-busa-erandio",
+    "provider": "Erandio busa (Erandio)",
+    "country": "ES",
+    "region": "Erandio",
+    "url": "https://opendata.euskadi.eus/transport/moveuskadi/erandio_busa/gtfsrt_erandio_busa_vehicle_positions.pb",
+    "bbox": [
+      -3,
+      43.28,
+      -2.93,
+      43.35
+    ],
+    "center": [
+      -2.965,
+      43.315
+    ],
+    "core": [
+      -3,
+      43.28,
+      -2.93,
+      43.35
+    ],
+    "license": "https://opendata.euskadi.eus/general/-/informacion-legal-opendata/",
+    "vehiclesAtProbe": 0
+  },
+  {
+    "id": "errenteria-urban-bus-errenteria",
+    "provider": "Errenteria urban bus (Errenteria)",
+    "country": "ES",
+    "region": "Errenteria",
+    "url": "https://opendata.euskadi.eus/transport/moveuskadi/errenteria/gtfsrt_errenteriako%20urbanoa_vehicle_positions.pb",
+    "bbox": [
+      -1.93,
+      43.27,
+      -1.87,
+      43.33
+    ],
+    "center": [
+      -1.9,
+      43.3
+    ],
+    "core": [
+      -1.93,
+      43.27,
+      -1.87,
+      43.33
+    ],
+    "license": "https://opendata.euskadi.eus/general/-/informacion-legal-opendata/",
+    "vehiclesAtProbe": 0
+  },
+  {
+    "id": "etxebarribus-etxebarri",
+    "provider": "EtxeBarriBus (Etxebarri)",
+    "country": "ES",
+    "region": "Etxebarri",
+    "url": "https://opendata.euskadi.eus/transport/moveuskadi/etxebarribus/gtfsrt_etxebarribus_vehicle_positions.pb",
+    "bbox": [
+      -2.91,
+      43.23,
+      -2.87,
+      43.27
+    ],
+    "center": [
+      -2.89,
+      43.25
+    ],
+    "core": [
+      -2.91,
+      43.23,
+      -2.87,
+      43.27
+    ],
+    "license": "https://opendata.euskadi.eus/general/-/informacion-legal-opendata/",
+    "vehiclesAtProbe": 0
+  },
+  {
+    "id": "euskotren-basque-country",
+    "provider": "Euskotren (Basque Country)",
+    "country": "ES",
+    "region": "Basque Country",
+    "url": "https://opendata.euskadi.eus/transport/moveuskadi/euskotren/gtfsrt_euskotren_vehicle_positions.pb",
+    "bbox": [
+      -3.06,
+      42.83,
+      -1.77,
+      43.43
+    ],
+    "center": [
+      -2.415,
+      43.13
+    ],
+    "core": [
+      -3.06,
+      42.83,
+      -1.77,
+      43.43
+    ],
+    "license": "https://opendata.euskadi.eus/general/-/informacion-legal-opendata/",
+    "vehiclesAtProbe": 0
+  },
+  {
+    "id": "hernaniko-hiribusa-hernani",
+    "provider": "Hernaniko hiribusa (Hernani)",
+    "country": "ES",
+    "region": "Hernani",
+    "url": "https://opendata.euskadi.eus/transport/moveuskadi/hernaniko_hiribusa/gtfsrt_hernaniko_hiribusa_vehicle_positions.pb",
+    "bbox": [
+      -1.99,
+      43.25,
+      -1.95,
+      43.28
+    ],
+    "center": [
+      -1.97,
+      43.265
+    ],
+    "core": [
+      -1.99,
+      43.25,
+      -1.95,
+      43.28
+    ],
+    "license": "https://opendata.euskadi.eus/general/-/informacion-legal-opendata/",
+    "vehiclesAtProbe": 0
+  },
+  {
+    "id": "kbus-barakaldo",
+    "provider": "Kbus (Barakaldo)",
+    "country": "ES",
+    "region": "Barakaldo",
+    "url": "https://opendata.euskadi.eus/transport/moveuskadi/kbus/gtfsrt_kbus_vehicle_positions.pb",
+    "bbox": [
+      -3.03,
+      43.25,
+      -2.96,
+      43.31
+    ],
+    "center": [
+      -2.995,
+      43.28
+    ],
+    "core": [
+      -3.03,
+      43.25,
+      -2.96,
+      43.31
+    ],
+    "license": "https://opendata.euskadi.eus/general/-/informacion-legal-opendata/",
+    "vehiclesAtProbe": 0
+  },
+  {
     "id": "la-regional-vallisoletana-sa",
     "provider": "La Regional Vallisoletana S.A",
     "country": "ES",
@@ -1359,6 +1609,31 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     ],
     "mdb": "3511",
     "vehiclesAtProbe": 3
+  },
+  {
+    "id": "lejoan-busa-leioa",
+    "provider": "Lejoan busa (Leioa)",
+    "country": "ES",
+    "region": "Leioa",
+    "url": "https://opendata.euskadi.eus/transport/moveuskadi/lejoan_busa/gtfsrt_lejoan_busa_vehicle_positions.pb",
+    "bbox": [
+      -3.02,
+      43.31,
+      -2.96,
+      43.35
+    ],
+    "center": [
+      -2.99,
+      43.33
+    ],
+    "core": [
+      -3.02,
+      43.31,
+      -2.96,
+      43.35
+    ],
+    "license": "https://opendata.euskadi.eus/general/-/informacion-legal-opendata/",
+    "vehiclesAtProbe": 0
   },
   {
     "id": "metro-bilbao",
@@ -1387,6 +1662,31 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     "vehiclesAtProbe": 5
   },
   {
+    "id": "onati-urban-bus-onati",
+    "provider": "Oñati urban bus (Oñati)",
+    "country": "ES",
+    "region": "Oñati",
+    "url": "https://opendata.euskadi.eus/transport/moveuskadi/onati/gtfsrt_onati_vehicle_positions.pb",
+    "bbox": [
+      -2.44,
+      42.97,
+      -2.39,
+      43.05
+    ],
+    "center": [
+      -2.415,
+      43.01
+    ],
+    "core": [
+      -2.44,
+      42.97,
+      -2.39,
+      43.05
+    ],
+    "license": "https://opendata.euskadi.eus/general/-/informacion-legal-opendata/",
+    "vehiclesAtProbe": 0
+  },
+  {
     "id": "renfe-commuter-trains-cercanias",
     "provider": "Renfe commuter trains (Cercanias)",
     "country": "ES",
@@ -1411,6 +1711,156 @@ export const TRANSIT_FEEDS: TransitFeed[] = [
     "license": "https://data.renfe.com/dataset/ubicacion-vehiculos",
     "mdb": "2835",
     "vehiclesAtProbe": 200
+  },
+  {
+    "id": "sopelbus-sopela",
+    "provider": "Sopelbus (Sopela)",
+    "country": "ES",
+    "region": "Sopela",
+    "url": "https://opendata.euskadi.eus/transport/moveuskadi/sopelbus/gtfsrt_sopelbus_vehicle_positions.pb",
+    "bbox": [
+      -3.01,
+      43.36,
+      -2.96,
+      43.4
+    ],
+    "center": [
+      -2.985,
+      43.38
+    ],
+    "core": [
+      -3.01,
+      43.36,
+      -2.96,
+      43.4
+    ],
+    "license": "https://opendata.euskadi.eus/general/-/informacion-legal-opendata/",
+    "vehiclesAtProbe": 0
+  },
+  {
+    "id": "tolosa-urban-bus-tolosa",
+    "provider": "Tolosa urban bus (Tolosa)",
+    "country": "ES",
+    "region": "Tolosa",
+    "url": "https://opendata.euskadi.eus/transport/moveuskadi/lurraldebus/tolosa/gtfsrt_tolosa_vehicle_positions.pb",
+    "bbox": [
+      -2.09,
+      43.12,
+      -2.06,
+      43.16
+    ],
+    "center": [
+      -2.075,
+      43.14
+    ],
+    "core": [
+      -2.09,
+      43.12,
+      -2.06,
+      43.16
+    ],
+    "license": "https://opendata.euskadi.eus/general/-/informacion-legal-opendata/",
+    "vehiclesAtProbe": 0
+  },
+  {
+    "id": "tuvisa-vitoria-gasteiz",
+    "provider": "Tuvisa (Vitoria-Gasteiz)",
+    "country": "ES",
+    "region": "Vitoria-Gasteiz",
+    "url": "https://opendata.euskadi.eus/transport/moveuskadi/tuvisa/gtfsrt_tuvisa_vehicle_positions.pb",
+    "bbox": [
+      -2.76,
+      42.82,
+      -2.61,
+      42.9
+    ],
+    "center": [
+      -2.6752,
+      42.8646
+    ],
+    "core": [
+      -2.7118,
+      42.8344,
+      -2.6313,
+      42.8929
+    ],
+    "license": "https://opendata.euskadi.eus/general/-/informacion-legal-opendata/",
+    "vehiclesAtProbe": 12
+  },
+  {
+    "id": "udalbus-eibar",
+    "provider": "Udalbus (Eibar)",
+    "country": "ES",
+    "region": "Eibar",
+    "url": "https://opendata.euskadi.eus/transport/moveuskadi/eibar/gtfsrt_udalbus_eibar_vehicle_positions.pb",
+    "bbox": [
+      -2.5,
+      43.17,
+      -2.44,
+      43.22
+    ],
+    "center": [
+      -2.47,
+      43.195
+    ],
+    "core": [
+      -2.5,
+      43.17,
+      -2.44,
+      43.22
+    ],
+    "license": "https://opendata.euskadi.eus/general/-/informacion-legal-opendata/",
+    "vehiclesAtProbe": 0
+  },
+  {
+    "id": "xorrola-oiartzun",
+    "provider": "Xorrola (Oiartzun)",
+    "country": "ES",
+    "region": "Oiartzun",
+    "url": "https://opendata.euskadi.eus/transport/moveuskadi/oiartzun/gtfsrt_xorrola%20oiartzun_vehicle_positions.pb",
+    "bbox": [
+      -1.89,
+      43.28,
+      -1.85,
+      43.32
+    ],
+    "center": [
+      -1.87,
+      43.3
+    ],
+    "core": [
+      -1.89,
+      43.28,
+      -1.85,
+      43.32
+    ],
+    "license": "https://opendata.euskadi.eus/general/-/informacion-legal-opendata/",
+    "vehiclesAtProbe": 0
+  },
+  {
+    "id": "zarauzko-hiribusa-zarautz",
+    "provider": "Zarauzko hiribusa (Zarautz)",
+    "country": "ES",
+    "region": "Zarautz",
+    "url": "https://opendata.euskadi.eus/transport/moveuskadi/zarauzko_hiribusa/gtfsrt_zarauzko_hiribusa_vehicle_positions.pb",
+    "bbox": [
+      -2.2,
+      43.27,
+      -2.14,
+      43.3
+    ],
+    "center": [
+      -2.17,
+      43.285
+    ],
+    "core": [
+      -2.2,
+      43.27,
+      -2.14,
+      43.3
+    ],
+    "license": "https://opendata.euskadi.eus/general/-/informacion-legal-opendata/",
+    "vehiclesAtProbe": 0
   },
   {
     "id": "hsl-helsinki-region",
