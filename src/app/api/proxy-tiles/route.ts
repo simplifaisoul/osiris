@@ -8,12 +8,20 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Only allow cartocdn.com domains to prevent open proxy abuse
+    /* Only CARTO's basemap hosts, over https on the default port: the style,
+       tiles, sprite and fonts all live there, and the map needs nothing else
+       from cartocdn.com. No basemap URL has a query string, so it is dropped,
+       which keeps one stored copy per tile in the year-long fetch cache. */
     const targetUrl = new URL(url);
     const host = targetUrl.hostname.toLowerCase();
-    if (host !== 'cartocdn.com' && !host.endsWith('.cartocdn.com')) {
+    if (
+      targetUrl.protocol !== 'https:' || targetUrl.port || targetUrl.username || targetUrl.password ||
+      (host !== 'basemaps.cartocdn.com' && !host.endsWith('.basemaps.cartocdn.com'))
+    ) {
       return NextResponse.json({ error: 'Forbidden domain' }, { status: 403 });
     }
+    targetUrl.search = '';
+    targetUrl.hash = '';
 
     const response = await fetch(targetUrl.toString(), { signal: AbortSignal.timeout(15000),
       headers: {

@@ -5,14 +5,18 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, ExternalLink, RefreshCw, MapPin, Camera, CameraOff, Maximize2, PlayCircle } from 'lucide-react';
 import Hls from 'hls.js';
 import { isHostedOffPlatform, liveFeedAtSource, localEmbed, needsResolution, offPlatformView } from '@/lib/camera-feed';
+import { clearLook, registerVideo } from '@/lib/vision/store';
+import CameraVision, { VisionReport } from './CameraVision';
 
 interface CameraViewerProps {
   camera: any | null;
   onClose: () => void;
   onLocate?: (lat: number, lng: number) => void;
+  /** The OI panel is open on the right: sit beside it, so OI Assist's conversation stays readable while it looks. */
+  besideOi?: boolean;
 }
 
-export default function CameraViewer({ camera, onClose, onLocate }: CameraViewerProps) {
+export default function CameraViewer({ camera, onClose, onLocate, besideOi = false }: CameraViewerProps) {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -157,6 +161,22 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
     return () => clearInterval(iv);
   }, [camera, streamType]);
 
+  // The detector reads a stream camera's frames from the <video> playing it.
+  const cameraId: string | undefined = camera?.id;
+  useEffect(() => {
+    if (!cameraId || streamType !== 'hls') return;
+    registerVideo(cameraId, videoRef.current);
+    return () => registerVideo(cameraId, null);
+    // A retry after an error mounts a new <video>: register that one.
+  }, [cameraId, streamType, error, retryCount]);
+
+  // A look belongs to the camera on screen: switching cameras or closing the viewer ends it.
+  const lookedAt = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (lookedAt.current && lookedAt.current !== cameraId) clearLook(lookedAt.current);
+    lookedAt.current = cameraId;
+  }, [cameraId]);
+
   if (!camera) return null;
 
   return (
@@ -169,7 +189,7 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
           className={`fixed z-[500] ${
             fullscreen 
               ? 'inset-2 md:inset-4' 
-              : 'bottom-[70px] left-2 right-2 md:bottom-6 md:right-6 md:left-auto md:w-[480px]'
+              : `bottom-[70px] left-2 right-2 md:bottom-6 ${besideOi ? 'md:right-[500px]' : 'md:right-6'} md:left-auto md:w-[480px]`
           }`}
         >
           <div className="overflow-hidden h-full flex flex-col bg-black/85 backdrop-blur-xl border border-[var(--border-primary)]" style={{ boxShadow: '0 20px 50px rgba(0,0,0,0.9), inset 0 0 30px rgba(0,0,0,0.8)' }}>
@@ -339,6 +359,9 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
               />
             ) : null}
 
+            {/* Built-in analysis: counted on the reader's device, and what OI Assist sees. */}
+            <CameraVision camera={camera} fit={fullscreen ? 'contain' : 'cover'} ready={!loading && !error && !externalOnly} />
+
             {/* Live indicator */}
             {!error && !loading && !externalOnly && (
               <div className="absolute top-3 left-3 flex items-center gap-2 bg-black/80 border border-[var(--gold-primary)]/50 px-2 py-1 shadow-[0_0_10px_rgba(0,0,0,0.8)]">
@@ -371,6 +394,9 @@ export default function CameraViewer({ camera, onClose, onLocate }: CameraViewer
               <div className="w-1 h-1 bg-[var(--gold-primary)]/50 absolute" />
             </div>
           </div>
+
+          {/* What AI Analyze found, below the picture so that it covers none of it. */}
+          <VisionReport camera={camera} />
 
           {/* Advanced Tactical Footer */}
           <div className="bg-black border-t border-[var(--border-primary)] relative z-10">

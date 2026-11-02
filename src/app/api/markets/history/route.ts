@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { TICKERS } from '../route';
 
 /**
  * OSIRIS — Instrument price history.
@@ -75,6 +76,11 @@ export async function GET(request: Request) {
 
   if (!symbol) {
     return NextResponse.json({ error: 'symbol required' }, { status: 400 });
+  }
+  // Only the instruments the panel lists. Anything else would make this route
+  // a relay that fetches whatever symbol a stranger sends it.
+  if (!TICKERS.some(t => t.symbol === symbol)) {
+    return NextResponse.json({ error: 'symbol not listed' }, { status: 400 });
   }
   const spec = RANGES[rangeKey];
   if (!spec) {

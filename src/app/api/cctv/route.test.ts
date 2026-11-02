@@ -15,7 +15,7 @@ vi.mock('@/lib/stealthFetch', () => ({ stealthFetch: vi.fn(), stealthHeaders: vi
 beforeEach(() => { process.env.OSIRIS_CCTV_SNAPSHOT = 'off'; vi.useFakeTimers(); vi.resetAllMocks(); clearSourceCache(); clearCctvRefreshes(); });
 /* Drain first: a mock that never settles is holding a pool slot, and the pool
    is module state shared with the next case. */
-afterEach(async () => { await flushIO(); await vi.advanceTimersByTimeAsync(12_000); vi.useRealTimers(); });
+afterEach(async () => { await flushIO(); await vi.advanceTimersByTimeAsync(30_000); vi.useRealTimers(); });
 
 describe('CCTV partial responses', () => {
   it('returns a completed region without scheduling unnecessary retries', async () => {
@@ -41,6 +41,26 @@ describe('CCTV partial responses', () => {
      connections, and upstreams that answer in under a second on their own
      started failing on connect. Eleven regions were missing from every
      response because of it. */
+  it('lets Georgia finish a slow first inventory instead of backing off at 12 seconds', async () => {
+    vi.mocked(stealthFetch).mockImplementation(async () => {
+      await new Promise(resolve => setTimeout(resolve, 16_000));
+      return Response.json({
+        recordsTotal: 1,
+        data: [{
+          id: 1, location: 'I-75 at Main St',
+          latLng: { geography: { wellKnownText: 'POINT (-84.4 33.7)' } },
+          images: [{ imageUrl: '/map/Cctv/1' }],
+        }],
+      });
+    });
+    const pending = GET(new Request('http://localhost/api/cctv?region=georgia'));
+    await flushIO();
+    await vi.advanceTimersByTimeAsync(16_000);
+    const body = await (await pending).json();
+    expect(body.total).toBe(1);
+    expect(body.pendingRegions).toEqual([]);
+  });
+
   it('does not dispatch every region at once', async () => {
     let inFlight = 0;
     let peak = 0;

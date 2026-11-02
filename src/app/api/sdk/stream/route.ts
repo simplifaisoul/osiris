@@ -23,10 +23,21 @@ if (!globalForSDK.sdkEntityStore) {
 
 export const dynamic = 'force-dynamic';
 
+/** Most entities sent in one update; the event says when there are more. */
+export const MAX_ENTITIES_PER_EVENT = 500;
+
 export async function GET() {
   const encoder = new TextEncoder();
+  let heartbeat: ReturnType<typeof setInterval> | undefined;
+  let entityPush: ReturnType<typeof setInterval> | undefined;
+  const stop = () => {
+    clearInterval(heartbeat);
+    clearInterval(entityPush);
+  };
 
   const stream = new ReadableStream({
+    // The client went away: stop now rather than when a later write fails.
+    cancel: stop,
     start(controller) {
       // Send initial status
       const statusEvent = {
@@ -44,7 +55,7 @@ export async function GET() {
       controller.enqueue(encoder.encode(`data: ${JSON.stringify(statusEvent)}\n\n`));
 
       // Send heartbeat every 15 seconds
-      const heartbeat = setInterval(() => {
+      heartbeat = setInterval(() => {
         try {
           const hb = {
             type: 'heartbeat',
@@ -53,27 +64,29 @@ export async function GET() {
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(hb)}\n\n`));
         } catch {
-          clearInterval(heartbeat);
+          stop();
         }
       }, 15000);
 
       // Send entity updates every 5 seconds if data has changed
       let lastSentVersion = 0;
-      const entityPush = setInterval(() => {
+      entityPush = setInterval(() => {
         try {
           if (globalForSDK.sdkLastUpdate > lastSentVersion) {
             lastSentVersion = globalForSDK.sdkLastUpdate;
-            const entities = Array.from(globalForSDK.sdkEntityStore.values()).slice(0, 500);
+            const total = globalForSDK.sdkEntityStore.size;
+            const entities = Array.from(globalForSDK.sdkEntityStore.values()).slice(0, MAX_ENTITIES_PER_EVENT);
             const event = {
               type: 'entity_update',
               timestamp: new Date().toISOString(),
               payload: entities,
+              total,
+              truncated: entities.length < total,
             };
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
           }
         } catch {
-          clearInterval(entityPush);
-          clearInterval(heartbeat);
+          stop();
         }
       }, 5000);
     },

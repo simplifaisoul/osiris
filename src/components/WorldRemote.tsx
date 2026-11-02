@@ -38,6 +38,11 @@ function classify(name:string,appearance?:number,mfr?:string,svcs?:number[]):{ty
   const l=name.toLowerCase();if(/\btv\b|bravia|roku|chromecast|fire.?stick|apple.?tv/i.test(l))return{type:'Television',icon:Tv,color:'#00E6FF',by:'name'};if(/speaker|soundbar|bose|jbl|sonos|echo|homepod/i.test(l))return{type:'Speaker',icon:Speaker,color:'#FFB800',by:'name'};if(/headphone|airpod|buds|earbud|wh-1000|wf-1000|qc|jabra|galaxy.?buds/i.test(l))return{type:'Headphones',icon:Headphones,color:'#B388FF',by:'name'};if(/watch|band|fitbit|garmin|amazfit|polar|mi.?band/i.test(l))return{type:'Wearable',icon:Watch,color:'#FF6BCD',by:'name'};if(/gamepad|controller|xbox|playstation|dualsense|joy.?con/i.test(l))return{type:'Controller',icon:Gamepad2,color:'#FF6B6B',by:'name'};if(/keyboard|keychron/i.test(l))return{type:'Keyboard',icon:Keyboard,color:'#64FFDA',by:'name'};if(/mouse|mx.?master|trackpad/i.test(l))return{type:'Mouse',icon:Mouse,color:'#80DEEA',by:'name'};if(/phone|iphone|galaxy.?[saz]|pixel/i.test(l))return{type:'Phone',icon:Smartphone,color:'#FFB74D',by:'name'};if(/bulb|light|hue|lifx|nanoleaf|govee/i.test(l))return{type:'Light',icon:Lightbulb,color:'#FFD700',by:'name'};if(/printer|epson|canon|brother/i.test(l))return{type:'Printer',icon:Printer,color:'#90A4AE',by:'name'};if(/tile|chipolo|tracker|airtag|smarttag/i.test(l))return{type:'Tracker',icon:Radio,color:'#90A4AE',by:'name'};if(/lock|schlage|august|yale/i.test(l))return{type:'Smart Lock',icon:Plug,color:'#FF6B6B',by:'name'};if(/scale|withings|renpho/i.test(l))return{type:'Scale',icon:Watch,color:'#FF6BCD',by:'name'};
   return{type:'Unknown',icon:Bluetooth,color:'#90A4AE',by:'—'};
 }
+/* A capture is stored without its icon (a component cannot go into IndexedDB),
+   so a restored one gets its icon back from the type it was classified as. */
+const TYPE_ICON:Record<string,typeof Bluetooth>={Audio:Speaker,Computer:Cpu,Controller:Gamepad2,Display:Tv,'Env Sensor':Fan,Gamepad:Gamepad2,HID:Keyboard,Headphones,'Heart Rate':Watch,Keyboard,Light:Lightbulb,'Media Player':Tv,Mouse,Peripheral:Mouse,Phone:Smartphone,Printer,Remote:Radio,Scale:Watch,'Smart Lock':Plug,Speaker,Television:Tv,Tracker:Radio,Unknown:Bluetooth,Watch,Wearable:Watch};
+function iconForType(type:string):typeof Bluetooth{return TYPE_ICON[type]??Bluetooth;
+}
 
 /* ── HELPERS ── */
 function nameUUID(u:string):string{const m=u.match(/^0000([0-9a-f]{4})-0000-1000-8000-00805f9b34fb$/i);if(m)return ALL_N[parseInt(m[1],16)]||`0x${m[1].toUpperCase()}`;return u.length>8?u.slice(0,8)+'…':u;}
@@ -76,12 +81,14 @@ async function probeNetwork():Promise<NetIntel>{
   if(conn){intel.type=conn.effectiveType;intel.downlink=conn.downlink;intel.rtt=conn.rtt;intel.saveData=conn.saveData;}
   // WebRTC local IPs
   try{const ips=await new Promise<string[]>((resolve)=>{const found:string[]=[];const pc=new RTCPeerConnection({iceServers:[]});pc.createDataChannel('');pc.createOffer().then(o=>pc.setLocalDescription(o)).catch(()=>{});const to=setTimeout(()=>{pc.close();resolve(found);},3000);pc.onicecandidate=e=>{if(!e.candidate)return;const m=e.candidate.candidate.match(/(\d+\.\d+\.\d+\.\d+)/);if(m&&!found.includes(m[1]))found.push(m[1]);const m6=e.candidate.candidate.match(/([0-9a-f]{1,4}(:[0-9a-f]{1,4}){7})/i);if(m6&&!found.includes(m6[1]))found.push(m6[1]);};setTimeout(()=>{clearTimeout(to);pc.close();resolve(found);},2500);});intel.localIPs=ips;}catch{}
-  // Port probe — detect local services via fetch timing
+  // Port probe — only a port that sends back an HTTP response counts. A failed
+  // fetch says nothing: a closed port, a non-HTTP service and a browser block
+  // all reject the same way, however fast, so a rejection is never "open".
   const ports=[{port:80,svc:'HTTP'},{port:443,svc:'HTTPS'},{port:8080,svc:'Alt HTTP'},{port:3000,svc:'Dev Server'},{port:5000,svc:'Flask'},{port:8443,svc:'Alt HTTPS'},{port:8888,svc:'Jupyter'},{port:9090,svc:'Prometheus'},{port:3001,svc:'Next.js'},{port:4200,svc:'Angular'},{port:5173,svc:'Vite'},{port:1883,svc:'MQTT'},{port:8883,svc:'MQTT/TLS'},{port:5353,svc:'mDNS'},{port:631,svc:'IPP/Printer'}];
   for(const{port,svc}of ports){
     const t0=performance.now();
     try{const ctrl=new AbortController();const to=setTimeout(()=>ctrl.abort(),400);await fetch(`http://127.0.0.1:${port}/`,{mode:'no-cors',signal:ctrl.signal});clearTimeout(to);const ms=Math.round(performance.now()-t0);intel.openPorts.push({port,service:svc,ms});}
-    catch(e:any){const ms=Math.round(performance.now()-t0);if(ms<350&&e.name!=='AbortError')intel.openPorts.push({port,service:svc,ms});}
+    catch{/* unknown: closed, not HTTP, or blocked by the browser */}
   }
   return intel;
 }
@@ -144,7 +151,7 @@ export default function WorldRemote({onClose,onPlaceOnMap}:{onClose?:()=>void,on
     const iv=setInterval(()=>{if(mtd.current)setTick(t=>t+1);},1000);
     // Load vault
     vaultLoadAll().then(saved=>{if(saved.length>0&&mtd.current){
-      const restored=saved.map((d:any)=>({...d,connected:false,probing:false,srv:undefined,bt:undefined,rssiHistory:d.rssiHistory||[],gattDump:d.gattDump||[]}));
+      const restored=saved.map((d:any)=>({...d,icon:iconForType(d.type),connected:false,probing:false,srv:undefined,bt:undefined,rssiHistory:d.rssiHistory||[],gattDump:d.gattDump||[]}));
       setDevices(restored);setVaultCount(saved.length);setVaultLoaded(true);
     }else{setVaultLoaded(true);}}).catch(()=>setVaultLoaded(true));
     return()=>{mtd.current=false;clearInterval(iv);if(errT.current)clearTimeout(errT.current);nL.current.clear();};
@@ -159,9 +166,10 @@ export default function WorldRemote({onClose,onPlaceOnMap}:{onClose?:()=>void,on
 
   /* ═══ PERSIST TO VAULT ═══ */
   const saveToVault=useCallback(async(dev:BLEDev)=>{
-    const safe={...dev,bt:undefined,srv:undefined};// strip non-serializable
-    try{await vaultSave(safe);setVaultCount(c=>c+1);log('INFO','VAULT',`Saved "${dev.name}" to local database`);}catch(e:any){log('ERROR','VAULT',e.message);}
-  },[log]);
+    // IndexedDB stores only cloneable values: no device handle, GATT server or icon component.
+    const safe={...dev,bt:undefined,srv:undefined,icon:undefined};
+    try{await vaultSave(safe);setVaultCount(c=>c+1);log('INFO','VAULT',`Saved "${dev.name}" to local database`);}catch(e:any){log('ERROR','VAULT',e.message);setErr(`Could not save "${dev.name}" to the vault: ${e.message}`);}
+  },[log,setErr]);
 
   /* ═══ VIEW ON WORLD MAP ═══ */
   const placeOnWorldMap=useCallback(()=>{
@@ -296,8 +304,8 @@ export default function WorldRemote({onClose,onPlaceOnMap}:{onClose?:()=>void,on
     const intel=await probeNetwork();
     intel.localIPs.forEach(ip=>log('NET','RECON',`Local IP: ${ip}`));
     if(intel.type)log('NET','RECON',`Connection: ${intel.type} ↓${intel.downlink}Mbps RTT:${intel.rtt}ms`);
-    intel.openPorts.forEach(p=>log('NET','RECON',`Port ${p.port} OPEN → ${p.service} (${p.ms}ms)`));
-    log('INFO','RECON',`Network scan complete — ${intel.localIPs.length} IPs, ${intel.openPorts.length} open ports`);
+    intel.openPorts.forEach(p=>log('NET','RECON',`Port ${p.port} answered over HTTP — usually ${p.service} (${p.ms}ms)`));
+    log('INFO','RECON',`Network scan complete — ${intel.localIPs.length} IPs, ${intel.openPorts.length} ports answered over HTTP; a browser cannot tell whether the others are closed`);
     if(mtd.current){setNetIntel(intel);setNetLoading(false);}
   },[netLoading,log]);
 
@@ -494,7 +502,7 @@ export default function WorldRemote({onClose,onPlaceOnMap}:{onClose?:()=>void,on
                   {netIntel&&<div className="p-2.5 space-y-2">
                     {netIntel.localIPs.length>0&&<div><div className="text-[9px] font-mono text-[var(--text-muted)] tracking-wider mb-1 font-bold">LOCAL IPs</div>{netIntel.localIPs.map((ip,i)=><div key={i} className="text-[10px] font-mono text-[#80DEEA] pl-2">{ip}</div>)}</div>}
                     {netIntel.type&&<div className="flex gap-3">{[{l:'TYPE',v:netIntel.type},{l:'DOWN',v:netIntel.downlink!=null?`${netIntel.downlink}Mbps`:undefined},{l:'RTT',v:netIntel.rtt!=null?`${netIntel.rtt}ms`:undefined}].filter(x=>x.v).map(x=><div key={x.l}><div className="text-[9px] font-mono text-[var(--text-muted)] tracking-wider">{x.l}</div><div className="text-[10px] font-mono text-[var(--text-primary)] font-bold">{x.v}</div></div>)}</div>}
-                    {netIntel.openPorts.length>0&&<div><div className="text-[9px] font-mono text-[var(--text-muted)] tracking-wider mb-1 font-bold">OPEN PORTS</div>{netIntel.openPorts.map((p,i)=><div key={i} className="flex items-center gap-2 pl-2 py-0.5"><span className="text-[9px] font-mono font-bold text-[var(--alert-green)]">:{p.port}</span><span className="text-[9px] font-mono text-[var(--text-muted)]">{p.service}</span></div>)}</div>}
+                    {netIntel.openPorts.length>0&&<div><div className="text-[9px] font-mono text-[var(--text-muted)] tracking-wider mb-1 font-bold">ANSWERED OVER HTTP</div>{netIntel.openPorts.map((p,i)=><div key={i} className="flex items-center gap-2 pl-2 py-0.5"><span className="text-[9px] font-mono font-bold text-[var(--alert-green)]">:{p.port}</span><span className="text-[9px] font-mono text-[var(--text-muted)]">usually {p.service}</span></div>)}</div>}
                   </div>}
                 </div>
                 {/* Export */}

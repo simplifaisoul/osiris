@@ -4,13 +4,17 @@ import { stealthFetch } from '@/lib/stealthFetch';
 export const dynamic = 'force-dynamic';
 
 /**
- * OSIRIS — Live Conflict Zone Intelligence API
- * 
- * Aggregates real-time conflict data from:
- * 1. GDELT GEO 2.0 API — real-time geo-located conflict events
- * 2. GDELT DOC API — article-level conflict reporting with coordinates
- * 3. Known active conflict zones — enriched with live event counts
- * 
+ * OSIRIS — Conflict zones and the headlines that mention them
+ *
+ * Two different things, kept apart:
+ * 1. The zones: a curated list kept by hand. Each zone's position is a
+ *    label anchor for the region and its severity is an editorial rating;
+ *    neither is measured from live data.
+ * 2. Headlines: items from world-news RSS feeds (BBC, Al Jazeera, NYT) that
+ *    mention a zone. A headline names a place; it does not say where an event
+ *    happened, so headlines carry no coordinates and are listed under their
+ *    zone rather than plotted as points.
+ *
  * All sources are free, no auth required.
  */
 
@@ -23,10 +27,21 @@ interface ConflictZone {
   description: string;
   sourceUrl: string;
   region: string;
-  events: ConflictEvent[];
-  eventCount: number;
-  lastUpdated: string;
+  headlines: Headline[];
+  headlineCount: number;
 }
+
+interface Headline {
+  title: string;
+  url: string;
+  source: string;
+}
+
+const RSS_FEEDS = [
+  { url: 'http://feeds.bbci.co.uk/news/world/rss.xml', source: 'BBC News' },
+  { url: 'https://www.aljazeera.com/xml/rss/all.xml', source: 'Al Jazeera' },
+  { url: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml', source: 'The New York Times' },
+];
 
 interface ConflictEvent {
   id: string;
@@ -144,15 +159,28 @@ function parsePointDataCSV(csv: string): ConflictEvent[] {
   return events;
 }
 
-async function fetchAllLiveConflictData(): Promise<{ events: ConflictEvent[]; eventsByRegion: Record<string, number> }> {
-  const allEvents: ConflictEvent[] = [];
-  const eventsByRegion: Record<string, number> = {};
+/**
+ * The zone a headline is about, or null.
+ *
+ * Every word of one of the zone's queries has to appear as a whole word: a
+ * bare substring test let "war" match "warning", and a fallback on the zone's
+ * name alone matched any story that named the country in passing.
+ */
+export function matchZone(text: string): (typeof KNOWN_CONFLICTS)[number] | null {
+  const words = new Set<string>();
+  for (const w of text.toLowerCase().match(/[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*/gu) ?? []) {
+    words.add(w);
+    // "Ukraine-Russia" names Ukraine; "airstrikes" is an airstrike.
+    if (w.includes('-')) w.split('-').forEach(part => words.add(part));
+    if (w.length > 3 && w.endsWith('s')) words.add(w.slice(0, -1));
+  }
+  return KNOWN_CONFLICTS.find(zone =>
+    zone.queries.some(q => q.toLowerCase().split(' ').every(term => words.has(term))),
+  ) ?? null;
+}
 
-  const RSS_FEEDS = [
-    'http://feeds.bbci.co.uk/news/world/rss.xml',
-    'https://www.aljazeera.com/xml/rss/all.xml',
-    'https://rss.nytimes.com/services/xml/rss/nyt/World.xml'
-  ];
+async function fetchHeadlinesByZone(): Promise<Record<string, Headline[]>> {
+  const byZone: Record<string, Headline[]> = {};
 
   try {
     const https = require('https');
@@ -180,7 +208,7 @@ async function fetchAllLiveConflictData(): Promise<{ events: ConflictEvent[]; ev
       });
     };
 
-    const feedPromises = RSS_FEEDS.map(async (url) => {
+    const feedPromises = RSS_FEEDS.map(async ({ url, source }) => {
       try {
         const res = await fetch(url, {
           headers: {
@@ -211,7 +239,8 @@ async function fetchAllLiveConflictData(): Promise<{ events: ConflictEvent[]; ev
           return {
             title: titleMatch[1].replace(/<[^>]*>/g, '').trim(),
             link: linkMatch ? linkMatch[1] : '',
-            desc: descMatch ? descMatch[1].replace(/<[^>]*>/g, '').trim() : ''
+            desc: descMatch ? descMatch[1].replace(/<[^>]*>/g, '').trim() : '',
+            source,
           };
         }).filter(Boolean);
       } catch (err) {
@@ -223,89 +252,53 @@ async function fetchAllLiveConflictData(): Promise<{ events: ConflictEvent[]; ev
     const feedResults = await Promise.all(feedPromises);
     const combinedItems = feedResults.flat();
 
-    // Map RSS items to known conflict zones
-    let eventId = 0;
+    // File each headline under the one zone it mentions
+    const seen = new Set<string>();
     for (const item of combinedItems) {
       if (!item) continue;
-      
-      const searchText = `${item.title} ${item.desc}`.toLowerCase();
-      
-      for (const zone of KNOWN_CONFLICTS) {
-        // Check if any query keywords match
-        const matchesZone = zone.queries.some(q => {
-          const terms = q.toLowerCase().split(' ');
-          return terms.every(term => searchText.includes(term)) || searchText.includes(zone.region);
-        });
+      const zone = matchZone(`${item.title} ${item.desc}`);
+      if (!zone) continue;
 
-        if (matchesZone) {
-          eventsByRegion[zone.id] = (eventsByRegion[zone.id] || 0) + 1;
-          
-          // Deterministic tiny offset based on eventId so dots don't exactly overlap the anchor
-          const offsetLat = (eventId % 5 - 2) * 0.1;
-          const offsetLng = ((eventId * 3) % 5 - 2) * 0.1;
+      // Several feeds carry the same story
+      const title = item.title.substring(0, 150);
+      if (seen.has(title)) continue;
+      seen.add(title);
 
-          // Deduplicate by title to avoid multiple feeds reporting the same event
-          const isDupe = allEvents.some(e => e.title === item.title.substring(0, 150));
-          if (isDupe) break;
-
-          allEvents.push({
-            id: `osint-live-${eventId++}`,
-            lat: zone.lat + offsetLat,
-            lng: zone.lng + offsetLng,
-            title: item.title.substring(0, 150),
-            url: item.link,
-            type: 'conflict',
-            timestamp: new Date().toISOString(),
-          });
-          
-          break; // Match only one zone per news item
-        }
-      }
+      (byZone[zone.id] ??= []).push({ title, url: item.link, source: item.source });
     }
-    console.log(`[OSIRIS] Mapped ${allEvents.length} conflict events from RSS.`);
   } catch (e) {
     console.error('OSINT Conflict Fetch Error:', e);
   }
 
-  return { events: allEvents, eventsByRegion };
+  return byZone;
 }
 
 export async function GET() {
   try {
-    // Fetch live conflict data from GDELT
-    const { events: liveEvents, eventsByRegion } = await fetchAllLiveConflictData();
+    const byZone = await fetchHeadlinesByZone();
 
-    // Build enriched conflict zones
-    const zones: ConflictZone[] = KNOWN_CONFLICTS.map(zone => {
-      // Find live events within this zone's bounds
-      const zoneEvents = liveEvents.filter(e =>
-        e.lat >= zone.bounds.minLat && e.lat <= zone.bounds.maxLat &&
-        e.lng >= zone.bounds.minLng && e.lng <= zone.bounds.maxLng
-      );
-
-      return {
-        id: zone.id,
-        label: zone.label,
-        severity: zone.severity,
-        lat: zone.lat,
-        lng: zone.lng,
-        description: zone.description,
-        sourceUrl: zone.sourceUrl,
-        region: zone.region,
-        events: zoneEvents.slice(0, 20),
-        eventCount: eventsByRegion[zone.id] || zoneEvents.length,
-        lastUpdated: new Date().toISOString(),
-      };
-    });
+    const zones: ConflictZone[] = KNOWN_CONFLICTS.map(zone => ({
+      id: zone.id,
+      label: zone.label,
+      severity: zone.severity,
+      lat: zone.lat,
+      lng: zone.lng,
+      description: zone.description,
+      sourceUrl: zone.sourceUrl,
+      region: zone.region,
+      headlines: (byZone[zone.id] ?? []).slice(0, 20),
+      headlineCount: byZone[zone.id]?.length ?? 0,
+    }));
 
     return NextResponse.json({
       zones,
-      liveEvents: liveEvents.slice(0, 500),
       totalZones: zones.length,
-      totalLiveEvents: liveEvents.length,
+      totalHeadlines: zones.reduce((n, z) => n + z.headlineCount, 0),
+      // Counted from the curated ratings above, not measured.
       activeWarzones: zones.filter(z => z.severity === 'war').length,
+      zoneSource: 'curated',
       timestamp: new Date().toISOString(),
-      sources: ['OSINT RSS News'],
+      sources: RSS_FEEDS.map(f => f.source),
       refreshInterval: 300, // suggest 5 min refresh
     }, {
       headers: {
@@ -325,17 +318,16 @@ export async function GET() {
       description: zone.description,
       sourceUrl: zone.sourceUrl,
       region: zone.region,
-      events: [],
-      eventCount: 0,
-      lastUpdated: new Date().toISOString(),
+      headlines: [],
+      headlineCount: 0,
     }));
 
     return NextResponse.json({
       zones: fallbackZones,
-      liveEvents: [],
       totalZones: fallbackZones.length,
-      totalLiveEvents: 0,
+      totalHeadlines: 0,
       activeWarzones: fallbackZones.filter(z => z.severity === 'war').length,
+      zoneSource: 'curated',
       timestamp: new Date().toISOString(),
       sources: ['fallback'],
       refreshInterval: 60,

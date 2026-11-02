@@ -6,7 +6,7 @@
  * ═══════════════════════════════════════════════════════════════
  */
 
-export type HttpMethod = 'GET' | 'POST';
+export type HttpMethod = 'GET' | 'POST' | 'DELETE';
 
 export interface ApiParam {
   name: string;
@@ -32,6 +32,8 @@ export interface ApiEndpoint {
   bodyExample?: string;
   /** True when the route needs a credential the docs cannot supply */
   requiresAuth?: boolean;
+  /** Request headers the route reads, shown in the snippets with placeholder values */
+  headers?: Record<string, string>;
 }
 
 /** Stable DOM id / deep-link anchor for an endpoint. */
@@ -179,18 +181,18 @@ export const API_GROUPS: ApiGroup[] = [
       {
         path: '/api/conflicts',
         method: 'GET',
-        summary: 'Active conflict zones joined with live incident reporting.',
+        summary: 'A curated list of conflict zones, each with the recent world-news headlines that mention it.',
         returns: [
           'zones',
           'activeWarzones',
-          'liveEvents',
           'totalZones',
-          'totalLiveEvents',
+          'totalHeadlines',
+          'zoneSource',
           'sources',
           'refreshInterval',
           'timestamp',
         ],
-        notes: '`refreshInterval` is the server’s recommended client poll interval in milliseconds — honour it rather than hard-coding your own.',
+        notes: 'Zones and their severity are kept by hand (`zoneSource: "curated"`), so `activeWarzones` counts ratings, not live events. Each zone’s `headlines` are news items that name it; they carry no coordinates. `refreshInterval` is the server’s recommended client poll interval in seconds — honour it rather than hard-coding your own.',
       },
       {
         path: '/api/frontlines',
@@ -257,7 +259,8 @@ export const API_GROUPS: ApiGroup[] = [
         path: '/api/scm-suppliers',
         method: 'GET',
         summary: 'Supply-chain suppliers with criticality flags.',
-        returns: ['suppliers', 'total', 'critical_count', 'timestamp'],
+        returns: ['suppliers', 'total', 'critical_count', 'degraded_signals', 'timestamp'],
+        notes: 'Risk comes from earthquakes (USGS), fire hotspots (FIRMS), GDACS disaster alerts and GDELT-reported conflict near each site. `degraded_signals` names any source that did not answer; a supplier at NORMAL is clear only for the sources that ran.',
       },
     ],
   },
@@ -295,6 +298,14 @@ export const API_GROUPS: ApiGroup[] = [
         notes: 'Allow-listed by domain. Not a general-purpose open proxy.',
       },
       {
+        path: '/api/cctv/frame',
+        method: 'GET',
+        summary: "A still camera's current frame, for the built-in detector (AI Analyze, OI Assist, forecasts).",
+        params: [{ name: 'id', required: true, desc: 'Camera id from /api/cctv.' }],
+        returns: ['image/jpeg | image/png | image/webp | image/gif', 'X-Frame-At header'],
+        notes: 'Takes a camera id, never a URL: only cameras in the OSIRIS catalogue. Frames are held for 4 s; 90 requests a minute per client.',
+      },
+      {
         path: '/api/infrastructure',
         method: 'GET',
         summary: 'Fixed strategic infrastructure — nuclear sites, plants, and facilities.',
@@ -306,6 +317,18 @@ export const API_GROUPS: ApiGroup[] = [
         summary: 'Ports, chokepoints, and vessel positions.',
         returns: ['ports', 'chokepoints', 'ships', 'total_ports', 'total_chokepoints', 'total_ships', 'timestamp'],
         env: ['AIS_API_KEY'],
+      },
+      {
+        path: '/api/transit',
+        method: 'GET',
+        summary: 'Live buses, trams, metros, trains and ferries, from operators’ own GTFS-Realtime feeds. Keyless; free keys add more cities.',
+        params: [
+          { name: 'bbox', desc: 'west,south,east,north in degrees: every vehicle in the box.', example: '-71.2,42.25,-70.95,42.45' },
+          { name: 'coverage', desc: 'Set to 1 for where there are feeds instead: one entry per feed, with its area and fleet size, and the operators a free key would add.', example: '1' },
+        ],
+        returns: ['vehicles', 'feeds', 'skippedFeeds', 'truncated', 'total', 'timestamp'],
+        env: ['TRANSIT_WMATA_KEY', 'TRANSIT_511_KEY', 'TRANSIT_TRIMET_KEY', 'TRANSIT_TRANSLINK_KEY', 'TRANSIT_STM_KEY', 'TRANSIT_NTA_KEY', 'TRANSIT_TRAFIKLAB_KEY', 'TRANSIT_TFNSW_KEY', 'TRANSIT_METLINK_KEY', 'TRANSIT_AT_KEY'],
+        notes: 'Each vehicle carries its feed id `f`, `lat`, `lng`, and where known `route` (the feed’s route id), `name` (the route as riders know it, from the operator’s timetable), `mode` (bus, tram, metro, rail, ferry, cable), `label`, `trip`, bearing `b` (degrees), speed `s` (m/s), position time `t` (epoch seconds) and occupancy `occ`. Feeds are read only for the area asked about and shared between callers for 20 s (30 s for Great Britain’s nationwide file); up to 40 feeds are read per box, nearest its centre first. Positions older than 15 minutes are left out. Every variable listed is optional and adds one operator.',
       },
       {
         path: '/api/arcgis',
@@ -322,7 +345,7 @@ export const API_GROUPS: ApiGroup[] = [
         path: '/api/proxy-tiles',
         method: 'GET',
         summary: 'Same-origin raster tile proxy for basemaps that block cross-origin reads.',
-        params: [{ name: 'url', required: true, desc: 'Upstream tile URL.' }],
+        params: [{ name: 'url', required: true, desc: 'Upstream tile URL, https on `*.basemaps.cartocdn.com`. Any query string is dropped.' }],
         returns: ['…binary tile'],
       },
       {
@@ -405,6 +428,13 @@ export const API_GROUPS: ApiGroup[] = [
         summary: 'Exposed services, banners, and known vulnerabilities for a host.',
         params: [{ name: 'ip', required: true, desc: 'Address to query.', example: '8.8.8.8' }],
         returns: ['status', 'ports', 'hostnames', 'cpes', 'vulns', 'tags', 'detail'],
+      },
+      {
+        path: '/api/osint/portscan',
+        method: 'GET',
+        summary: 'Shodan port scan of one host: open ports with service, product, version, banner and CVEs. Uses the Shodan host API when SHODAN_API_KEY is set, otherwise the keyless InternetDB record.',
+        params: [{ name: 'target', required: true, desc: 'IP address or hostname to scan.', example: '8.8.8.8' }],
+        returns: ['target', 'ip', 'source', 'ports', 'hostnames', 'domains', 'org', 'isp', 'asn', 'os', 'location', 'cpes', 'vulns', 'tags', 'last_update', 'note'],
       },
       {
         path: '/api/osint/bgp',
@@ -592,6 +622,129 @@ export const API_GROUPS: ApiGroup[] = [
     ],
   },
   {
+    id: 'oi',
+    title: 'OI (Assist & Prediction)',
+    blurb:
+      'OI Assist, a model on your own key that works the map in conversation, and a prediction engine on live OSIRIS intelligence: it casts the actors who decide a question, plays them against each other over dated periods in several parallel worlds, and a report agent writes the predicted path with a calibrated figure. Your model key is sent in headers and never stored. Also served as an MCP server at /api/mcp; see OI guide.',
+    endpoints: [
+      {
+        path: '/api/oi',
+        method: 'GET',
+        summary: 'What the service offers: providers and their default models, run depths and their model-call counts, limits and endpoints.',
+        returns: ['name', 'version', 'credit', 'providers', 'depths', 'limits', 'auth', 'endpoints'],
+      },
+      {
+        path: '/api/oi/models',
+        method: 'POST',
+        summary: 'The models your key can use, straight from the provider. Doubles as a key check: a rejected key fails here, before a run spends anything.',
+        returns: ['provider', 'ok', 'listed', 'models', 'default'],
+        headers: { 'X-OI-Key': '$YOUR_MODEL_KEY' },
+        requiresAuth: true,
+        notes: 'Providers: `openai`, `anthropic`, `google`, `openrouter`, `groq`, `deepseek`, `xai`, `mistral`, `qwen`. 401 when the provider rejects the key, 402 when the account is out of credit. 20 checks per minute per address.',
+        bodyExample: `{
+  "provider": "openai"
+}`,
+      },
+      {
+        path: '/api/oi/runs',
+        method: 'POST',
+        summary: 'Start a prediction. Answers 202 at once with the run id, a link to watch it on the globe, and a run token for steering it.',
+        returns: ['id', 'status', 'phase', 'watch_url', 'events_url', 'run_token', 'progress'],
+        headers: { 'X-OI-Provider': 'openai', 'X-OI-Key': '$YOUR_MODEL_KEY', 'X-OI-Model': 'gpt-5-mini' },
+        requiresAuth: true,
+        notes: '`depth` is `quick` (4 actors × 3 periods × 2 worlds, about 34 model calls), `standard` (6 × 4 × 3, about 88) or `deep` (7 × 4 × 4, about 132). A world that settles early stops spending calls. `seed` takes up to 100,000 characters of your own data (about 25,000 input tokens), read once by the world model; with `seed_scope: "panel"` every actor’s move and the report agent also read its first 8,000 characters, at about 2,000 more input tokens a call. `use_feeds` (default true) has the run research the question first (recent news with its links, from GDELT and Wikipedia’s Current events, and Wikipedia background) and read OSIRIS news, quakes and markets; the actors quote these sources by id: articles (`w`), market data (`q`), prediction markets (`m`), background (`b`), the live feeds (`c`). Keep `run_token`: it is not shown again. Two runs at once and eight per ten minutes per address.',
+        bodyExample: `{
+  "question": "Will Brent crude settle above $90 on 31 December 2026?",
+  "depth": "standard",
+  "use_feeds": true
+}`,
+      },
+      {
+        path: '/api/oi/runs/{id}',
+        method: 'GET',
+        summary: 'A run summary: phase and progress, the simulated periods, the worlds pooled period by period, each world with its events, the cast with their personas, and once written, the report: the predicted path, what each actor does, how each world ended, drivers, scenarios, signposts and dissent, with the sources they quote.',
+        params: [
+          { name: 'wait', desc: 'Seconds (up to 55) to wait for the run to finish before answering.', example: '30' },
+          { name: 'view', desc: '`full` returns every event so far, to rebuild the whole run.', example: 'full' },
+        ],
+        returns: ['id', 'status', 'phase', 'kind', 'answer', 'probability_pct', 'outcomes', 'unit', 'proposition', 'measure', 'baseline', 'market', 'progress', 'periods', 'pooled', 'report', 'actors', 'worlds', 'sources', 'injected', 'usage', 'watch_url'],
+        notes: '`kind` is `binary` (a probability of YES), `choice` (a share for each of `outcomes`) or `number` (an `estimate` with an 80% `low`–`high` range, in `unit`); `answer` says it in words either way. On a question about a price, `measure` names it (ticker, level, side, touch or close), and `baseline` gives the statistical baseline from its own history (`probability_pct` or a `p10`–`p90` range) and, once the run is done, `simulated`: the worlds’ events priced across the market’s own paths. `market` is the id of the source (an `odds` source, with `odds.probability_pct`) that is a prediction market on this same question. Anyone with the id can read a run: that is how a prediction is shared. Runs are kept for three hours after they finish.',
+      },
+      {
+        path: '/api/oi/runs/{id}/events',
+        method: 'GET',
+        summary: 'The run as it happens, over Server-Sent Events: phases, actors and relations, the cast and the simulated clock, every move, event and world standing, the worlds pooled after each period, injected events and the report.',
+        returns: ['…SSE event stream'],
+        notes: 'Each event is `id: <seq>` and `data: <json>`, with a `t` field naming its type. The stream replays from the start, follows live, and closes after `end`. Reconnect with `Last-Event-ID` (or `?after=<seq>`) to resume.',
+      },
+      {
+        path: '/api/oi/trending',
+        method: 'GET',
+        summary: 'What the world is betting on: the busiest open questions on Polymarket that can be predicted (not games, at least two weeks out), each with the crowd’s price of YES. No key; kept ten minutes.',
+        returns: ['items[].question', 'items[].probability', 'items[].event', 'items[].url', 'items[].closes'],
+      },
+      {
+        path: '/api/oi/assist',
+        method: 'POST',
+        summary: "One step of an OI Assist conversation: send the conversation and what is on the map; get back what OI says and the actions it wants taken (go_to, layers, find, highlight, show, markets, open, map_view, forecast, clear).",
+        returns: ['step.say', 'step.actions', 'step.done', 'usage'],
+        headers: { 'X-OI-Provider': 'openai', 'X-OI-Key': '$YOUR_MODEL_KEY' },
+        requiresAuth: true,
+        notes: 'Stateless: the conversation lives with the caller. Carry out the actions, and while `done` is false send their results back as a `tool` message for the next step. 40 steps per minute per address.',
+        bodyExample: `{
+  "messages": [{ "role": "user", "text": "Military aircraft near Frankfurt", "mode": "research" }],
+  "context": { "view": { "lat": 50.1, "lng": 8.7, "zoom": 6 }, "layersOn": ["military"], "loaded": { "military_flights": 104 } }
+}`,
+      },
+      {
+        path: '/api/oi/runs/{id}/ask',
+        method: 'POST',
+        summary: 'Question the report agent, or any actor that played (by id), about a run. Uses your key again.',
+        returns: ['id', 'target', 'reply'],
+        headers: { 'X-OI-Key': '$YOUR_MODEL_KEY' },
+        requiresAuth: true,
+        notes: "Provider and model default to the run's own; send `X-OI-Provider` and `X-OI-Model` to ask on another. 20 questions per minute per address.",
+        bodyExample: `{
+  "target": "report",
+  "message": "What would change this prediction most?"
+}`,
+      },
+      {
+        path: '/api/oi/runs/{id}/inject',
+        method: 'POST',
+        summary: "God's-eye view: drop an event into a running simulation. It happens in every world in the next period of simulated time.",
+        returns: ['id', 'queued', 'lands_in_period'],
+        headers: { 'X-OI-Run-Token': '$RUN_TOKEN' },
+        requiresAuth: true,
+        notes: 'Needs the run token from the start response. Up to eight events per run; refused once the report is being written.',
+        bodyExample: `{
+  "text": "OPEC+ calls an emergency meeting for Friday"
+}`,
+      },
+      {
+        path: '/api/oi/runs/{id}',
+        method: 'DELETE',
+        summary: 'Cancel a running prediction.',
+        returns: ['id', 'cancelled', 'status'],
+        headers: { 'X-OI-Run-Token': '$RUN_TOKEN' },
+        requiresAuth: true,
+      },
+      {
+        path: '/api/mcp',
+        method: 'POST',
+        summary: 'OI and live OSIRIS intelligence as an MCP server (Streamable HTTP, stateless) for agents such as Hermes, Claude and Cursor.',
+        returns: ['jsonrpc', 'id', 'result'],
+        headers: { Accept: 'application/json, text/event-stream', 'X-OI-Provider': 'openai', 'X-OI-Key': '$YOUR_MODEL_KEY' },
+        notes: 'Tools: `oi_predict`, `oi_get_run`, `oi_ask`, `oi_inject`, `oi_cancel`, `oi_info`, and the free `osiris_world_brief`, `osiris_markets` and `osiris_trending`, which need no key. A call that waits on a forecast streams progress notifications when the client accepts SSE. Protocol versions 2025-06-18, 2025-03-26 and 2024-11-05.',
+        bodyExample: `{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/list"
+}`,
+      },
+    ],
+  },
+  {
     id: 'sdk',
     title: 'Polybolos SDK',
     blurb:
@@ -605,7 +758,7 @@ export const API_GROUPS: ApiGroup[] = [
         env: ['SDK_INGEST_KEY'],
         requiresAuth: true,
         notes:
-          'Each entity needs `id`, `position.lat`, and `position.lng`; everything else is defaulted. Stored ids are namespaced to `ext-{source}-{id}`, so two platforms can push the same id safely. Fails closed: 503 when `SDK_INGEST_KEY` is unset, 401 on key mismatch, 400 on a malformed payload.',
+          'Each entity needs `id`, `position.lat`, and `position.lng`; everything else is defaulted. Stored ids are namespaced to `ext-{source}-{id}`, so two platforms can push the same id safely. The batch is checked whole before anything is stored, so `accepted` is exactly what reached the map. Fails closed: 503 when `SDK_INGEST_KEY` is unset, 401 on key mismatch, 400 on a malformed payload or invalid JSON, 413 over 2 MB. The store holds up to 20,000 entities; past that, new ids are refused and updates to held ones still land.',
         bodyExample: `{
   "source": "lattice",
   "apiKey": "$SDK_INGEST_KEY",
@@ -635,7 +788,7 @@ export const API_GROUPS: ApiGroup[] = [
         summary: 'Server-Sent Events stream of normalised entities as they arrive.',
         returns: ['…SSE event stream'],
         notes:
-          'Opens with a `status` event carrying `connected`, `entityCount`, `feedCount`, `latticeStatus`, and `lastUpdate`. Consume with `EventSource`, not `fetch`.',
+          'Opens with a `status` event carrying `connected`, `entityCount`, `feedCount`, `latticeStatus`, and `lastUpdate`. Each `entity_update` carries up to 500 entities in `payload`, with `total` (how many are held) and `truncated` (true when `payload` is not all of them). Consume with `EventSource`, not `fetch`.',
       },
     ],
   },

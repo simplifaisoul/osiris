@@ -166,6 +166,10 @@ export interface StreamEvent {
   type: StreamEventType;
   timestamp: string;
   payload: PolybolosEntity[] | SDKStatus | { id: string }[];
+  /** entity_update: how many entities the server holds, which can exceed `payload`. */
+  total?: number;
+  /** entity_update: true when `payload` is not every entity held. */
+  truncated?: boolean;
 }
 
 // ── Ingestion Types (External Push) ────────────────────────────────

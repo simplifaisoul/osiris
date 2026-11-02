@@ -63,7 +63,8 @@ export async function GET(req: Request) {
 
     const data = await res.json();
     return NextResponse.json(data, {
-      headers: { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200' },
+      // A partial graph (a provider did not answer) must not sit in a shared cache for an hour.
+      headers: { 'Cache-Control': data.degraded ? 'no-store' : 'public, s-maxage=3600, stale-while-revalidate=7200' },
     });
   } catch (e) {
     console.error('[OSIRIS] Intel proxy error:', e instanceof Error ? e.message : e);

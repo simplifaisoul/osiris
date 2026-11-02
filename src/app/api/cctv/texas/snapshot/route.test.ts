@@ -30,6 +30,8 @@ it('decodes JPEGs from the fixed upstream and ignores client cache-busters', asy
 it('does not serve unavailable or non-JPEG payloads as images', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ snippet: Buffer.from('<html>error</html>').toString('base64') })));
   expect((await GET(request())).status).toBe(404);
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json(null)));
+  expect((await GET(request())).status).toBe(404);
   vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('timeout')));
   const response = await GET(request());
   expect(response.status).toBe(502);

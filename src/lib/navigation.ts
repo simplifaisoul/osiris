@@ -119,6 +119,21 @@ export function stepPositions(coords: [number, number][], steps: NavStep[], cum?
   return steps.map((s) => snapToRoute(coords, s.location[1], s.location[0], c).along);
 }
 
+/**
+ * The intermediate stops still ahead of `from` on the route, in order. A
+ * re-plan from where the traveller is keeps these and drops the ones already
+ * passed, so it neither forgets a stop nor sends them back to one.
+ */
+export function stopsAhead<T extends { lat: number; lng: number }>(
+  coords: [number, number][],
+  stops: T[],
+  from: { lat: number; lng: number },
+): T[] {
+  const c = cumulativeDistances(coords);
+  const here = snapToRoute(coords, from.lat, from.lng, c).along;
+  return stops.filter((s) => snapToRoute(coords, s.lat, s.lng, c).along > here);
+}
+
 /** Beyond this from the line, treat the driver as having left the route. */
 export const OFF_ROUTE_M = 45;
 /** Within this of the destination, the trip is done. */
@@ -160,7 +175,11 @@ export function computeProgress(
     durationRemaining: total > 0 ? Math.round(totalDuration * (remaining / total)) : 0,
     deviation: snap.deviation,
     offRoute: snap.deviation > OFF_ROUTE_M,
-    arrived: toDestination <= ARRIVAL_M || remaining <= ARRIVAL_M,
+    /* Near the destination itself, or at the end of the line while still on
+       it. The snap clamps to the last vertex, so a fix kilometres past or
+       beside the end also reads as nothing remaining; without the deviation
+       bound that ended the trip with "arrived" instead of a reroute. */
+    arrived: toDestination <= ARRIVAL_M || (remaining <= ARRIVAL_M && snap.deviation <= OFF_ROUTE_M),
     snapped: snap.point,
     fraction,
   };

@@ -266,6 +266,28 @@ export function buildVars(s: StyleSettings): Record<string, string> {
 const VAR_NAMES = Object.keys(buildVars(DEFAULTS));
 
 /**
+ * The screen overlays as background images, each present only while its knob
+ * is up. Apart from `buildCss` so the studio's examples paint with the very
+ * strings the screen gets.
+ */
+export function buildOverlays(s: Pick<StyleSettings, 'scanlines' | 'grain' | 'vignette'>) {
+  const out: { scanlines?: string; grain?: string; vignette?: string } = {};
+  if (s.scanlines > 0) {
+    out.scanlines = `repeating-linear-gradient(0deg, rgba(255,255,255,${s.scanlines}) 0px, rgba(255,255,255,${s.scanlines}) 1px, transparent 1px, transparent 3px)`;
+  }
+  if (s.grain > 0) {
+    /* An SVG turbulence tile, repeated. No request, and the browser rasterises
+       it once; a canvas would have to be regenerated on every edit. */
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/></filter><rect width='140' height='140' filter='url(%23n)' opacity='${s.grain}'/></svg>`;
+    out.grain = `url("data:image/svg+xml,${encodeURIComponent(svg).replace(/'/g, '%27')}")`;
+  }
+  if (s.vignette > 0) {
+    out.vignette = `radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,${s.vignette}) 100%)`;
+  }
+  return out;
+}
+
+/**
  * The knobs no token covers. Each block is emitted only when it differs from
  * the app's own styling, so an untouched knob leaves the design alone.
  */
@@ -311,19 +333,7 @@ ${at} .rounded-full { border-radius: 9999px; }`,
   /* Scanlines, vignette and grain share one pseudo-element: a second ::after
      would replace the first rather than stack with it. Each layer is added
      only when its own knob is up, so an unused one composes to nothing. */
-  const overlays: string[] = [];
-  if (s.scanlines > 0) {
-    overlays.push(`repeating-linear-gradient(0deg, rgba(255,255,255,${s.scanlines}) 0px, rgba(255,255,255,${s.scanlines}) 1px, transparent 1px, transparent 3px)`);
-  }
-  if (s.grain > 0) {
-    /* An SVG turbulence tile, repeated. No request, and the browser rasterises
-       it once; a canvas would have to be regenerated on every edit. */
-    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/></filter><rect width='140' height='140' filter='url(%23n)' opacity='${s.grain}'/></svg>`;
-    overlays.push(`url("data:image/svg+xml,${encodeURIComponent(svg).replace(/'/g, '%27')}")`);
-  }
-  if (s.vignette > 0) {
-    overlays.push(`radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,${s.vignette}) 100%)`);
-  }
+  const overlays = Object.values(buildOverlays(s));
 
   if (overlays.length) {
     blocks.push(

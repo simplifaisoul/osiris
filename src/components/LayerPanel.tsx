@@ -4,8 +4,8 @@ import { memo, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plane, Satellite, Sun, AlertTriangle, Camera,
-  CloudLightning, Ship, Network, Database, Ghost,
-  Flame, Tv, Radio, Mountain, Anchor, Megaphone, SlidersHorizontal
+  CloudLightning, CloudSun, Ship, Network, Database, Ghost,
+  Flame, Tv, Radio, Mountain, Anchor, Megaphone, SlidersHorizontal, Bus
 } from 'lucide-react';
 import StyleStudio from './StyleStudio';
 import { TERRAIN_MIN_ZOOM, type TerrainStatus } from '@/lib/map-terrain';
@@ -24,6 +24,10 @@ interface LayerPanelProps {
   onTerrainRetry?: () => void;
   onTerrainFocus?: () => void;
   on3DModeSelected?: () => void;
+  /** False while the splash is up; the rail slides in when it turns true. */
+  revealed?: boolean;
+  /** A layer's live state in a line, shown under its name in place of its description. */
+  liveStatus?: Record<string, string>;
 }
 
 interface LayerDef {
@@ -49,11 +53,16 @@ interface LayerGroupDef {
 
 const LAYER_GROUPS: LayerGroupDef[] = [
   {
-    label: 'SDK',
-    fullLabel: 'OSIRIS SDK',
-    icon: Network,
+    label: 'WEATHER',
+    fullLabel: 'WEATHER',
+    icon: CloudSun,
     layers: [
-      { key: 'sdk_sea', label: 'Maritime Lines', dataKey: 'sdk_entities' },
+      { key: 'live_clouds', label: 'Live Clouds', description: 'NOAA satellites · lit in 3D · hourly', dataKey: '' },
+      { key: 'wind', label: 'Wind', description: 'NOAA GFS · surface wind · 6-hourly', dataKey: '' },
+      { key: 'wind_controls', label: 'Time Controls', description: '3 days back · 5 ahead', dataKey: '', parent: 'wind' },
+      { key: 'wind_particles', label: 'Particles', description: 'The classic look · coloured by speed', dataKey: '', parent: 'wind' },
+      { key: 'rain', label: 'Rain', description: 'RainViewer radar · every 10 min', dataKey: '' },
+      { key: 'rain_controls', label: 'Time Controls', description: 'Last 2 hours · loop', dataKey: '', parent: 'rain' },
     ],
   },
   {
@@ -73,6 +82,15 @@ const LAYER_GROUPS: LayerGroupDef[] = [
     icon: Ship,
     layers: [
       { key: 'maritime', label: 'Maritime / Naval', dataKey: 'maritime_ships,maritime_ports,maritime_chokepoints' },
+      { key: 'sdk_sea', label: 'Maritime Lines', dataKey: 'sdk_entities' },
+    ],
+  },
+  {
+    label: 'TRANSIT',
+    fullLabel: 'GROUND TRANSIT',
+    icon: Bus,
+    layers: [
+      { key: 'transit', label: 'Live Buses & Transit', description: 'Operator GPS feeds · every 20 s', dataKey: '' },
     ],
   },
   {
@@ -200,7 +218,7 @@ function SubLayerStem() {
   );
 }
 
-function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'core', setTheme, capabilities = {}, terrainStatus = 'idle', onTerrainRetry, onTerrainFocus, on3DModeSelected }: LayerPanelProps) {
+function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'core', setTheme, capabilities = {}, terrainStatus = 'idle', onTerrainRetry, onTerrainFocus, on3DModeSelected, revealed = true, liveStatus }: LayerPanelProps) {
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
   /**
    * A pinned group stays open when the pointer leaves. Hover-only flyouts are
@@ -231,13 +249,15 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
     </div>
   ) : null;
 
-  /** Switch a whole group at once — off if any are on, otherwise all on. */
+  /** Switch a whole group at once — off if any are on, otherwise all on.
+   *  Sub-layers keep their setting: they only say how their parent shows. */
   const toggleGroup = (layers: LayerDef[]) => {
-    const anyOn = layers.some(l => activeLayers[l.key]);
-    if (!anyOn && layers.some(l => l.key === 'terrain_elevation' || l.key === 'terrain_3d')) on3DModeSelected?.();
+    const top = layers.filter(l => !l.parent);
+    const anyOn = top.some(l => activeLayers[l.key]);
+    if (!anyOn && top.some(l => l.key === 'terrain_elevation' || l.key === 'terrain_3d')) on3DModeSelected?.();
     setActiveLayers((prev: any) => {
       const next = { ...prev };
-      for (const l of layers) next[l.key] = !anyOn;
+      for (const l of top) next[l.key] = !anyOn;
       return next;
     });
   };
@@ -291,7 +311,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                     <ToggleSwitch active={!!isLayerActive} />
                     <span className={`text-[11px] font-mono uppercase tracking-wider flex-1 transition-colors ${isLayerActive ? 'text-white/80' : 'text-white/40'}`}>
                       {layer.label}
-                      {layer.description && <span className="block mt-0.5 text-[9px] normal-case tracking-normal text-white/35">{layer.description}</span>}
+                      {(liveStatus?.[layer.key] ?? layer.description) && <span className={`block mt-0.5 text-[9px] normal-case tracking-normal ${liveStatus?.[layer.key] ? 'text-white/55' : 'text-white/35'}`}>{liveStatus?.[layer.key] ?? layer.description}</span>}
                     </span>
                     {count !== null && (
                       <span className="text-[10px] font-mono tabular-nums text-white/25">
@@ -349,8 +369,8 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
   return (
     <motion.div
       initial={{ x: -60, opacity: 0 }}
-      animate={{ x: 0, opacity: 1 }}
-      transition={{ type: 'spring', damping: 30, stiffness: 200, delay: 2.8 }}
+animate={revealed ? { x: 0, opacity: 1 } : { x: -60, opacity: 0 }}
+      transition={{ type: 'spring', damping: 30, stiffness: 200, delay: 0.25 }}
       className="absolute top-0 left-0 h-full w-[48px] flex flex-col items-center pt-24 pb-6 z-[350] pointer-events-auto"
       style={{
         background: 'rgba(0,0,0,0.15)',
@@ -359,7 +379,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
       }}
     >
       <div className="flex-1 flex flex-col items-center gap-1">
-        {visibleGroups.map((group) => {
+        {visibleGroups.map((group, index) => {
           /* Sub-layers modify a parent rather than draw anything of their own,
              so they do not count towards the rail's reading. */
           const counted = group.layers.filter(l => !l.parent);
@@ -423,7 +443,8 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                 )}
               </button>
 
-              {/* Flyout (LEFT side) */}
+              {/* Flyout (LEFT side). Centred on its icon, but the first hangs
+                  down from it: the top of the rail leaves no room above. */}
               <AnimatePresence>
                 {isOpen && (
                   <motion.div
@@ -431,7 +452,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                     animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
                     exit={{ opacity: 0, x: -4, filter: 'blur(2px)' }}
                     transition={{ duration: 0.18, ease: 'easeOut' }}
-                    className="absolute left-[52px] top-1/2 -translate-y-1/2 min-w-[220px] rounded-xl p-3 z-[100] pointer-events-auto"
+                    className={`absolute left-[52px] ${index === 0 ? 'top-0' : 'top-1/2 -translate-y-1/2'} min-w-[220px] rounded-xl p-3 z-[100] pointer-events-auto`}
                     style={{
                       background: 'rgba(8, 8, 14, 0.94)',
                       backdropFilter: 'blur(40px) saturate(1.5)',
@@ -481,7 +502,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                             <ToggleSwitch active={!!isLayerActive} />
                             <span className={`text-[11px] font-mono uppercase tracking-wider flex-1 transition-colors duration-200 ${isLayerActive ? 'text-white/70' : 'text-white/35'}`}>
                               {layer.label}
-                              {layer.description && <span className="block mt-0.5 text-[9px] normal-case tracking-normal text-white/35">{layer.description}</span>}
+                              {(liveStatus?.[layer.key] ?? layer.description) && <span className={`block mt-0.5 text-[9px] normal-case tracking-normal ${liveStatus?.[layer.key] ? 'text-white/55' : 'text-white/35'}`}>{liveStatus?.[layer.key] ?? layer.description}</span>}
                             </span>
                             {count !== null && (
                               <span className={`text-[10px] font-mono tabular-nums transition-colors ${isLayerActive ? 'text-white/45' : 'text-white/20'}`}>

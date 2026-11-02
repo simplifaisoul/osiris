@@ -1,19 +1,23 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
+import { visitorIp } from '@/lib/ssrf-guard';
+
+/* The answer is one visitor's location. No cache, shared or otherwise, may
+   hand it to the next visitor. */
+const NO_STORE = { 'Cache-Control': 'private, no-store' };
 
 // Server-side proxy for IP geolocation — avoids mixed-content block on HTTPS pages
 // Three providers with cascading fallback for maximum reliability
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   try {
-    // Extract the real client IP from standard proxy headers
-    const clientIp =
-      request.headers.get('cf-connecting-ip') ||        // Cloudflare
-      request.headers.get('x-real-ip') ||                // Nginx / generic
-      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-      '';
+    const ip = visitorIp(request) ?? '';
 
-    // Skip private/loopback IPs — let the API auto-detect
-    const isPrivate = !clientIp || clientIp === '::1' || clientIp === '127.0.0.1' || clientIp.startsWith('192.168.') || clientIp.startsWith('10.') || clientIp.startsWith('172.');
-    const ip = isPrivate ? '' : clientIp;
+    /* No public address means the proxy chain lost the visitor's. Asking the
+       providers without one locates this server instead, which would fly
+       every such visitor to the server's city. Only in development, where the
+       server is the developer's own machine, is that the right answer. */
+    if (!ip && process.env.NODE_ENV === 'production') {
+      return NextResponse.json({ status: 'fail', message: 'Visitor address unknown' }, { headers: NO_STORE });
+    }
 
     // ── Provider 1: ipapi.co (HTTPS, free tier 1000/day) ──
     try {
@@ -37,7 +41,7 @@ export async function GET(request: NextRequest) {
             isp: d.org || 'Unknown',
             org: d.org || 'Unknown',
             as: d.asn ? `AS${d.asn} ${d.org}` : 'Unknown',
-          });
+          }, { headers: NO_STORE });
         }
       }
     } catch { /* fall through */ }
@@ -63,7 +67,7 @@ export async function GET(request: NextRequest) {
             isp: d.isp || 'Unknown',
             org: d.isp || 'Unknown',
             as: 'Unknown',
-          });
+          }, { headers: NO_STORE });
         }
       }
     } catch { /* fall through */ }
@@ -80,16 +84,16 @@ export async function GET(request: NextRequest) {
       if (res.ok) {
         const data = await res.json();
         if (data.status === 'success') {
-          return NextResponse.json(data);
+          return NextResponse.json(data, { headers: NO_STORE });
         }
       }
     } catch { /* fall through */ }
 
-    return NextResponse.json({ error: 'All geolocation providers failed' }, { status: 502 });
+    return NextResponse.json({ error: 'All geolocation providers failed' }, { status: 502, headers: NO_STORE });
   } catch (e) {
     return NextResponse.json(
       { error: 'Failed to reach geolocation service', detail: e instanceof Error ? e.message : String(e) },
-      { status: 503 }
+      { status: 503, headers: NO_STORE }
     );
   }
 }

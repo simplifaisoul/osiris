@@ -8,6 +8,7 @@ import {
   announcementBand,
   announcementText,
   shouldAnnounce,
+  stopsAhead,
   OFF_ROUTE_M,
   type NavStep,
 } from './navigation';
@@ -111,9 +112,43 @@ describe('computeProgress', () => {
     expect(computeProgress(line, steps, along, 120, { lat: 52.5163, lng: 13.3800 }).arrived).toBe(false);
   });
 
+  it('declares arrival on the line just short of the end', () => {
+    // ~20 m before the last vertex, on the route.
+    expect(computeProgress(line, steps, along, 120, { lat: 52.5163, lng: 13.3921 }).arrived).toBe(true);
+  });
+
+  it('does not declare arrival for a fix far past or beside the end, and flags it off-route', () => {
+    // Both snap to the last vertex, so the remaining distance reads as zero.
+    const past = computeProgress(line, steps, along, 120, { lat: 52.5163, lng: 13.4500 });
+    const beside = computeProgress(line, steps, along, 120, { lat: 52.5600, lng: 13.4100 });
+    for (const p of [past, beside]) {
+      expect(p.distanceRemaining).toBe(0);
+      expect(p.arrived).toBe(false);
+      expect(p.offRoute).toBe(true);
+    }
+  });
+
   it('caps fraction at 1 rather than overshooting past the end', () => {
     const p = computeProgress(line, steps, along, 120, { lat: 52.5163, lng: 13.4000 });
     expect(p.fraction).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('stopsAhead', () => {
+  const early = { lat: 52.5163, lng: 13.3800, name: 'bakery' };
+  const late = { lat: 52.5163, lng: 13.3900, name: 'pharmacy' };
+
+  it('keeps every stop when the traveller has passed none', () => {
+    expect(stopsAhead(line, [early, late], { lat: 52.5163, lng: 13.3780 })).toEqual([early, late]);
+  });
+
+  it('drops the stops already passed and keeps the order of the rest', () => {
+    expect(stopsAhead(line, [early, late], { lat: 52.5163, lng: 13.3850 })).toEqual([late]);
+  });
+
+  it('measures from where the traveller is on the route, even off to the side', () => {
+    // ~400 m north of the line, level with a point between the two stops.
+    expect(stopsAhead(line, [early, late], { lat: 52.5200, lng: 13.3850 })).toEqual([late]);
   });
 });
 

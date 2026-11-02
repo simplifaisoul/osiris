@@ -9,6 +9,7 @@ const SHORTCUTS = [
   { key: 'S', desc: 'Share current view' },
   { key: 'L', desc: 'Toggle layer panel' },
   { key: 'M', desc: 'Toggle markets panel' },
+  { key: 'O', desc: 'Ask OI' },
   { key: 'I', desc: 'Toggle intel feed' },
   { key: 'R', desc: 'Reset to global view' },
   { key: '?', desc: 'Show this help' },

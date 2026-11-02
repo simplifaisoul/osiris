@@ -15,6 +15,7 @@
  *   - Rate-limited per client IP
  */
 
+const net = require('node:net');
 const express = require('express');
 const app = express();
 const PORT = process.env.INTEL_PORT || 4000;
@@ -41,6 +42,9 @@ let sanctionsIndex = {
   byNorm: new Map(),   // normalised name/alias → [entry]
   fetchedAt: 0,
 };
+// The last refresh attempt, kept apart from the index so a refused refresh
+// shows up in /health instead of passing as a fresh load.
+let sanctionsRefresh = { attemptedAt: 0, error: null };
 
 function normName(s) {
   return s.toLowerCase().replace(/[^\p{L}\p{N}\s]+/gu, ' ').replace(/\s+/g, ' ').trim();
@@ -63,59 +67,76 @@ function parseCsv(text) {
   return rows;
 }
 
+/**
+ * Builds a sanctions index from the OpenSanctions "simple" CSV, or throws when
+ * the file is not one: a CDN error page, a truncated download or a changed
+ * schema must not replace a working index with an empty one.
+ */
+function buildSanctionsIndex(text, previousCount = 0) {
+  const rows = parseCsv(text);
+  if (rows.length < 2) throw new Error('CSV empty');
+
+  const headers = rows[0];
+  const idx = (col) => headers.indexOf(col);
+  const i = {
+    id: idx('id'), schema: idx('schema'), name: idx('name'),
+    aliases: idx('aliases'), countries: idx('countries'),
+    programs: idx('program_ids'), sanctions: idx('sanctions'),
+    first_seen: idx('first_seen'), last_seen: idx('last_seen'),
+  };
+  if (i.id < 0 || i.name < 0) throw new Error('CSV has no id/name columns');
+
+  const entries = [];
+  const byNorm = new Map();
+
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    if (!row[i.name]) continue;
+    const entry = {
+      id: row[i.id] || '',
+      schema: row[i.schema] || 'LegalEntity',
+      name: row[i.name],
+      aliases: (row[i.aliases] || '').split(';').map(s => s.trim()).filter(Boolean),
+      countries: (row[i.countries] || '').split(';').map(s => s.trim()).filter(Boolean),
+      programs: (row[i.programs] || '').split(';').map(s => s.trim()).filter(Boolean),
+      sanctions: row[i.sanctions] || '',
+      first_seen: i.first_seen >= 0 ? row[i.first_seen] : undefined,
+    };
+    entries.push(entry);
+
+    const keys = new Set([entry.name, ...entry.aliases].map(normName));
+    for (const key of keys) {
+      if (!key) continue;
+      if (!byNorm.has(key)) byNorm.set(key, []);
+      byNorm.get(key).push(entry);
+    }
+  }
+
+  if (entries.length === 0) throw new Error('CSV has no named entries');
+  // The SDN list grows and shrinks by a few entries; losing half of it at
+  // once is a broken file, not delistings.
+  if (entries.length < previousCount / 2) {
+    throw new Error(`CSV has ${entries.length} entries against ${previousCount} held`);
+  }
+  return { entries, byNorm, fetchedAt: Date.now() };
+}
+
 async function loadSanctions() {
   console.log('[INTEL] Loading OpenSanctions OFAC SDN...');
+  sanctionsRefresh = { attemptedAt: Date.now(), error: null };
   try {
     const res = await fetch(SDN_CSV_URL, {
       signal: AbortSignal.timeout(30000),
       headers: { Accept: 'text/csv' },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const text = await res.text();
-    const rows = parseCsv(text);
-    if (rows.length < 2) throw new Error('CSV empty');
-
-    const headers = rows[0];
-    const idx = (col) => headers.indexOf(col);
-    const i = {
-      id: idx('id'), schema: idx('schema'), name: idx('name'),
-      aliases: idx('aliases'), countries: idx('countries'),
-      programs: idx('program_ids'), sanctions: idx('sanctions'),
-      first_seen: idx('first_seen'), last_seen: idx('last_seen'),
-    };
-
-    const entries = [];
-    const byNorm = new Map();
-
-    for (let r = 1; r < rows.length; r++) {
-      const row = rows[r];
-      if (!row[i.name]) continue;
-      const entry = {
-        id: row[i.id] || '',
-        schema: row[i.schema] || 'LegalEntity',
-        name: row[i.name],
-        aliases: (row[i.aliases] || '').split(';').map(s => s.trim()).filter(Boolean),
-        countries: (row[i.countries] || '').split(';').map(s => s.trim()).filter(Boolean),
-        programs: (row[i.programs] || '').split(';').map(s => s.trim()).filter(Boolean),
-        sanctions: row[i.sanctions] || '',
-        first_seen: i.first_seen >= 0 ? row[i.first_seen] : undefined,
-      };
-      entries.push(entry);
-
-      const keys = new Set([entry.name, ...entry.aliases].map(normName));
-      for (const key of keys) {
-        if (!key) continue;
-        if (!byNorm.has(key)) byNorm.set(key, []);
-        byNorm.get(key).push(entry);
-      }
-    }
-
-    sanctionsIndex = { entries, byNorm, fetchedAt: Date.now() };
-    console.log(`[INTEL] Sanctions index loaded: ${entries.length} entities, ${byNorm.size} name keys`);
+    sanctionsIndex = buildSanctionsIndex(await res.text(), sanctionsIndex.entries.length);
+    console.log(`[INTEL] Sanctions index loaded: ${sanctionsIndex.entries.length} entities, ${sanctionsIndex.byNorm.size} name keys`);
   } catch (e) {
+    sanctionsRefresh.error = e.message;
     console.error('[INTEL] Sanctions load failed:', e.message);
     if (sanctionsIndex.entries.length > 0) {
-      console.log('[INTEL] Keeping stale index');
+      console.log('[INTEL] Keeping the previous index');
     }
   }
 }
@@ -168,10 +189,34 @@ function wdCacheSet(key, data) {
 // §4 — WIKIDATA SPARQL (safe)
 // ════════════════════════════════════════════════════
 
-function sanitizeId(id) {
-  return id.replace(/[^a-zA-Z0-9 \-._]/g, '').trim();
+/** Control characters out, runs of whitespace collapsed. Letters of every script stay. */
+function cleanText(s) {
+  return String(s).replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * The identifier a lookup of `type` should use, or null when it is not one.
+ * Names keep their accents and scripts (José Álvarez stays José Álvarez), an
+ * IP must be a real IPv4 or IPv6 address, and callsigns and registrations are
+ * ASCII by definition.
+ */
+function normalizeId(type, raw) {
+  if (type === 'ip') return net.isIP(raw) ? raw : null;
+  if (type === 'aircraft') return raw.replace(/[^a-zA-Z0-9\-]/g, '') || null;
+  return cleanText(raw) || null;
+}
+
+/**
+ * A value made safe to place between double quotes in a SPARQL query.
+ * Backslashes and control characters are dropped (no name needs them, and
+ * dropping them leaves nothing for an escape sequence to start from), and
+ * quotes are escaped, so the value cannot close the literal.
+ */
+function sparqlString(s) {
+  return String(s).replace(/[\u0000-\u001f\u007f\\]/g, '').replace(/"/g, '\\"');
+}
+
+/** Runs a query. Throws when Wikidata does not answer, so a failure is never read as "no results". */
 async function sparql(query) {
   const url = `${WIKIDATA_ENDPOINT}?query=${encodeURIComponent(query)}&format=json`;
   const parsed = new URL(url);
@@ -182,25 +227,28 @@ async function sparql(query) {
     headers: { 'User-Agent': WIKIDATA_UA, Accept: 'application/sparql-results+json' },
     signal: AbortSignal.timeout(10000),
   });
-  if (!res.ok) return [];
+  if (!res.ok) throw new Error(`Wikidata SPARQL HTTP ${res.status}`);
   const json = await res.json();
   return json.results?.bindings || [];
 }
 
-// Search Wikidata for an entity by name, returns QID or null
-async function wdSearch(query, type = 'item') {
+/**
+ * Searches Wikidata for an entity by name. Returns its QID, or null when the
+ * search found nothing; throws when the search itself failed.
+ */
+async function wdSearch(query) {
   const url = `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(query)}&language=en&limit=1&format=json`;
   const parsed = new URL(url);
-  if (!ALLOWED_DOMAINS.has(parsed.hostname)) return null;
-  try {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': WIKIDATA_UA },
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    return json.search?.[0]?.id || null;
-  } catch { return null; }
+  if (!ALLOWED_DOMAINS.has(parsed.hostname)) throw new Error(`Blocked domain: ${parsed.hostname}`);
+  const res = await fetch(url, {
+    headers: { 'User-Agent': WIKIDATA_UA },
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!res.ok) throw new Error(`Wikidata search HTTP ${res.status}`);
+  const json = await res.json();
+  const id = json.search?.[0]?.id;
+  // It goes into the query as wd:<id>, so only a QID shape is taken.
+  return typeof id === 'string' && /^Q\d+$/.test(id) ? id : null;
 }
 
 // ════════════════════════════════════════════════════
@@ -242,7 +290,8 @@ async function resolveAircraft(id, properties = {}) {
   const nodes = [], links = [];
   const cacheKey = `aircraft:${id}:${properties.registration || ''}`;
   const cached = wdCacheGet(cacheKey);
-  if (cached) return { ...cached };
+  if (cached) return { ...cached, degraded: false };
+  let failed = false;
 
   const callsign = id.toUpperCase().trim();
   const registration = (properties.registration || '').toUpperCase().trim();
@@ -258,7 +307,7 @@ async function resolveAircraft(id, properties = {}) {
     try {
       const results = await sparql(`
         SELECT ?item ?itemLabel ?countryLabel ?ceoLabel ?parentLabel WHERE {
-          ?item wdt:P230 "${airlinePrefix}" .
+          ?item wdt:P230 "${sparqlString(airlinePrefix)}" .
           OPTIONAL { ?item wdt:P17 ?country . }
           OPTIONAL { ?item wdt:P169 ?ceo . }
           OPTIONAL { ?item wdt:P749 ?parent . }
@@ -289,7 +338,7 @@ async function resolveAircraft(id, properties = {}) {
           }
         }
       }
-    } catch (e) { console.warn('[INTEL] Airline ICAO lookup error:', e.message); }
+    } catch (e) { failed = true; console.warn('[INTEL] Airline ICAO lookup error:', e.message); }
   }
 
   // Step 2: Decode registration prefix → country (e.g. TC → Turkey, N → USA, G → UK)
@@ -331,22 +380,31 @@ async function resolveAircraft(id, properties = {}) {
   if (airlineName) addSanctionsToGraph(airlineName, rootId, nodes, links);
   if (registration) addSanctionsToGraph(registration, rootId, nodes, links);
 
-  const result = dedup(nodes, links);
-  wdCacheSet(cacheKey, result);
-  return result;
+  return finish(cacheKey, dedup(nodes, links), failed);
+}
+
+/**
+ * Caches a resolved graph only when every lookup behind it answered. A
+ * provider outage is retried on the next request instead of being served as
+ * "no relationships" for a day; the caller is told the answer is partial.
+ */
+function finish(cacheKey, result, failed) {
+  if (!failed) wdCacheSet(cacheKey, result);
+  return { ...result, degraded: failed };
 }
 
 async function resolveVessel(id) {
   const rootId = `vessel:${id}`;
   const nodes = [], links = [];
   const cached = wdCacheGet(`vessel:${id}`);
-  if (cached) return { ...cached };
+  if (cached) return { ...cached, degraded: false };
+  let failed = false;
 
   try {
     const results = await sparql(`
       SELECT ?item ?itemLabel ?ownerLabel ?countryLabel ?operatorLabel ?flagLabel WHERE {
-        { ?item wdt:P458 "${id}" . }
-        UNION { ?item rdfs:label "${id}"@en . ?item wdt:P31/wdt:P279* wd:Q11446 . }
+        { ?item wdt:P458 "${sparqlString(id)}" . }
+        UNION { ?item rdfs:label "${sparqlString(id)}"@en . ?item wdt:P31/wdt:P279* wd:Q11446 . }
         OPTIONAL { ?item wdt:P127 ?owner . }
         OPTIONAL { ?item wdt:P17 ?country . }
         OPTIONAL { ?item wdt:P137 ?operator . }
@@ -371,26 +429,25 @@ async function resolveVessel(id) {
         links.push({ source: rootId, target: oid, label: 'OPERATED BY' });
       }
     }
-  } catch (e) { console.warn('[INTEL] Wikidata vessel error:', e.message); }
+  } catch (e) { failed = true; console.warn('[INTEL] Wikidata vessel error:', e.message); }
 
   addSanctionsToGraph(id, rootId, nodes, links);
-  const result = dedup(nodes, links);
-  wdCacheSet(`vessel:${id}`, result);
-  return result;
+  return finish(`vessel:${id}`, dedup(nodes, links), failed);
 }
 
 async function resolveCompany(id) {
   const rootId = `company:${id}`;
   const nodes = [], links = [];
   const cached = wdCacheGet(`company:${id}`);
-  if (cached) return { ...cached };
+  if (cached) return { ...cached, degraded: false };
+  let failed = false;
 
   try {
     // Use Wikidata search to find the QID first, then resolve by QID
     const qid = await wdSearch(id);
     const filter = qid
       ? `VALUES ?item { wd:${qid} }`
-      : `?item rdfs:label "${id}"@en . { ?item wdt:P31/wdt:P279* wd:Q4830453 . } UNION { ?item wdt:P31/wdt:P279* wd:Q43229 . }`;
+      : `?item rdfs:label "${sparqlString(id)}"@en . { ?item wdt:P31/wdt:P279* wd:Q4830453 . } UNION { ?item wdt:P31/wdt:P279* wd:Q43229 . }`;
     const results = await sparql(`
       SELECT ?item ?itemLabel ?countryLabel ?parentLabel ?ceoLabel ?industryLabel WHERE {
         ${filter}
@@ -417,25 +474,24 @@ async function resolveCompany(id) {
         links.push({ source: rootId, target: pid, label: 'CEO' });
       }
     }
-  } catch (e) { console.warn('[INTEL] Wikidata company error:', e.message); }
+  } catch (e) { failed = true; console.warn('[INTEL] Wikidata company error:', e.message); }
 
   addSanctionsToGraph(id, rootId, nodes, links);
-  const result = dedup(nodes, links);
-  wdCacheSet(`company:${id}`, result);
-  return result;
+  return finish(`company:${id}`, dedup(nodes, links), failed);
 }
 
 async function resolvePerson(id) {
   const rootId = `person:${id}`;
   const nodes = [], links = [];
   const cached = wdCacheGet(`person:${id}`);
-  if (cached) return { ...cached };
+  if (cached) return { ...cached, degraded: false };
+  let failed = false;
 
   try {
     const qid = await wdSearch(id);
     const filter = qid
       ? `VALUES ?item { wd:${qid} }`
-      : `?item rdfs:label "${id}"@en . ?item wdt:P31 wd:Q5 .`;
+      : `?item rdfs:label "${sparqlString(id)}"@en . ?item wdt:P31 wd:Q5 .`;
     const results = await sparql(`
       SELECT ?item ?itemLabel ?nationalityLabel ?employerLabel ?positionLabel WHERE {
         ${filter}
@@ -461,19 +517,18 @@ async function resolvePerson(id) {
         links.push({ source: rootId, target: pid, label: 'POSITION HELD' });
       }
     }
-  } catch (e) { console.warn('[INTEL] Wikidata person error:', e.message); }
+  } catch (e) { failed = true; console.warn('[INTEL] Wikidata person error:', e.message); }
 
   addSanctionsToGraph(id, rootId, nodes, links);
-  const result = dedup(nodes, links);
-  wdCacheSet(`person:${id}`, result);
-  return result;
+  return finish(`person:${id}`, dedup(nodes, links), failed);
 }
 
 async function resolveIP(id) {
   const rootId = `ip:${id}`;
   const nodes = [], links = [];
   const cached = wdCacheGet(`ip:${id}`);
-  if (cached) return { ...cached };
+  if (cached) return { ...cached, degraded: false };
+  let failed = false;
 
   // Step 1: ip-api.com — geolocation, ISP, ASN, proxy/hosting detection
   try {
@@ -481,6 +536,7 @@ async function resolveIP(id) {
     const parsed = new URL(ipApiUrl);
     if (!ALLOWED_DOMAINS.has(parsed.hostname)) throw new Error(`Blocked domain: ${parsed.hostname}`);
     const res = await fetch(ipApiUrl, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) failed = true;
     if (res.ok) {
       const data = await res.json();
       if (data.status === 'success') {
@@ -531,7 +587,7 @@ async function resolveIP(id) {
         });
       }
     }
-  } catch (e) { console.warn('[INTEL] ip-api.com error:', e.message); }
+  } catch (e) { failed = true; console.warn('[INTEL] ip-api.com error:', e.message); }
 
   // Step 2: RIPEstat WHOIS
   try {
@@ -539,6 +595,7 @@ async function resolveIP(id) {
     const parsed = new URL(whoisUrl);
     if (!ALLOWED_DOMAINS.has(parsed.hostname)) throw new Error(`Blocked domain: ${parsed.hostname}`);
     const res = await fetch(whoisUrl, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) failed = true;
     if (res.ok) {
       const json = await res.json();
       const records = json.data?.records || [];
@@ -552,7 +609,7 @@ async function resolveIP(id) {
         }
       }
     }
-  } catch (e) { console.warn('[INTEL] RIPEstat WHOIS error:', e.message); }
+  } catch (e) { failed = true; console.warn('[INTEL] RIPEstat WHOIS error:', e.message); }
 
   // Step 3: RIPEstat Abuse Contact
   try {
@@ -560,6 +617,7 @@ async function resolveIP(id) {
     const parsed = new URL(abuseUrl);
     if (!ALLOWED_DOMAINS.has(parsed.hostname)) throw new Error(`Blocked domain: ${parsed.hostname}`);
     const res = await fetch(abuseUrl, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) failed = true;
     if (res.ok) {
       const json = await res.json();
       const contacts = json.data?.abuse_contacts || [];
@@ -571,7 +629,7 @@ async function resolveIP(id) {
         }
       }
     }
-  } catch (e) { console.warn('[INTEL] RIPEstat abuse-contact error:', e.message); }
+  } catch (e) { failed = true; console.warn('[INTEL] RIPEstat abuse-contact error:', e.message); }
 
   // Step 4: RIPEstat Network Info
   try {
@@ -579,6 +637,7 @@ async function resolveIP(id) {
     const parsed = new URL(netUrl);
     if (!ALLOWED_DOMAINS.has(parsed.hostname)) throw new Error(`Blocked domain: ${parsed.hostname}`);
     const res = await fetch(netUrl, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) failed = true;
     if (res.ok) {
       const json = await res.json();
       const prefix = json.data?.prefix;
@@ -594,24 +653,23 @@ async function resolveIP(id) {
         links.push({ source: rootId, target: asnId, label: 'ASN' });
       }
     }
-  } catch (e) { console.warn('[INTEL] RIPEstat network-info error:', e.message); }
+  } catch (e) { failed = true; console.warn('[INTEL] RIPEstat network-info error:', e.message); }
 
-  const result = dedup(nodes, links);
-  wdCacheSet(`ip:${id}`, result);
-  return result;
+  return finish(`ip:${id}`, dedup(nodes, links), failed);
 }
 
 async function resolveCountry(id) {
   const rootId = `country:${id}`;
   const nodes = [], links = [];
   const cached = wdCacheGet(`country:${id}`);
-  if (cached) return { ...cached };
+  if (cached) return { ...cached, degraded: false };
+  let failed = false;
 
   try {
     const qid = await wdSearch(id);
     const filter = qid
       ? `VALUES ?item { wd:${qid} }`
-      : `?item rdfs:label "${id}"@en . ?item wdt:P31 wd:Q6256 .`;
+      : `?item rdfs:label "${sparqlString(id)}"@en . ?item wdt:P31 wd:Q6256 .`;
     const results = await sparql(`
       SELECT ?item ?itemLabel ?headLabel ?capitalLabel ?population ?gdp
              ?tld ?callingCode ?memberOfLabel ?neighborLabel WHERE {
@@ -675,12 +733,10 @@ async function resolveCountry(id) {
         links.push({ source: rootId, target: nid, label: 'NEIGHBOR' });
       }
     }
-  } catch (e) { console.warn('[INTEL] Wikidata country error:', e.message); }
+  } catch (e) { failed = true; console.warn('[INTEL] Wikidata country error:', e.message); }
 
   addSanctionsToGraph(id, rootId, nodes, links);
-  const result = dedup(nodes, links);
-  wdCacheSet(`country:${id}`, result);
-  return result;
+  return finish(`country:${id}`, dedup(nodes, links), failed);
 }
 
 const RESOLVERS = { aircraft: resolveAircraft, vessel: resolveVessel, company: resolveCompany, person: resolvePerson, ip: resolveIP, country: resolveCountry };
@@ -706,10 +762,15 @@ function isRateLimited(ip, limit = 30, windowMs = 60000) {
 // ════════════════════════════════════════════════════
 
 app.get('/health', (_req, res) => {
+  // Still 200 while degraded: the process is up (the container healthcheck
+  // asks only that), and the body says what is wrong with the data.
+  const degraded = sanctionsIndex.entries.length === 0 || !!sanctionsRefresh.error;
   res.json({
-    status: 'ok',
+    status: degraded ? 'degraded' : 'ok',
     sanctions_entries: sanctionsIndex.entries.length,
     sanctions_loaded_at: sanctionsIndex.fetchedAt ? new Date(sanctionsIndex.fetchedAt).toISOString() : null,
+    sanctions_last_attempt_at: sanctionsRefresh.attemptedAt ? new Date(sanctionsRefresh.attemptedAt).toISOString() : null,
+    sanctions_last_error: sanctionsRefresh.error,
     wikidata_cache_size: wdCache.size,
     uptime_seconds: Math.floor(process.uptime()),
   });
@@ -729,21 +790,25 @@ app.get('/resolve', async (req, res) => {
     return res.status(400).json({ error: 'Invalid id (2-200 chars)' });
   }
 
-  const id = sanitizeId(rawId);
-  if (id.length < 2) return res.status(400).json({ error: 'ID contains too many invalid characters' });
+  const id = normalizeId(type, rawId);
+  if (!id || id.length < 2) {
+    return res.status(400).json({ error: type === 'ip' ? 'Not an IPv4 or IPv6 address' : 'ID contains too many invalid characters' });
+  }
 
   try {
     const resolver = RESOLVERS[type];
     // Pass extra properties for aircraft resolution (registration, model, etc.)
     const props = {};
-    if (req.query.registration) props.registration = sanitizeId(req.query.registration);
-    if (req.query.model) props.model = sanitizeId(req.query.model);
-    if (req.query.icao24) props.icao24 = sanitizeId(req.query.icao24);
+    if (req.query.registration) props.registration = normalizeId('aircraft', String(req.query.registration)) || '';
+    if (req.query.model) props.model = cleanText(req.query.model).slice(0, 100);
+    if (req.query.icao24) props.icao24 = normalizeId('aircraft', String(req.query.icao24)) || '';
     const result = await resolver(id, props);
-    res.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=7200');
+    // A partial answer (a provider did not respond) is not for shared caches.
+    res.set('Cache-Control', result.degraded ? 'no-store' : 'public, s-maxage=3600, stale-while-revalidate=7200');
     res.json({
       nodes: result.nodes,
       links: result.links,
+      degraded: result.degraded,
       entity: { type, id },
       source: 'OSIRIS Intelligence Layer',
       sanctions_index_size: sanctionsIndex.entries.length,
@@ -773,4 +838,8 @@ async function boot() {
   });
 }
 
-boot().catch(e => { console.error('[INTEL] Fatal:', e); process.exit(1); });
+if (require.main === module) {
+  boot().catch(e => { console.error('[INTEL] Fatal:', e); process.exit(1); });
+}
+
+module.exports = { app, buildSanctionsIndex, loadSanctions, sanctionsSearch, normalizeId, sparqlString, RESOLVERS, wdCache };

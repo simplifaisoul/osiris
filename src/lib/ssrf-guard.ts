@@ -267,6 +267,43 @@ export function getClientIp(req: Request): string {
   return 'unknown';
 }
 
+/** `[2a00::1]` → `2a00::1`, and `::ffff:81.2.69.142` (how a dual-stack
+ *  socket reports an IPv4 peer) → `81.2.69.142`. */
+function bareIp(value: string): string {
+  return value.trim().replace(/^\[|\]$/g, '').replace(/^::ffff:(?=\d+\.)/i, '');
+}
+
+/**
+ * True only for an address that can locate a person: a canonical IPv4 or an
+ * IPv6 literal outside every reserved range above. The geolocation route
+ * used to treat all of 172.0.0.0/8 as private, which threw away real public
+ * visitors (T-Mobile US hands out 172.56–172.63) along with 172.16/12.
+ */
+export function isPublicIp(value: string): boolean {
+  const ip = bareIp(value);
+  const v4 = parseIPv4(ip);
+  if (v4) return !ipv4InBlocked(v4);
+  return isIP(ip) === 6 && !ipv6InBlocked(ip);
+}
+
+/**
+ * The visitor's own address, for geolocation: the first public one among the
+ * headers an edge or proxy sets, or null when there is none.
+ *
+ * Unlike getClientIp this reads X-Forwarded-For left to right. The leftmost
+ * entry is client-written, and here that is fine: a forged value only
+ * mislocates the person who forged it, while the rightmost entry is often a
+ * CDN edge in another city.
+ */
+export function visitorIp(req: Request): string | null {
+  const candidates = ['cf-connecting-ip', 'true-client-ip', 'x-vercel-forwarded-for', 'x-real-ip', 'x-forwarded-for']
+    .flatMap(name => (req.headers.get(name) || '').split(','))
+    .map(s => s.trim())
+    .filter(Boolean);
+  const found = candidates.find(isPublicIp);
+  return found ? bareIp(found) : null;
+}
+
 /** Cheap shape check — rejects the arbitrary strings a spoofed header carries. */
 function isIpLike(value: string): boolean {
   const bare = value.startsWith('[') ? value.slice(1, value.indexOf(']')) : value.split('%')[0];

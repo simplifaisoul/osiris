@@ -4,6 +4,12 @@ import { buildGeometry, closeRing, drawReducer, initialDrawState, measure, type 
 import { useEffect, useRef, useState, useCallback, memo } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import { installTerrainTileProtocol } from '@/lib/terrain-tiles';
+import { CLOUDS_ATTRIBUTION, CLOUDS_CREDIT, CLOUDS_LAYER, frameTime } from '@/lib/live-clouds';
+import { createCloudLayer } from '@/lib/live-clouds-layer';
+import { WIND_ATTRIBUTION } from '@/lib/wind-layer';
+import { attachOi, type OiGlobe, type OiHover } from '@/lib/oi/globe';
+import { attachHighlights, type Highlighter } from '@/lib/oi/highlights';
+import type { Highlight } from '@/lib/oi/assist/tools';
 import { createSatelliteLayer, parseColor, SAT_MAX_ZOOM, type SatPoint } from '@/lib/satellite-layer';
 import { MAP_DEFAULTS, MAP_PALETTE_KEYS, readMapPalette, satColorFor, type MapPalette } from '@/lib/map-palette';
 import { STYLE_EVENT } from '@/lib/style-tokens';
@@ -12,10 +18,14 @@ import { ALERT_KINDS, timeAgo, type AlertKind } from '@/lib/alert-digest';
 import SatelliteCard, { type SatelliteDetail } from '@/components/SatelliteCard';
 import CctvPreviews, { type PreviewCamera } from '@/components/CctvPreviews';
 import MapControls from '@/components/MapControls';
+import WindBar from '@/components/WindBar';
+import RainBar from '@/components/RainBar';
+import { DOCK } from '@/components/TimeBox';
 import LiveNewsPreviews, { type PreviewFeed } from '@/components/LiveNewsPreviews';
 import { attachTerrain, type TerrainStatus } from '@/lib/map-terrain';
 
 import { applyMapProjection } from '@/lib/map-projection';
+import { attachTransit, type TransitStatus } from '@/lib/transit-layer';
 
 /** The catalogue fields the satellite layer and its popup actually read. */
 interface SatelliteRow {
@@ -30,6 +40,18 @@ interface SatelliteRow {
 }
 import 'maplibre-gl/dist/maplibre-gl.css';
 
+/**
+ * Layers with their own click handlers. The satellite pick and the transit
+ * vehicles defer to these, and to nothing else: the basemap, the night shade
+ * and other fills are not click targets.
+ */
+const CLICKABLE_LAYERS: ReadonlySet<string> = new Set(['conflict-icons','cctv-dots','eq-circles','fires-heat',
+  'gdelt-dots','weather-dots','infra-dots','maritime-dots','choke-dots','news-dots',
+  'balloon-dots','rad-dots','ship-dots','sweep-device-dots','scan-targets-dots',
+  'sdk-sea','sdk-air','sdk-intel','malware-dots','cyber-heads','gdelt-events-dots',
+  'cf-outage-dots','cf-attack-dots','flight-dots','military-dots','jet-dots','private-dots','alert-pin-dots',
+  'transit-coverage-dots', 'geopolitics-dots', 'cyber-bgp-dots']);
+
 interface OsirisMapProps {
   data: any;
   activeLayers: Record<string, boolean>;
@@ -37,8 +59,11 @@ interface OsirisMapProps {
   onMouseCoords?: (coords: { lat: number; lng: number }) => void;
   onRightClick?: (coords: { lat: number; lng: number }) => void;
   onViewStateChange?: (vs: { zoom: number; latitude: number }) => void;
-  /** `alertId` also opens that Live Alert's pin once the camera arrives. */
-  flyToLocation?: { lat: number; lng: number; zoom?: number; alertId?: string; ts: number } | null;
+  /** `alertId` also opens that Live Alert's pin once the camera arrives.
+   *  `duration` overrides the default 2 s flight. */
+  flyToLocation?: { lat: number; lng: number; zoom?: number; alertId?: string; duration?: number; ts: number } | null;
+  /** Fires once, when the map has drawn its first complete frame. */
+  onReady?: () => void;
   /** Which Live Alerts to pin — the reports the feed is showing. Null pins them all. */
   alertPinIds?: string[] | null;
   projection?: 'mercator' | 'globe';
@@ -46,6 +71,8 @@ interface OsirisMapProps {
   terrainRetry?: number;
   terrainFocus?: number;
   onTerrainStatusChange?: (status: TerrainStatus) => void;
+  /** Turns a layer off, from the power button on its box (Wind, Rain). */
+  onLayerOff?: (key: string) => void;
 
   mapStyle?: string;
   sweepData?: any;
@@ -65,6 +92,8 @@ interface OsirisMapProps {
   drawCommand?: { action: DrawAction["type"]; seq: number } | null;
   onDrawComplete?: (result: DrawResult) => void;
   onMapCenter?: (coords: { lat: number; lng: number; bounds?: { west: number; south: number; east: number; north: number } }) => void;
+  /** What the Live Transit layer can see, for the layer panel; null while it is off. */
+  onTransitStatus?: (status: TransitStatus | null) => void;
   /** Active turn-by-turn route drawn as a line with origin/destination pins. */
   route?: {
     geometry: { type: 'LineString'; coordinates: [number, number][] };
@@ -85,6 +114,16 @@ interface OsirisMapProps {
   navigating?: boolean;
   /** Corroborated endpoint airports for watched aircraft, keyed by icao24. */
   aircraftAirports?: Record<string, Array<{ icao: string; iata?: string; city?: string; lat: number; lng: number }>>;
+  /** Hands the page OI's globe layer, so a run draws without re-rendering the map. Null when it goes. */
+  onOiGlobe?: (globe: OiGlobe | null) => void;
+  /** A piece of OI's analysis was clicked: an arc ("link:<id>") or a point ("a:<actor>", "e:<event>"…); null for empty map. */
+  onOiSelect?: (key: string | null) => void;
+  /** The pointer is over a piece of OI's analysis, or has left it. */
+  onOiHover?: (hover: OiHover | null) => void;
+  /** OI's camera started or stopped following the run. */
+  onOiFollow?: (following: boolean) => void;
+  /** What OI Assist has marked on the map: found things, named places, a searched area. */
+  oiHighlight?: Highlight | null;
 }
 
 function computeSolarTerminator(): [number, number][] {
@@ -162,7 +201,7 @@ interface AlertPinFeature {
   properties: AlertPinProps;
 }
 
-function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, flyToLocation, alertPinIds = null, projection = 'globe', terrainEnabled = false, terrainRetry = 0, terrainFocus = 0, onTerrainStatusChange, mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', drawnPolygons = [], arcgisLayers = [], drawMode = null, onDrawComplete, onDrawProgress, onDrawCancel, drawCommand = null, onMapCenter, route = null, userLocation = null, followUser = false, onFollowInterrupt, navigating = false, aircraftAirports = {} }: OsirisMapProps) {
+function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, onReady, flyToLocation, alertPinIds = null, projection = 'globe', terrainEnabled = false, terrainRetry = 0, terrainFocus = 0, onTerrainStatusChange, onLayerOff, mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', drawnPolygons = [], arcgisLayers = [], drawMode = null, onDrawComplete, onDrawProgress, onDrawCancel, drawCommand = null, onMapCenter, onTransitStatus, route = null, userLocation = null, followUser = false, onFollowInterrupt, navigating = false, aircraftAirports = {}, onOiGlobe, onOiSelect, onOiHover, onOiFollow, oiHighlight = null }: OsirisMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
@@ -184,9 +223,23 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
   const [palette, setPalette] = useState<MapPalette>(MAP_DEFAULTS);
   const paletteRef = useRef(palette);
   useEffect(() => { paletteRef.current = palette; }, [palette]);
+  const onReadyRef = useRef(onReady);
+  useEffect(() => { onReadyRef.current = onReady; }, [onReady]);
   const prevDrawnPolygonsRef = useRef<string[]>([]);
   const prevArcgisLayersRef = useRef<string[]>([]);
   const satLayerRef = useRef<ReturnType<typeof createSatelliteLayer> | null>(null);
+  const cloudLayerRef = useRef<ReturnType<typeof createCloudLayer> | null>(null);
+  const onOiGlobeRef = useRef(onOiGlobe);
+  const onOiSelectRef = useRef(onOiSelect);
+  const onOiHoverRef = useRef(onOiHover);
+  const onOiFollowRef = useRef(onOiFollow);
+  const oiGlobeRef = useRef<OiGlobe | null>(null);
+  useEffect(() => {
+    onOiGlobeRef.current = onOiGlobe;
+    onOiSelectRef.current = onOiSelect;
+    onOiHoverRef.current = onOiHover;
+    onOiFollowRef.current = onOiFollow;
+  }, [onOiGlobe, onOiSelect, onOiHover, onOiFollow]);
   // pick() returns an index into the array last handed to setPoints, so the
   // matching catalogue rows are kept in the same order to resolve it.
   const satRowsRef = useRef<SatelliteRow[]>([]);
@@ -306,10 +359,15 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
 
     const container = containerRef.current;
     maplibregl.setWorkerUrl(`/vendor/maplibre/${maplibregl.getVersion()}/maplibre-gl-worker.mjs`);
+    /* Open on the whole globe, turned to the viewer's side of it. The UTC
+       offset is a free, instant stand-in for longitude (15° an hour), so the
+       fly-in to their city after the splash is a dive, not a spin round the
+       planet. This used to open on Bulgaria at zoom 6.5 for everyone. */
+    const facingLng = Math.max(-180, Math.min(180, -new Date().getTimezoneOffset() / 4));
     const baseOptions = {
       container,
       style: styleUrl,
-      center: [25.48, 42.70] as [number, number], zoom: 6.5, minZoom: 1.5, maxZoom: 18,
+      center: [facingLng, 20] as [number, number], zoom: 1.8, minZoom: 1.5, maxZoom: 18,
       /* The basemap is CARTO's, drawn from OpenStreetMap, and the places on it
          are searched and named through OpenStreetMap too. Both have to be
          credited on the map itself; this was switched off, which is half of
@@ -928,6 +986,9 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
 
 
       setMapReady(true);
+      // 'load' means the style parsed; 'idle' means the tiles are drawn.
+      // The splash waits for the second, so it lifts onto a finished globe.
+      map.once('idle', () => onReadyRef.current?.());
       // Dev-only handle. The map is otherwise unreachable from the console,
       // which makes interaction bugs guesswork rather than diagnosis.
       if (process.env.NODE_ENV === 'development') (window as any).__osirisMap = map;
@@ -990,7 +1051,9 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     // ── XSS PROTECTION HELPERS ──
     const htmlEsc = (s: any): string => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     const idSafe = (s: any): string => String(s ?? '').replace(/[^a-zA-Z0-9_\.\-]/g, '');
-    const urlSafe = (s: any): string => { const u = String(s ?? ''); return /^https?:\/\//i.test(u) ? u : '#'; };
+    // An http(s) link, escaped and ready for an href or src attribute: a quote
+    // in a feed's URL would otherwise close the attribute and open a handler.
+    const urlSafe = (s: any): string => { const u = String(s ?? ''); return /^https?:\/\//i.test(u) ? htmlEsc(u) : '#'; };
 
     const formatTime = (iso: string | null) => {
       if (!iso) return '—';
@@ -1145,16 +1208,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     });
 
     // ── Satellites (SatNOGS powered) ──
-    // Layers with their own click handlers. The satellite pick defers to
-    // these, and to nothing else — the basemap is not a click target.
-    const CLICKABLE_LAYERS = new Set(['conflict-icons','cctv-dots','eq-circles','fires-heat',
-      'gdelt-dots','weather-dots','infra-dots','maritime-dots','choke-dots','news-dots',
-      'balloon-dots','rad-dots','ship-dots','sweep-device-dots','scan-targets-dots',
-      'sdk-sea','sdk-air','sdk-intel','malware-dots','cyber-heads','gdelt-events-dots',
-      'cf-outage-dots','cf-attack-dots','flight-dots','military-dots','jet-dots','private-dots','alert-pin-dots',
-      'geopolitics-dots', 'cyber-bgp-dots']);
-
-    // Satellites are picked on the GPU: the pick pass runs the same vertex
+// Satellites are picked on the GPU: the pick pass runs the same vertex
     // shader as the visible one, so the target is always exactly where the
     // marker was drawn — including its altitude. A ground-projected hit test
     // would put the target under the satellite instead of on it.
@@ -1168,6 +1222,8 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       // made this bail out every single time.
       const hits = map.queryRenderedFeatures(e.point);
       if (hits.some(f => f.layer?.id && CLICKABLE_LAYERS.has(f.layer.id))) return;
+      // An OI arc or point is picked on the GPU too, and it is in front: the click is OI's.
+      if (oiGlobeRef.current?.hit(e.point)) return;
       const idx = layer.pick(e.point.x, e.point.y);
       const p = idx == null ? null : satRowsRef.current[idx];
       // Clicking past every satellite is how a selection is dismissed, so an
@@ -1444,14 +1500,20 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       const p = e.features[0].properties as any;
       const coords = (e.features[0].geometry as any).coordinates;
       const color = p.severity === 'war' ? '#FF1744' : p.severity === 'high' ? '#FF9500' : '#FFD500';
+      let headlines: { title?: string; url?: string; source?: string }[] = [];
+      try { headlines = JSON.parse(p.headlines || '[]'); } catch { /* none */ }
+      const count = Number(p.headlineCount) || 0;
+      const headlineList = headlines.map(h => `<a href="${urlSafe(h.url)}" target="_blank" rel="noopener noreferrer" style="display:block;color:#C9C5BC;text-decoration:none;font-size:10px;line-height:1.35;margin-top:5px;">${htmlEsc(h.title)} <span style="color:#5C5A54;">· ${htmlEsc(h.source)}</span></a>`).join('');
       popup(coords, `<div style="${pStyle}border:1px solid ${color}40;">
-        <div style="color:${color};font-size:12px;font-weight:700;margin-bottom:6px;">⚠️ ${htmlEsc(p.label || 'WARNING EVENT')}</div>
-        <div style="font-size:10px;color:#E8E6E0;margin-bottom:8px;line-height:1.4;">${htmlEsc(p.description || 'Global event detected at this location.')}</div>
+        <div style="color:${color};font-size:12px;font-weight:700;margin-bottom:6px;">⚠️ ${htmlEsc(p.label || 'CONFLICT ZONE')}</div>
+        <div style="font-size:10px;color:#E8E6E0;margin-bottom:8px;line-height:1.4;">${htmlEsc(p.description || '')}</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:9px;margin-bottom:8px;">
           <div><span style="color:#5C5A54;">SEVERITY</span><br/><span style="color:${color};">${(p.severity||'unknown').toUpperCase()}</span></div>
-          <div><span style="color:#5C5A54;">COORDS</span><br/><span style="color:#E8E6E0;">${coords[1].toFixed(3)}°, ${coords[0].toFixed(3)}°</span></div>
+          <div><span style="color:#5C5A54;">IN THE NEWS</span><br/><span style="color:#E8E6E0;">${count} headline${count === 1 ? '' : 's'}</span></div>
         </div>
-        ${p.sourceUrl ? `<a href="${urlSafe(p.sourceUrl)}" target="_blank" style="${linkStyle}flex:1;text-align:center;color:${color};border:1px solid ${color}40;background:${color}15;display:inline-block;width:100%;box-sizing:border-box;margin-top:4px;">[ OPEN SOURCE ↗ ]</a>` : ''}
+        ${headlineList ? `<div style="padding-top:6px;border-top:1px solid rgba(255,255,255,0.06);margin-bottom:8px;"><div style="font-size:8.5px;letter-spacing:0.14em;color:#5C5A54;">HEADLINES THAT MENTION IT</div>${headlineList}</div>` : ''}
+        <div style="font-size:8.5px;color:#5C5A54;line-height:1.4;margin-bottom:6px;">The zone and its severity come from a list OSIRIS keeps by hand, not from a live measurement.</div>
+        ${p.sourceUrl ? `<a href="${urlSafe(p.sourceUrl)}" target="_blank" rel="noopener noreferrer" style="${linkStyle}flex:1;text-align:center;color:${color};border:1px solid ${color}40;background:${color}15;display:inline-block;width:100%;box-sizing:border-box;margin-top:4px;">[ OPEN SOURCE ↗ ]</a>` : ''}
       </div>`);
     });
 
@@ -1779,16 +1841,16 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       /* Footage plays in place where Telegram serves the file; a video it
          only shows in the app gets its preview and a way through to it. */
       const media = video !== '#'
-        ? `<video src="${htmlEsc(video)}"${thumb !== '#' ? ` poster="${htmlEsc(thumb)}"` : ''} controls playsinline preload="none" style="display:block;width:100%;max-height:180px;margin-top:10px;border-radius:6px;background:#000;"></video>`
+        ? `<video src="${video}"${thumb !== '#' ? ` poster="${thumb}"` : ''} controls playsinline preload="none" style="display:block;width:100%;max-height:180px;margin-top:10px;border-radius:6px;background:#000;"></video>`
         : thumb !== '#'
-          ? `<a href="${htmlEsc(link)}" target="_blank" rel="noopener noreferrer" style="display:block;position:relative;margin-top:10px;">
-              <img src="${htmlEsc(thumb)}" referrerpolicy="no-referrer" alt="" style="display:block;width:100%;max-height:180px;object-fit:cover;border-radius:6px;">
+          ? `<a href="${link}" target="_blank" rel="noopener noreferrer" style="display:block;position:relative;margin-top:10px;">
+              <img src="${thumb}" referrerpolicy="no-referrer" alt="" style="display:block;width:100%;max-height:180px;object-fit:cover;border-radius:6px;">
               ${p.media_kind === 'video' ? `<span style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.75);color:#fff;font-size:9px;letter-spacing:0.1em;padding:4px 10px;border-radius:12px;">▶ WATCH ON TELEGRAM${p.duration ? ` · ${htmlEsc(p.duration)}` : ''}</span>` : ''}
             </a>`
           : '';
       const more = rest.slice(0, 4).map(r => {
         const rc = (ALERT_KINDS[r.kind as AlertKind] ?? ALERT_KINDS.news).color;
-        return `<a href="${htmlEsc(urlSafe(r.link))}" target="_blank" rel="noopener noreferrer" style="display:flex;gap:6px;align-items:baseline;color:#C9C5BC;text-decoration:none;font-size:10px;line-height:1.35;margin-top:5px;">
+        return `<a href="${urlSafe(r.link)}" target="_blank" rel="noopener noreferrer" style="display:flex;gap:6px;align-items:baseline;color:#C9C5BC;text-decoration:none;font-size:10px;line-height:1.35;margin-top:5px;">
           <span style="flex:none;width:6px;height:6px;border-radius:50%;background:${rc};transform:translateY(-1px);"></span>
           <span>${htmlEsc(r.title)} <span style="color:#5C5A54;">· ${htmlEsc(r.source_name)} · ${htmlEsc(timeAgo(r.published))}</span></span>
         </a>`;
@@ -1804,7 +1866,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         <div style="margin-top:6px;font-size:9.5px;color:#8A8880;">${htmlEsc(p.source_name)}${p.lean ? ` · <span style="color:#9B978E;">${htmlEsc(p.lean)}</span>` : ''}</div>
         <div style="margin-top:6px;font-size:9.5px;color:${c};" title="The place the post names, resolved against OpenStreetMap. Town-level: a post names a place, not an exact spot.">📍 ${htmlEsc(p.place_label)}<span style="color:#5C5A54;"> · ${p.precision === 'region' ? 'region' : 'place'} named in the post · © OpenStreetMap</span></div>
         ${media}
-        ${link !== '#' ? `<a href="${htmlEsc(link)}" target="_blank" rel="noopener noreferrer" style="${linkStyle}color:${c};border:1px solid ${c}66;background:${c}1a;">OPEN POST ↗</a>` : ''}
+        ${link !== '#' ? `<a href="${link}" target="_blank" rel="noopener noreferrer" style="${linkStyle}color:${c};border:1px solid ${c}66;background:${c}1a;">OPEN POST ↗</a>` : ''}
         ${more ? `<div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);"><div style="font-size:8.5px;letter-spacing:0.14em;color:#5C5A54;">ALSO HERE</div>${more}</div>` : ''}
       </div>`;
     };
@@ -1968,6 +2030,11 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       updateMapIcon('plane-red', palette.flightMilitary, 24);
       updateMapIcon('plane-grey', palette.flightUnknown, 24);
     }, [mapReady, palette]);
+
+  // OI's arcs take their three tones from the Style Studio (violet, magenta, indigo unless changed).
+  useEffect(() => {
+    oiGlobeRef.current?.setColors({ support: palette.oiSupport, oppose: palette.oiOppose, neutral: palette.oiNeutral });
+  }, [palette.oiSupport, palette.oiOppose, palette.oiNeutral]);
 
     /* Cameras are circles and a label, so no image to rebuild — the colour is
        a paint property on each. */
@@ -2402,7 +2469,56 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
   }, [mapReady, activeLayers.alert_pins]);
 
 
+  useEffect(() => {
+    if (!mapReady) return;
+    // 🔴 CONFLICT ZONES - Live from /api/conflicts 🔴
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/conflicts');
+        if (cancelled) return;
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        const conflictData = await res.json();
+        if (cancelled) return;
 
+        /* One marker per zone. The headlines that mention a zone are listed in
+           its popup, not plotted: a headline names a place, not where on the
+           map something happened. */
+        const zoneFeatures = (conflictData.zones || []).map((z: any) => ({
+          type: 'Feature' as const,
+          geometry: { type: 'Point' as const, coordinates: [z.lng, z.lat] },
+          properties: {
+            label: z.label,
+            severity: z.severity,
+            description: z.description,
+            sourceUrl: z.sourceUrl,
+            headlineCount: z.headlineCount ?? 0,
+            // Feature properties come back flat, so the list travels as JSON.
+            headlines: JSON.stringify((z.headlines || []).slice(0, 4)),
+          },
+        }));
+
+        setGeo('conflict-zones', zoneFeatures);
+      } catch (e) {
+        // Fallback: if API fails, use minimal known zones
+        const FALLBACK_ZONES = [
+          { label: 'UKRAINE WAR', severity: 'war', lat: 48.5, lng: 31.2, description: 'Ongoing Russian invasion of Ukraine.', sourceUrl: 'https://liveuamap.com/' },
+          { label: 'GAZA CONFLICT', severity: 'war', lat: 31.35, lng: 34.35, description: 'Active military operations in Gaza.', sourceUrl: 'https://israelpalestine.liveuamap.com/' },
+          { label: 'SUDAN CIVIL WAR', severity: 'war', lat: 15.0, lng: 30.0, description: 'SAF vs RSF armed conflict.', sourceUrl: 'https://sudan.liveuamap.com/' },
+          { label: 'YEMEN WAR', severity: 'war', lat: 15.5, lng: 48.0, description: 'Houthi operations and Red Sea threats.', sourceUrl: 'https://yemen.liveuamap.com/' },
+          { label: 'MYANMAR CONFLICT', severity: 'war', lat: 19.5, lng: 96.5, description: 'Military junta vs opposition forces.', sourceUrl: 'https://myanmar.liveuamap.com/' },
+          { label: 'SYRIA', severity: 'high', lat: 35.0, lng: 38.5, description: 'Ongoing civil conflict.', sourceUrl: 'https://syria.liveuamap.com/' },
+        ];
+        const fallbackFeatures = FALLBACK_ZONES.map(z => ({
+          type: 'Feature' as const,
+          geometry: { type: 'Point' as const, coordinates: [z.lng, z.lat] },
+          properties: { label: z.label, severity: z.severity, description: z.description, sourceUrl: z.sourceUrl },
+        }));
+        setGeo('conflict-zones', fallbackFeatures);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [mapReady, setGeo]);
 
 
   // Visibility
@@ -2593,7 +2709,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
   useEffect(() => {
     if (!mapReady || !mapRef.current || !flyToLocation) return;
     const map = mapRef.current;
-    map.flyTo({ center: [flyToLocation.lng, flyToLocation.lat], zoom: flyToLocation.zoom ?? 8, duration: 2000 });
+    map.flyTo({ center: [flyToLocation.lng, flyToLocation.lat], zoom: flyToLocation.zoom ?? 8, duration: flyToLocation.duration ?? 2000 });
     const alertId = flyToLocation.alertId;
     if (!alertId) return;
     const open = () => openAlertPinRef.current?.(alertId);
@@ -2610,19 +2726,28 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     try {
       if (enabled) {
         // CARTO's already-loaded vector tiles include the building footprints
-        // and render heights. No second worldwide vector source is needed.
+        // and heights. No second worldwide vector source is needed. CARTO
+        // renames its source and schema between releases (carto/building with
+        // render_height, then protomaps/buildings with height), so take both
+        // names from the style's own building layer.
+        const basemapBuildings = map.getStyle().layers.find(
+          (l): l is maplibregl.FillLayerSpecification =>
+            l.type === 'fill' && /^buildings?$/.test(l['source-layer'] ?? ''),
+        );
+        const height: maplibregl.ExpressionSpecification = ['coalesce', ['get', 'height'], ['get', 'render_height'], 5];
+        const minHeight: maplibregl.ExpressionSpecification = ['coalesce', ['get', 'min_height'], ['get', 'render_min_height'], 0];
 
         // ── 3D BUILDING EXTRUSION LAYER ──
-        if (!map.getLayer('osiris-3d-buildings')) {
+        if (basemapBuildings && !map.getLayer('osiris-3d-buildings')) {
           map.addLayer({
             id: 'osiris-3d-buildings',
-            source: 'carto',
-            'source-layer': 'building',
+            source: basemapBuildings.source,
+            'source-layer': basemapBuildings['source-layer'],
             type: 'fill-extrusion',
             minzoom: 14.5,
             paint: {
               'fill-extrusion-color': [
-                'interpolate', ['linear'], ['get', 'render_height'],
+                'interpolate', ['linear'], height,
                 0, '#1a1a2e',
                 20, '#16213e',
                 50, '#0f3460',
@@ -2632,12 +2757,12 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
               'fill-extrusion-height': [
                 'interpolate', ['linear'], ['zoom'],
                 14.5, 0,
-                15.5, ['get', 'render_height']
+                15.5, height
               ],
               'fill-extrusion-base': [
                 'interpolate', ['linear'], ['zoom'],
                 14.5, 0,
-                15.5, ['get', 'render_min_height']
+                15.5, minHeight
               ],
               'fill-extrusion-opacity': [
                 'interpolate', ['linear'], ['zoom'],
@@ -2692,6 +2817,92 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       console.warn('Style switch failed:', e);
     }
   }, [mapReady, mapStyle]);
+
+  // Live Clouds — NOAA's satellite mosaic, hung at cloud altitude over the
+  // ground; see lib/live-clouds-layer. Under the night shade and every marker.
+  // On the map they also sit under the place names, as on any weather map, so
+  // a storm never hides a city's name; on SAT they go above the imagery, which
+  // covers those names anyway. Nothing is fetched until the layer is first
+  // switched on, and switching it off frees what it held on the GPU.
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    const map = mapRef.current;
+    if (!activeLayers.live_clouds) {
+      if (map.getLayer(CLOUDS_LAYER)) map.removeLayer(CLOUDS_LAYER);
+      if (map.getLayer(CLOUDS_CREDIT)) map.removeLayer(CLOUDS_CREDIT);
+      cloudLayerRef.current = null;
+      return;
+    }
+    if (!cloudLayerRef.current || !map.getLayer(CLOUDS_LAYER)) {
+      cloudLayerRef.current = createCloudLayer(CLOUDS_LAYER);
+      map.addLayer(cloudLayerRef.current, 'day-night-fill');
+    }
+    const clouds = cloudLayerRef.current;
+    clouds.setFrame(frameTime());
+    // MapLibre credits the sources its visible layers draw from. The clouds
+    // come from no source of its own, so an empty one carries NOAA's credit.
+    if (!map.getSource(CLOUDS_CREDIT)) map.addSource(CLOUDS_CREDIT, { type: 'geojson', data: EMPTY_FC, attribution: CLOUDS_ATTRIBUTION });
+    if (!map.getLayer(CLOUDS_CREDIT)) map.addLayer({ id: CLOUDS_CREDIT, type: 'circle', source: CLOUDS_CREDIT });
+    const satellite = map.getLayer('satellite-layer') && map.getLayoutProperty('satellite-layer', 'visibility') !== 'none';
+    const firstLabel = map.getStyle().layers.find(layer => layer.type === 'symbol')?.id;
+    map.moveLayer(CLOUDS_LAYER, satellite || !firstLabel ? 'day-night-fill' : firstLabel);
+    // A new frame lands every hour; move to it once it is up.
+    const refresh = setInterval(() => clouds.setFrame(frameTime()), 5 * 60_000);
+    return () => clearInterval(refresh);
+  }, [mapReady, activeLayers.live_clouds, mapStyle]);
+
+  // Rain — RainViewer's radar mosaic, keyless, its last two hours as a loop.
+  // RainBar (rendered below) adds the frames and holds their time slider.
+
+  // Wind — NOAA GFS surface wind as moving trails, through time. WindBar draws
+  // it and holds the time slider; this only credits the source while it's on.
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    const map = mapRef.current;
+    if (!activeLayers.wind) {
+      if (map.getLayer('wind-credit')) map.removeLayer('wind-credit');
+      if (map.getSource('wind-credit')) map.removeSource('wind-credit');
+      return;
+    }
+    if (!map.getSource('wind-credit')) map.addSource('wind-credit', { type: 'geojson', data: EMPTY_FC, attribution: WIND_ATTRIBUTION });
+    if (!map.getLayer('wind-credit')) map.addLayer({ id: 'wind-credit', type: 'circle', source: 'wind-credit' });
+  }, [mapReady, activeLayers.wind, mapStyle]);
+
+  // OSIRIS OI — a prediction drawn as it happens: actors, the events of the
+  // simulated worlds and arcs through the sky (see lib/oi/globe). The page feeds it
+  // run state directly, so the map does not re-render on every event; the
+  // layer re-adds itself after a style change.
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    const globe = attachOi(mapRef.current, {
+      onSelect: key => onOiSelectRef.current?.(key),
+      onHover: hover => onOiHoverRef.current?.(hover),
+      onFollowChange: following => onOiFollowRef.current?.(following),
+    });
+    globe.setColors({ support: paletteRef.current.oiSupport, oppose: paletteRef.current.oiOppose, neutral: paletteRef.current.oiNeutral });
+    oiGlobeRef.current = globe;
+    onOiGlobeRef.current?.(globe);
+    return () => {
+      oiGlobeRef.current = null;
+      onOiGlobeRef.current?.(null);
+      globe.destroy();
+    };
+  }, [mapReady]);
+
+  // OI Assist's marks: attached once the map is up, fed whatever the assistant marks.
+  const highlighterRef = useRef<Highlighter | null>(null);
+  const oiHighlightRef = useRef(oiHighlight);
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    const h = attachHighlights(mapRef.current);
+    h.set(oiHighlightRef.current);
+    highlighterRef.current = h;
+    return () => { highlighterRef.current = null; h.destroy(); };
+  }, [mapReady]);
+  useEffect(() => {
+    oiHighlightRef.current = oiHighlight;
+    highlighterRef.current?.set(oiHighlight);
+  }, [oiHighlight]);
 
   // ── DRAWN POLYGONS ──
   useEffect(() => {
@@ -3285,6 +3496,28 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     drawApplyRef.current?.({ type: drawCommand.action } as DrawAction);
   }, [drawCommand]);
 
+  // ── LIVE TRANSIT ── see lib/transit-layer: it draws, polls and animates on its own.
+  const onTransitStatusRef = useRef(onTransitStatus);
+  useEffect(() => { onTransitStatusRef.current = onTransitStatus; }, [onTransitStatus]);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map || !activeLayers.transit) return;
+    const detach = attachTransit(map, {
+      // Through the map's one popup, so opening a vehicle closes any other card.
+      openPopup: (lngLat, html, anchor) => {
+        popupRef.current?.remove();
+        popupRef.current = new maplibregl.Popup({ closeButton: true, maxWidth: '420px', offset: 14, ...(anchor ? { anchor } : {}) }).setLngLat(lngLat).setHTML(html).addTo(map);
+        return popupRef.current;
+      },
+      onStatus: status => onTransitStatusRef.current?.(status),
+      clickableLayers: CLICKABLE_LAYERS,
+    });
+    return () => {
+      detach();
+      onTransitStatusRef.current?.(null);
+    };
+  }, [mapReady, activeLayers.transit]);
+
   // ── MAP CENTER REPORTING ──
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
@@ -3356,6 +3589,12 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       )}
       {selectedSat && <SatelliteCard sat={selectedSat} onClose={clearSat} />}
       {mapReady && <MapControls mapRef={mapRef} onInteract={onFollowInterrupt} />}
+      {mapReady && (activeLayers.wind || activeLayers.rain) && (
+        <div className={DOCK}>
+          {activeLayers.wind && <WindBar mapRef={mapRef} controls={!!activeLayers.wind_controls} particles={!!activeLayers.wind_particles} onOff={() => onLayerOff?.('wind')} />}
+          {activeLayers.rain && <RainBar mapRef={mapRef} mapStyle={mapStyle} controls={!!activeLayers.rain_controls} onOff={() => onLayerOff?.('rain')} />}
+        </div>
+      )}
     </>
   );
 }

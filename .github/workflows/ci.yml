@@ -1,0 +1,42 @@
+name: CI
+
+# Every pull request and every push to master is type-checked and tested
+# before it can reach the Docker image, and the shipped dependencies are
+# checked against known advisories.
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # The Docker image runs Node 22, so the checks do too.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npx vitest run
+
+      # Production dependencies only: the dev tool chain (vitest, eslint)
+      # never ships in the image.
+      - name: Dependency advisories
+        run: npm audit --omit=dev --audit-level=high

@@ -25,15 +25,33 @@ export interface Quote {
   spark: number[];
   currency: string;
   market_open: boolean;
+  /* The rest of a terminal row, all in the same response: no extra request. */
+  /** The previous session's close, which the day's move is measured from. */
+  prev_close: number;
+  day_high?: number;
+  day_low?: number;
+  volume?: number;
+  /** Last trade, unix seconds. */
+  time?: number;
+  high_52w?: number;
+  low_52w?: number;
+  exchange?: string;
+  description?: string;
 }
 
-/** Display name and section for every instrument we track. */
-const TICKERS: Array<{ symbol: string; name: string; group: string }> = [
+/** Display name and section for every instrument we track. Exported: the chart route serves these and nothing else. */
+export const TICKERS: Array<{ symbol: string; name: string; group: string }> = [
   { symbol: 'ES=F', name: 'S&P 500', group: 'indices' },
   { symbol: 'NQ=F', name: 'Nasdaq 100', group: 'indices' },
   { symbol: '^VIX', name: 'VIX', group: 'indices' },
   { symbol: 'DX-Y.NYB', name: 'Dollar Index', group: 'indices' },
   { symbol: '^TNX', name: 'US 10Y', group: 'indices' },
+  // The rest of the world's trading day, so the board isn't US-only.
+  { symbol: '^GDAXI', name: 'DAX', group: 'indices' },
+  { symbol: '^FTSE', name: 'FTSE 100', group: 'indices' },
+  { symbol: '^STOXX50E', name: 'Euro Stoxx 50', group: 'indices' },
+  { symbol: '^N225', name: 'Nikkei 225', group: 'indices' },
+  { symbol: '^HSI', name: 'Hang Seng', group: 'indices' },
 
   { symbol: 'RTX', name: 'RTX', group: 'stocks' },
   { symbol: 'LMT', name: 'LMT', group: 'stocks' },
@@ -71,6 +89,19 @@ function r2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+/**
+ * Prices keep four decimals: two cut EUR/USD from 1.0834 to 1.08, which is a
+ * hundred pips of nothing. The panel picks how many to show per instrument.
+ */
+function r4(n: number): number {
+  return Math.round(n * 10000) / 10000;
+}
+
+/** A finite number from the payload, rounded, or undefined. */
+function num(v: unknown): number | undefined {
+  return typeof v === 'number' && Number.isFinite(v) ? r4(v) : undefined;
+}
+
 export async function fetchQuote(t: { symbol: string; name: string; group: string }): Promise<Quote | null> {
   try {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(t.symbol)}?interval=1d&range=1mo`;
@@ -91,7 +122,7 @@ export async function fetchQuote(t: { symbol: string; name: string; group: strin
     // only needs the shape, so drop them rather than trying to interpolate.
     const spark: number[] = (result.indicators?.quote?.[0]?.close || [])
       .filter((c: unknown): c is number => Number.isFinite(c))
-      .map((c: number) => r2(c));
+      .map((c: number) => r4(c));
 
     /* Over a one-month range `chartPreviousClose` is the close before the whole
        month, which would report a monthly move as if it were today's. The last
@@ -114,12 +145,21 @@ export async function fetchQuote(t: { symbol: string; name: string; group: strin
       group: t.group,
       name: t.name,
       symbol: t.symbol,
-      price: r2(price),
+      price: r4(price),
       change_percent: r2(changePercent),
       up: changePercent >= 0,
       spark,
       currency: meta.currency || 'USD',
       market_open: marketOpen,
+      prev_close: r4(prevClose),
+      day_high: num(meta.regularMarketDayHigh),
+      day_low: num(meta.regularMarketDayLow),
+      volume: typeof meta.regularMarketVolume === 'number' && meta.regularMarketVolume > 0 ? meta.regularMarketVolume : undefined,
+      time: typeof meta.regularMarketTime === 'number' ? meta.regularMarketTime : undefined,
+      high_52w: num(meta.fiftyTwoWeekHigh),
+      low_52w: num(meta.fiftyTwoWeekLow),
+      exchange: typeof meta.fullExchangeName === 'string' ? meta.fullExchangeName.slice(0, 40) : undefined,
+      description: typeof meta.shortName === 'string' ? meta.shortName.slice(0, 60) : undefined,
     };
   } catch { return null; }
 }
@@ -184,7 +224,7 @@ export async function fetchAllQuotes(): Promise<Quote[]> {
  * failed refresh keeps serving the last good prices instead of blanking the
  * whole panel, which is what used to happen on a cold start.
  */
-const getQuotes = cachedSource<Quote>('markets', fetchAllQuotes, 60_000);
+export const getQuotes = cachedSource<Quote>('markets', fetchAllQuotes, 60_000);
 
 /** Chokepoint risk that has a direct read-through to the instruments above. */
 async function fetchScmAlerts(origin: string): Promise<string[]> {

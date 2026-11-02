@@ -47,8 +47,12 @@ services:
       context: ./intel
       dockerfile: Dockerfile
     container_name: osiris-intel
+    # The app reaches this over the compose network (osiris-intel:4000); the
+    # host port is for local debugging only, so it is not published beyond
+    # this machine. Its rate limiter trusts X-Forwarded-For, which only the
+    # app's proxy route sets.
     ports:
-      - "4000:4000"
+      - "127.0.0.1:4000:4000"
     restart: unless-stopped
     networks:
       - default

@@ -16,8 +16,10 @@ The creators and contributors of OSIRIS are not responsible for any misuse or da
 We take the security of our project seriously. If you discover a security vulnerability within the OSIRIS codebase itself, please do not disclose it publicly.
 
 **To report a vulnerability:**
-1. Please open an issue in the GitHub repository and label it appropriately, or contact the repository maintainers directly if a private channel is available.
+1. Report it privately through GitHub: open the repository's **Security** tab and choose **Report a vulnerability**, or go straight to [the private report form](https://github.com/simplifaisoul/osiris/security/advisories/new). Only the maintainers can see it. Please do not open a public issue for a vulnerability.
 2. Provide a detailed description of the vulnerability, including steps to reproduce it and the potential impact.
 3. Our team will acknowledge the receipt of your report and provide an estimated timeline for resolution.
+
+Bugs that are not security issues, including wrong or misleading data, belong in the public [issue tracker](https://github.com/simplifaisoul/osiris/issues).
 
 We appreciate your efforts in keeping OSIRIS secure for everyone!

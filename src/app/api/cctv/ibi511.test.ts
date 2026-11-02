@@ -1,9 +1,14 @@
-import { describe, it, expect } from 'vitest';
-import { cameraCity, cameraLabel, mapIbi511Record, parseWkt, type Ibi511Record, type Ibi511Source } from './ibi511';
+import { afterEach, describe, it, expect, vi } from 'vitest';
+import { cameraCity, cameraLabel, loadIbi511Cameras, mapIbi511Record, parseWkt, type Ibi511Record, type Ibi511Source } from './ibi511';
 import { fetchFloridaCameras } from './florida';
 import { fetchGeorgiaCameras } from './georgia';
 import { fetchNorthCarolinaCameras } from './northcarolina';
 import { fetchArizonaCameras } from './arizona';
+import { fetchIdahoCameras } from './idaho';
+import { fetchOntarioCameras } from './ontario';
+import { fetchAlbertaCameras } from './alberta';
+
+afterEach(() => vi.unstubAllGlobals());
 
 const FDOT: Ibi511Source = {
   base: 'https://fl511.com',
@@ -11,6 +16,16 @@ const FDOT: Ibi511Source = {
   source: 'FDOT',
   state: 'Florida',
   bounds: { minLat: 24.4, maxLat: 31.1, minLng: -87.7, maxLng: -79.9 },
+};
+
+const MTO: Ibi511Source = {
+  base: 'https://511on.ca',
+  idPrefix: 'on',
+  source: '511 Ontario',
+  state: 'Ontario',
+  country: 'Canada',
+  countySuffix: '',
+  bounds: { minLat: 41.6, maxLat: 57.0, minLng: -95.3, maxLng: -74.2 },
 };
 
 /** A representative row from fl511.com/List/GetData/Cameras. */
@@ -76,6 +91,10 @@ describe('cameraCity', () => {
     expect(cameraCity({ ...sample, county: null }, 'Florida')).toBe('Florida');
     expect(cameraCity({ ...sample, city: 'N/A', county: 'N/A' }, 'Florida')).toBe('Florida');
   });
+
+  it('leaves the county bare where it is not a county', () => {
+    expect(cameraCity({ ...sample, county: 'Toronto' }, 'Ontario', '')).toBe('Toronto');
+  });
 });
 
 describe('mapIbi511Record', () => {
@@ -138,6 +157,15 @@ describe('mapIbi511Record', () => {
     expect(open?.stream_url).toBe('https://dis-se18.divas.cloud:8200/chan-1_h/index.m3u8');
   });
 
+  it('uses public snapshots when the provider video edge is inaccessible', () => {
+    const cam = mapIbi511Record(
+      { ...sample, images: [{ ...sample.images![0], isVideoAuthRequired: false }] },
+      { ...FDOT, snapshotOnly: true },
+    );
+    expect(cam?.feed_url).toBe('https://fl511.com/map/Cctv/1');
+    expect(cam?.stream_url).toBeUndefined();
+    expect(cam?.stream_type).toBeUndefined();
+  });
   it('honours videoDisabled without dropping the camera', () => {
     const cam = mapIbi511Record({ ...sample, images: [{ ...sample.images![0], videoDisabled: true }] }, FDOT);
     expect(cam?.stream_url).toBeUndefined();
@@ -151,6 +179,95 @@ describe('mapIbi511Record', () => {
     );
     expect(asGeorgia?.id).toBe('gdot-1');
     expect(mapIbi511Record(sample, FDOT)?.id).toBe('fdot-1');
+  });
+
+  it('leaves out the agencies a deployment names', () => {
+    const cfg = { ...FDOT, excludeAgencies: ['UDOT', 'ODOT'] };
+    expect(mapIbi511Record({ ...sample, source: 'UDOT' }, cfg)).toBeNull();
+    expect(mapIbi511Record({ ...sample, source: 'ODOT' }, cfg)).toBeNull();
+    expect(mapIbi511Record({ ...sample, source: 'FDOT' }, cfg)?.id).toBe('fdot-1');
+    expect(mapIbi511Record({ ...sample, source: null }, cfg)?.id).toBe('fdot-1');
+  });
+
+  it('captions from the state when the county column is not to be trusted', () => {
+    expect(mapIbi511Record(sample, { ...FDOT, ignoreCounty: true })?.city).toBe('Florida');
+    expect(mapIbi511Record({ ...sample, city: 'Cocoa' }, { ...FDOT, ignoreCounty: true })?.city).toBe('Cocoa');
+  });
+
+  it('places a Canadian deployment in Canada', () => {
+    /** A row from 511on.ca/List/GetData/Cameras. */
+    const qew: Ibi511Record = {
+      id: 1283,
+      roadway: 'QEW',
+      direction: 'Unknown',
+      location: 'QEW East of Concession Road',
+      county: 'Niagara',
+      latLng: { geography: { wellKnownText: 'POINT (-78.925595 42.911243)' } },
+      images: [{ imageUrl: '/map/Cctv/2555', blocked: false, disabled: false }],
+    };
+    expect(mapIbi511Record(qew, MTO)).toEqual({
+      id: 'on-1283',
+      lat: 42.911243,
+      lng: -78.925595,
+      name: 'QEW East of Concession Road',
+      city: 'Niagara',
+      country: 'Canada',
+      feed_url: 'https://511on.ca/map/Cctv/2555',
+      source: '511 Ontario',
+    });
+  });
+});
+
+describe('loadIbi511Cameras', () => {
+  /* 511 Alberta answers 500 to a page of more than fifty rows, so a
+     deployment has to be able to ask for less than the usual hundred. */
+  it('pages at the size the deployment asks for', async () => {
+    const asked: Array<{ start: number; length: number }> = [];
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const query = JSON.parse(new URL(String(input)).searchParams.get('query') ?? '{}');
+      asked.push({ start: query.start, length: query.length });
+      const rows = Array.from({ length: Math.min(query.length, 120 - query.start) }, (_, i) => ({
+        ...sample,
+        id: query.start + i + 1,
+        latLng: { geography: { wellKnownText: 'POINT (-114.2 51.1)' } },
+      }));
+      return Response.json({ recordsTotal: 120, data: rows });
+    }));
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const cams = await loadIbi511Cameras({
+      ...MTO, base: 'https://511.alberta.ca', idPrefix: 'ab', pageSize: 50,
+      bounds: { minLat: 48.9, maxLat: 60.1, minLng: -120.1, maxLng: -109.9 },
+    });
+
+    expect(asked.sort((a, b) => a.start - b.start)).toEqual([
+      { start: 0, length: 50 }, { start: 50, length: 50 }, { start: 100, length: 50 },
+    ]);
+    expect(cams).toHaveLength(120);
+  });
+
+  const pagedFeed = (total: number, rowFor: (id: number) => Ibi511Record, failFrom = Infinity) =>
+    vi.fn(async (input: RequestInfo | URL) => {
+      const query = JSON.parse(new URL(String(input)).searchParams.get('query') ?? '{}');
+      if (query.start >= failFrom) return new Response('', { status: 503 });
+      const rows = Array.from({ length: Math.max(0, Math.min(query.length, total - query.start)) }, (_, i) => rowFor(query.start + i + 1));
+      return Response.json({ recordsTotal: total, data: rows });
+    });
+
+  /* Idaho leaves out a tenth of its rows on purpose; that must not read as
+     pages lost to throttling. */
+  it('does not count rows left out on purpose as a short read', async () => {
+    vi.stubGlobal('fetch', pagedFeed(200, id => ({ ...sample, id, source: id % 5 === 0 ? 'UDOT' : 'FDOT' })));
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const cams = await loadIbi511Cameras({ ...FDOT, excludeAgencies: ['UDOT'] });
+    expect(cams).toHaveLength(160);
+  });
+
+  it('still refuses a read that lost pages', async () => {
+    vi.stubGlobal('fetch', pagedFeed(300, id => ({ ...sample, id }), 100));
+
+    await expect(loadIbi511Cameras(FDOT)).rejects.toThrow('FDOT short read: 100 of 300');
   });
 });
 
@@ -167,12 +284,15 @@ describe('parseWkt', () => {
 // Live integration test — opt in with RUN_LIVE_TESTS=1 (hits the real endpoints).
 const liveIt = process.env.RUN_LIVE_TESTS === '1' ? it : it.skip;
 
-describe('live southern-tier feeds', () => {
+describe('live IBI 511 feeds', () => {
   const cases: Array<[string, () => Promise<unknown[]>, number, { minLat: number; maxLat: number; minLng: number; maxLng: number }]> = [
     ['Florida', fetchFloridaCameras, 3000, FDOT.bounds],
     ['Georgia', fetchGeorgiaCameras, 2500, { minLat: 30.3, maxLat: 35.1, minLng: -85.7, maxLng: -80.8 }],
     ['North Carolina', fetchNorthCarolinaCameras, 800, { minLat: 33.8, maxLat: 36.6, minLng: -84.4, maxLng: -75.4 }],
     ['Arizona', fetchArizonaCameras, 400, { minLat: 31.3, maxLat: 37.1, minLng: -115.0, maxLng: -109.0 }],
+    ['Idaho', fetchIdahoCameras, 300, { minLat: 41.98, maxLat: 49.01, minLng: -117.25, maxLng: -111.0 }],
+    ['Ontario', fetchOntarioCameras, 700, MTO.bounds],
+    ['Alberta', fetchAlbertaCameras, 250, { minLat: 48.9, maxLat: 60.1, minLng: -120.1, maxLng: -109.9 }],
   ];
 
   for (const [name, fetcher, atLeast, bounds] of cases) {

@@ -24,7 +24,8 @@ import { dirname, join } from 'node:path';
 export type Camera = Record<string, unknown>;
 export type RegionCameras = Record<string, Camera[]>;
 
-const SNAPSHOT_VERSION = 1;
+const SNAPSHOT_VERSION = 2;
+const INVALIDATED_LEGACY_REGIONS = new Set(['texas', 'florida', 'georgia', 'northcarolina', 'canada']);
 
 /** Overridable so a test never writes into the real cache directory. */
 export const snapshotPath = () =>
@@ -45,8 +46,12 @@ export async function readSnapshot(): Promise<SnapshotFile | null> {
   try {
     const raw = await readFile(snapshotPath(), 'utf8');
     const parsed = JSON.parse(raw) as SnapshotFile;
-    if (parsed?.version !== SNAPSHOT_VERSION || !parsed.regions) return null;
-    return parsed;
+    if (![1, SNAPSHOT_VERSION].includes(parsed?.version) || !parsed.regions) return null;
+    if (parsed.version === SNAPSHOT_VERSION) return parsed;
+    return {
+      ...parsed,
+      regions: Object.fromEntries(Object.entries(parsed.regions).filter(([region]) => !INVALIDATED_LEGACY_REGIONS.has(region))),
+    };
   } catch {
     return null; // absent or unreadable: the catalogue simply rebuilds
   }

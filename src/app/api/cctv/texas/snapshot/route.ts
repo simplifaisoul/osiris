@@ -18,7 +18,8 @@ export async function GET(request: Request) {
     });
     if (!response.ok) throw new Error(`TxDOT HTTP ${response.status}`);
     const data = await response.json();
-    if (typeof data?.snippet !== 'string' || data.snippet.length > 8_000_000) throw new Error('Invalid snapshot');
+    if (!data?.snippet) return new Response('Snapshot unavailable', { status: 404, headers: { 'Cache-Control': 'no-store' } });
+    if (typeof data.snippet !== 'string' || data.snippet.length > 8_000_000) throw new Error('Invalid snapshot');
     const image = Buffer.from(data.snippet, 'base64');
     if (image.length < 4 || image[0] !== 0xff || image[1] !== 0xd8 || image[2] !== 0xff) {
       return new Response('Snapshot unavailable', { status: 404, headers: { 'Cache-Control': 'no-store' } });

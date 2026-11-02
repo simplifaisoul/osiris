@@ -1,16 +1,22 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
 import {
-  X, Car, Footprints, Bike, ArrowUpDown, MapPin, Flag, Route,
-  CornerUpRight, CornerUpLeft, ArrowUp, RotateCw, Merge, Search,
-  LocateFixed, Building2, Landmark, Globe2, Signpost, Home, Crosshair, Clock,
-  Plus, Trash2, SlidersHorizontal, Mountain, Navigation, Play,
+  X, Car, Footprints, Bike, ArrowUpDown, MapPin, Route,
+  CornerUpRight, CornerUpLeft, ArrowUp, RotateCw, Merge,
+  LocateFixed, Crosshair, Clock, Plus, Trash2, SlidersHorizontal, Mountain, Navigation, Play,
+  AlertTriangle, Loader2, type LucideIcon,
 } from 'lucide-react';
+import { searchPlaces, type GeoResult } from '@/lib/geosearch';
+import { loadRecent, rememberPlace, type RecentPlace } from '@/lib/recent-places';
+import { PlaceRow } from './places';
 
 /* ═══════════════════════════════════════════════════════════════
-   OSIRIS — Route Planner
-   Turn-by-turn routing over /api/directions (Valhalla + OSRM)
+   OSIRIS — Directions
+   Turn-by-turn routing over /api/directions (Valhalla + OSRM): a start, any
+   stops and a destination on one rail; the fastest route and its
+   alternatives, each with the road it takes; the steps; and a hand-off to
+   live navigation. Places it is given or picks are remembered for next time.
    ═══════════════════════════════════════════════════════════════ */
 
 export interface RouteStep {
@@ -38,19 +44,19 @@ export interface RouteResult {
   descent?: number;
 }
 
+/** What a route was planned with, besides its ends: the travel mode is on the route itself. */
+export interface TripPlan {
+  /** Intermediate stops, in order. */
+  stops: { lat: number; lng: number }[];
+  /** Any of 'tolls', 'highways', 'ferries'. */
+  avoid: string[];
+}
+
 export interface LiveLocation {
   lat: number;
   lng: number;
   accuracy?: number;
   heading?: number | null;
-}
-
-interface GeoHit {
-  name: string;
-  context: string;
-  lat: number;
-  lng: number;
-  kind: string;
 }
 
 interface Place {
@@ -79,8 +85,13 @@ interface DirectionsBarProps {
   /** Selected step segment, for highlighting the leg on the map. */
   onActiveSegment?: (seg: [number, number][] | null) => void;
   onFollowChange?: (follow: boolean) => void;
-  /** Hand the chosen route to the parent to drive live navigation. */
-  onStartNavigation?: (route: RouteResult, destinationLabel: string) => void;
+  /**
+   * Hand the chosen route to the parent to drive live navigation, with the
+   * plan behind it, so a re-plan on the way keeps the same stops and options.
+   */
+  onStartNavigation?: (route: RouteResult, destinationLabel: string, plan: TripPlan) => void;
+  /** A destination to open with, handed over from Search ("Directions to here"). */
+  initialTo?: Place | null;
 }
 
 const MODES = [
@@ -215,53 +226,86 @@ export function viaRoad(steps: RouteStep[]): string | null {
   return best?.road ?? null;
 }
 
-function StepIcon({ type }: { type: string }) {
-  // Turns carry the actual navigational signal, so they get the accent colour;
-  // start/finish are green/flagged; filler moves stay muted.
-  const cls = 'w-3.5 h-3.5';
-  if (type === 'arrive') return <Flag className={`${cls} text-[var(--alert-green)]`} />;
-  if (type === 'depart') return <MapPin className={`${cls} text-[var(--alert-green)]`} />;
-  if (type === 'roundabout') return <RotateCw className={`${cls} text-[var(--cyan-primary)]`} />;
-  if (type === 'merge') return <Merge className={`${cls} text-[var(--cyan-primary)]`} />;
-  if (type.includes('right')) return <CornerUpRight className={`${cls} text-[var(--cyan-primary)]`} />;
-  if (type.includes('left')) return <CornerUpLeft className={`${cls} text-[var(--cyan-primary)]`} />;
-  return <ArrowUp className={`${cls} text-[var(--text-muted)]`} />;
+/* ───────────── marks ───────────── */
+
+/** The start: a hollow ivory ring, as on the rail. */
+function StartMark({ size = 12 }: { size?: number }) {
+  return <span className="rounded-full flex-shrink-0 border-2 border-[var(--text-heading)] bg-black" style={{ width: size, height: size }} />;
 }
 
-/** Icon for a search hit, so the list is scannable by type. */
-function KindIcon({ kind }: { kind?: string }) {
-  const cls = 'w-3 h-3 flex-shrink-0 mt-0.5';
-  if (kind === 'coordinate') return <MapPin className={`${cls} text-[var(--cyan-primary)]`} />;
-  if (kind === 'current') return <LocateFixed className={`${cls} text-[var(--alert-green)]`} />;
-  if (kind === 'country') return <Globe2 className={`${cls} text-[var(--gold-primary)]`} />;
-  if (kind === 'region' || kind === 'city') return <Landmark className={`${cls} text-[#FF9500]`} />;
-  if (kind === 'street') return <Signpost className={`${cls} text-[var(--text-secondary)]`} />;
-  if (kind === 'address') return <Home className={`${cls} text-[var(--text-secondary)]`} />;
-  if (kind === 'poi') return <Building2 className={`${cls} text-[var(--cyan-primary)]`} />;
-  return <Search className={`${cls} text-[var(--text-muted)]`} />;
+/** The destination: a gold pin, as on the rail. */
+function EndMark({ className = 'w-4 h-4' }: { className?: string }) {
+  return <MapPin className={`${className} flex-shrink-0`} style={{ color: 'var(--gold-primary)', fill: 'rgba(var(--gold-rgb),0.28)' }} />;
 }
 
-/** Origin / destination field with Nominatim autocomplete. */
+/** A stop on the way: a small gold diamond. */
+function StopMark() {
+  return <span className="w-2 h-2 rotate-45 flex-shrink-0" style={{ background: 'var(--gold-light)', opacity: 0.8 }} />;
+}
+
+const MANEUVER: Array<[(t: string) => boolean, LucideIcon]> = [
+  [t => t === 'roundabout', RotateCw],
+  [t => t === 'merge', Merge],
+  [t => t.includes('right'), CornerUpRight],
+  [t => t.includes('left'), CornerUpLeft],
+];
+
+/** A step's maneuver in a tile; the start and the end wear the rail's own marks. */
+function StepIcon({ type, on = false }: { type: string; on?: boolean }) {
+  const tile = (child: ReactNode) => (
+    <span className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 border transition-colors"
+      style={{ borderColor: on ? 'rgba(var(--gold-rgb),0.45)' : 'rgba(255,255,255,0.07)', background: on ? 'rgba(var(--gold-rgb),0.12)' : 'rgba(255,255,255,0.03)' }}>
+      {child}
+    </span>
+  );
+  if (type === 'depart') return tile(<StartMark size={10} />);
+  if (type === 'arrive') return tile(<EndMark className="w-3.5 h-3.5" />);
+  const Icon = MANEUVER.find(([test]) => test(type))?.[1] ?? ArrowUp;
+  const turn = Icon !== ArrowUp;
+  return tile(<Icon className="w-3.5 h-3.5" style={{ color: on ? 'var(--gold-light)' : turn ? 'var(--text-heading)' : 'var(--text-muted)' }} />);
+}
+
+/** One place on the rail: its mark, and the dotted line down to the next. */
+function RailRow({ mark, last = false, children }: { mark: ReactNode; last?: boolean; children: ReactNode }) {
+  return (
+    <div className="relative flex items-center gap-2.5">
+      <span className="relative w-4 self-stretch flex items-center justify-center flex-shrink-0" aria-hidden>
+        {mark}
+        {!last && <span className="absolute left-1/2 -translate-x-1/2 top-[calc(50%+9px)] h-[calc(100%-12px)] w-px bg-[repeating-linear-gradient(to_bottom,var(--text-muted)_0_2px,transparent_2px_5px)]" />}
+      </span>
+      {children}
+    </div>
+  );
+}
+
+/* ───────────── a place field ───────────── */
+
+/** Start, stop or destination: type a place, an address or coordinates, or pick a recent one. */
 function PlaceInput({
-  value, onChange, onPick, placeholder, autoFocus, biasLat, biasLng, onLocate, locating, liveFix,
+  value, onChange, onPick, onClear, placeholder, autoFocus, biasLat, biasLng, onLocate, locating, liveFix, recent, trailing,
 }: {
   value: string;
   onChange: (v: string) => void;
   onPick: (p: Place) => void;
+  /** Empty the field and forget its place. */
+  onClear?: () => void;
   placeholder: string;
   autoFocus?: boolean;
   biasLat?: number;
   biasLng?: number;
-  /** Present only on the origin field — fills it with the operator's position. */
+  /** Present only on the start field: fills it with the operator's position. */
   onLocate?: () => void;
   locating?: boolean;
-  /** When a live fix exists, both fields offer it as the first choice. */
+  /** When a live fix exists, every field offers it first. */
   liveFix?: { lat: number; lng: number } | null;
+  /** Offered while the field is empty. */
+  recent: RecentPlace[];
+  trailing?: ReactNode;
 }) {
   const [results, setResults] = useState<Place[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
-  const [idx, setIdx] = useState(-1);
+  const [idx, setIdx] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abort = useRef<AbortController | null>(null);
   const box = useRef<HTMLDivElement>(null);
@@ -276,7 +320,7 @@ function PlaceInput({
 
   const search = useCallback((q: string) => {
     onChange(q);
-    setIdx(-1);
+    setIdx(0);
     if (timer.current) clearTimeout(timer.current);
 
     const coord = q.trim().match(/^([+-]?\d+\.?\d*)[,\s]+([+-]?\d+\.?\d*)$/);
@@ -290,7 +334,7 @@ function PlaceInput({
       }
     }
 
-    if (q.trim().length < 2) { setResults([]); setOpen(false); return; }
+    if (q.trim().length < 2) { abort.current?.abort(); setResults([]); setLoading(false); setOpen(true); return; }
 
     timer.current = setTimeout(async () => {
       // Abandon any in-flight lookup so a slow earlier keystroke can never
@@ -300,19 +344,17 @@ function PlaceInput({
       abort.current = ctrl;
 
       setLoading(true);
-      try {
-        const bias = biasLat !== undefined && biasLng !== undefined
-          ? `&lat=${biasLat}&lng=${biasLng}` : '';
-        const res = await fetch(
-          `/api/geosearch?q=${encodeURIComponent(q)}${bias}`,
-          { signal: ctrl.signal },
-        );
-        const data: { results?: GeoHit[] } = await res.json();
-        if (ctrl.signal.aborted) return;
-        setResults((data.results || []).map((r) => ({
+      const show = (found: GeoResult[]) => {
+        setResults(found.map((r) => ({
           label: r.name, context: r.context, lat: r.lat, lng: r.lng, kind: r.kind,
         })));
         setOpen(true);
+      };
+      try {
+        const near = biasLat !== undefined && biasLng !== undefined ? { lat: biasLat, lng: biasLng } : null;
+        const found = await searchPlaces(q, near, ctrl.signal, show);
+        if (ctrl.signal.aborted) return;
+        show(found);
       } catch {
         if (!ctrl.signal.aborted) setResults([]);
       }
@@ -327,88 +369,61 @@ function PlaceInput({
     setResults([]);
   };
 
+  // What the list offers: where you are (when tracked), then what was typed for, or recent places while the field is empty.
+  const empty = value.trim().length < 2;
+  const you: Place[] = liveFix ? [{ label: 'Your location', lat: liveFix.lat, lng: liveFix.lng, kind: 'current', context: 'Live position' }] : [];
+  const options: Array<Place & { recent?: boolean }> = [...you, ...(empty ? recent.map(r => ({ ...r, recent: true })) : results)];
+  const at = Math.min(idx, Math.max(0, options.length - 1));
+  const center = biasLat !== undefined && biasLng !== undefined ? { lat: biasLat, lng: biasLng } : null;
+
   return (
     <div className="relative flex-1 min-w-0" ref={box}>
-      <input
-        value={value}
-        autoFocus={autoFocus}
-        onChange={(e) => search(e.target.value)}
-        onFocus={() => (results.length || liveFix) && setOpen(true)}
-        onKeyDown={(e) => {
-          if (e.key === 'ArrowDown') { e.preventDefault(); setIdx((i) => Math.min(i + 1, results.length - 1)); }
-          if (e.key === 'ArrowUp') { e.preventDefault(); setIdx((i) => Math.max(i - 1, 0)); }
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            const pick = results[idx >= 0 ? idx : 0];
-            if (pick) choose(pick);
-          }
-          if (e.key === 'Escape') setOpen(false);
-        }}
-        placeholder={placeholder}
-        aria-label={placeholder}
-        className="w-full bg-transparent py-2 pr-6 text-[12px] text-[var(--text-primary)] outline-none
-                   placeholder:text-[var(--text-muted)] focus:placeholder:text-[var(--text-secondary)]
-                   border-b border-transparent focus:border-[var(--border-active)] transition-colors"
-        autoComplete="off"
-        spellCheck={false}
-      />
+      <div className="flex items-center h-10 rounded-lg border bg-black/45 transition-[border-color,box-shadow] border-white/[0.07] hover:border-white/[0.13] focus-within:!border-[rgba(var(--gold-rgb),0.5)] focus-within:shadow-[0_0_0_3px_rgba(var(--gold-rgb),0.08)]">
+        <input
+          value={value}
+          autoFocus={autoFocus}
+          onChange={(e) => search(e.target.value)}
+          onFocus={() => setOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); setIdx((i) => Math.min(i + 1, options.length - 1)); }
+            if (e.key === 'ArrowUp') { e.preventDefault(); setIdx((i) => Math.max(i - 1, 0)); }
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              const pick = options[at];
+              if (pick) choose(pick);
+            }
+            if (e.key === 'Escape') setOpen(false);
+          }}
+          placeholder={placeholder}
+          aria-label={placeholder}
+          className="flex-1 min-w-0 h-full bg-transparent pl-3 pr-1 text-[13px] text-[var(--text-heading)] outline-none placeholder:text-[var(--text-muted)]"
+          autoComplete="off"
+          spellCheck={false}
+        />
+        {loading && <Loader2 className="w-3.5 h-3.5 mx-1 flex-shrink-0 animate-spin text-[var(--gold-primary)]" />}
+        {value && onClear && (
+          <button type="button" onClick={() => { onClear(); setResults([]); }} aria-label={`Clear ${placeholder.toLowerCase()}`}
+            className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 text-[var(--text-muted)] hover:text-[var(--text-heading)] hover:bg-white/[0.06] transition-colors">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+        {onLocate && (
+          <button type="button" onClick={onLocate} disabled={locating} title="Use my location" aria-label="Use my location"
+            className="w-8 h-8 mr-0.5 rounded-md flex items-center justify-center flex-shrink-0 text-[var(--text-muted)] hover:text-[var(--gold-light)] hover:bg-[rgba(var(--gold-rgb),0.08)] transition-colors disabled:opacity-60">
+            <LocateFixed className={`w-4 h-4 ${locating ? 'animate-pulse text-[var(--gold-light)]' : ''}`} />
+          </button>
+        )}
+        {trailing}
+      </div>
 
-      {loading && (
-        <span className="absolute right-6 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full border border-[var(--gold-primary)] border-t-transparent animate-spin" />
-      )}
-
-      {onLocate && (
-        <button
-          type="button"
-          onClick={onLocate}
-          disabled={locating}
-          title="Use my location"
-          aria-label="Use my location"
-          className="absolute right-0 top-1/2 -translate-y-1/2 p-1.5 rounded text-[var(--text-muted)]
-                     hover:text-[var(--alert-green)] hover:bg-[rgba(0,230,118,0.08)] transition-colors disabled:opacity-50"
-        >
-          <LocateFixed className={`w-3.5 h-3.5 ${locating ? 'animate-pulse text-[var(--alert-green)]' : ''}`} />
-        </button>
-      )}
-
-      {open && (results.length > 0 || liveFix) && (
-        <div
-          className="absolute top-full left-0 right-0 mt-1 z-[10000] rounded-lg overflow-hidden
-                     border border-[var(--border-primary)] bg-[var(--bg-panel-solid)] max-h-[240px] overflow-y-auto styled-scrollbar"
-          style={{ boxShadow: '0 16px 40px rgba(0,0,0,0.7)' }}
-        >
-          {liveFix && (
-            <button
-              onClick={() => choose({ label: 'Your location', lat: liveFix.lat, lng: liveFix.lng, kind: 'current', context: 'Live position' })}
-              className="w-full text-left px-2.5 py-2 flex items-start gap-2 transition-colors
-                         border-b border-[var(--border-secondary)] hover:bg-[rgba(0,230,118,0.08)]"
-            >
-              <KindIcon kind="current" />
-              <span className="min-w-0">
-                <span className="block text-[11px] text-[var(--alert-green)]">Your location</span>
-                <span className="block text-[10px] text-[var(--text-muted)]">Live position</span>
-              </span>
-            </button>
-          )}
-          {results.map((r, i) => (
-            <button
-              key={i}
-              onClick={() => choose(r)}
-              onMouseEnter={() => setIdx(i)}
-              className={`w-full text-left px-2.5 py-2 flex items-start gap-2 transition-colors ${
-                i === idx ? 'bg-[rgba(var(--gold-rgb),0.10)]' : 'hover:bg-[rgba(255,255,255,0.03)]'
-              }`}
-            >
-              <KindIcon kind={r.kind} />
-              <span className="min-w-0">
-                <span className={`block text-[11px] text-[var(--text-primary)] truncate ${r.kind === 'coordinate' ? 'tabular-nums' : ''}`}>
-                  {r.label}
-                </span>
-                {r.context && (
-                  <span className="block text-[10px] text-[var(--text-muted)] truncate">{r.context}</span>
-                )}
-              </span>
-            </button>
+      {open && options.length > 0 && (
+        <div role="listbox" aria-label={empty ? 'Suggestions' : 'Places found'}
+          className="absolute top-full -left-[26px] -right-[42px] mt-1.5 z-[10000] rounded-xl border border-[var(--border-primary)] p-1.5 max-h-[280px] overflow-y-auto styled-scrollbar"
+          style={{ background: 'var(--oi-solid)', boxShadow: '0 18px 44px rgba(0,0,0,0.75)' }}>
+          {empty && recent.length > 0 && <span className="block px-3 pt-1 pb-1 text-[9.5px] font-mono tracking-[0.14em] uppercase text-[var(--text-muted)]">Recent</span>}
+          {options.map((r, i) => (
+            <PlaceRow key={`${r.kind}-${r.label}-${r.lat}-${i}`} place={r} query={empty ? '' : value} on={i === at}
+              onPick={() => choose(r)} onHover={() => setIdx(i)} from={center} kindOverride={r.recent ? 'recent' : undefined} />
           ))}
         </div>
       )}
@@ -416,11 +431,23 @@ function PlaceInput({
   );
 }
 
-export default function DirectionsBar({ onRoute, onLocate, onClose, center = null, onLiveLocation, onActiveSegment, onFollowChange, onStartNavigation }: DirectionsBarProps) {
+/* ───────────── the panel ───────────── */
+
+/** A small icon button for the panel's header and field rows. */
+function IconBtn({ children, label, onClick, on, className = '' }: { children: ReactNode; label: string; onClick: () => void; /** A toggle's state; leave out for a plain button. */ on?: boolean; className?: string }) {
+  return (
+    <button type="button" onClick={onClick} title={label} aria-label={label} aria-pressed={on}
+      className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${on ? 'text-[var(--gold-light)] bg-[rgba(var(--gold-rgb),0.12)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-heading)] hover:bg-white/[0.06]'} ${className}`}>
+      {children}
+    </button>
+  );
+}
+
+export default function DirectionsBar({ onRoute, onLocate, onClose, center = null, onLiveLocation, onActiveSegment, onFollowChange, onStartNavigation, initialTo = null }: DirectionsBarProps) {
   const [fromText, setFromText] = useState('');
-  const [toText, setToText] = useState('');
+  const [toText, setToText] = useState(initialTo?.label ?? '');
   const [from, setFrom] = useState<Place | null>(null);
-  const [to, setTo] = useState<Place | null>(null);
+  const [to, setTo] = useState<Place | null>(initialTo);
   const [mode, setMode] = useState<string>('auto');
   const [route, setRoute] = useState<RouteResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -436,7 +463,14 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
   const [vias, setVias] = useState<Array<{ place: Place | null; text: string }>>([]);
   const [avoid, setAvoid] = useState({ tolls: false, highways: false, ferries: false });
   const [showOptions, setShowOptions] = useState(false);
+  const [recent, setRecent] = useState<RecentPlace[]>(() => (typeof window === 'undefined' ? [] : loadRecent()));
   const watchId = useRef<number | null>(null);
+
+  /** Remember a place picked for the route, for the next time a field is empty. */
+  const remember = (p: Place) => {
+    if (p.kind === 'current') return;
+    setRecent(rememberPlace({ label: p.label, context: p.context, lat: p.lat, lng: p.lng, kind: p.kind }));
+  };
 
   const runRoute = useCallback(async (
     a: Place,
@@ -578,13 +612,30 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
     setLocating(false);
   }, [to, mode, runRoute, onLocate, stops, avoid]);
 
-  const pickFrom = (p: Place) => { setFrom(p); if (to) runRoute(p, to, mode, stops(), avoid); };
-  const pickTo = (p: Place) => { setTo(p); if (from) runRoute(from, p, mode, stops(), avoid); };
+  const pickFrom = (p: Place) => { setFrom(p); remember(p); if (to) runRoute(p, to, mode, stops(), avoid); };
+  const pickTo = (p: Place) => { setTo(p); remember(p); if (from) runRoute(from, p, mode, stops(), avoid); };
   const pickMode = (m: string) => { setMode(m); if (from && to) runRoute(from, to, m, stops(), avoid); };
+
+  /** A recent place, from the empty state: the destination first, then the start. */
+  const pickRecent = (p: Place) => {
+    if (!to) { setToText(p.label); pickTo(p); }
+    else { setFromText(p.label); pickFrom(p); }
+  };
+
+  /** Empty one end of the route: the route goes with it. */
+  const clearEnd = (end: 'from' | 'to') => {
+    if (end === 'from') { setFrom(null); setFromText(''); } else { setTo(null); setToText(''); }
+    setRoute(null);
+    setRoutes([]);
+    setError(null);
+    setActiveStep(null);
+    onRoute(null);
+  };
 
   const pickVia = (i: number, p: Place) => {
     const next = vias.map((v, j) => (j === i ? { place: p, text: p.label } : v));
     setVias(next);
+    remember(p);
     const all = next.map((v) => v.place).filter((x): x is Place => x !== null);
     if (from && to) runRoute(from, to, mode, all, avoid);
   };
@@ -613,266 +664,194 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
     }
   };
 
+  const chooseRoute = (i: number) => {
+    const r = routes[i];
+    setChosen(i);
+    setRoute(r);
+    setActiveStep(null);
+    onActiveSegment?.(null);
+    if (from && to) onRoute({ ...r, from, to, alternates: routes.filter((_, j) => j !== i).map((x) => x.geometry) });
+  };
+
   const via = route ? viaRoad(route.steps) : null;
   const ready = Boolean(from && to);
+  const avoiding = Object.values(avoid).filter(Boolean).length;
   // While tracking, the useful thing is the turn you are approaching, not the
   // whole list — recomputed from each position update.
   const guidance = live && route
     ? nextManeuver(route.steps, route.geometry.coordinates, live.lat, live.lng)
     : null;
+  const bias = { biasLat: center?.lat, biasLng: center?.lng };
 
   return (
-    <div
-      className="glass-panel instrument-grid instrument-corners relative overflow-hidden flex flex-col max-h-[min(78vh,640px)]"
-      style={{ boxShadow: '0 18px 56px rgba(0,0,0,0.7), 0 0 0 1px rgba(var(--gold-rgb),0.04)' }}
-    >
+    <div className="glass-panel tool-glass relative overflow-hidden flex flex-col max-h-[min(80vh,720px)]">
+      <span aria-hidden className="absolute inset-x-0 top-0 h-px z-20" style={{ background: 'linear-gradient(90deg, transparent, rgba(var(--gold-rgb),0.7) 30%, rgba(var(--gold-rgb),0.7) 70%, transparent)' }} />
+
       {/* ── header ── */}
-      <header className="relative flex items-center gap-2 px-3 h-10 flex-shrink-0">
-        {/* A lit accent bar reads as an instrument being powered, where a
-            plain heading just reads as a form label. */}
-        <span
-          aria-hidden="true"
-          className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-[2px] rounded-r"
-          style={{ background: 'var(--gold-primary)', boxShadow: '0 0 8px rgba(var(--gold-rgb),0.6)' }}
-        />
-        <Route className="w-3.5 h-3.5 text-[var(--gold-primary)]" />
-        <h2 className="instrument-title flex-1">Route</h2>
-
-        {/* State at a glance: standby until both ends are set, then the leg. */}
-        <span
-          className="instrument-chip"
-          style={{ color: route ? 'var(--alert-green)' : 'var(--text-muted)' }}
-        >
-          {route ? `${route.steps.length} STEPS` : ready ? 'PLOTTING' : 'STANDBY'}
+      <header className="flex items-center gap-2.5 h-12 pl-4 pr-2 flex-shrink-0 border-b border-[var(--border-secondary)] bg-black/30">
+        <span className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(var(--gold-rgb),0.12)' }}>
+          <Route className="w-4 h-4 text-[var(--gold-primary)]" />
         </span>
-
-        <button
-          onClick={toggleTracking}
-          aria-pressed={tracking}
-          title={tracking ? 'Stop live tracking' : 'Track my location live'}
-          className={`p-1.5 rounded transition-colors ${
-            tracking
-              ? 'text-[#4285F4] bg-[rgba(66,133,244,0.14)]'
-              : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-          }`}
-        >
-          <Crosshair className={`w-3.5 h-3.5 ${tracking ? 'animate-pulse' : ''}`} />
-        </button>
-
+        <h2 className="flex-1 text-[14px] font-semibold text-[var(--text-heading)]">Directions</h2>
         {tracking && (
-          <button
-            onClick={() => { const n = !follow; setFollow(n); onFollowChange?.(n); }}
-            aria-pressed={follow}
-            title={follow ? 'Stop following' : 'Keep the map centred on me'}
-            className={`p-1.5 rounded transition-colors ${
-              follow
-                ? 'text-[var(--gold-primary)] bg-[rgba(var(--gold-rgb),0.14)]'
-                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-            }`}
-          >
-            <LocateFixed className="w-3.5 h-3.5" />
-          </button>
+          <span className="flex items-center gap-1.5 h-6 px-2 rounded-full text-[9.5px] font-mono tracking-[0.12em] uppercase text-[var(--gold-light)]"
+            style={{ background: 'rgba(var(--gold-rgb),0.1)', boxShadow: 'inset 0 0 0 1px rgba(var(--gold-rgb),0.3)' }}>
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--gold-light)] animate-osiris-pulse" /> Live
+          </span>
         )}
-        {onClose && (
-          <button
-            onClick={onClose}
-            aria-label="Close directions"
-            className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors -mr-1 p-1.5"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
+        <IconBtn label={tracking ? 'Stop live tracking' : 'Track my location live'} onClick={toggleTracking} on={tracking}>
+          <Crosshair className={`w-4 h-4 ${tracking ? 'animate-pulse' : ''}`} />
+        </IconBtn>
+        {tracking && (
+          <IconBtn label={follow ? 'Stop following' : 'Keep the map centred on me'} on={follow}
+            onClick={() => { const n = !follow; setFollow(n); onFollowChange?.(n); }}>
+            <LocateFixed className="w-4 h-4" />
+          </IconBtn>
         )}
+        {onClose && <IconBtn label="Close directions" onClick={onClose}><X className="w-4 h-4" /></IconBtn>}
       </header>
-      <div className="instrument-rule flex-shrink-0" />
 
-      {/* ── origin / destination rail ── */}
-      <div className="flex items-stretch gap-2.5 px-3 py-2">
-        {/* the rail: dot, connector, pin */}
-        <div className="flex flex-col items-center pt-3 pb-3" aria-hidden="true">
-          <span
-            className="w-2 h-2 rounded-full bg-[var(--alert-green)] flex-shrink-0"
-            style={{ boxShadow: '0 0 8px rgba(0,230,118,0.6)' }}
-          />
-          <span className="flex-1 w-px my-1 bg-[repeating-linear-gradient(to_bottom,var(--text-muted)_0_2px,transparent_2px_5px)]" />
-          {vias.map((_, i) => (
-            <span key={i} className="contents">
-              <span className="w-1.5 h-1.5 bg-[var(--cyan-primary)] flex-shrink-0 rotate-45" />
-              <span className="flex-1 w-px my-1 bg-[repeating-linear-gradient(to_bottom,var(--text-muted)_0_2px,transparent_2px_5px)]" />
-            </span>
-          ))}
-          <MapPin className="w-3 h-3 text-[var(--alert-red)] flex-shrink-0" />
-        </div>
-
-        <div className="flex-1 min-w-0 flex flex-col divide-y divide-[var(--border-secondary)]">
-          <PlaceInput
-            value={fromText} onChange={setFromText} onPick={pickFrom}
-            placeholder="Choose starting point" autoFocus
-            biasLat={center?.lat} biasLng={center?.lng}
-            onLocate={useMyLocation} locating={locating} liveFix={live}
-          />
+      {/* ── start, stops, destination ── */}
+      <div className="px-3 pt-3 pb-2 flex items-center gap-2 flex-shrink-0">
+        <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+          <RailRow mark={<StartMark />}>
+            <PlaceInput
+              value={fromText} onChange={setFromText} onPick={pickFrom} onClear={() => clearEnd('from')}
+              placeholder="Choose a start" autoFocus={!initialTo} {...bias}
+              onLocate={useMyLocation} locating={locating} liveFix={live} recent={recent}
+            />
+          </RailRow>
           {vias.map((v, i) => (
-            <div key={i} className="flex items-center gap-1">
+            <RailRow key={i} mark={<StopMark />}>
               <PlaceInput
                 value={v.text}
                 onChange={(t) => setVias((prev) => prev.map((x, j) => (j === i ? { ...x, text: t } : x)))}
                 onPick={(p) => pickVia(i, p)}
-                placeholder={`Stop ${i + 1}`}
-                biasLat={center?.lat} biasLng={center?.lng} liveFix={live}
+                placeholder={`Stop ${i + 1}`} {...bias} liveFix={live} recent={recent}
+                trailing={(
+                  <button type="button" onClick={() => removeVia(i)} aria-label={`Remove stop ${i + 1}`}
+                    className="w-8 h-8 mr-0.5 rounded-md flex items-center justify-center flex-shrink-0 text-[var(--text-muted)] hover:text-[var(--alert-red)] hover:bg-[rgba(255,61,61,0.08)] transition-colors">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
               />
-              <button
-                onClick={() => removeVia(i)}
-                aria-label={`Remove stop ${i + 1}`}
-                className="p-1 text-[var(--text-muted)] hover:text-[var(--alert-red)] transition-colors flex-shrink-0"
-              >
-                <Trash2 className="w-3 h-3" />
-              </button>
-            </div>
+            </RailRow>
           ))}
-          <PlaceInput
-            value={toText} onChange={setToText} onPick={pickTo}
-            placeholder="Choose destination"
-            biasLat={center?.lat} biasLng={center?.lng} liveFix={live}
-          />
+          <RailRow mark={<EndMark />} last>
+            <PlaceInput
+              value={toText} onChange={setToText} onPick={pickTo} onClear={() => clearEnd('to')}
+              placeholder="Choose a destination" {...bias} liveFix={live} recent={recent}
+            />
+          </RailRow>
         </div>
-
-        <button
-          onClick={swap}
-          aria-label="Swap origin and destination"
-          className="self-center p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--gold-primary)]
-                     hover:bg-[rgba(var(--gold-rgb),0.08)] transition-colors flex-shrink-0"
-        >
+        <button onClick={swap} aria-label="Swap start and destination" title="Swap start and destination"
+          className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border border-[var(--border-secondary)] bg-black/40 text-[var(--text-secondary)] hover:text-[var(--gold-light)] hover:border-[var(--border-active)] transition-colors">
           <ArrowUpDown className="w-3.5 h-3.5" />
         </button>
       </div>
 
-      {/* ── travel mode ── */}
-      <div className="px-3 pb-2.5 flex items-center gap-1.5">
-        <div
-          role="tablist"
-          aria-label="Travel mode"
-          className="flex-1 flex p-0.5 rounded-lg border border-[var(--border-secondary)] bg-[rgba(0,0,0,0.35)]"
-        >
+      <div className="px-3 pb-2.5 flex items-center gap-1 flex-shrink-0">
+        <button onClick={() => setVias((v) => [...v, { place: null, text: '' }])}
+          className="h-7 pl-1.5 pr-2.5 rounded-md flex items-center gap-1.5 text-[11.5px] text-[var(--text-secondary)] hover:text-[var(--gold-light)] hover:bg-white/[0.04] transition-colors">
+          <Plus className="w-3.5 h-3.5" /> Add stop
+        </button>
+        <button onClick={() => setShowOptions((o) => !o)} aria-expanded={showOptions}
+          className={`ml-auto h-7 px-2.5 rounded-md flex items-center gap-1.5 text-[11.5px] transition-colors ${showOptions || avoiding ? 'text-[var(--gold-light)] bg-[rgba(var(--gold-rgb),0.08)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-heading)] hover:bg-white/[0.04]'}`}>
+          <SlidersHorizontal className="w-3.5 h-3.5" /> Options{avoiding ? ` · ${avoiding}` : ''}
+        </button>
+      </div>
+
+      {/* ── how ── */}
+      <div className="px-3 pb-3 flex-shrink-0">
+        <div role="tablist" aria-label="Travel mode" className="flex gap-[2px] p-[3px] rounded-lg border border-[var(--border-secondary)] bg-black/45">
           {MODES.map(({ id, label, Icon }) => {
             const on = mode === id;
             return (
-              <button
-                key={id}
-                role="tab"
-                aria-selected={on}
-                onClick={() => pickMode(id)}
-                className={`relative flex-1 flex items-center justify-center gap-1.5 py-2 rounded-[6px] text-[11px] tracking-[0.12em] uppercase transition-all ${
-                  on
-                    ? 'bg-[rgba(var(--gold-rgb),0.14)] text-[var(--gold-primary)] shadow-[inset_0_0_0_1px_rgba(var(--gold-rgb),0.30),0_0_14px_rgba(var(--gold-rgb),0.10)]'
-                    : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-white/[0.03]'
-                }`}
-                style={on ? { fontFamily: 'var(--font-hud)' } : undefined}
-              >
+              <button key={id} role="tab" aria-selected={on} onClick={() => pickMode(id)}
+                className={`relative flex-1 h-8 flex items-center justify-center gap-1.5 rounded-md text-[10.5px] font-mono tracking-[0.12em] uppercase transition-colors ${on ? 'text-[var(--gold-light)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-heading)]'}`}
+                style={on ? { background: 'rgba(var(--gold-rgb),0.12)', boxShadow: 'inset 0 0 0 1px rgba(var(--gold-rgb),0.32)' } : undefined}>
                 <Icon className="w-3.5 h-3.5" />
                 {label}
-                {/* A lit underline on the selected mode — the fill alone is
-                    subtle enough to miss against a bright basemap. */}
-                {on && (
-                  <span
-                    aria-hidden="true"
-                    className="absolute bottom-[3px] left-1/2 -translate-x-1/2 h-[2px] w-5 rounded-full"
-                    style={{ background: 'var(--gold-primary)', boxShadow: '0 0 8px rgba(var(--gold-rgb),0.7)' }}
-                  />
-                )}
               </button>
             );
           })}
         </div>
-
-        <button
-          onClick={() => setVias((v) => [...v, { place: null, text: '' }])}
-          title="Add a stop"
-          aria-label="Add a stop"
-          className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--cyan-primary)]
-                     hover:bg-[rgba(var(--cyan-rgb),0.08)] transition-colors flex-shrink-0"
-        >
-          <Plus className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={() => setShowOptions((o) => !o)}
-          aria-pressed={showOptions}
-          title="Route options"
-          aria-label="Route options"
-          className={`p-1.5 rounded-md transition-colors flex-shrink-0 ${
-            showOptions || avoid.tolls || avoid.highways || avoid.ferries
-              ? 'text-[var(--gold-primary)] bg-[rgba(var(--gold-rgb),0.1)]'
-              : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-          }`}
-        >
-          <SlidersHorizontal className="w-3.5 h-3.5" />
-        </button>
+        {showOptions && (
+          <div className="mt-2 flex items-center gap-1.5">
+            <span className="text-[10px] font-mono tracking-[0.12em] uppercase text-[var(--text-muted)] mr-0.5">Avoid</span>
+            {([['tolls', 'Tolls'], ['highways', 'Motorways'], ['ferries', 'Ferries']] as const).map(([k, word]) => (
+              <button key={k} onClick={() => toggleAvoid(k)} aria-pressed={avoid[k]}
+                className={`flex-1 h-7 rounded-full border text-[11px] transition-colors ${avoid[k] ? 'border-[var(--border-active)] bg-[rgba(var(--gold-rgb),0.12)] text-[var(--gold-light)]' : 'border-[var(--border-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-heading)]'}`}>
+                {word}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-
-      {showOptions && (
-        <div className="px-3 pb-2.5 flex gap-1.5">
-          {(['tolls', 'highways', 'ferries'] as const).map((k) => (
-            <button
-              key={k}
-              onClick={() => toggleAvoid(k)}
-              aria-pressed={avoid[k]}
-              className={`flex-1 py-1.5 rounded-md border text-[10px] capitalize transition-all ${
-                avoid[k]
-                  ? 'border-[var(--border-active)] bg-[rgba(var(--gold-rgb),0.12)] text-[var(--gold-primary)]'
-                  : 'border-[var(--border-secondary)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-              }`}
-            >
-              Avoid {k}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* ── result region ── */}
       <div className="min-h-0 flex-1 overflow-y-auto styled-scrollbar border-t border-[var(--border-secondary)]">
         {loading && (
-          <div className="p-3 space-y-2 animate-pulse" aria-live="polite" aria-busy="true">
-            <div className="h-5 w-24 rounded bg-[rgba(255,255,255,0.06)]" />
-            <div className="h-3 w-40 rounded bg-[rgba(255,255,255,0.04)]" />
-            <div className="pt-2 space-y-2.5">
+          <div className="p-4 space-y-2.5 animate-pulse" aria-live="polite" aria-busy="true">
+            <div className="h-7 w-28 rounded bg-white/[0.07]" />
+            <div className="h-3 w-48 rounded bg-white/[0.05]" />
+            <div className="h-10 rounded-lg bg-white/[0.04]" />
+            <div className="pt-1 space-y-3">
               {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="flex items-center gap-2.5">
-                  <span className="w-3.5 h-3.5 rounded bg-[rgba(255,255,255,0.06)]" />
-                  <span className="h-2.5 rounded bg-[rgba(255,255,255,0.05)]" style={{ width: `${70 - i * 12}%` }} />
+                <div key={i} className="flex items-center gap-3">
+                  <span className="w-7 h-7 rounded-lg bg-white/[0.06]" />
+                  <span className="h-2.5 rounded bg-white/[0.05]" style={{ width: `${70 - i * 12}%` }} />
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {!loading && !error && locateError && (
-          <p className="px-3 pt-2 text-[10px] text-[var(--gold-primary)]">{locateError}</p>
-        )}
-
         {!loading && error && (
-          <div className="px-3 py-4 text-center">
-            <p className="text-[11px] text-[var(--alert-red)]">{error}</p>
-            <p className="text-[10px] text-[var(--text-muted)] mt-1">
-              Try a different point, or switch travel mode.
-            </p>
+          <div className="px-5 py-6 flex flex-col items-center text-center">
+            <span className="w-10 h-10 rounded-full flex items-center justify-center border border-[rgba(255,61,61,0.3)] bg-[rgba(255,61,61,0.06)]">
+              <AlertTriangle className="w-4.5 h-4.5 text-[var(--alert-red)]" />
+            </span>
+            <p className="mt-2.5 text-[13px] text-[var(--text-heading)]">{error}</p>
+            <p className="mt-1 text-[11.5px] text-[var(--text-muted)]">Try a different point, or another way of travelling.</p>
           </div>
         )}
 
         {!loading && !error && !route && (
-          <div className="px-3 py-4">
+          <div className="p-3 flex flex-col gap-3">
             {ready ? (
-              <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">Calculating…</p>
+              <p className="px-1 text-[12px] text-[var(--text-muted)]">Calculating…</p>
             ) : (
               <>
-                <p className="hud-label mb-2">Accepted input</p>
-                {/* Showing the formats beats describing them: the sample is the
-                    documentation, and it is scannable at a glance. */}
-                <div className="flex flex-wrap gap-1.5">
+                {!from && (
+                  <button onClick={useMyLocation} disabled={locating}
+                    className="group flex items-center gap-3 w-full rounded-lg border border-[var(--border-secondary)] bg-white/[0.02] px-3 py-2.5 text-left transition-colors hover:border-[var(--border-active)] hover:bg-[rgba(var(--gold-rgb),0.05)] disabled:opacity-70">
+                    <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(var(--gold-rgb),0.12)' }}>
+                      {locating ? <Loader2 className="w-4 h-4 animate-spin text-[var(--gold-light)]" /> : <LocateFixed className="w-4 h-4 text-[var(--gold-light)]" />}
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-[13px] text-[var(--text-heading)]">Start from my location</span>
+                      <span className="block text-[11px] text-[var(--text-muted)]">{to ? `Then the route to ${to.label}` : 'Then choose where to go'}</span>
+                    </span>
+                  </button>
+                )}
+                {locateError && <p className="px-1 text-[11px] text-[var(--gold-light)]">{locateError}</p>}
+                {recent.length > 0 && (
+                  <div>
+                    <span className="block px-1 pb-1 text-[9.5px] font-mono tracking-[0.14em] uppercase text-[var(--text-muted)]">Recent places</span>
+                    <div className="flex flex-col gap-0.5">
+                      {recent.slice(0, 4).map((r, i) => (
+                        <PlaceRow key={`${r.label}-${r.lat}-${i}`} place={r} on={false} onPick={() => pickRecent(r)} from={center} kindOverride="recent" />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="px-1 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[9.5px] font-mono tracking-[0.14em] uppercase text-[var(--text-muted)] mr-0.5">Try</span>
                   <span className="instrument-sample">Heathrow</span>
                   <span className="instrument-sample">10 Downing St</span>
-                  <span className="instrument-sample">51.5074,-0.1278</span>
+                  <span className="instrument-sample">51.5074, -0.1278</span>
                 </div>
-                <p className="mt-2.5 text-[11px] text-[var(--text-muted)] leading-relaxed">
-                  Set a start and a destination to plot a route.
-                </p>
               </>
             )}
           </div>
@@ -881,164 +860,132 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
         {!loading && route && (
           <>
             {guidance && (
-              <div className="px-3 py-2.5 border-b border-[var(--border-secondary)] bg-[rgba(66,133,244,0.07)]">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <Navigation className="w-2.5 h-2.5 text-[#4285F4]" />
-                  <span className="text-[9px] uppercase tracking-[0.15em] text-[#4285F4]">Next turn</span>
+              <div className="mx-3 mt-3 rounded-lg border px-3 py-2.5" style={{ borderColor: 'rgba(var(--gold-rgb),0.3)', background: 'rgba(var(--gold-rgb),0.06)' }}>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Navigation className="w-3 h-3 text-[var(--gold-light)]" />
+                  <span className="text-[9.5px] font-mono tracking-[0.14em] uppercase text-[var(--gold-light)]">Next</span>
                 </div>
-                <div className="flex items-start gap-2.5">
-                  <span className="mt-0.5 flex-shrink-0"><StepIcon type={guidance.step.type} /></span>
-                  <span className="flex-1 min-w-0 text-[12px] text-[var(--text-primary)] leading-snug">
-                    {guidance.step.instruction}
-                  </span>
-                  <span className="text-[12px] text-[var(--gold-primary)] tabular-nums flex-shrink-0">
-                    {formatDistance(guidance.distance)}
-                  </span>
+                <div className="flex items-center gap-3">
+                  <StepIcon type={guidance.step.type} on />
+                  <span className="flex-1 min-w-0 text-[13px] text-[var(--text-heading)] leading-snug">{guidance.step.instruction}</span>
+                  <span className="text-[15px] font-mono text-[var(--gold-light)] tabular-nums flex-shrink-0">{formatDistance(guidance.distance)}</span>
                 </div>
               </div>
             )}
 
-            {/* summary — sticky so time, distance and ETA stay visible while
-                the step list scrolls underneath */}
-            <div className="sticky top-0 z-10 px-3 py-2.5 border-b border-[var(--border-secondary)] bg-[var(--bg-panel)] backdrop-blur-xl">
-              <div className="flex items-baseline justify-between gap-3">
+            {/* summary — sticky so time, distance and arrival stay in view while the steps scroll under it */}
+            <div className="sticky top-0 z-10 px-4 pt-3.5 pb-3 border-b border-[var(--border-secondary)]" style={{ background: 'var(--oi-solid)' }}>
+              <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="text-[17px] leading-none text-[var(--gold-primary)] tabular-nums">
-                    {formatDuration(route.duration)}
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-[26px] leading-none font-mono font-light tabular-nums text-[var(--text-heading)]" style={{ textShadow: '0 0 20px rgba(var(--gold-rgb),0.2)' }}>
+                      {formatDuration(route.duration)}
+                    </span>
+                    {chosen === 0 && routes.length > 1 && <span className="text-[9.5px] font-mono tracking-[0.12em] uppercase text-[var(--gold-light)]">Fastest</span>}
                   </div>
-                  {via && (
-                    <div className="text-[10px] text-[var(--text-muted)] truncate mt-1">via {via}</div>
-                  )}
+                  <div className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-[var(--text-secondary)] tabular-nums">
+                    <span>{formatDistance(route.distance)}</span>
+                    <span className="text-[var(--text-muted)]">·</span>
+                    <Clock className="w-3 h-3 text-[var(--text-muted)]" />
+                    <span>Arrive {arrivalTime(route.duration)}</span>
+                  </div>
+                  {via && <div className="mt-0.5 text-[11.5px] text-[var(--text-muted)] truncate">via {via}</div>}
                 </div>
-                <div className="text-right flex-shrink-0">
-                  <div className="text-[12px] text-[var(--text-secondary)] tabular-nums">
-                    {formatDistance(route.distance)}
+                {(route.hasToll || route.hasHighway || route.hasFerry) && (
+                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    {route.hasToll && <span className="h-5 px-1.5 rounded flex items-center text-[9px] font-mono tracking-[0.1em] uppercase border border-[rgba(var(--gold-rgb),0.35)] text-[var(--gold-light)]">Toll</span>}
+                    {route.hasHighway && <span className="h-5 px-1.5 rounded flex items-center text-[9px] font-mono tracking-[0.1em] uppercase border border-[var(--border-secondary)] text-[var(--text-secondary)]">Motorway</span>}
+                    {route.hasFerry && <span className="h-5 px-1.5 rounded flex items-center text-[9px] font-mono tracking-[0.1em] uppercase border border-[var(--border-secondary)] text-[var(--text-secondary)]">Ferry</span>}
                   </div>
-                  <div className="flex items-center gap-1 justify-end text-[10px] text-[var(--text-muted)] tabular-nums mt-1">
-                    <Clock className="w-2.5 h-2.5" />
-                    {arrivalTime(route.duration)}
-                  </div>
-                </div>
+                )}
               </div>
 
-              {(route.hasToll || route.hasHighway || route.hasFerry) && (
-                <div className="flex gap-1.5 mt-2">
-                  {route.hasToll && <span className="px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider border border-[var(--border-secondary)] text-[var(--alert-orange)]">Toll</span>}
-                  {route.hasHighway && <span className="px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider border border-[var(--border-secondary)] text-[var(--text-muted)]">Motorway</span>}
-                  {route.hasFerry && <span className="px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider border border-[var(--border-secondary)] text-[var(--cyan-primary)]">Ferry</span>}
-                </div>
-              )}
-
-              {route.elevation && route.elevation.length > 1 && (
-                <div className="mt-2.5">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="flex items-center gap-1 text-[9px] uppercase tracking-[0.15em] text-[var(--text-muted)]">
-                      <Mountain className="w-2.5 h-2.5" /> Elevation
-                    </span>
-                    <span className="text-[10px] text-[var(--text-secondary)] tabular-nums">
-                      ↑{route.ascent ?? 0} m · ↓{route.descent ?? 0} m
-                    </span>
-                  </div>
-                  <svg viewBox="0 0 300 40" className="w-full h-10" preserveAspectRatio="none" aria-hidden="true">
-                    <path
-                      d={`${elevationPath(route.elevation, 300, 38)} L300,40 L0,40 Z`}
-                      fill="rgba(0,229,255,0.12)"
-                    />
-                    <path
-                      d={elevationPath(route.elevation, 300, 38)}
-                      fill="none" stroke="var(--cyan-primary)" strokeWidth="1.2"
-                      vectorEffect="non-scaling-stroke"
-                    />
-                  </svg>
-                </div>
-              )}
-
               {onStartNavigation && (
-                <button
-                  onClick={() => onStartNavigation(route, to?.label || 'your destination')}
-                  className="w-full mt-2.5 flex items-center justify-center gap-2 py-2 rounded-lg
-                             bg-[rgba(66,133,244,0.16)] border border-[rgba(66,133,244,0.45)]
-                             text-[#7BAAF7] text-[12px] tracking-wide
-                             hover:bg-[rgba(66,133,244,0.24)] transition-colors"
-                >
-                  <Play className="w-3.5 h-3.5" />
-                  Start navigation
+                <button onClick={() => onStartNavigation(route, to?.label || 'your destination', {
+                  stops: stops().map(({ lat, lng }) => ({ lat, lng })),
+                  avoid: Object.entries(avoid).filter(([, on]) => on).map(([k]) => k),
+                })} className="tool-btn-primary w-full mt-3">
+                  <Play className="w-4 h-4" fill="currentColor" /> Start navigation
                 </button>
               )}
+            </div>
 
-              {routes.length > 1 && (
-                <div className="flex gap-1 mt-2.5" role="tablist" aria-label="Route options">
+            {routes.length > 1 && (
+              <div className="px-3 pt-3">
+                <span className="block px-1 pb-1.5 text-[9.5px] font-mono tracking-[0.14em] uppercase text-[var(--text-muted)]">Routes · {routes.length}</span>
+                <div role="radiogroup" aria-label="Routes" className="flex flex-col gap-1">
                   {routes.map((r, i) => {
                     const on = i === chosen;
-                    const slower = Math.round((r.duration - routes[0].duration) / 60);
+                    // Compared in the whole minutes shown, so "14 min" beside "13 min" never reads "same time".
+                    const slower = Math.max(1, Math.round(r.duration / 60)) - Math.max(1, Math.round(routes[0].duration / 60));
+                    const road = viaRoad(r.steps);
                     return (
-                      <button
-                        key={i}
-                        role="tab"
-                        aria-selected={on}
-                        onClick={() => {
-                          setChosen(i);
-                          setRoute(r);
-                          setActiveStep(null);
-                          onActiveSegment?.(null);
-                          if (from && to) {
-                            onRoute({
-                              ...r, from, to,
-                              alternates: routes.filter((_, j) => j !== i).map((x) => x.geometry),
-                            });
-                          }
-                        }}
-                        className={`flex-1 px-2 py-2 rounded-md border text-[10px] transition-all ${
-                          on
-                            ? 'border-[var(--border-active)] bg-[rgba(var(--gold-rgb),0.12)] text-[var(--gold-primary)]'
-                            : 'border-[var(--border-secondary)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                        }`}
-                      >
-                        <span className="block tabular-nums">{formatDuration(r.duration)}</span>
-                        <span className="block text-[9px] opacity-70 tabular-nums">
-                          {i === 0 ? 'Fastest' : slower > 0 ? `+${slower} min` : formatDistance(r.distance)}
+                      <button key={i} role="radio" aria-checked={on} onClick={() => chooseRoute(i)}
+                        className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors ${on ? 'border-[rgba(var(--gold-rgb),0.45)] bg-[rgba(var(--gold-rgb),0.08)]' : 'border-[var(--border-secondary)] hover:bg-white/[0.03] hover:border-[var(--border-primary)]'}`}>
+                        <span className="w-3.5 h-3.5 rounded-full flex items-center justify-center flex-shrink-0 border" style={{ borderColor: on ? 'var(--gold-primary)' : 'var(--text-muted)' }}>
+                          {on && <span className="w-1.5 h-1.5 rounded-full bg-[var(--gold-primary)]" />}
+                        </span>
+                        <span className="flex-1 min-w-0">
+                          <span className={`block text-[12.5px] font-mono tabular-nums ${on ? 'text-[var(--gold-light)]' : 'text-[var(--text-heading)]'}`}>{formatDuration(r.duration)}</span>
+                          <span className="block text-[11px] text-[var(--text-muted)] truncate">{road ? `via ${road}` : formatDistance(r.distance)}</span>
+                        </span>
+                        <span className="flex flex-col items-end flex-shrink-0 text-[10.5px] font-mono tabular-nums">
+                          <span className="text-[var(--text-secondary)]">{formatDistance(r.distance)}</span>
+                          <span className={i === 0 ? 'text-[var(--gold-light)]' : 'text-[var(--text-muted)]'}>{i === 0 ? 'Fastest' : slower > 0 ? `+${slower} min` : 'Same time'}</span>
                         </span>
                       </button>
                     );
                   })}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+
+            {route.elevation && route.elevation.length > 1 && (
+              <div className="px-4 pt-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="flex items-center gap-1.5 text-[9.5px] font-mono tracking-[0.14em] uppercase text-[var(--text-muted)]">
+                    <Mountain className="w-3 h-3" /> Elevation
+                  </span>
+                  <span className="text-[10.5px] font-mono text-[var(--text-secondary)] tabular-nums">↑{route.ascent ?? 0} m · ↓{route.descent ?? 0} m</span>
+                </div>
+                <svg viewBox="0 0 300 40" className="w-full h-10" preserveAspectRatio="none" aria-hidden="true">
+                  <path d={`${elevationPath(route.elevation, 300, 38)} L300,40 L0,40 Z`} fill="rgba(var(--gold-rgb),0.12)" />
+                  <path d={elevationPath(route.elevation, 300, 38)} fill="none" stroke="var(--gold-primary)" strokeWidth="1.3" vectorEffect="non-scaling-stroke" />
+                </svg>
+              </div>
+            )}
 
             {/* steps */}
-            <ol>
-              {route.steps.map((s, i) => (
-                <li key={i}>
-                  <button
-                    onClick={() => {
-                      setActiveStep(i);
-                      onLocate?.(s.location[1], s.location[0], 17);
-                      onActiveSegment?.(
-                        segmentBetween(route.geometry.coordinates, s.location, route.steps[i + 1]?.location),
-                      );
-                    }}
-                    className={`w-full text-left px-3 py-2.5 flex items-start gap-2.5 border-l-2 transition-colors ${
-                      activeStep === i
-                        ? 'border-[var(--gold-primary)] bg-[rgba(var(--gold-rgb),0.07)]'
-                        : 'border-transparent hover:bg-[rgba(255,255,255,0.03)]'
-                    }`}
-                  >
-                    <span className="mt-px flex-shrink-0"><StepIcon type={s.type} /></span>
-                    <span className="flex-1 min-w-0 text-[11px] text-[var(--text-primary)] leading-snug">
-                      {s.instruction}
-                    </span>
-                    {s.distance > 0 && (
-                      <span className="text-[10px] text-[var(--text-muted)] tabular-nums flex-shrink-0 mt-px w-12 text-right">
-                        {formatDistance(s.distance)}
-                      </span>
-                    )}
-                  </button>
-                </li>
-              ))}
-            </ol>
+            <div className="px-3 pt-3 pb-2">
+              <span className="block px-1 pb-1.5 text-[9.5px] font-mono tracking-[0.14em] uppercase text-[var(--text-muted)]">Turn by turn · {route.steps.length}</span>
+              <ol className="flex flex-col gap-0.5">
+                {route.steps.map((s, i) => {
+                  const on = activeStep === i;
+                  return (
+                    <li key={i}>
+                      <button
+                        onClick={() => {
+                          setActiveStep(i);
+                          onLocate?.(s.location[1], s.location[0], 17);
+                          onActiveSegment?.(segmentBetween(route.geometry.coordinates, s.location, route.steps[i + 1]?.location));
+                        }}
+                        className={`relative w-full text-left rounded-lg pl-3 pr-2.5 py-2 flex items-center gap-3 transition-colors ${on ? 'bg-[rgba(var(--gold-rgb),0.08)]' : 'hover:bg-white/[0.035]'}`}>
+                        {on && <span aria-hidden className="absolute left-0 top-2 bottom-2 w-[2px] rounded-full bg-[var(--gold-primary)]" />}
+                        <StepIcon type={s.type} on={on} />
+                        <span className={`flex-1 min-w-0 text-[12.5px] leading-snug ${on ? 'text-[var(--text-heading)]' : 'text-[var(--text-primary)]'}`}>{s.instruction}</span>
+                        {s.distance > 0 && (
+                          <span className="text-[11px] font-mono text-[var(--text-muted)] tabular-nums flex-shrink-0 text-right min-w-[44px]">{formatDistance(s.distance)}</span>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
 
-            <p className="px-3 py-2 text-[9px] text-[var(--text-muted)] tracking-wider uppercase border-t border-[var(--border-secondary)]">
-              Routing via {route.provider} · OpenStreetMap
+            <p className="px-4 py-2.5 flex items-center gap-1.5 text-[10px] text-[var(--text-muted)] border-t border-[var(--border-secondary)]">
+              Routing by {route.provider} ·{' '}
+              <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className="hover:text-[var(--gold-light)]">© OpenStreetMap</a>
             </p>
           </>
         )}

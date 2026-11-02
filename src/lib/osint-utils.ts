@@ -183,3 +183,27 @@ export async function batchFetch<T>(
   await Promise.all(workers);
   return results;
 }
+
+/** IANA service names for the ports Shodan sees most, so a keyless result
+ *  (port numbers only) still reads as services. */
+const WELL_KNOWN_PORTS: Record<number, string> = {
+  21: 'ftp', 22: 'ssh', 23: 'telnet', 25: 'smtp', 53: 'dns', 69: 'tftp', 80: 'http',
+  102: 's7', 110: 'pop3', 111: 'rpcbind', 123: 'ntp', 135: 'msrpc', 137: 'netbios-ns',
+  139: 'netbios-ssn', 143: 'imap', 161: 'snmp', 179: 'bgp', 389: 'ldap', 443: 'https',
+  445: 'smb', 465: 'smtps', 500: 'ike', 502: 'modbus', 514: 'syslog', 515: 'printer',
+  554: 'rtsp', 587: 'submission', 631: 'ipp', 636: 'ldaps', 873: 'rsync', 993: 'imaps',
+  995: 'pop3s', 1080: 'socks', 1194: 'openvpn', 1433: 'mssql', 1521: 'oracle',
+  1723: 'pptp', 1883: 'mqtt', 1900: 'upnp', 2049: 'nfs', 2082: 'cpanel', 2083: 'cpanel-ssl',
+  2181: 'zookeeper', 2375: 'docker', 2376: 'docker-tls', 3000: 'http-alt', 3306: 'mysql',
+  3389: 'rdp', 4500: 'ipsec-nat', 5000: 'upnp/http', 5060: 'sip', 5061: 'sips',
+  5432: 'postgresql', 5601: 'kibana', 5672: 'amqp', 5900: 'vnc', 5984: 'couchdb',
+  6379: 'redis', 6443: 'kubernetes', 7547: 'cwmp', 8000: 'http-alt', 8008: 'http-alt',
+  8080: 'http-proxy', 8081: 'http-alt', 8088: 'http-alt', 8291: 'winbox', 8443: 'https-alt',
+  8554: 'rtsp-alt', 8883: 'mqtt-tls', 8888: 'http-alt', 9000: 'http-alt', 9090: 'http-alt',
+  9100: 'jetdirect', 9200: 'elasticsearch', 10000: 'webmin', 11211: 'memcached',
+  20000: 'dnp3', 27017: 'mongodb', 47808: 'bacnet',
+};
+
+export function portServiceName(port: number): string | undefined {
+  return WELL_KNOWN_PORTS[port];
+}

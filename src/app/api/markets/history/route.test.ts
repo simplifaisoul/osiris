@@ -1,5 +1,27 @@
-import { describe, it, expect } from 'vitest';
-import { parseCandles, RANGES } from './route';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { GET, parseCandles, RANGES } from './route';
+
+afterEach(() => vi.unstubAllGlobals());
+
+describe('GET', () => {
+  /* The chart only ever asks for a listed instrument. Anything else is refused
+     before Yahoo is contacted, so the route cannot be used as a relay. */
+  it('refuses a symbol the panel does not list, without going upstream', async () => {
+    const upstream = vi.fn();
+    vi.stubGlobal('fetch', upstream);
+    for (const symbol of ['NOTLISTED', '..', '../../v1/test']) {
+      const res = await GET(new Request(`http://x/api/markets/history?symbol=${encodeURIComponent(symbol)}&range=1M`));
+      expect(res.status).toBe(400);
+    }
+    expect(upstream).not.toHaveBeenCalled();
+  });
+
+  it('serves a listed one', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ chart: { result: [] } }) }));
+    const res = await GET(new Request('http://x/api/markets/history?symbol=LMT&range=1M'));
+    expect(res.status).toBe(200);
+  });
+});
 
 describe('RANGES', () => {
   /* The whole reason the route stopped upper-casing its query parameter:

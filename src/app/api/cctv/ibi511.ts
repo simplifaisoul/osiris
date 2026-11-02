@@ -8,9 +8,10 @@ import type { CctvCamera } from './types';
  * they all expose cameras the same way: a DataTables endpoint at
  * `/List/GetData/Cameras` that pages 100 rows at a time, with each row's
  * position as WKT. Utah and Nevada read the query builder and WKT parser from
- * here; Florida, Georgia, North Carolina and Arizona read the whole loader.
+ * here; Florida, Georgia, North Carolina, Arizona and Idaho read the whole
+ * loader, and so do Ontario and Alberta, whose 511 sites are the same stack.
  *
- * Each of those four publishes the same record shape, so the only thing that
+ * Each of those publishes the same record shape, so the only thing that
  * differs between them is the domain, the bounding box, and the wording of
  * their `location` column — which `cameraLabel` handles for all of them.
  */
@@ -46,6 +47,8 @@ export function parseWkt(wkt?: string | null): { lat: number; lng: number } | nu
 /** One row from /List/GetData/Cameras — only the fields we consume. */
 export interface Ibi511Record {
   id: number;
+  /** The agency that operates the camera, e.g. `ITDNET`, `ACHD`, `UDOT`. */
+  source?: string | null;
   roadway?: string | null;
   direction?: string | null;
   location?: string | null;
@@ -72,8 +75,34 @@ export interface Ibi511Source {
   idPrefix: string;
   /** The agency shown on the camera card. */
   source: string;
+  /** Use public JPEGs when a deployment advertises inaccessible HLS streams. */
+  snapshotOnly?: boolean;
   /** Caption of last resort, when a row names neither a city nor a county. */
   state: string;
+  /** Defaults to `US`. */
+  country?: string;
+  /**
+   * Follows a county name in the caption; defaults to ` County`. Ontario's
+   * `county` column holds cities and regions — "Toronto", "Durham" — so it
+   * passes an empty string.
+   */
+  countySuffix?: string;
+  /**
+   * Skips the `county` column. Idaho fills it with "Nez Perce" on two rows in
+   * three, Boise's included, so a caption built from it would be wrong.
+   */
+  ignoreCounty?: boolean;
+  /**
+   * Agencies (the `source` column) whose rows to leave out. Idaho republishes
+   * its neighbours' border cameras — UDOT, ODOT, WYDOT and the rest — and a
+   * state that is not a rectangle cannot drop them by bounding box alone.
+   */
+  excludeAgencies?: string[];
+  /**
+   * Rows per request; defaults to 100. Alberta answers 500 to anything above
+   * 50.
+   */
+  pageSize?: number;
   /** Drops mis-geocoded rows — every one of these feeds has a few. */
   bounds: { minLat: number; maxLat: number; minLng: number; maxLng: number };
 }
@@ -132,11 +161,11 @@ export function cameraLabel(rec: Ibi511Record): string | null {
 }
 
 /** Where the camera is, for the caption under its name. */
-export function cameraCity(rec: Ibi511Record, state: string): string {
+export function cameraCity(rec: Ibi511Record, state: string, countySuffix = ' County'): string {
   const city = rec.city?.trim();
   if (city && city !== 'N/A') return city;
   const county = rec.county?.trim();
-  if (county && county !== 'N/A') return `${county} County`;
+  if (county && county !== 'N/A') return `${county}${countySuffix}`;
   return state;
 }
 
@@ -149,6 +178,7 @@ function hlsUrl(url?: string | null): string | undefined {
 /** Map a raw row to a camera, or null if it should be skipped. */
 export function mapIbi511Record(rec: Ibi511Record, cfg: Ibi511Source): CctvCamera | null {
   if (!rec || typeof rec.id !== 'number') return null;
+  if (rec.source && cfg.excludeAgencies?.includes(rec.source)) return null;
 
   const img = rec.images?.[0];
   if (!img || img.blocked || img.disabled) return null;
@@ -169,7 +199,7 @@ export function mapIbi511Record(rec: Ibi511Record, cfg: Ibi511Source): CctvCamer
      serve fine, which is what those cameras show instead. Louisiana and
      Arizona set it on none. */
   const gated = img.isVideoAuthRequired === true;
-  const video = img.videoDisabled || gated ? undefined : hlsUrl(img.videoUrl);
+  const video = img.videoDisabled || gated || cfg.snapshotOnly ? undefined : hlsUrl(img.videoUrl);
   if (!snapshot && !video) return null;
 
   return {
@@ -177,8 +207,8 @@ export function mapIbi511Record(rec: Ibi511Record, cfg: Ibi511Source): CctvCamer
     lat,
     lng,
     name: cameraLabel(rec) || `${cfg.source} Camera ${rec.id}`,
-    city: cameraCity(rec, cfg.state),
-    country: 'US',
+    city: cameraCity(cfg.ignoreCounty ? { ...rec, county: null } : rec, cfg.state, cfg.countySuffix),
+    country: cfg.country ?? 'US',
     ...(snapshot ? { feed_url: snapshot } : {}),
     ...(video ? { stream_url: video, stream_type: 'hls' as const } : {}),
     source: cfg.source,
@@ -186,7 +216,7 @@ export function mapIbi511Record(rec: Ibi511Record, cfg: Ibi511Source): CctvCamer
 }
 
 async function fetchPage(cfg: Ibi511Source, start: number): Promise<{ rows: Ibi511Record[]; total: number }> {
-  const url = `${cfg.base}/List/GetData/Cameras?query=${buildQuery(start, PAGE_SIZE)}&lang=en`;
+  const url = `${cfg.base}/List/GetData/Cameras?query=${buildQuery(start, cfg.pageSize ?? PAGE_SIZE)}&lang=en`;
   const res = await stealthFetch(url, {
     signal: AbortSignal.timeout(15000),
     headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
@@ -204,17 +234,20 @@ export async function loadIbi511Cameras(cfg: Ibi511Source): Promise<CctvCamera[]
   // The first page also tells us how many there are in total.
   const first = await fetchPage(cfg, 0);
   const seen = new Map<number, CctvCamera>();
+  const received = new Set<number>();
 
   const ingest = (rows: Ibi511Record[]) => {
     for (const rec of rows) {
+      if (typeof rec?.id === 'number') received.add(rec.id);
       const cam = mapIbi511Record(rec, cfg);
       if (cam) seen.set(rec.id, cam);
     }
   };
   ingest(first.rows);
 
+  const pageSize = cfg.pageSize ?? PAGE_SIZE;
   const starts: number[] = [];
-  for (let s = PAGE_SIZE; s < first.total && s < PAGE_SIZE * MAX_PAGES; s += PAGE_SIZE) {
+  for (let s = pageSize; s < first.total && s < pageSize * MAX_PAGES; s += pageSize) {
     starts.push(s);
   }
 
@@ -241,9 +274,10 @@ export async function loadIbi511Cameras(cfg: Ibi511Source): Promise<CctvCamera[]
      and served that for the next half hour. Throwing hands the decision to
      sourceCache, which keeps the last good index instead — none of these
      feeds drops rows of its own accord, so anything materially short of
-     `recordsTotal` is pages we did not get. */
-  if (first.total > 0 && cams.length < first.total * 0.95) {
-    throw new Error(`${cfg.source} short read: ${cams.length} of ${first.total}`);
+     `recordsTotal` is pages we did not get. It counts rows received rather
+     than cameras kept, since Idaho leaves out a tenth of its rows on purpose. */
+  if (first.total > 0 && received.size < first.total * 0.95) {
+    throw new Error(`${cfg.source} short read: ${received.size} of ${first.total}`);
   }
 
   console.log(`[OSIRIS] ${cfg.source} cameras: ${cams.length} of ${first.total}`);

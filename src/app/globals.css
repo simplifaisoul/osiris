@@ -53,6 +53,9 @@
   --map-flight-gov: #ff9500;
   --map-flight-military: #ff0000;
   --map-flight-unknown: #546e7a;
+  --map-oi-support: #b388ff;
+  --map-oi-oppose: #ff5ccb;
+  --map-oi-neutral: #8c7cff;
 
   /* ── Borders ── */
   --border-primary: rgba(var(--gold-rgb), 0.15);
@@ -2488,4 +2491,149 @@ input[type="range"]::-moz-range-thumb {
   border: 1px solid rgba(var(--gold-rgb), 0.12);
   border-radius: 4px;
   padding: 1px 5px;
+}
+
+/* OI's theatre takes the whole screen: the app's own HUD steps back until it closes. */
+html[data-oi-theater] [data-hud],
+html[data-oi-theater] [data-map-controls] {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.3s ease;
+}
+
+/* ── OSIRIS OI: gold and black ──
+   The OI panel and workspace keep to two tones: gold leads (what is selected,
+   what is live, the prediction), champagne is its quiet second where the
+   platform would use cyan, and the surfaces are black rather than navy. In
+   Ghost they follow that theme's violets. The map and the arcs keep their own
+   colours (the arcs' are set in the Style Studio). Search and Directions
+   (.tool-*) share the same black surface and gold button. */
+:root {
+  --oi-alt: #E6D3A3;
+  --oi-alt-rgb: 230, 211, 163;
+  --oi-surface: rgba(9, 9, 9, 0.9);
+  --oi-solid: #0B0B0B;
+  --oi-raised: #141414;
+  --oi-label: #8C877C;
+  --tool-surface: rgba(10, 10, 10, 0.96);
+}
+body.theme-ghost {
+  --oi-alt: var(--cyan-primary);
+  --oi-alt-rgb: var(--cyan-rgb);
+  --oi-surface: var(--bg-panel);
+  --oi-solid: var(--bg-panel-solid);
+  --oi-raised: var(--bg-tertiary);
+  --oi-label: var(--text-secondary);
+  --tool-surface: var(--bg-panel-solid);
+}
+.oi-glass, .tool-glass {
+  background: var(--oi-surface);
+  border-color: rgba(var(--gold-rgb), 0.13);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55), 0 1px 0 rgba(var(--gold-rgb), 0.07) inset;
+}
+.oi-glass:hover, .tool-glass:hover { border-color: rgba(var(--gold-rgb), 0.2); }
+/* The one filled button OI has: the action a view exists for. */
+.oi-btn-primary, .tool-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 8px;
+  font-family: var(--font-hud);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #0B0B0B;
+  background: linear-gradient(180deg, var(--gold-light), var(--gold-primary));
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset, 0 6px 18px rgba(var(--gold-rgb), 0.18);
+  transition: filter 0.2s ease, box-shadow 0.2s ease, transform 0.08s ease;
+}
+.oi-btn-primary:hover, .tool-btn-primary:hover { filter: brightness(1.06); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.3) inset, 0 8px 24px rgba(var(--gold-rgb), 0.28); }
+.oi-btn-primary:active, .tool-btn-primary:active { transform: scale(0.985); }
+.oi-btn-primary:focus-visible, .tool-btn-primary:focus-visible { outline: 2px solid rgba(var(--gold-rgb), 0.6); outline-offset: 2px; }
+.oi-btn-primary:disabled, .tool-btn-primary:disabled { color: rgba(var(--gold-rgb), 0.55); background: rgba(var(--gold-rgb), 0.08); box-shadow: inset 0 0 0 1px rgba(var(--gold-rgb), 0.2); filter: none; cursor: default; }
+/* The quiet button beside it: a gold outline. */
+.oi-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 7px;
+  font-family: var(--font-hud);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold-light);
+  border: 1px solid rgba(var(--gold-rgb), 0.35);
+  background: rgba(var(--gold-rgb), 0.06);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+.oi-btn:hover { background: rgba(var(--gold-rgb), 0.12); border-color: rgba(var(--gold-rgb), 0.55); }
+.oi-btn:focus-visible { outline: 2px solid rgba(var(--gold-rgb), 0.5); outline-offset: 2px; }
+.oi-btn:disabled { opacity: 0.4; pointer-events: none; }
+.oi-select option { background: var(--oi-solid); }
+/* Search and Directions sit over the busiest part of the map: nearly solid, so labels underneath never read through. */
+.tool-glass { background: var(--tool-surface); }
+/* Search: a line of gold runs under the box while a search is on its way. */
+@keyframes tool-scan { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+.tool-scan { background: linear-gradient(90deg, transparent, var(--gold-primary), transparent); animation: tool-scan 1.1s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .tool-scan { animation: none; opacity: 0.6; } }
+
+/* OI's research graph: marks fade in as the run finds them, an actor deciding its move pings.
+   Fading stroke-opacity leaves opacity to the dimming. */
+@keyframes oi-graph-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes oi-edge-in { from { stroke-opacity: 0; } to { stroke-opacity: 1; } }
+@keyframes oi-graph-ping { from { transform: scale(0.75); opacity: 0.9; } to { transform: scale(1.6); opacity: 0; } }
+g.oi-graph-in { animation: oi-graph-in 0.7s ease-out both; }
+path.oi-graph-in { animation: oi-edge-in 0.9s ease-out both; }
+.oi-graph-ping { transform-box: fill-box; transform-origin: center; animation: oi-graph-ping 1.6s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .oi-graph-ping { animation: none; }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   CCTV VISION — AI Analyze on a camera (components/CameraVision)
+   The frame freezes under a scanning grid while the detector
+   reads it; then a sweep crosses it, lifting the veil, and each
+   box locks on as the line passes (its delay is --at).
+   ───────────────────────────────────────────────────────────── */
+.vision-sweep { transform-box: view-box; animation: vision-sweep var(--sweep, 1100ms) linear both; }
+.vision-sweep-loop { transform-box: view-box; animation: vision-sweep 1.6s linear infinite; }
+@keyframes vision-sweep {
+  from { transform: translateY(0); }
+  to   { transform: translateY(120%); }
+}
+.vision-lock { transform-box: fill-box; transform-origin: center; animation: vision-lock 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.15) var(--at, 0ms) both; }
+@keyframes vision-lock {
+  from { opacity: 0; transform: scale(1.6); }
+  50%  { opacity: 1; }
+  to   { opacity: 1; transform: scale(1); }
+}
+.vision-flash { animation: vision-flash 0.7s ease-out var(--at, 0ms) both; }
+@keyframes vision-flash {
+  from { opacity: 0; }
+  20%  { opacity: 0.4; }
+  to   { opacity: 0; }
+}
+.vision-chip { animation: vision-fade 0.4s ease-out calc(var(--at, 0ms) + 300ms) both; }
+@keyframes vision-fade { from { opacity: 0; } }
+.vision-region { transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.vision-acquire { animation: vision-acquire 1.4s linear infinite; }
+@keyframes vision-acquire {
+  from { transform: translateY(-100%); }
+  to   { transform: translateY(500%); }
+}
+.vision-grow { transform-origin: left; animation: vision-grow var(--sweep, 1100ms) cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes vision-grow { from { transform: scaleX(0); } }
+.vision-rise { animation: vision-rise 0.45s ease-out both; }
+@keyframes vision-rise { from { opacity: 0; transform: translateY(-6px); } }
+@media (prefers-reduced-motion: reduce) {
+  .vision-sweep, .vision-sweep-loop, .vision-acquire { display: none; }
+  .vision-lock, .vision-flash, .vision-chip, .vision-grow, .vision-rise { animation: none; }
+  .vision-region { transition: none; }
 }

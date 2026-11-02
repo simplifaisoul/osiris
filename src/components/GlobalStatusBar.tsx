@@ -71,7 +71,8 @@ const formatChange = (change: number | undefined) => {
   );
 };
 
-export default function GlobalStatusBar() {
+/** `revealed` is false while the splash is up; the bar rises when it turns true. */
+export default function GlobalStatusBar({ revealed = true }: { revealed?: boolean }) {
   const [crypto, setCrypto] = useState<CryptoPrice[]>([]);
   const [quakes, setQuakes] = useState<Earthquake[]>([]);
   const [hoveredQuake, setHoveredQuake] = useState<Earthquake | null>(null);
@@ -139,8 +140,8 @@ export default function GlobalStatusBar() {
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 3, duration: 0.6 }}
+      animate={revealed ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
+      transition={{ delay: 0.5, duration: 0.6 }}
       className="hidden md:block absolute bottom-0 left-0 right-0 z-[210] pointer-events-none"
     >
       <div className="h-[28px] overflow-hidden bg-[#0a0a0f]/95 border-t border-white/[0.06] flex items-center text-[10px] font-mono tracking-wider backdrop-blur-xl relative">

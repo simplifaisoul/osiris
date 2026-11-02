@@ -3,7 +3,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
-import { X, RotateCcw, Copy, Check, ClipboardPaste, Undo2 } from 'lucide-react';
+import { X, RotateCcw, Copy, Check, ClipboardPaste, Undo2, Maximize2, Minimize2 } from 'lucide-react';
 import { MAP_DEFAULTS, type MapPaletteKey } from '@/lib/map-palette';
 import {
   applySettings,
@@ -19,6 +19,7 @@ import {
   shade,
   type StyleSettings,
 } from '@/lib/style-tokens';
+import StyleStudioStage, { StyleStudioExample, type ControlKey } from './StyleStudioStage';
 
 /**
  * Style Studio — the panel. All token maths lives in `@/lib/style-tokens`;
@@ -26,9 +27,10 @@ import {
  */
 
 /* ── Controls ── */
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+/** `k` names the control, which is how its example is found. */
+function Row({ k, label, children }: { k: ControlKey; label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-3 py-1.5">
+    <div data-k={k} className="flex items-center justify-between gap-3 py-1.5">
       <span className="text-[10px] font-mono tracking-[0.15em] uppercase text-white/40 truncate">{label}</span>
       {children}
     </div>
@@ -188,6 +190,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function StyleStudio({ onClose, isMobile }: { onClose: () => void; isMobile?: boolean }) {
   const [s, setS] = useState<StyleSettings | null>(null);
   const [copied, setCopied] = useState(false);
+  /* Every control has an example of the thing it changes. Fullscreen lays them
+     all out beside the controls; the panel docks one under its header.
+     `pointed` is the control in hand. */
+  const [full, setFull] = useState(false);
+  const [pointed, setPointed] = useState<ControlKey | null>(null);
   const initialised = useRef(false);
   /**
    * Until the user actually changes something there is nothing to override.
@@ -216,10 +223,13 @@ function StyleStudio({ onClose, isMobile }: { onClose: () => void; isMobile?: bo
   }, [s]);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (full) setFull(false); else onClose();
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, full]);
 
   /* While clean, re-seed from the live theme so edits made after a theme
      switch start from what is actually on screen. */
@@ -269,6 +279,18 @@ function StyleStudio({ onClose, isMobile }: { onClose: () => void; isMobile?: bo
     } catch { /* not JSON, or clipboard blocked */ }
   };
 
+  const point = (row: Element | null | undefined) => {
+    setPointed((row?.getAttribute('data-k') as ControlKey | undefined) ?? null);
+  };
+
+  /* One listener for every row: each carries its key as `data-k`. Anything
+     else under the pointer leaves the last row standing, so crossing a section
+     heading does not blink the example off and on. */
+  const pointAt = (e: React.SyntheticEvent) => {
+    const row = (e.target as Element).closest('[data-k]');
+    if (row) point(row);
+  };
+
   if (!s) return null;
 
   /* Portalled to <body>: the rail that renders the trigger carries a
@@ -280,8 +302,10 @@ function StyleStudio({ onClose, isMobile }: { onClose: () => void; isMobile?: bo
       animate={{ opacity: 1, x: 0, y: 0 }}
       exit={{ opacity: 0, x: isMobile ? 0 : -12, y: isMobile ? 12 : 0 }}
       transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-      className={`z-[400] pointer-events-auto flex flex-col rounded-xl border border-[var(--border-primary)] shadow-[0_16px_48px_rgba(0,0,0,0.7)] ${
-        isMobile ? 'fixed inset-x-3 bottom-3 top-20' : 'fixed left-[58px] bottom-6 w-[340px] max-h-[min(78vh,720px)]'
+      className={`z-[400] pointer-events-auto border border-[var(--border-primary)] shadow-[0_16px_48px_rgba(0,0,0,0.7)] ${
+        full
+          ? `fixed inset-0 grid ${isMobile ? 'grid-rows-[auto_42%_minmax(0,1fr)]' : 'grid-cols-[340px_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)]'}`
+          : `flex flex-col rounded-xl ${isMobile ? 'fixed inset-x-3 bottom-3 top-20' : 'fixed left-[58px] bottom-6 w-[340px] max-h-[min(78vh,720px)]'}`
       }`}
       style={{
         background: 'rgba(6, 4, 14, 0.96)',
@@ -306,13 +330,36 @@ function StyleStudio({ onClose, isMobile }: { onClose: () => void; isMobile?: bo
           <button onClick={reset} title="Reset to the active theme" aria-label="Reset" className="w-7 h-7 rounded-md flex items-center justify-center text-white/30 hover:text-white/70 hover:bg-white/5 transition-colors">
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
+          <button
+            onClick={() => { setFull(f => !f); setPointed(null); }}
+            title={full ? 'Back to the panel' : 'Fullscreen, with an example of what each control changes'}
+            aria-label={full ? 'Leave fullscreen' : 'Fullscreen with examples'}
+            aria-pressed={full}
+            className="w-7 h-7 rounded-md flex items-center justify-center text-white/30 hover:text-white/70 hover:bg-white/5 transition-colors"
+          >
+            {full ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+          </button>
           <button onClick={onClose} title="Close" aria-label="Close Style Studio" className="w-7 h-7 rounded-md flex items-center justify-center text-white/30 hover:text-white/70 hover:bg-white/5 transition-colors">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-2 flex flex-col gap-3">
+      {!full && <StyleStudioExample s={s} k={pointed} className="shrink-0 border-b border-white/[0.07]" />}
+
+      <div
+        className={`flex-1 overflow-y-auto px-3 py-2 flex flex-col gap-3 ${full && isMobile ? 'row-start-3' : ''}`}
+        onPointerOver={pointAt}
+        onFocus={pointAt}
+        /* The docked example just shows the last control touched. Fullscreen
+           dims every example but the one in hand, so there the board has to
+           come back once the controls are let go. A control still holding
+           focus keeps its example, so a colour being picked stays lit. A
+           finger lifting is not a pointer leaving: a tapped row stays lit. And
+           when focus goes nowhere, the row still under the pointer keeps it. */
+        onPointerLeave={full ? e => { if (e.pointerType === 'mouse') point(document.activeElement?.closest('[data-k]')); } : undefined}
+        onBlur={full ? e => point((e.relatedTarget as Element | null)?.closest('[data-k]') ?? e.currentTarget.querySelector('[data-k]:hover')) : undefined}
+      >
         <Section title="Preset">
           <div className="grid grid-cols-3 gap-1 pt-1">
             {PRESETS.map(p => (
@@ -329,20 +376,20 @@ function StyleStudio({ onClose, isMobile }: { onClose: () => void; isMobile?: bo
         </Section>
 
         <Section title="Accent">
-          <Row label="Primary"><Swatch label="Primary accent" value={s.accent} onChange={v => set('accent', v)} /></Row>
-          <Row label="Secondary"><Swatch label="Secondary accent" value={s.accent2} onChange={v => set('accent2', v)} /></Row>
-          <Row label="Glow"><Slider label="Glow strength" value={s.glow} min={0} max={1} step={0.01} onChange={v => set('glow', v)} format={v => `${Math.round(v * 100)}%`} /></Row>
+          <Row k="accent" label="Primary"><Swatch label="Primary accent" value={s.accent} onChange={v => set('accent', v)} /></Row>
+          <Row k="accent2" label="Secondary"><Swatch label="Secondary accent" value={s.accent2} onChange={v => set('accent2', v)} /></Row>
+          <Row k="glow" label="Glow"><Slider label="Glow strength" value={s.glow} min={0} max={1} step={0.01} onChange={v => set('glow', v)} format={v => `${Math.round(v * 100)}%`} /></Row>
         </Section>
 
         <Section title="Signal">
-          <Row label="Critical"><Swatch label="Critical colour" value={s.alertRed} onChange={v => set('alertRed', v)} /></Row>
-          <Row label="Warning"><Swatch label="Warning colour" value={s.alertOrange} onChange={v => set('alertOrange', v)} /></Row>
-          <Row label="Nominal"><Swatch label="Nominal colour" value={s.alertGreen} onChange={v => set('alertGreen', v)} /></Row>
-          <Row label="Info"><Swatch label="Info colour" value={s.alertBlue} onChange={v => set('alertBlue', v)} /></Row>
+          <Row k="alertRed" label="Critical"><Swatch label="Critical colour" value={s.alertRed} onChange={v => set('alertRed', v)} /></Row>
+          <Row k="alertOrange" label="Warning"><Swatch label="Warning colour" value={s.alertOrange} onChange={v => set('alertOrange', v)} /></Row>
+          <Row k="alertGreen" label="Nominal"><Swatch label="Nominal colour" value={s.alertGreen} onChange={v => set('alertGreen', v)} /></Row>
+          <Row k="alertBlue" label="Info"><Swatch label="Info colour" value={s.alertBlue} onChange={v => set('alertBlue', v)} /></Row>
         </Section>
 
         <Section title="Map controls">
-          <Row label="Pan/zoom pad">
+          <Row k="mapControls" label="Pan/zoom pad">
             <Segmented
               label="On-screen pan and zoom pad"
               options={ON_OFF}
@@ -354,50 +401,55 @@ function StyleStudio({ onClose, isMobile }: { onClose: () => void; isMobile?: bo
 
         <Section title="Map layers">
           <SubHead label="Cameras" />
-          <Row label="Dots &amp; labels"><ResettableSwatch label="Camera colour" value={s.map.cctv} fallback={MAP_DEFAULTS.cctv} onChange={v => setMap('cctv', v)} /></Row>
+          <Row k="cctv" label="Dots &amp; labels"><ResettableSwatch label="Camera colour" value={s.map.cctv} fallback={MAP_DEFAULTS.cctv} onChange={v => setMap('cctv', v)} /></Row>
 
           <SubHead label="Satellites" note="Default keeps each satellite's own mission colour. Change one and it takes over that whole category." />
-          <Row label="Comms"><ResettableSwatch label="Comms satellites" value={s.map.satComms} fallback={MAP_DEFAULTS.satComms} onChange={v => setMap('satComms', v)} /></Row>
-          <Row label="Military"><ResettableSwatch label="Military satellites" value={s.map.satMilitary} fallback={MAP_DEFAULTS.satMilitary} onChange={v => setMap('satMilitary', v)} /></Row>
-          <Row label="Navigation"><ResettableSwatch label="Navigation satellites" value={s.map.satNavigation} fallback={MAP_DEFAULTS.satNavigation} onChange={v => setMap('satNavigation', v)} /></Row>
-          <Row label="Earth obs"><ResettableSwatch label="Earth observation satellites" value={s.map.satEarth} fallback={MAP_DEFAULTS.satEarth} onChange={v => setMap('satEarth', v)} /></Row>
-          <Row label="Science"><ResettableSwatch label="Science satellites" value={s.map.satScience} fallback={MAP_DEFAULTS.satScience} onChange={v => setMap('satScience', v)} /></Row>
-          <Row label="Other"><ResettableSwatch label="Other satellites" value={s.map.satOther} fallback={MAP_DEFAULTS.satOther} onChange={v => setMap('satOther', v)} /></Row>
+          <Row k="satComms" label="Comms"><ResettableSwatch label="Comms satellites" value={s.map.satComms} fallback={MAP_DEFAULTS.satComms} onChange={v => setMap('satComms', v)} /></Row>
+          <Row k="satMilitary" label="Military"><ResettableSwatch label="Military satellites" value={s.map.satMilitary} fallback={MAP_DEFAULTS.satMilitary} onChange={v => setMap('satMilitary', v)} /></Row>
+          <Row k="satNavigation" label="Navigation"><ResettableSwatch label="Navigation satellites" value={s.map.satNavigation} fallback={MAP_DEFAULTS.satNavigation} onChange={v => setMap('satNavigation', v)} /></Row>
+          <Row k="satEarth" label="Earth obs"><ResettableSwatch label="Earth observation satellites" value={s.map.satEarth} fallback={MAP_DEFAULTS.satEarth} onChange={v => setMap('satEarth', v)} /></Row>
+          <Row k="satScience" label="Science"><ResettableSwatch label="Science satellites" value={s.map.satScience} fallback={MAP_DEFAULTS.satScience} onChange={v => setMap('satScience', v)} /></Row>
+          <Row k="satOther" label="Other"><ResettableSwatch label="Other satellites" value={s.map.satOther} fallback={MAP_DEFAULTS.satOther} onChange={v => setMap('satOther', v)} /></Row>
 
           <SubHead label="Aircraft" />
-          <Row label="Civil"><ResettableSwatch label="Civil aircraft" value={s.map.flightCivil} fallback={MAP_DEFAULTS.flightCivil} onChange={v => setMap('flightCivil', v)} /></Row>
-          <Row label="Private"><ResettableSwatch label="Private aircraft" value={s.map.flightPrivate} fallback={MAP_DEFAULTS.flightPrivate} onChange={v => setMap('flightPrivate', v)} /></Row>
-          <Row label="Government"><ResettableSwatch label="Government aircraft" value={s.map.flightGov} fallback={MAP_DEFAULTS.flightGov} onChange={v => setMap('flightGov', v)} /></Row>
-          <Row label="Military"><ResettableSwatch label="Military aircraft" value={s.map.flightMilitary} fallback={MAP_DEFAULTS.flightMilitary} onChange={v => setMap('flightMilitary', v)} /></Row>
-          <Row label="Unknown"><ResettableSwatch label="Unknown aircraft" value={s.map.flightUnknown} fallback={MAP_DEFAULTS.flightUnknown} onChange={v => setMap('flightUnknown', v)} /></Row>
+          <Row k="flightCivil" label="Civil"><ResettableSwatch label="Civil aircraft" value={s.map.flightCivil} fallback={MAP_DEFAULTS.flightCivil} onChange={v => setMap('flightCivil', v)} /></Row>
+          <Row k="flightPrivate" label="Private"><ResettableSwatch label="Private aircraft" value={s.map.flightPrivate} fallback={MAP_DEFAULTS.flightPrivate} onChange={v => setMap('flightPrivate', v)} /></Row>
+          <Row k="flightGov" label="Government"><ResettableSwatch label="Government aircraft" value={s.map.flightGov} fallback={MAP_DEFAULTS.flightGov} onChange={v => setMap('flightGov', v)} /></Row>
+          <Row k="flightMilitary" label="Military"><ResettableSwatch label="Military aircraft" value={s.map.flightMilitary} fallback={MAP_DEFAULTS.flightMilitary} onChange={v => setMap('flightMilitary', v)} /></Row>
+          <Row k="flightUnknown" label="Unknown"><ResettableSwatch label="Unknown aircraft" value={s.map.flightUnknown} fallback={MAP_DEFAULTS.flightUnknown} onChange={v => setMap('flightUnknown', v)} /></Row>
+
+          <SubHead label="OI" note="The arcs a forecast draws through the sky." />
+          <Row k="oiSupport" label="Aligned"><ResettableSwatch label="OI arcs: aligned or agreeing" value={s.map.oiSupport} fallback={MAP_DEFAULTS.oiSupport} onChange={v => setMap('oiSupport', v)} /></Row>
+          <Row k="oiOppose" label="Opposed"><ResettableSwatch label="OI arcs: opposed or disputing" value={s.map.oiOppose} fallback={MAP_DEFAULTS.oiOppose} onChange={v => setMap('oiOppose', v)} /></Row>
+          <Row k="oiNeutral" label="Neutral"><ResettableSwatch label="OI arcs: neutral, evidence" value={s.map.oiNeutral} fallback={MAP_DEFAULTS.oiNeutral} onChange={v => setMap('oiNeutral', v)} /></Row>
         </Section>
 
         <Section title="Surface">
-          <Row label="Background"><Swatch label="Background colour" value={s.bg} onChange={setBg} /></Row>
-          <Row label="Panel"><Slider label="Panel opacity" value={s.panelAlpha} min={0.2} max={1} step={0.01} onChange={v => set('panelAlpha', v)} format={v => `${Math.round(v * 100)}%`} /></Row>
-          <Row label="Border"><Slider label="Border strength" value={s.borderAlpha} min={0} max={0.6} step={0.01} onChange={v => set('borderAlpha', v)} format={v => `${Math.round(v * 100)}%`} /></Row>
-          <Row label="Blur"><AutoSlider label="Backdrop blur" value={s.blur} min={0} max={64} step={1} whenEnabled={24} onChange={v => set('blur', v)} format={v => `${v}px`} /></Row>
-          <Row label="Radius"><Slider label="Corner radius" value={s.radius} min={0} max={2.5} step={0.05} onChange={v => set('radius', v)} format={v => `${v.toFixed(2)}x`} /></Row>
+          <Row k="bg" label="Background"><Swatch label="Background colour" value={s.bg} onChange={setBg} /></Row>
+          <Row k="panelAlpha" label="Panel"><Slider label="Panel opacity" value={s.panelAlpha} min={0.2} max={1} step={0.01} onChange={v => set('panelAlpha', v)} format={v => `${Math.round(v * 100)}%`} /></Row>
+          <Row k="borderAlpha" label="Border"><Slider label="Border strength" value={s.borderAlpha} min={0} max={0.6} step={0.01} onChange={v => set('borderAlpha', v)} format={v => `${Math.round(v * 100)}%`} /></Row>
+          <Row k="blur" label="Blur"><AutoSlider label="Backdrop blur" value={s.blur} min={0} max={64} step={1} whenEnabled={24} onChange={v => set('blur', v)} format={v => `${v}px`} /></Row>
+          <Row k="radius" label="Radius"><Slider label="Corner radius" value={s.radius} min={0} max={2.5} step={0.05} onChange={v => set('radius', v)} format={v => `${v.toFixed(2)}x`} /></Row>
         </Section>
 
         <Section title="Text">
-          <Row label="Primary"><Swatch label="Primary text" value={s.textPrimary} onChange={v => set('textPrimary', v)} /></Row>
-          <Row label="Secondary"><Swatch label="Secondary text" value={s.textSecondary} onChange={v => set('textSecondary', v)} /></Row>
-          <Row label="Muted"><Swatch label="Muted text" value={s.textMuted} onChange={v => set('textMuted', v)} /></Row>
-          <Row label="Heading"><Swatch label="Heading text" value={s.textHeading} onChange={v => set('textHeading', v)} /></Row>
+          <Row k="textPrimary" label="Primary"><Swatch label="Primary text" value={s.textPrimary} onChange={v => set('textPrimary', v)} /></Row>
+          <Row k="textSecondary" label="Secondary"><Swatch label="Secondary text" value={s.textSecondary} onChange={v => set('textSecondary', v)} /></Row>
+          <Row k="textMuted" label="Muted"><Swatch label="Muted text" value={s.textMuted} onChange={v => set('textMuted', v)} /></Row>
+          <Row k="textHeading" label="Heading"><Swatch label="Heading text" value={s.textHeading} onChange={v => set('textHeading', v)} /></Row>
         </Section>
 
         <Section title="Typography">
-          <Row label="UI font"><Segmented label="UI font" options={FONT_UI} value={s.fontUi} onChange={v => set('fontUi', v)} /></Row>
-          <Row label="Mono font"><Segmented label="Mono font" options={FONT_MONO} value={s.fontMono} onChange={v => set('fontMono', v)} /></Row>
-          <Row label="Tracking"><AutoSlider label="Mono tracking" value={s.tracking} min={-0.05} max={0.4} step={0.005} whenEnabled={0.2} onChange={v => set('tracking', v)} format={v => `${v.toFixed(2)}em`} /></Row>
+          <Row k="fontUi" label="UI font"><Segmented label="UI font" options={FONT_UI} value={s.fontUi} onChange={v => set('fontUi', v)} /></Row>
+          <Row k="fontMono" label="Mono font"><Segmented label="Mono font" options={FONT_MONO} value={s.fontMono} onChange={v => set('fontMono', v)} /></Row>
+          <Row k="tracking" label="Tracking"><AutoSlider label="Mono tracking" value={s.tracking} min={-0.05} max={0.4} step={0.005} whenEnabled={0.2} onChange={v => set('tracking', v)} format={v => `${v.toFixed(2)}em`} /></Row>
         </Section>
 
         <Section title="Motion & FX">
-          <Row label="Speed"><Slider label="Motion speed" value={s.motion} min={0} max={2} step={0.05} onChange={v => set('motion', v)} format={v => (v === 0 ? 'off' : `${v.toFixed(2)}x`)} /></Row>
-          <Row label="Scanlines"><Slider label="Scanline overlay" value={s.scanlines} min={0} max={0.2} step={0.005} onChange={v => set('scanlines', v)} format={v => (v === 0 ? 'off' : `${Math.round(v * 500)}%`)} /></Row>
-          <Row label="Grain"><Slider label="Film grain overlay" value={s.grain} min={0} max={0.3} step={0.005} onChange={v => set('grain', v)} format={v => (v === 0 ? 'off' : `${Math.round(v * 333)}%`)} /></Row>
-          <Row label="Vignette"><Slider label="Edge vignette" value={s.vignette} min={0} max={1} step={0.01} onChange={v => set('vignette', v)} format={v => (v === 0 ? 'off' : `${Math.round(v * 100)}%`)} /></Row>
+          <Row k="motion" label="Speed"><Slider label="Motion speed" value={s.motion} min={0} max={2} step={0.05} onChange={v => set('motion', v)} format={v => (v === 0 ? 'off' : `${v.toFixed(2)}x`)} /></Row>
+          <Row k="scanlines" label="Scanlines"><Slider label="Scanline overlay" value={s.scanlines} min={0} max={0.2} step={0.005} onChange={v => set('scanlines', v)} format={v => (v === 0 ? 'off' : `${Math.round(v * 500)}%`)} /></Row>
+          <Row k="grain" label="Grain"><Slider label="Film grain overlay" value={s.grain} min={0} max={0.3} step={0.005} onChange={v => set('grain', v)} format={v => (v === 0 ? 'off' : `${Math.round(v * 333)}%`)} /></Row>
+          <Row k="vignette" label="Vignette"><Slider label="Edge vignette" value={s.vignette} min={0} max={1} step={0.01} onChange={v => set('vignette', v)} format={v => (v === 0 ? 'off' : `${Math.round(v * 100)}%`)} /></Row>
         </Section>
 
         <p className="text-[9px] font-mono leading-relaxed text-white/20 pt-1 pb-1">
@@ -405,6 +457,14 @@ function StyleStudio({ onClose, isMobile }: { onClose: () => void; isMobile?: bo
           layers &mdash; those carry meaning, not just a look. Reset restores the active theme.
         </p>
       </div>
+
+      {full && (
+        <StyleStudioStage
+          s={s}
+          focus={pointed}
+          className={isMobile ? 'row-start-2 border-b border-white/[0.07]' : 'col-start-2 row-start-1 row-span-2 border-l border-white/[0.07]'}
+        />
+      )}
     </motion.div>,
     document.body,
   );

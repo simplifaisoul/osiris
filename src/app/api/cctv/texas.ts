@@ -1,5 +1,6 @@
 import { cachedSource } from '@/lib/sourceCache';
 import type { CctvCamera } from './types';
+import { fetchHoustonTranstarIndex, matchHoustonTranstarCameras } from './houston-transtar';
 
 // Public inventory used by https://its.txdot.gov/its/District/DAL/cameras.
 // District codes come from the site's statewide district selector.
@@ -26,6 +27,7 @@ export function mapTexasInventory(data: unknown, district: string): CctvCamera[]
       if (!row || typeof row !== 'object') continue;
       const { icd_Id: id, latitude: lat, longitude: lng } = row;
       if (typeof id !== 'string' || !id.trim() || id.length > 256 || row.hasSnapshot !== true) continue;
+      if (row.statusDescription === 'Device Error' || row.statusDescription === 'Device Offline') continue;
       if (typeof lat !== 'number' || typeof lng !== 'number' || !Number.isFinite(lat) || !Number.isFinite(lng)) continue;
       if (lat < 25.8 || lat > 36.6 || lng < -106.7 || lng > -93.4) continue;
       const key = `txdot-${district}-${id}`;
@@ -42,16 +44,41 @@ export function mapTexasInventory(data: unknown, district: string): CctvCamera[]
   return [...cameras.values()];
 }
 
-const districtFetchers = Object.keys(TEXAS_DISTRICTS).map(district => cachedSource(
-  `texas:${district}`,
-  async () => {
+async function sanAntonioHasSnapshots(cameras: CctvCamera[]): Promise<boolean> {
+  if (!cameras.length) return false;
+  // TxDOT lists SAT cameras as online while returning JSON null for the district.
+  // Probe separated cameras so they reappear when the source recovers.
+  const samples = [cameras[0], cameras[Math.floor(cameras.length / 2)], cameras[cameras.length - 1]];
+  const results = await Promise.allSettled(samples.map(async camera => {
+    const id = camera.id.slice('txdot-SAT-'.length);
+    const query = new URLSearchParams({ districtCode: 'SAT', icdId: id });
+    const response = await fetch(`${TXDOT_BASE}GetCctvSnapshotByIcdId?${query}`, {
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!response.ok) return false;
+    const data = await response.json();
+    return typeof data?.snippet === 'string' && data.snippet.startsWith('/9j/');
+  }));
+  return results.some(result => result.status === 'fulfilled' && result.value);
+}
+
+const districtFetchers = Object.keys(TEXAS_DISTRICTS).map(district => {
+  const fetchDistrict = async () => {
     const response = await fetch(`${TXDOT_BASE}GetCctvStatusListByDistrict?districtCode=${district}`, {
       signal: AbortSignal.timeout(8000),
     });
     if (!response.ok) throw new Error(`TxDOT ${district}: HTTP ${response.status}`);
-    return mapTexasInventory(await response.json(), district);
-  },
-));
+    const cameras = mapTexasInventory(await response.json(), district);
+    if (district === 'HOU' || district === 'YKM') {
+      return matchHoustonTranstarCameras(cameras, await fetchHoustonTranstarIndex());
+    }
+    if (district === 'SAT' && !(await sanAntonioHasSnapshots(cameras))) return [];
+    return cameras;
+  };
+  // Do not keep a stale positive SAT inventory through a district-wide media
+  // outage. The surrounding Texas region cache still bounds refresh frequency.
+  return district === 'SAT' ? fetchDistrict : cachedSource(`texas:${district}`, fetchDistrict);
+});
 
 export async function fetchTexasCameras(): Promise<CctvCamera[]> {
   // Cache each district independently so an outage cannot discard its last inventory.

@@ -1,4 +1,4 @@
-import { inflateRawSync } from 'zlib';
+import { unzipFirstEntry } from './zip';
 import { get as httpGet } from 'http';
 import { get as httpsGet } from 'https';
 
@@ -109,22 +109,7 @@ export interface GdeltEvent {
 
 /** Extracts the single deflated entry from a ZIP buffer. */
 function unzipSingleEntry(buf: Buffer): string {
-  if (buf.length < 30 || buf.readUInt32LE(0) !== 0x04034b50) {
-    throw new Error('Not a ZIP archive');
-  }
-  const method = buf.readUInt16LE(8);
-  const compressedSize = buf.readUInt32LE(18);
-  const nameLen = buf.readUInt16LE(26);
-  const extraLen = buf.readUInt16LE(28);
-  const start = 30 + nameLen + extraLen;
-
-  // A streamed archive can report size 0 here and defer to the data descriptor;
-  // in that case take everything up to the central directory.
-  const end = compressedSize > 0 ? start + compressedSize : buf.indexOf('PK\x01\x02', start, 'binary');
-  const body = buf.subarray(start, end > start ? end : undefined);
-
-  // 8 = deflate, 0 = stored. GDELT uses deflate.
-  return (method === 8 ? inflateRawSync(body) : body).toString('utf8');
+  return unzipFirstEntry(buf).toString('utf8');
 }
 
 /** Rewinds a `YYYYMMDDHHMMSS.export.CSV.zip` URL by n 15-minute windows. */

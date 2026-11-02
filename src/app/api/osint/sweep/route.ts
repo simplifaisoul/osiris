@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { parseIPv4, isPrivateOrReserved } from '@/lib/osint-utils';
+import { getClientIp } from '@/lib/ssrf-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,8 +65,9 @@ export async function GET(req: Request) {
   }
 
   // --- 2. Rate Limiting ---
-  const forwarded = req.headers.get('x-forwarded-for');
-  const requesterIp = forwarded?.split(',')[0]?.trim() || '127.0.0.1';
+  // The first X-Forwarded-For entry is whatever the client wrote, so reading it
+  // let every request claim a fresh address and a fresh allowance.
+  const requesterIp = getClientIp(req);
 
   if (!checkRateLimit(requesterIp)) {
     return NextResponse.json(

@@ -134,6 +134,28 @@ them only if you extend the relevant route or hit rate limits.
 | `N2YO_API_KEY` | N2YO satellites | Register at <https://www.n2yo.com/login/register/>, then **Profile → generate API key**. Limit 1000 req / hour; key can't be regenerated. |
 | `AIS_API_KEY` | aisstream.io maritime | Sign up at <https://aisstream.io/>, create a key on the **API Keys** page. Used over `wss://stream.aisstream.io/v0/stream`. |
 
+### Optional keys for Live Transit
+
+The **Live Buses & Transit** layer needs no key: it reads 185 operators' own
+GTFS-Realtime feeds, including all of Great Britain and New York City. Each
+variable below adds an operator that publishes only behind a free sign-up. The
+key stays on the server; without it that operator is simply not shown.
+
+| Variable | Adds | Get a key |
+|----------|------|-----------|
+| `TRANSIT_WMATA_KEY` | Washington DC Metrobus and Metrorail | <https://developer.wmata.com/> |
+| `TRANSIT_511_KEY` | San Francisco Bay Area, every operator | <https://511.org/open-data/token> |
+| `TRANSIT_TRIMET_KEY` | Portland TriMet | <https://developer.trimet.org/appid/registration/> |
+| `TRANSIT_TRANSLINK_KEY` | Vancouver TransLink | <https://developer.translink.ca/> |
+| `TRANSIT_STM_KEY` | Montréal STM | <https://portail.developpeurs.stm.info/> |
+| `TRANSIT_NTA_KEY` | All of Ireland | <https://developer.nationaltransport.ie/> |
+| `TRANSIT_TRAFIKLAB_KEY` | Stockholm SL | <https://developer.trafiklab.se/> |
+| `TRANSIT_TFNSW_KEY` | Sydney buses, trains, metro, ferries and light rail | <https://opendata.transport.nsw.gov.au/> |
+| `TRANSIT_METLINK_KEY` | Wellington Metlink | <https://opendata.metlink.org.nz/> |
+| `TRANSIT_AT_KEY` | Auckland Transport | <https://dev-portal.at.govt.nz/> |
+
+A refused key shows as "key refused" on that operator in `/api/transit`.
+
 > Keep `.env` out of version control — it is already in `.gitignore`. Only
 > `.env.template` (no secrets) is committed.
 

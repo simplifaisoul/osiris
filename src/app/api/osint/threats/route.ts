@@ -1,5 +1,15 @@
 import { NextResponse } from 'next/server';
+import net from 'node:net';
 import { isRateLimited, getClientIp } from '@/lib/ssrf-guard';
+
+/**
+ * Whether `ip` is on Tor's bulk exit list. The list is one address per line,
+ * so only a whole line counts: a substring test called 1.1.1.1 an exit node
+ * because 11.1.1.10 was one.
+ */
+export function onTorExitList(list: string, ip: string): boolean {
+  return list.split('\n').some(line => line.trim() === ip);
+}
 
 // Threat Intelligence — AlienVault OTX public pulse feed + Tor exit nodes
 export async function GET(req: Request) {
@@ -21,29 +31,27 @@ export async function GET(req: Request) {
         headers: { 'Accept': 'application/json' },
       });
       // Public endpoint may require auth, fall back to activity feed
-      if (!res.ok) {
-        const actRes = await fetch('https://otx.alienvault.com/api/v1/pulses/activity?limit=10', {
-          signal: AbortSignal.timeout(8000),
-        });
-        if (actRes.ok) {
-          const data = await actRes.json();
-          results.pulses = (data.results || []).slice(0, 10).map((p: any) => ({
-            name: p.name,
-            description: p.description?.slice(0, 200),
-            created: p.created,
-            modified: p.modified,
-            tags: p.tags?.slice(0, 5),
-            adversary: p.adversary,
-            targeted_countries: p.targeted_countries,
-            indicators_count: p.indicator_count,
-          }));
-        }
+      const feed = res.ok ? res : await fetch('https://otx.alienvault.com/api/v1/pulses/activity?limit=10', {
+        signal: AbortSignal.timeout(8000),
+      });
+      if (feed.ok) {
+        const data = await feed.json();
+        results.pulses = (data.results || []).slice(0, 10).map((p: any) => ({
+          name: p.name,
+          description: p.description?.slice(0, 200),
+          created: p.created,
+          modified: p.modified,
+          tags: p.tags?.slice(0, 5),
+          adversary: p.adversary,
+          targeted_countries: p.targeted_countries,
+          indicators_count: p.indicator_count,
+        }));
       }
     } catch (e) { console.warn('[OSIRIS] Suppressed error:', e instanceof Error ? e.message : e); }
 
     // 2. Check specific IP/domain if provided
     if (query) {
-      const isIP = /^(\d{1,3}\.){3}\d{1,3}$/.test(query);
+      const isIP = net.isIPv4(query);
       
       if (isIP) {
         // Check against Tor exit node list
@@ -53,7 +61,7 @@ export async function GET(req: Request) {
           });
           if (torRes.ok) {
             const torList = await torRes.text();
-            results.tor_exit_node = torList.includes(query);
+            results.tor_exit_node = onTorExitList(torList, query);
           }
         } catch {
           results.tor_exit_node = null;
@@ -95,8 +103,11 @@ export async function GET(req: Request) {
       }
     }
 
-    results.threat_level = (results.otx?.pulse_count || 0) > 5 ? 'HIGH' :
-                           (results.otx?.pulse_count || 0) > 0 ? 'MEDIUM' : 'LOW';
+    // No reputation answer is not a clean one: when OTX was not asked or did
+    // not reply, the level is unknown rather than LOW.
+    results.threat_level = !results.otx ? 'UNKNOWN' :
+                           results.otx.pulse_count > 5 ? 'HIGH' :
+                           results.otx.pulse_count > 0 ? 'MEDIUM' : 'LOW';
 
     return NextResponse.json(results);
   } catch {

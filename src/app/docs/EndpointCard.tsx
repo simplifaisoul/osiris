@@ -7,7 +7,47 @@ import { CodeBlock, CopyButton, type CodeTab } from './docsPrimitives';
 const METHOD_STYLES: Record<string, string> = {
   GET: 'text-[#00E676] border-[#00E676]/30 bg-[#00E676]/10',
   POST: 'text-[#FF9500] border-[#FF9500]/30 bg-[#FF9500]/10',
+  DELETE: 'text-[#FF5A52] border-[#FF5A52]/30 bg-[#FF5A52]/10',
 };
+
+/** Line continuation for the shell snippets. */
+const CONT = ` ${String.fromCharCode(92)}\n`;
+
+/** Snippets for a route that reads request headers (a model key, a run token). */
+function buildWithHeaders(method: string, url: string, body: string, headers: [string, string][]): CodeTab[] {
+  const hasBody = method === 'POST';
+  const all: [string, string][] = hasBody ? [['Content-Type', 'application/json'], ...headers] : headers;
+  const curl = [
+    `curl -s${method === 'GET' ? '' : ` -X ${method}`} "${url}"`,
+    ...all.map(([k, v]) => `  -H "${k}: ${v}"`),
+    ...(hasBody ? [`  -d '${body}'`] : []),
+  ].join(CONT);
+  const jsHeaders = all.map(([k, v]) => `"${k}": "${v}"`).join(', ');
+  const js = [
+    `const res = await fetch("${url}", {`,
+    `  method: "${method}",`,
+    `  headers: { ${jsHeaders} },`,
+    ...(hasBody ? [`  body: JSON.stringify(${body.replace(/\n/g, '\n  ')})`] : []),
+    '});',
+    'const data = await res.json();',
+  ].join('\n');
+  const pyBody = body.replace(/\n/g, '\n    ').replace(/true/g, 'True').replace(/false/g, 'False').replace(/null/g, 'None');
+  const py = [
+    'import requests',
+    '',
+    `r = requests.${method.toLowerCase()}(`,
+    `    "${url}",`,
+    `    headers={${headers.map(([k, v]) => `"${k}": "${v}"`).join(', ')}},`,
+    ...(hasBody ? [`    json=${pyBody},`] : []),
+    ')',
+    'data = r.json()',
+  ].join('\n');
+  return [
+    { label: 'cURL', lang: 'bash', code: curl },
+    { label: 'JavaScript', lang: 'javascript', code: js },
+    { label: 'Python', lang: 'python', code: py },
+  ];
+}
 
 /* ─────────────────────────────────────────────────────────────
    Request snippet generation
@@ -17,6 +57,7 @@ function buildTabs(ep: ApiEndpoint, url: string): CodeTab[] {
   const method = Array.isArray(ep.method) ? ep.method[0] : ep.method;
   const isPost = method === 'POST';
   const body = ep.bodyExample || '{}';
+  if (ep.headers) return buildWithHeaders(method, url, body, Object.entries(ep.headers));
 
   const curl = isPost
     ? `curl -s -X POST "${url}" \\

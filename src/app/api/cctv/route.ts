@@ -24,6 +24,7 @@ import { fetchPolandCameras } from './poland';
 import { fetchJapanCameras } from './japan';
 import { fetchSwitzerlandCameras } from './switzerland';
 import { fetchFinlandCameras } from './finland';
+import { fetchSwedenCameras } from './sweden';
 import { fetchHongKongCameras } from './hongkong';
 import { fetchUtahCameras } from './utah';
 import { fetchIcelandCameras } from './iceland';
@@ -33,6 +34,8 @@ import { fetchAsiaLiveCameras } from './asia-live';
 import { fetchNewZealandCameras } from './newzealand';
 import { fetchLithuaniaCameras } from './lithuania';
 import { fetchEdmontonCameras } from './edmonton';
+import { fetchOntarioCameras } from './ontario';
+import { fetchAlbertaCameras } from './alberta';
 import { fetchOregonCameras } from './oregon';
 import { fetchMichiganCameras } from './michigan';
 import { fetchIndianaCameras } from './indiana';
@@ -40,9 +43,14 @@ import { fetchNevadaCameras } from './nevada';
 import { fetchLouisianaCameras } from './louisiana';
 import { fetchFloridaCameras } from './florida';
 import { fetchGeorgiaCameras } from './georgia';
+import { fetchSouthCarolinaCameras } from './southcarolina';
 import { fetchNorthCarolinaCameras } from './northcarolina';
 import { fetchArizonaCameras } from './arizona';
+import { fetchIdahoCameras } from './idaho';
+import { fetchMarylandCameras } from './maryland';
 import { fetchTexasCameras } from './texas';
+import { fetchDelawareCameras } from './delaware';
+import { fetchVirginiaCameras } from './virginia';
 import { fetchEastAsiaCameras, fetchSeAsiaCameras, fetchWestAsiaCameras } from './opencctv';
 import {
   fetchLatamLiveCameras,
@@ -169,14 +177,17 @@ async function fetchCanadaCameras(): Promise<any[]> {
      back empty and only filled in on a later poll — the whole country
      looked like it was failing to load. They share nothing, so there was
      never a reason to queue them. */
-  const [ottawa, quebec, ontario, montreal, alberta, toronto, drivebc] = await Promise.all([
+  const [ottawa, quebec, ontario, alberta, toronto, drivebc] = await Promise.all([
     subSource('City of Ottawa', 'https://traffic.ottawa.ca/beta/camera_list', 12000),
     subSource('Quebec 511', 'https://ws.mapserver.transports.gouv.qc.ca/swtq?service=wfs&version=2.0.0&request=getfeature&typename=ms:infos_cameras&outfile=Camera&srsname=EPSG:4326&outputformat=geojson', 10000),
-    subSource('511 Ontario', 'https://511on.ca/api/v2/get/cameras', 10000),
-    subSource('Ville MTL', 'https://ville.montreal.qc.ca/circulation/sites/ville.montreal.qc.ca.circulation/files/cameras.json', 8000),
-    subSource('511 Alberta', 'https://511.alberta.ca/api/v2/get/cameras', 10000),
+    /* Ontario and Alberta page through their 511 sites' own camera lists and
+       keep their last good index when a refresh fails; see ./ontario. */
+    fetchOntarioCameras(),
+    fetchAlbertaCameras(),
     subSource('City of Toronto', 'https://ckan0.cf.opendata.inter.prod-toronto.ca/dataset/a3309088-5fd4-4d34-8297-77c8301840ac/resource/4a568300-c7f8-496d-b150-dff6f5dc6d4f/download/traffic-camera-list-4326.geojson', 10000),
-    subSource('DriveBC', 'https://drivebc.ca/api/webcams', 10000),
+    /* www and the trailing slash both matter: the bare host redirects to
+       www without the slash, and that answers 404. */
+    subSource('DriveBC', 'https://www.drivebc.ca/api/webcams/', 10000),
   ]);
 
 
@@ -215,63 +226,11 @@ async function fetchCanadaCameras(): Promise<any[]> {
     }
   }
 
-  // Ontario 511 (MTO Highway Cameras)
-  {
-    const data = ontario;
-    if (data) {
-      /* MTO capitalises its field names. Reading `cam.latitude` skipped all
-         944 rows, so the only Ontario markers on the map were the three
-         curated Toronto ones below — the province has been empty this whole
-         time. A view's Url serves the JPEG itself, no rewriting needed. */
-      for (const cam of (data || [])) {
-        const view = cam.Views?.find((v: { Status?: string; Url?: string }) => v.Status === 'Enabled') ?? cam.Views?.[0];
-        if (!cam.Latitude || !cam.Longitude || !view?.Url) continue;
-        cams.push({
-          id: `on-${cam.Id}`, lat: cam.Latitude, lng: cam.Longitude,
-          name: cam.Location || cam.Roadway || 'Ontario Camera', city: 'Ontario', country: 'Canada',
-          feed_url: view.Url, source: '511 Ontario',
-        });
-      }
-    }
-  }
-
-  // Ville de Montréal municipal cameras
-  {
-    const data = montreal;
-    if (data) {
-      for (const cam of (data || [])) {
-        cams.push({
-          id: `mtl-muni-${cams.length}`, lat: cam.latitude || cam.lat, lng: cam.longitude || cam.lng,
-          name: cam.description || cam.name || 'Montréal Camera', city: 'Montréal', country: 'Canada',
-          feed_url: cam.url || cam.imageUrl || '', source: 'Ville MTL',
-        });
-      }
-    }
-  }
-
-  // Curated Toronto cameras (fallback if 511ON fails)
-  const curated = [
-    { id: 'tor-1', lat: 43.6532, lng: -79.3832, name: 'Yonge / Dundas Square', city: 'Toronto', country: 'Canada', feed_url: 'https://511on.ca/api/v2/get/cameras', source: '511 Ontario' },
-    { id: 'tor-2', lat: 43.6426, lng: -79.3871, name: 'CN Tower / Lakeshore', city: 'Toronto', country: 'Canada', feed_url: 'https://511on.ca/api/v2/get/cameras', source: '511 Ontario' },
-    { id: 'tor-3', lat: 43.6711, lng: -79.3868, name: 'Bloor / Yonge', city: 'Toronto', country: 'Canada', feed_url: 'https://511on.ca/api/v2/get/cameras', source: '511 Ontario' },
-  ];
-  cams.push(...curated);
-
-  // Alberta 511
-  {
-    const data = alberta;
-    if (data) {
-      for (const cam of (data || [])) {
-        if (!cam.Latitude || !cam.Longitude || !cam.Views?.[0]?.Url) continue;
-        cams.push({
-          id: `ab-${cam.Id || cams.length}`, lat: cam.Latitude, lng: cam.Longitude,
-          name: cam.Location || 'Alberta Camera', city: 'Alberta', country: 'Canada',
-          feed_url: cam.Views[0].Url, source: 'Alberta 511',
-        });
-      }
-    }
-  }
-
+  /* Ontario 511 (MTO highway cameras) and Alberta 511.
+     Ville de Montréal's own feed used to sit here too. The city has retired
+     it: the address redirects to Québec 511, whose cameras above cover
+     Montréal, and the pictures it served stopped updating. */
+  cams.push(...ontario, ...alberta);
 
   // Toronto Open Data Municipal Traffic Cameras
   {
@@ -301,7 +260,7 @@ async function fetchCanadaCameras(): Promise<any[]> {
         cams.push({
           id: `bc-cam-${cam.id}`, lat, lng,
           name: cam.name || cam.caption || 'BC Highway Camera', city: 'British Columbia', country: 'Canada',
-          feed_url: `https://drivebc.ca${cam.links.imageDisplay}`, source: 'DriveBC',
+          feed_url: `https://www.drivebc.ca${cam.links.imageDisplay}`, source: 'DriveBC',
         });
       }
     }
@@ -505,6 +464,7 @@ const RAW_REGION_FETCHERS: Record<string, RegionFetcher> = {
   'japan': fetchJapanCameras,
   'switzerland': fetchSwitzerlandCameras,
   'finland': fetchFinlandCameras,
+  'sweden': fetchSwedenCameras,
   'hongkong': fetchHongKongCameras,
   'utah': fetchUtahCameras,
   'iceland': fetchIcelandCameras,
@@ -521,9 +481,14 @@ const RAW_REGION_FETCHERS: Record<string, RegionFetcher> = {
   'louisiana': fetchLouisianaCameras,
   'florida': fetchFloridaCameras,
   'georgia': fetchGeorgiaCameras,
+  'southcarolina': fetchSouthCarolinaCameras,
   'northcarolina': fetchNorthCarolinaCameras,
   'arizona': fetchArizonaCameras,
+  'idaho': fetchIdahoCameras,
+  'maryland': fetchMarylandCameras,
   'texas': fetchTexasCameras,
+  'delaware': fetchDelawareCameras,
+  'virginia': fetchVirginiaCameras,
   'eastasia': fetchEastAsiaCameras,
   'seasia': fetchSeAsiaCameras,
   'westasia': fetchWestAsiaCameras,
@@ -562,6 +527,8 @@ const REGION_FETCHERS: Record<string, RegionFetcher> = Object.fromEntries(
  * this drops a slow region from the current response, not from the map.
  */
 const REGION_BUDGET_MS = 12_000;
+// Florida and Georgia page through thousands of records and take longer on a cold cache.
+const PAGED_REGION_BUDGET_MS = 30_000;
 
 /**
  * Regions are fetched a few at a time, not all forty-eight at once.
@@ -593,6 +560,14 @@ const REGION_CONCURRENCY = 4;
 const regionPool = createPool(REGION_CONCURRENCY);
 
 /**
+ * Regions whose upstream is timing out or returning empty get a cooldown so
+ * they stop burning pool slots every 60 seconds.  The cooldown is lifted once
+ * the backoff window expires, letting the next scheduled refresh try again.
+ */
+const BACKOFF_MS = 5 * 60 * 1000; // 5 minutes
+const backedOff = new Map<string, number>();
+
+/**
  * One refresh per region at a time, and never an unbounded slot.
  *
  * A pool slot held by an upstream that never answers is worse than the storm
@@ -607,24 +582,39 @@ const refreshing = new Map<string, Promise<any[]>>();
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function refreshRegion(region: string): Promise<any[]> {
+  /* If this region recently timed out, skip it entirely until the backoff
+     window expires.  This stops a down upstream from burning a pool slot
+     every 60s and clogging the event loop with 12s waits. */
+  const cooldownUntil = backedOff.get(region);
+  if (cooldownUntil && Date.now() < cooldownUntil) {
+    return Promise.resolve([]);
+  }
+
   const existing = refreshing.get(region);
   if (existing) return existing;
 
   const started = regionPool.run(async () => {
+    const budgetMs = region === 'florida' || region === 'georgia' ? PAGED_REGION_BUDGET_MS : REGION_BUDGET_MS;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let timedOut = false;
     try {
       return await Promise.race([
         REGION_FETCHERS[region](),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         new Promise<any[]>(resolve => {
           timer = setTimeout(() => {
-            console.warn(`[OSIRIS] cctv:${region} over ${REGION_BUDGET_MS}ms — freeing its slot`);
+            timedOut = true;
+            console.warn(`[OSIRIS] cctv:${region} over ${budgetMs}ms — backing off for 300s`);
+            backedOff.set(region, Date.now() + BACKOFF_MS);
             resolve([]);
-          }, REGION_BUDGET_MS);
+          }, budgetMs);
         }),
       ]);
     } finally {
       clearTimeout(timer);
+      /* If the fetch succeeded (did not time out), clear any lingering backoff
+         so a recovered upstream is used immediately. */
+      if (!timedOut) backedOff.delete(region);
     }
   }).finally(() => { refreshing.delete(region); });
 
@@ -739,6 +729,7 @@ export async function warmCctvCatalog() {
 /** Test seam — drops queued refreshes between cases. */
 export function clearCctvRefreshes() {
   refreshing.clear();
+  backedOff.clear();
   regionPool.reset();
   restoring = undefined;
   clearPayload();
@@ -769,7 +760,8 @@ async function collectRegions(regions: string[]): Promise<{ cameras: Record<stri
     .then(result => { if (result.length) cameras[region] = result; })
     .catch(() => { /* the cache logs it and keeps the last good index */ }));
 
-  const budget = Object.keys(cameras).length ? WARM_GRACE_MS : REGION_BUDGET_MS;
+  const slowSingleRegion = missing.length === 1 && (missing[0] === 'florida' || missing[0] === 'georgia');
+  const budget = Object.keys(cameras).length ? WARM_GRACE_MS : slowSingleRegion ? PAGED_REGION_BUDGET_MS : REGION_BUDGET_MS;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<void>(resolve => { timer = setTimeout(resolve, budget); });
   await Promise.race([Promise.all(fetches), deadline]);
@@ -795,6 +787,8 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   if (lat > 41.9 && lat < 46.3 && lng > -124.6 && lng < -116.4) regions.push('oregon');
   // Nevada (NDOT) — explicit, since us-west only covers WA + CA
   if (lat > 34.9 && lat < 42.1 && lng > -120.1 && lng < -113.9) regions.push('nevada');
+  // Idaho (ITD 511) — explicit, since us-west only covers WA + CA
+  if (lat > 41.9 && lat < 49.1 && lng > -117.3 && lng < -111.0) regions.push('idaho');
   // Texas (TxDOT), including El Paso west of the central region.
   if (lat > 25.8 && lat < 36.6 && lng > -106.7 && lng < -93.4) regions.push('texas');
   // US-Central
@@ -810,8 +804,16 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
      us-central boxes cover the latitudes but carry none of these agencies. */
   if (lat > 24.4 && lat < 31.1 && lng > -87.7 && lng < -79.9) regions.push('florida');
   if (lat > 30.3 && lat < 35.1 && lng > -85.7 && lng < -80.8) regions.push('georgia');
+  // South Carolina (SCDOT 511) — an Iteris build rather than IBI, but listed here with its neighbours
+  if (lat > 31.9 && lat < 35.3 && lng > -83.5 && lng < -78.4) regions.push('southcarolina');
   if (lat > 33.8 && lat < 36.6 && lng > -84.4 && lng < -75.4) regions.push('northcarolina');
+  // Delaware (DelDOT) — explicit, since us-east covers the latitudes but carries none of its cameras
+  if (lat > 38.4 && lat < 39.9 && lng > -75.85 && lng < -74.95) regions.push('delaware');
+  // Virginia (VDOT 511) — explicit for the same reason as Delaware
+  if (lat > 36.4 && lat < 39.6 && lng > -83.8 && lng < -75.1) regions.push('virginia');
   if (lat > 31.3 && lat < 37.1 && lng > -115.0 && lng < -109.0) regions.push('arizona');
+  // Maryland (MDOT SHA CHART) — explicit, since us-east covers the latitudes but carries none of its cameras
+  if (lat > 37.85 && lat < 39.8 && lng > -79.55 && lng < -74.95) regions.push('maryland');
   // Canada
   if (lat > 42 && lat < 70 && lng > -141 && lng < -52) regions.push('canada');
   if (lat > 53.3 && lat < 53.8 && lng > -114.0 && lng < -113.2) regions.push('edmonton');
@@ -852,6 +854,9 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   if (inSpain) regions.push('spain');
   if (inPoland) regions.push('poland');
   if (inFinland) regions.push('finland');
+  /* Not folded into inWesternEurope: Sweden's box overlaps Norway, and
+     the broad 'europe' region must still load there. */
+  if (lat > 55.0 && lat < 69.2 && lng > 10.5 && lng < 24.3) regions.push('sweden');
   if (inIceland) regions.push('iceland');
   if (inLithuania) regions.push('lithuania');
 

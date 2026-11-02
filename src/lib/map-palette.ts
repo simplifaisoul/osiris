@@ -23,6 +23,10 @@ export interface MapPalette {
   flightGov: string;
   flightMilitary: string;
   flightUnknown: string;
+  /** OI's arcs: aligned or agreeing, opposed or disputing, and the rest. */
+  oiSupport: string;
+  oiOppose: string;
+  oiNeutral: string;
 }
 
 export type MapPaletteKey = keyof MapPalette;
@@ -41,6 +45,9 @@ export const MAP_VARS: Record<MapPaletteKey, string> = {
   flightGov: '--map-flight-gov',
   flightMilitary: '--map-flight-military',
   flightUnknown: '--map-flight-unknown',
+  oiSupport: '--map-oi-support',
+  oiOppose: '--map-oi-oppose',
+  oiNeutral: '--map-oi-neutral',
 };
 
 /**
@@ -63,6 +70,9 @@ export const MAP_DEFAULTS: MapPalette = {
   flightGov: '#ff9500',
   flightMilitary: '#ff0000',
   flightUnknown: '#546e7a',
+  oiSupport: '#b388ff',
+  oiOppose: '#ff5ccb',
+  oiNeutral: '#8c7cff',
 };
 
 export const MAP_PALETTE_KEYS = Object.keys(MAP_DEFAULTS) as MapPaletteKey[];

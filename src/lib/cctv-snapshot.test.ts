@@ -39,6 +39,21 @@ describe('camera catalogue snapshot', () => {
     expect(await readSnapshot()).toBeNull();
   });
 
+  it('reuses unaffected regions while invalidating outdated camera mappings', async () => {
+    await writeSnapshot({ uk: [{ id: 'london' }] });
+    const path = process.env.OSIRIS_CCTV_SNAPSHOT!;
+    await writeFile(path, JSON.stringify({ version: 1, builtAt: Date.now(), regions: {
+      uk: [{ id: 'london' }], texas: [{ id: 'old-texas' }], florida: [{ id: 'old-florida' }],
+      georgia: [{ id: 'old-georgia' }], northcarolina: [{ id: 'old-northcarolina' }],
+      canada: [{ id: 'old-canada' }],
+    } }));
+    const restored = await readSnapshot();
+    expect(restored?.regions.uk).toHaveLength(1);
+    for (const region of ['texas', 'florida', 'georgia', 'northcarolina', 'canada']) {
+      expect(restored?.regions[region]).toBeUndefined();
+    }
+  });
+
   it('rejects a catalogue written by a different format version', async () => {
     await writeFile(process.env.OSIRIS_CCTV_SNAPSHOT!.replace(/nested[\\/]/, ''), '{}').catch(() => {});
     await writeSnapshot({ uk: [{ id: 'a' }] });
