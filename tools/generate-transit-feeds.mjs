@@ -43,6 +43,9 @@ const STALE_S = 6 * 3600;
 /** Largest timetable streamed whole when its host refuses range requests. */
 const MAX_STATIC_BYTES = 400 * 1024 * 1024;
 const WITH_ROUTES = process.argv.includes('--routes');
+/** The Basque Government's open-data transport hub (CC BY 4.0); index at data-index-gtfs-rt.json. */
+const MOVEUSKADI = 'https://opendata.euskadi.eus/transport/moveuskadi';
+const MOVEUSKADI_LICENSE = 'https://opendata.euskadi.eus/general/-/informacion-legal-opendata/';
 
 /**
  * Feeds the catalogue lacks or lists in a form that does not answer. An `area`
@@ -67,6 +70,29 @@ const EXTRA = [
   { provider: 'Barrie Transit', country: 'CA', url: 'https://www.myridebarrie.ca/gtfs/GTFS_VehiclePositions.pb' },
   { provider: 'YRT/Viva (York Region)', country: 'CA', url: 'https://rtu.york.ca/gtfsrealtime/VehiclePositions', license: 'https://www.yrt.ca/en/about-us/open-data-licence-agreement.aspx' },
   { provider: 'Burlington Transit', country: 'CA', url: 'https://opendata.burlington.ca/gtfs-rt/GTFS_VehiclePositions.pb' },
+  // Basque Country, from Moveuskadi. Areas are each timetable's stops. The
+  // Lurraldebus (Gipuzkoa) feeds are left out: they stopped updating in June 2025.
+  { provider: 'Bizkaibus (Bizkaia)', country: 'ES', region: 'Bizkaia', area: [-3.45, 42.98, -2.38, 43.44], url: `${MOVEUSKADI}/bizkaibus/gtfsrt_Bizkaibus_vehicle_positions.pb`, license: MOVEUSKADI_LICENSE, static: [`${MOVEUSKADI}/bizkaibus/gtfs_bizkaibus.zip`] },
+  { provider: 'Bilbobus (Bilbao)', country: 'ES', region: 'Bilbao', area: [-2.98, 43.22, -2.87, 43.3], url: `${MOVEUSKADI}/bilbobus/gtfsrt_bilbobus_vehicle_positions.pb`, license: MOVEUSKADI_LICENSE, static: [`${MOVEUSKADI}/bilbobus/gtfs_bilbobus.zip`] },
+  // Its trains, the Bilbao and Vitoria-Gasteiz trams and the Larreineta funicular.
+  { provider: 'Euskotren (Basque Country)', country: 'ES', region: 'Basque Country', area: [-3.06, 42.83, -1.77, 43.43], url: `${MOVEUSKADI}/euskotren/gtfsrt_euskotren_vehicle_positions.pb`, license: MOVEUSKADI_LICENSE, static: [`${MOVEUSKADI}/euskotren/gtfs_euskotren.zip`] },
+  // Listed by the catalogue too, with a timetable that needs a key and an area missing the west of the city.
+  { provider: 'dBus (Donostiabus)', country: 'ES', region: 'San Sebastián', area: [-2.06, 43.27, -1.91, 43.34], url: `${MOVEUSKADI}/dbus/gtfsrt_dbus_vehicle_positions.pb`, license: MOVEUSKADI_LICENSE, static: [`${MOVEUSKADI}/dbus/gtfs_dbus.zip`] },
+  { provider: 'Tuvisa (Vitoria-Gasteiz)', country: 'ES', region: 'Vitoria-Gasteiz', area: [-2.76, 42.82, -2.61, 42.9], url: `${MOVEUSKADI}/tuvisa/gtfsrt_tuvisa_vehicle_positions.pb`, license: MOVEUSKADI_LICENSE, static: [`${MOVEUSKADI}/tuvisa/gtfs_tuvisa.zip`] },
+  { provider: 'Kbus (Barakaldo)', country: 'ES', region: 'Barakaldo', area: [-3.03, 43.25, -2.96, 43.31], url: `${MOVEUSKADI}/kbus/gtfsrt_kbus_vehicle_positions.pb`, license: MOVEUSKADI_LICENSE, static: [`${MOVEUSKADI}/kbus/gtfs_kbus.zip`] },
+  { provider: 'Lejoan busa (Leioa)', country: 'ES', region: 'Leioa', area: [-3.02, 43.31, -2.96, 43.35], url: `${MOVEUSKADI}/lejoan_busa/gtfsrt_lejoan_busa_vehicle_positions.pb`, license: MOVEUSKADI_LICENSE, static: [`${MOVEUSKADI}/lejoan_busa/gtfs_lejoan_busa.zip`] },
+  { provider: 'Erandio busa (Erandio)', country: 'ES', region: 'Erandio', area: [-3, 43.28, -2.93, 43.35], url: `${MOVEUSKADI}/erandio_busa/gtfsrt_erandio_busa_vehicle_positions.pb`, license: MOVEUSKADI_LICENSE, static: [`${MOVEUSKADI}/erandio_busa/gtfs_erandio_busa.zip`] },
+  { provider: 'Sopelbus (Sopela)', country: 'ES', region: 'Sopela', area: [-3.01, 43.36, -2.96, 43.4], url: `${MOVEUSKADI}/sopelbus/gtfsrt_sopelbus_vehicle_positions.pb`, license: MOVEUSKADI_LICENSE, static: [`${MOVEUSKADI}/sopelbus/gtfs_sopelbus.zip`] },
+  { provider: 'EtxeBarriBus (Etxebarri)', country: 'ES', region: 'Etxebarri', area: [-2.91, 43.23, -2.87, 43.27], url: `${MOVEUSKADI}/etxebarribus/gtfsrt_etxebarribus_vehicle_positions.pb`, license: MOVEUSKADI_LICENSE, static: [`${MOVEUSKADI}/etxebarribus/gtfs_etxebarribus.zip`] },
+  { provider: 'Bermibusa (Bermeo)', country: 'ES', region: 'Bermeo', area: [-2.74, 43.41, -2.71, 43.43], url: `${MOVEUSKADI}/bermibusa/gtfsrt_bermibusa_vehicle_positions.pb`, license: MOVEUSKADI_LICENSE, static: [`${MOVEUSKADI}/bermibusa/gtfs_bermibusa.zip`] },
+  { provider: 'Udalbus (Eibar)', country: 'ES', region: 'Eibar', area: [-2.5, 43.17, -2.44, 43.22], url: `${MOVEUSKADI}/eibar/gtfsrt_udalbus_eibar_vehicle_positions.pb`, license: MOVEUSKADI_LICENSE, static: [`${MOVEUSKADI}/eibar/gtfs_udalbus_eibar.zip`] },
+  { provider: 'Arrasate urban bus (Arrasate-Mondragón)', country: 'ES', region: 'Arrasate-Mondragón', area: [-2.51, 43.05, -2.46, 43.08], url: `${MOVEUSKADI}/arrasate/gtfsrt_arrasate_vehicle_position.pb`, license: MOVEUSKADI_LICENSE, static: [`${MOVEUSKADI}/arrasate/gtfs_arrasate.zip`] },
+  { provider: 'Oñati urban bus (Oñati)', country: 'ES', region: 'Oñati', area: [-2.44, 42.97, -2.39, 43.05], url: `${MOVEUSKADI}/onati/gtfsrt_onati_vehicle_positions.pb`, license: MOVEUSKADI_LICENSE, static: [`${MOVEUSKADI}/onati/gtfs_onati.zip`] },
+  { provider: 'Errenteria urban bus (Errenteria)', country: 'ES', region: 'Errenteria', area: [-1.93, 43.27, -1.87, 43.33], url: `${MOVEUSKADI}/errenteria/gtfsrt_errenteriako%20urbanoa_vehicle_positions.pb`, license: MOVEUSKADI_LICENSE, static: [`${MOVEUSKADI}/errenteria/gtfs_errenteriako_urbanoa.zip`] },
+  { provider: 'Zarauzko hiribusa (Zarautz)', country: 'ES', region: 'Zarautz', area: [-2.2, 43.27, -2.14, 43.3], url: `${MOVEUSKADI}/zarauzko_hiribusa/gtfsrt_zarauzko_hiribusa_vehicle_positions.pb`, license: MOVEUSKADI_LICENSE, static: [`${MOVEUSKADI}/zarauzko_hiribusa/gtfs_zarauzko_hiribusa.zip`] },
+  { provider: 'Hernaniko hiribusa (Hernani)', country: 'ES', region: 'Hernani', area: [-1.99, 43.25, -1.95, 43.28], url: `${MOVEUSKADI}/hernaniko_hiribusa/gtfsrt_hernaniko_hiribusa_vehicle_positions.pb`, license: MOVEUSKADI_LICENSE, static: [`${MOVEUSKADI}/hernaniko_hiribusa/gtfs_hernaniko_hiribusa.zip`] },
+  { provider: 'Xorrola (Oiartzun)', country: 'ES', region: 'Oiartzun', area: [-1.89, 43.28, -1.85, 43.32], url: `${MOVEUSKADI}/oiartzun/gtfsrt_xorrola%20oiartzun_vehicle_positions.pb`, license: MOVEUSKADI_LICENSE, static: [`${MOVEUSKADI}/oiartzun/gtfs_xorrola_oiartzun.zip`] },
+  { provider: 'Tolosa urban bus (Tolosa)', country: 'ES', region: 'Tolosa', area: [-2.09, 43.12, -2.06, 43.16], url: `${MOVEUSKADI}/lurraldebus/tolosa/gtfsrt_tolosa_vehicle_positions.pb`, license: MOVEUSKADI_LICENSE, static: [`${MOVEUSKADI}/lurraldebus/tolosa/gtfs_tolosa.zip`] },
   // Its route ids are already the public route names (M55, B82), and every vehicle is a bus.
   { provider: 'MTA New York City buses', country: 'US', region: 'New York City', area: [-74.3, 40.48, -73.68, 40.95], url: 'https://gtfsrt.prod.obanyc.com/vehiclePositions', license: 'https://new.mta.info/developers/terms-and-conditions', defaultMode: 'bus' },
   // The Bus Open Data Service's nationwide file: every bus in England,
