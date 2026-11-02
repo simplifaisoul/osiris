@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import {
   wikiKind, describedKind, notAPlace, normalizeWikiPage, normalizeWikidataItem, wikipediaUrl, wikidataUrl,
-  samePlace, mergeResults, type WikiPage, type WikidataItem, type GeoResult,
+  samePlace, mergeResults, classifyKind, normalizePhoton, biasOf, type WikiPage, type WikidataItem, type GeoResult,
 } from './geosearch';
 
 const PLACES = readFileSync(join(process.cwd(), 'public', 'places.json'), 'utf8');
@@ -155,6 +155,12 @@ describe('samePlace and mergeResults', () => {
     expect(mergeResults(many, many, many)).toHaveLength(8);
   });
 
+  it('keeps the city, in its namesake region\'s place, when both are listed', () => {
+    // As the geocoder answers "lisbon": the district first, then the city.
+    const merged = mergeResults([r('Lisbon', 39.0, -9.14, 'region'), r('Lisbon', 38.71, -9.14, 'city'), r('Lisbon', 41.92, -91.39, 'city')], [], []);
+    expect(merged.map(m => `${m.kind} ${m.lat}`)).toEqual(['city 38.71', 'city 41.92']);
+  });
+
   it('leaves Wikidata room when Wikipedia has a lot', () => {
     const wp = Array.from({ length: 10 }, (_, i) => r(`WP${i}`, i, i));
     const merged = mergeResults(wp, [r('Rue de Rivoli', 48.857, 2.354, 'street')], []);
@@ -162,16 +168,89 @@ describe('samePlace and mergeResults', () => {
   });
 });
 
+describe('classifyKind', () => {
+  it('separates the kinds the UI gives distinct icons', () => {
+    expect(classifyKind('place', 'country')).toBe('country');
+    expect(classifyKind('place', 'state')).toBe('region');
+    expect(classifyKind('place', 'city')).toBe('city');
+    expect(classifyKind('highway', 'residential')).toBe('street');
+    expect(classifyKind('building', 'yes')).toBe('address');
+    expect(classifyKind('tourism', 'attraction')).toBe('poi');
+    expect(classifyKind('man_made', 'tower')).toBe('poi');
+  });
+
+  it('falls back to a generic place', () => {
+    expect(classifyKind(undefined, undefined)).toBe('place');
+    expect(classifyKind('something_odd', 'x')).toBe('place');
+  });
+});
+
+describe('normalizePhoton', () => {
+  const eiffel = {
+    geometry: { coordinates: [2.2945, 48.8584] as [number, number] },
+    properties: {
+      name: 'Eiffel Tower', street: 'Avenue Anatole France', housenumber: '5',
+      city: 'Paris', state: 'Île-de-France', country: 'France',
+      osm_key: 'man_made', osm_value: 'tower',
+    },
+  };
+
+  it('maps a POI, putting the street into the context line', () => {
+    expect(normalizePhoton(eiffel)).toEqual({
+      name: 'Eiffel Tower',
+      context: 'Avenue Anatole France 5, Paris, Île-de-France',
+      lat: 48.8584,
+      lng: 2.2945,
+      kind: 'poi',
+    });
+  });
+
+  it('uses the street as the name when a feature has none', () => {
+    const addr = {
+      geometry: { coordinates: [13.3777, 52.5163] as [number, number] },
+      properties: { street: 'Pariser Platz', housenumber: '1', city: 'Berlin', osm_key: 'building' },
+    };
+    expect(normalizePhoton(addr)?.name).toBe('Pariser Platz 1');
+  });
+
+  it('rejects features without usable geometry', () => {
+    expect(normalizePhoton({ properties: { name: 'X' } })).toBeNull();
+    expect(normalizePhoton({ geometry: { coordinates: [2.29] as unknown as [number, number] }, properties: {} })).toBeNull();
+  });
+});
+
+describe('biasOf', () => {
+  it('rounds where the map is looking to a tenth of a degree, so answers can be shared', () => {
+    expect(biasOf({ lat: 41.230154255243164, lng: -72.86821861538982 })).toEqual({ lat: 41.2, lng: -72.9 });
+  });
+
+  it('drops a bias it cannot use', () => {
+    expect(biasOf(null)).toBeNull();
+    expect(biasOf({ lat: NaN, lng: 1 })).toBeNull();
+    expect(biasOf({ lat: 91, lng: 1 })).toBeNull();
+  });
+});
+
 describe('lookups from the browser', () => {
   const fetchMock = vi.fn();
   const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
     Promise.resolve({ ok: status < 400, status, headers: new Headers(headers), json: async () => body });
-  /** The place list is served as the browser would fetch it; the rest is up to each test. */
-  const serve = (wikipedia: () => Promise<unknown>, wikidata: () => Promise<unknown>) => fetchMock.mockImplementation((url: string) =>
+  /**
+   * The place list is served as the browser would fetch it; the rest is up to
+   * each test. Unless a test says otherwise, the deployment has no geocoder.
+   */
+  const serve = (
+    wikipedia: () => Promise<unknown>,
+    wikidata: () => Promise<unknown>,
+    geocoder: () => Promise<unknown> = () => json({ results: [] }, 501),
+  ) => fetchMock.mockImplementation((url: string) =>
     url === '/places.json' ? json(JSON.parse(PLACES))
-      : url.startsWith('https://en.wikipedia.org/') ? wikipedia()
-        : url.startsWith('https://www.wikidata.org/') ? wikidata()
-          : Promise.reject(new Error(`unexpected request: ${url}`)));
+      : url.startsWith('/api/geosearch?') ? geocoder()
+        : url.startsWith('https://en.wikipedia.org/') ? wikipedia()
+          : url.startsWith('https://www.wikidata.org/') ? wikidata()
+            : Promise.reject(new Error(`unexpected request: ${url}`)));
+  const asked = (prefix: string) => fetchMock.mock.calls.filter(([url]) => String(url).startsWith(prefix));
+  const nothing = () => Promise.reject(new Error('Wikimedia must not be asked'));
 
   /* The module keeps the loaded list and each site's rest in module state, so
      each test loads a fresh copy. */
@@ -191,13 +270,13 @@ describe('lookups from the browser', () => {
     );
     const partial = vi.fn();
 
-    const found = await geo.searchPlaces('lisb', undefined, partial);
+    const found = await geo.searchPlaces('lisb', null, undefined, partial);
 
     expect(partial.mock.calls[0][0][0]).toMatchObject({ name: 'Lisbon', kind: 'city' });
     expect(found.map(f => f.name).slice(0, 2)).toEqual(['Lisbon', 'Lisbon Airport']);
-    const asked = fetchMock.mock.calls.filter(([url]) => url !== '/places.json');
-    expect(asked).toHaveLength(2);
-    for (const [, init] of asked) expect(init.headers['Api-User-Agent']).toContain('OSIRIS');
+    const wikimedia = asked('https://');
+    expect(wikimedia).toHaveLength(2);
+    for (const [, init] of wikimedia) expect(init.headers['Api-User-Agent']).toContain('OSIRIS');
   });
 
   it('answers from the built-in list when both sites are out of reach', async () => {
@@ -210,15 +289,58 @@ describe('lookups from the browser', () => {
     await geo.searchPlaces('lisb');
     await geo.searchPlaces('lisbo');
 
-    const toWikipedia = fetchMock.mock.calls.filter(([url]) => String(url).startsWith('https://en.wikipedia.org/'));
-    expect(toWikipedia).toHaveLength(1);
+    expect(asked('https://en.wikipedia.org/')).toHaveLength(1);
+  });
+
+  it("asks the deployment's geocoder first, toward where the map is looking, and leaves Wikimedia alone when it answers", async () => {
+    serve(nothing, nothing, () => json({ results: [{ name: 'Heathrow Airport', context: 'London, United Kingdom', lat: 51.47, lng: -0.46, kind: 'poi' }] }));
+
+    const found = await geo.searchPlaces('heathrow', { lat: 51.4712, lng: -0.4543 });
+
+    expect(found[0]).toMatchObject({ name: 'Heathrow Airport', kind: 'poi' });
+    expect(asked('/api/geosearch?')[0][0]).toBe('/api/geosearch?q=heathrow&lat=51.5&lng=-0.5');
+    expect(asked('https://')).toHaveLength(0);
+  });
+
+  it("puts the built-in list behind the geocoder's answer, without repeats", async () => {
+    serve(nothing, nothing, () => json({ results: [{ name: 'Lisbon', context: 'Portugal', lat: 38.72, lng: -9.14, kind: 'city' }, { name: 'Lisbon Oceanarium', context: 'Lisbon, Portugal', lat: 38.76, lng: -9.09, kind: 'poi' }] }));
+
+    const found = await geo.searchPlaces('lisb');
+
+    expect(found.slice(0, 2).map(f => f.name)).toEqual(['Lisbon', 'Lisbon Oceanarium']);
+    // The list's Lisbon is the same city; Lisbon, Maine is not.
+    expect(found.filter(f => f.name === 'Lisbon' && f.kind === 'city' && f.lng < 0 && f.lng > -10)).toHaveLength(1);
+  });
+
+  it('searches Wikipedia and Wikidata when the geocoder fails, and asks it again next time', async () => {
+    serve(
+      () => json({ query: { pages: [{ title: 'Lisbon', index: 1, description: 'Capital of Portugal', coordinates: [{ lat: 38.708, lon: -9.139, type: 'city' }] }] } }),
+      () => json({ query: { pages: [] } }),
+      () => json({ results: [] }, 503),
+    );
+
+    expect((await geo.searchPlaces('lisb'))[0]).toMatchObject({ name: 'Lisbon' });
+    await geo.searchPlaces('lisbo');
+
+    expect(asked('/api/geosearch?')).toHaveLength(2);
+    expect(asked('https://en.wikipedia.org/')).toHaveLength(2);
+  });
+
+  it('stops asking a deployment that has no geocoder of its own', async () => {
+    serve(() => json({ query: { pages: [] } }), () => json({ query: { pages: [] } }));
+
+    await geo.searchPlaces('lisb');
+    await geo.searchPlaces('lisbo');
+
+    expect(asked('/api/geosearch?')).toHaveLength(1);
+    expect(asked('https://www.wikidata.org/')).toHaveLength(2);
   });
 
   it('throws when the search is abandoned, instead of answering late', async () => {
     const ctrl = new AbortController();
     const hang = () => new Promise((_, reject) => ctrl.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))));
     serve(hang, hang);
-    const pending = geo.searchPlaces('pari', ctrl.signal);
+    const pending = geo.searchPlaces('pari', null, ctrl.signal);
     ctrl.abort();
     await expect(pending).rejects.toThrow();
   });

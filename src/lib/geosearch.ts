@@ -1,22 +1,24 @@
 /**
- * OSIRIS — place lookups, in the visitor's browser, with no key.
+ * OSIRIS — place lookups, shared by the browser and /api/geosearch.
  *
- * Search, directions search and OI's place lookups ask three sources, all
- * keyless, and merge what they find:
+ * Search, directions search and OI's place lookups show the built-in place
+ * list's matches the moment a key is pressed, then ask one of two online
+ * sources and merge what it finds in front of them:
  *
- *   • the built-in place list (lib/places.ts): towns, regions and countries,
- *     offline, so its matches show the moment a key is pressed;
- *   • Wikipedia (en.wikipedia.org): typo tolerant and ranked by how much each
- *     place is read about, so "heathrow" is the airport and "sydny opera" is
- *     the Sydney Opera House; it knows landmarks, stations and villages;
- *   • Wikidata (www.wikidata.org): the streets and smaller places Wikipedia
- *     has no position for, such as Wall Street or Rue de Rivoli.
+ *   • the deployment's own geocoder, when it runs one (PHOTON_URL), through
+ *     /api/geosearch and lib/photon.ts: a Photon server over OpenStreetMap,
+ *     with streets and addresses, biased toward where the map is looking;
+ *   • otherwise Wikipedia and Wikidata, asked straight from the browser with
+ *     no key. Wikipedia is typo tolerant and ranked by how much each place is
+ *     read about, so "heathrow" is the airport; Wikidata adds the streets and
+ *     smaller places Wikipedia has no position for. Both limit each browser
+ *     on its own (Wikimedia's API rate limits), so a busy site does not pool
+ *     its visitors into one allowance. When one refuses (429) it is left
+ *     alone for as long as it asks.
  *
- * Wikipedia and Wikidata are asked straight from the browser. They need no
- * key and limit each browser on its own (Wikimedia's API rate limits), so a
- * busy site does not pool its visitors into one allowance. When one refuses
- * (429) it is left alone for as long as it asks; when both are out of reach,
- * the built-in list answers alone.
+ * The geocoder failing for a search sends that search to Wikipedia and
+ * Wikidata too; when everything online is out of reach, the built-in list
+ * (lib/places.ts: towns, regions and countries, offline) answers alone.
  *
  * The point under the cursor and the place a dossier is about are named from
  * the built-in list only: no request leaves the browser for them.
@@ -26,6 +28,7 @@
  */
 import { fold, loadPlaces, nearestTown, placeLabel, searchIndex, type Place } from './places';
 
+const GEOCODER = '/api/geosearch';
 const WIKIPEDIA = 'https://en.wikipedia.org/w/api.php';
 const WIKIDATA = 'https://www.wikidata.org/w/api.php';
 
@@ -34,6 +37,8 @@ const API_USER_AGENT = 'OSIRIS place search (https://github.com/simplifaisoul/os
 
 /** Both answer type-ahead in well under a second; past this, the built-in list answers. */
 const TIMEOUT_MS = 4_000;
+/** A little past the server's own wait on the geocoder (lib/photon.ts), which answers 503 when it gives up. */
+const GEOCODER_TIMEOUT_MS = 9_000;
 /** How long to leave a source alone after it says too many, when it does not say itself. */
 const REST_MS = 60_000;
 /** How many results a search shows, and how many of them Wikipedia may take. */
@@ -177,6 +182,57 @@ export function wikidataUrl(q: string): string {
   return `${WIKIDATA}?${params}`;
 }
 
+/** One Photon hit — only the fields OSIRIS reads. */
+export interface PhotonFeature {
+  geometry?: { coordinates?: [number, number] };
+  properties?: Record<string, string | undefined>;
+}
+
+/** Collapse OSM class/value pairs into the handful of kinds the UI icons. */
+export function classifyKind(key?: string, value?: string): string {
+  if (!key) return 'place';
+  if (key === 'place' && ['country'].includes(value || '')) return 'country';
+  if (key === 'place' && ['state', 'region', 'province', 'county'].includes(value || '')) return 'region';
+  if (key === 'place' && ['city', 'town', 'village', 'hamlet', 'municipality'].includes(value || '')) return 'city';
+  if (key === 'boundary') return 'region';
+  if (key === 'highway' || key === 'street') return 'street';
+  if (key === 'building' || key === 'address' || value === 'house') return 'address';
+  if (['amenity', 'tourism', 'shop', 'leisure', 'historic', 'office', 'railway', 'aeroway', 'natural', 'man_made'].includes(key)) {
+    return 'poi';
+  }
+  return 'place';
+}
+
+export function normalizePhoton(f: PhotonFeature): GeoResult | null {
+  const c = f?.geometry?.coordinates;
+  const p = f?.properties;
+  if (!c || c.length < 2 || !p) return null;
+  const [lng, lat] = c;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+  // Photon splits an address across name/housenumber/street
+  const street = [p.street, p.housenumber].filter(Boolean).join(' ');
+  const name = p.name || street || p.city || p.country || 'Unnamed place';
+  const context = [p.name && street ? street : null, p.district, p.city, p.state, p.country]
+    .filter(Boolean)
+    .filter((v, i, a) => a.indexOf(v) === i)
+    .slice(0, 3)
+    .join(', ');
+
+  return { name, context, lat, lng, kind: classifyKind(p.osm_key, p.osm_value) };
+}
+
+/**
+ * Where the operator is looking, to the nearest tenth of a degree (about
+ * 11 km). That is all the geocoder's bias needs, and it lets everyone looking
+ * at the same city share one cached answer instead of one per pixel of map.
+ */
+export function biasOf(near?: { lat: number; lng: number } | null): { lat: number; lng: number } | null {
+  if (!near || !Number.isFinite(near.lat) || !Number.isFinite(near.lng)) return null;
+  if (Math.abs(near.lat) > 90 || Math.abs(near.lng) > 180) return null;
+  return { lat: Math.round(near.lat * 10) / 10, lng: Math.round(near.lng * 10) / 10 };
+}
+
 /** A built-in list entry as a search result. */
 export function fromPlace(p: Place): GeoResult {
   const where = p.kind === 'country' ? 'Country' : [p.kind === 'city' ? p.region : '', p.country].filter(Boolean).join(', ');
@@ -220,11 +276,21 @@ export function samePlace(a: GeoResult, b: GeoResult): boolean {
   return small.size > 0 && [...small].every(w => large.has(w));
 }
 
-/** Wikipedia first, then what Wikidata adds, then the built-in list; no place twice. */
+/**
+ * Wikipedia first, then what Wikidata adds, then the built-in list; no place
+ * twice. The geocoder's answer, when there is one, goes in Wikipedia's place.
+ * A city and its namesake region count as one place, and the city is the one
+ * kept: the geocoder lists Lisbon the district before Lisbon the city.
+ */
 export function mergeResults(wikipedia: GeoResult[], wikidata: GeoResult[], local: GeoResult[]): GeoResult[] {
   const out: GeoResult[] = [];
   const add = (r: GeoResult) => {
-    if (out.length < LIMIT && !out.some(o => samePlace(o, r))) out.push(r);
+    const i = out.findIndex(o => samePlace(o, r));
+    if (i < 0) {
+      if (out.length < LIMIT) out.push(r);
+    } else if (r.kind === 'city' && out[i].kind === 'region' && fold(r.name) === fold(out[i].name)) {
+      out[i] = r;
+    }
   };
   wikipedia.slice(0, FROM_WIKIPEDIA).forEach(add);
   wikidata.forEach(add);
@@ -235,53 +301,92 @@ export function mergeResults(wikipedia: GeoResult[], wikidata: GeoResult[], loca
 
 /** Until when each Wikimedia site has asked to be left alone. */
 const restUntil = new Map<string, number>();
+/** Set once the deployment says it has no geocoder of its own, so later searches go straight to Wikimedia. */
+let noGeocoder = false;
 
 /**
- * GET a JSON body from a Wikimedia API, or null if it fails, refuses or
- * takes longer than TIMEOUT_MS. A refusal (429) rests that site for as long
- * as it asks. Throws only when `signal` aborts, so a superseded search stops
- * instead of answering.
+ * GET a JSON body, or null if it fails or takes longer than `ms`, with the
+ * status it came with (0 when nothing came back). Throws only when `signal`
+ * aborts, so a superseded search stops instead of answering.
  */
-async function askWikimedia<T>(url: string, signal: AbortSignal | undefined): Promise<T | null> {
-  const host = new URL(url).host;
-  if ((restUntil.get(host) ?? 0) > Date.now()) return null;
+async function getJson<T>(
+  url: string,
+  signal: AbortSignal | undefined,
+  ms: number,
+  headers?: Record<string, string>,
+): Promise<{ status: number; retryAfter: string | null; body: T | null }> {
   const ctrl = new AbortController();
   const stop = () => ctrl.abort();
   signal?.addEventListener('abort', stop);
-  const timer = setTimeout(stop, TIMEOUT_MS);
+  const timer = setTimeout(stop, ms);
   try {
-    const res = await fetch(url, { signal: ctrl.signal, headers: { 'Api-User-Agent': API_USER_AGENT } });
-    if (res.status === 429) {
-      const wait = Number(res.headers.get('Retry-After')) * 1000;
-      restUntil.set(host, Date.now() + (Number.isFinite(wait) && wait > 0 ? wait : REST_MS));
-    }
-    return res.ok ? ((await res.json()) as T) : null;
+    const res = await fetch(url, { signal: ctrl.signal, headers });
+    return { status: res.status, retryAfter: res.headers.get('Retry-After'), body: res.ok ? ((await res.json()) as T) : null };
   } catch (e) {
     if (signal?.aborted) throw e;
-    return null;
+    return { status: 0, retryAfter: null, body: null };
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener('abort', stop);
   }
 }
 
-const abandoned = () => new DOMException('Search abandoned', 'AbortError');
+/** A Wikimedia API's answer, or null. A refusal (429) rests that site for as long as it asks. */
+async function askWikimedia<T>(url: string, signal: AbortSignal | undefined): Promise<T | null> {
+  const host = new URL(url).host;
+  if ((restUntil.get(host) ?? 0) > Date.now()) return null;
+  const { status, retryAfter, body } = await getJson<T>(url, signal, TIMEOUT_MS, { 'Api-User-Agent': API_USER_AGENT });
+  if (status === 429) {
+    const wait = Number(retryAfter) * 1000;
+    restUntil.set(host, Date.now() + (Number.isFinite(wait) && wait > 0 ? wait : REST_MS));
+  }
+  return body;
+}
+
+/** The deployment's geocoder's answer, or null when it has none or did not answer this time. */
+async function askGeocoder(q: string, near: { lat: number; lng: number } | null | undefined, signal: AbortSignal | undefined): Promise<GeoResult[] | null> {
+  if (noGeocoder) return null;
+  const bias = biasOf(near);
+  const url = `${GEOCODER}?q=${encodeURIComponent(q)}${bias ? `&lat=${bias.lat}&lng=${bias.lng}` : ''}`;
+  const { status, body } = await getJson<{ results?: GeoResult[] }>(url, signal, GEOCODER_TIMEOUT_MS);
+  if (status === 501) noGeocoder = true;
+  return body?.results ?? null;
+}
 
 /**
- * Places matching what was typed. The built-in list's matches go to
- * `onPartial` as soon as they are known, so the list never waits on the
- * network; the merged answer is returned once Wikipedia and Wikidata have
- * answered or timed out. Throws only when `signal` aborts.
+ * What the online sources found, as mergeResults takes it: the geocoder's
+ * answer, or Wikipedia's and Wikidata's when it has none to give.
  */
-export async function searchPlaces(
-  q: string,
-  signal?: AbortSignal,
-  onPartial?: (results: GeoResult[]) => void,
-): Promise<GeoResult[]> {
-  const online = Promise.all([
+async function searchOnline(q: string, near: { lat: number; lng: number } | null | undefined, signal: AbortSignal | undefined): Promise<[GeoResult[], GeoResult[]]> {
+  const found = await askGeocoder(q, near, signal);
+  if (found?.length) return [found, []];
+  const [wp, wd] = await Promise.all([
     askWikimedia<{ query?: { pages?: WikiPage[] } }>(wikipediaUrl(q), signal),
     askWikimedia<{ query?: { pages?: WikidataItem[] } }>(wikidataUrl(q), signal),
   ]);
+  const byIndex = <P extends { index?: number }>(pages?: P[]) => [...(pages ?? [])].sort((a, b) => (a.index ?? 99) - (b.index ?? 99));
+  return [
+    byIndex(wp?.query?.pages).map(normalizeWikiPage).filter((r): r is GeoResult => r !== null),
+    byIndex(wd?.query?.pages).map(normalizeWikidataItem).filter((r): r is GeoResult => r !== null),
+  ];
+}
+
+const abandoned = () => new DOMException('Search abandoned', 'AbortError');
+
+/**
+ * Places matching what was typed, ranked toward `near` (where the map is
+ * looking) when the deployment's geocoder answers. The built-in list's
+ * matches go to `onPartial` as soon as they are known, so the list never
+ * waits on the network; the merged answer is returned once the online
+ * sources have answered or timed out. Throws only when `signal` aborts.
+ */
+export async function searchPlaces(
+  q: string,
+  near?: { lat: number; lng: number } | null,
+  signal?: AbortSignal,
+  onPartial?: (results: GeoResult[]) => void,
+): Promise<GeoResult[]> {
+  const online = searchOnline(q, near, signal);
   // Settle the online half's rejection here too, so an abort while the list loads is not unhandled.
   online.catch(() => {});
 
@@ -290,11 +395,8 @@ export async function searchPlaces(
   const local = index ? searchIndex(index, q).map(fromPlace) : [];
   if (local.length) onPartial?.(local);
 
-  const [wp, wd] = await online;
-  const byIndex = <P extends { index?: number }>(pages?: P[]) => [...(pages ?? [])].sort((a, b) => (a.index ?? 99) - (b.index ?? 99));
-  const wikipedia = byIndex(wp?.query?.pages).map(normalizeWikiPage).filter((r): r is GeoResult => r !== null);
-  const wikidata = byIndex(wd?.query?.pages).map(normalizeWikidataItem).filter((r): r is GeoResult => r !== null);
-  return mergeResults(wikipedia, wikidata, local);
+  const [main, more] = await online;
+  return mergeResults(main, more, local);
 }
 
 /** The town a point is in or near, from the built-in list; null at sea or far from any town. */

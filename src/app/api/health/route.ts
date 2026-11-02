@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { photonStats } from '@/lib/photon';
 
 /**
  * OSIRIS — process liveness.
@@ -25,6 +26,14 @@ export async function GET() {
     platform: 'OSIRIS',
     version: '1.0.0',
     uptime_seconds: process.uptime ? Math.round(process.uptime()) : null,
+    /*
+     * What this process has asked of the deployment's own geocoder since it
+     * started: `sent` is requests that left the building, `served` is how many
+     * times a search wanted an answer, and the gap between them is the cache
+     * doing its job. `configured` is false when PHOTON_URL is unset and search
+     * runs in the browser instead — see lib/photon.ts.
+     */
+    geocoder: photonStats(),
     timestamp: new Date().toISOString(),
   });
 }

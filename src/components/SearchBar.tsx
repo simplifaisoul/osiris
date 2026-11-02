@@ -8,7 +8,7 @@ import { Key, PlaceRow, type PlaceLike } from './places';
 
 /* ═══════════════════════════════════════════════════════════════
    OSIRIS — Search
-   A place, a landmark or a pair of coordinates, and the map
+   A place, an address, a landmark or a pair of coordinates, and the map
    flies there. Before anything is typed it offers where you are and where
    you went last; each result can be handed to Directions as the destination.
    Ctrl+F (⌘F) from anywhere, arrows and Enter to choose, Shift+Enter for
@@ -22,7 +22,7 @@ interface Hit extends PlaceLike {
 
 interface SearchBarProps {
   onLocate: (lat: number, lng: number, zoom?: number) => void;
-  /** Where the map is looking. Each result shows how far it is from there. */
+  /** Where the map is looking. Results near it rank first, and each shows how far it is. */
   center?: { lat: number; lng: number } | null;
   /** Close the panel: Esc on an empty box, a click elsewhere, or a pick. */
   onClose?: () => void;
@@ -117,9 +117,12 @@ export default function SearchBar({ onLocate, center = null, onClose, onDirectio
     }
     if (q.trim().length < 2) { abortRef.current?.abort(); setResults([]); setLoading(false); setAnswered(q); return; }
 
-    /* The built-in place list at once, then Wikipedia and Wikidata from the
-       browser (see lib/geosearch.ts). It abandons the lookup for an earlier
-       keystroke, so a slow reply for "Par" can never land after the one for "Paris". */
+    /* The built-in place list at once, then the deployment's own geocoder,
+       or Wikipedia and Wikidata from the browser (see lib/geosearch.ts). It
+       sends where the map is looking, so "Notre-Dame" over Montreal is the
+       basilica rather than a village in Normandy, and abandons the lookup for
+       an earlier keystroke, so a slow reply for "Par" can never land after
+       the one for "Paris". */
     setLoading(true);
     timerRef.current = setTimeout(async () => {
       abortRef.current?.abort();
@@ -129,7 +132,7 @@ export default function SearchBar({ onLocate, center = null, onClose, onDirectio
         label: r.name, context: r.context, lat: r.lat, lng: r.lng, kind: r.kind || 'place', zoom: ZOOM_BY_KIND[r.kind] ?? 13,
       })));
       try {
-        const found = await searchPlaces(q, ctrl.signal, show);
+        const found = await searchPlaces(q, center, ctrl.signal, show);
         if (ctrl.signal.aborted) return;
         show(found);
       } catch {
@@ -140,7 +143,7 @@ export default function SearchBar({ onLocate, center = null, onClose, onDirectio
       setAnswered(q);
       setLoading(false);
     }, 380);
-  }, []);
+  }, [center]);
 
   /** Where you are: the browser's fix when it will give one, else the network's rough idea. */
   const locate = useCallback(async () => {
@@ -214,7 +217,7 @@ export default function SearchBar({ onLocate, center = null, onClose, onDirectio
           value={value}
           onChange={e => search(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Search places, landmarks or coordinates"
+          placeholder="Search places, addresses or coordinates"
           aria-label="Search places"
           role="combobox"
           aria-expanded={items.length > 0}
@@ -316,12 +319,11 @@ export default function SearchBar({ onLocate, center = null, onClose, onDirectio
             <span className="flex items-center gap-1"><Key>Esc</Key> close</span>
           </span>
         )}
-        <span className="ml-auto flex items-center gap-1">
-          Places from
-          <a href="https://www.wikipedia.org/" target="_blank" rel="noopener noreferrer" className="hover:text-[var(--gold-light)] transition-colors">Wikipedia</a>,
-          <a href="https://www.wikidata.org/" target="_blank" rel="noopener noreferrer" className="hover:text-[var(--gold-light)] transition-colors">Wikidata</a>
-          and
-          <a href="https://www.geonames.org/" target="_blank" rel="noopener noreferrer" className="hover:text-[var(--gold-light)] transition-colors">GeoNames</a>
+        <span className="ml-auto whitespace-nowrap" title="Places from OpenStreetMap, Wikipedia, Wikidata and GeoNames">
+          © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className="hover:text-[var(--gold-light)] transition-colors">OpenStreetMap</a>
+          {' · '}<a href="https://www.wikipedia.org/" target="_blank" rel="noopener noreferrer" className="hover:text-[var(--gold-light)] transition-colors">Wikipedia</a>
+          {' · '}<a href="https://www.wikidata.org/" target="_blank" rel="noopener noreferrer" className="hover:text-[var(--gold-light)] transition-colors">Wikidata</a>
+          {' · '}<a href="https://www.geonames.org/" target="_blank" rel="noopener noreferrer" className="hover:text-[var(--gold-light)] transition-colors">GeoNames</a>
         </span>
       </div>
     </div>

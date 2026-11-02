@@ -351,7 +351,8 @@ function PlaceInput({
         setOpen(true);
       };
       try {
-        const found = await searchPlaces(q, ctrl.signal, show);
+        const near = biasLat !== undefined && biasLng !== undefined ? { lat: biasLat, lng: biasLng } : null;
+        const found = await searchPlaces(q, near, ctrl.signal, show);
         if (ctrl.signal.aborted) return;
         show(found);
       } catch {
@@ -359,7 +360,7 @@ function PlaceInput({
       }
       if (!ctrl.signal.aborted) setLoading(false);
     }, 280);
-  }, [onChange]);
+  }, [onChange, biasLat, biasLng]);
 
   const choose = (p: Place) => {
     onChange(p.label);
