@@ -1,7 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
-// Photon is faked: its public server cannot be made to fail on demand, and the
-// retry is the part worth pinning down.
+// Faked so a test can tell the route asks no outside service for the place.
 const httpJson = vi.fn();
 vi.mock('@/lib/httpJson', () => ({ httpJson: (...args: unknown[]) => httpJson(...args), OSIRIS_UA: 'test' }));
 
@@ -61,47 +60,22 @@ describe('reading a quantity', () => {
   });
 });
 
-describe('naming the clicked place, from Photon', () => {
-  const tokyo = { features: [{ properties: { city: 'Tokyo', country: 'Japan', countrycode: 'jp' } }] };
-  beforeEach(() => { httpJson.mockReset(); });
-
-  it('retries once when Photon has a bad moment, then answers', async () => {
-    httpJson.mockRejectedValueOnce(new Error('HTTP 503')).mockResolvedValueOnce(tokyo);
-    expect(await placeAt(35.681, 139.691)).toMatchObject({ city: 'Tokyo', country: 'Japan' });
-    expect(httpJson).toHaveBeenCalledTimes(2);
+describe('naming the clicked place, from the built-in list', () => {
+  it('names the town clicked in', () => {
+    expect(placeAt(35.681, 139.691)).toMatchObject({ city: 'Tokyo', country: 'Japan', countryCode: 'JP' });
   });
 
-  it('gives up after the second failure rather than keep the panel waiting', async () => {
-    httpJson.mockRejectedValue(new Error('HTTP 503'));
-    expect(await placeAt(35.682, 139.692)).toBeNull();
-    expect(httpJson).toHaveBeenCalledTimes(2);
+  it('names somewhere for a click in open country', () => {
+    // Farmland outside Granby, Quebec.
+    expect(placeAt(45.504, -72.531)?.country).toBe('Canada');
   });
 
-  it('does not remember a failure, so the next click asks again', async () => {
-    httpJson.mockRejectedValue(new Error('HTTP 503'));
-    expect(await placeAt(35.683, 139.693)).toBeNull();
-    httpJson.mockReset().mockResolvedValue(tokyo);
-    expect(await placeAt(35.683, 139.693)).toMatchObject({ city: 'Tokyo' });
+  it('names nothing in open sea', () => {
+    expect(placeAt(0, -30)).toBeNull();
   });
 
-  it('remembers a real answer, so a second click on the same spot costs nothing', async () => {
-    httpJson.mockResolvedValue(tokyo);
-    await placeAt(35.684, 139.694);
-    await placeAt(35.684, 139.694);
-    expect(httpJson).toHaveBeenCalledTimes(1);
-  });
-
-  it('looks far enough to name a place in open country', async () => {
-    // Photon's default radius found nothing on farmland outside Granby, or in
-    // the Sahara, Siberia or the Amazon; 50 km found a place for every one.
-    httpJson.mockResolvedValue(tokyo);
-    await placeAt(45.504, -72.531);
-    expect(String(httpJson.mock.calls[0][0])).toContain('radius=50');
-  });
-
-  it('answers nothing for open sea, without retrying', async () => {
-    httpJson.mockResolvedValue({ features: [] });
-    expect(await placeAt(0, -30)).toBeNull();
-    expect(httpJson).toHaveBeenCalledTimes(1);
+  it('asks no geocoder', () => {
+    placeAt(48.8566, 2.3522);
+    expect(httpJson).not.toHaveBeenCalled();
   });
 });

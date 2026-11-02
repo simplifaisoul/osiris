@@ -370,14 +370,13 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       center: [facingLng, 20] as [number, number], zoom: 1.8, minZoom: 1.5, maxZoom: 18,
       /* The basemap is CARTO's, drawn from OpenStreetMap, and the places on it
          are searched and named through OpenStreetMap too. Both have to be
-         credited on the map itself; this was switched off, which is half of
-         what Nominatim's operators asked us to put right (issue #16). It is
-         collapsed by default so it costs a corner icon, not the view. */
+         credited on the map itself (issue #16). It is collapsed by default so
+         it costs a corner icon, not the view. */
       attributionControl: {
         compact: true,
-        // The style credits CARTO and OSM for the map; this credits OSM for the
-        // search results, place names and pins that come from Nominatim.
-        customAttribution: 'Geocoding © OpenStreetMap contributors',
+        // The style credits CARTO and OSM for the map; this credits where search
+        // results and place names come from: Wikipedia, Wikidata, and GeoNames' list (CC BY 4.0).
+        customAttribution: 'Places: <a href="https://www.wikipedia.org/" target="_blank" rel="noopener noreferrer">Wikipedia</a>, <a href="https://www.wikidata.org/" target="_blank" rel="noopener noreferrer">Wikidata</a>, <a href="https://www.geonames.org/" target="_blank" rel="noopener noreferrer">GeoNames</a> (CC BY 4.0)',
       } as const,
       maxPitch: 85,
       transformRequest: (url: string) => {

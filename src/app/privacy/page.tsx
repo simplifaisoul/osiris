@@ -171,7 +171,7 @@ export default function PrivacyPage() {
                 { name: 'ipapi.co, then freeipapi.com, then ip-api.com', what: 'your connection’s IP address, asked from our server, to place the map' },
                 { name: 'CARTO (basemaps.cartocdn.com)', what: 'the map tiles for the part of the world in view' },
                 { name: 'Esri (server.arcgisonline.com)', what: 'satellite imagery, only when you switch to the satellite view' },
-                { name: 'Photon (photon.komoot.io)', what: 'what you type in the place search, and where the map is looking, asked from your browser' },
+                { name: 'Wikipedia and Wikidata (en.wikipedia.org, www.wikidata.org)', what: 'what you type in the place search, asked from your browser. The place under your cursor or that you right-click is named from a list built into OSIRIS, and nothing is sent for it' },
                 { name: 'Google Fonts', what: 'the typefaces the site uses' },
               ]} />
 
@@ -215,7 +215,7 @@ export default function PrivacyPage() {
                 { name: 'News publishers’ feeds, GDELT, Wikipedia', what: 'a few keywords from your question, to find the reporting and background a prediction reads; the articles found are then read from their publishers' },
                 { name: 'Yahoo Finance', what: 'the ticker of a price your question is about, for its price history and its news' },
                 { name: 'Polymarket and Manifold', what: 'a few keywords from your question, to find what prediction markets price it at; and, for the suggestions on the ask form, nothing about you at all' },
-                { name: 'Photon and Nominatim (OpenStreetMap)', what: 'a place name, when you search for one or OI looks one up' },
+                { name: 'Wikipedia and Wikidata', what: 'a place name, when OI Assist looks one up, asked from your browser' },
               ]}>
               <p className="mt-3 text-[13px] leading-relaxed text-[var(--text-muted)]">
                 A prediction has its own link so it can be shared: anyone you give the link to can open it, and it is kept
