@@ -13,7 +13,7 @@ import type { Readable } from 'stream';
  * in a few hundred ms. This helper is the shared escape hatch.
  *
  * It also sends a real identifying User-Agent rather than a spoofed browser
- * one: the OSM community endpoints (Nominatim, Overpass) reject browser UAs
+ * one: OSM community endpoints such as Overpass reject browser UAs
  * with 406/429 and ask for contact details in their usage policies.
  */
 

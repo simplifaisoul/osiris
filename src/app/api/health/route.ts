@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { photonStats } from '@/lib/photon';
-import { nominatimStats } from '@/lib/nominatim';
+import { geocoderStats } from '@/lib/geocoder';
 
 /**
  * OSIRIS — process liveness.
@@ -31,13 +30,11 @@ export async function GET() {
      * What this process has asked of the deployment's own geocoder since it
      * started: `sent` is requests that left the building, `served` is how many
      * times a search wanted an answer, and the gap between them is the cache
-     * doing its job. `configured` is false when PHOTON_URL is unset; `shared`
-     * is then the shared search asked instead (null when it is off, and
-     * search runs in the browser) — see lib/photon.ts.
+     * doing its job. `configured` is false when OSIRIS_GEOCODER_URL is unset;
+     * `shared` is then the shared search asked instead (null when it is off,
+     * and search runs in the browser) — see lib/geocoder.ts.
      */
-    geocoder: photonStats(),
-    // The same, for the Nominatim backup; `configured` is false unless NOMINATIM_URL is set — see lib/nominatim.ts.
-    nominatim: nominatimStats(),
+    geocoder: geocoderStats(),
     timestamp: new Date().toISOString(),
   });
 }

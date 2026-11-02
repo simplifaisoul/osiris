@@ -3,21 +3,18 @@ import { dirname, join } from 'node:path';
 import { httpJson } from '@/lib/httpJson';
 
 /**
- * OSIRIS — the deployment's own geocoder, for place search.
+ * OSIRIS — the OSIRIS geocoder, for place search.
  *
- * When PHOTON_URL is set, the search box and directions search ask a Photon
- * geocoder (github.com/komoot/photon) that the deployment runs itself,
- * through /api/geosearch and this module. Photon's prebuilt database is a
- * download away, and a server of our own has no usage policy for our traffic
- * to outgrow.
+ * When OSIRIS_GEOCODER_URL is set, the search box and directions search ask
+ * the geocoder the deployment runs itself, over OpenStreetMap data, through
+ * /api/geosearch and this module. A server of our own has no usage policy for
+ * our traffic to outgrow.
  *
- * Without PHOTON_URL, a copy asks the shared search of an OSIRIS deployment
- * that runs one — osirisai.live unless SHARED_SEARCH_URL says otherwise — so
- * it gets the same streets and addresses with nothing to set up. When that
- * cannot answer either, the browser searches Wikipedia, Wikidata and the
- * built-in place list instead (lib/geosearch.ts). The public Photon and
- * Nominatim servers are never used: their operators asked OSIRIS to stop, and
- * a map with many visitors cannot stay inside their fair-use limits. So the
+ * Without OSIRIS_GEOCODER_URL, a copy asks the shared search of an OSIRIS
+ * deployment that runs one — osirisai.live unless SHARED_SEARCH_URL says
+ * otherwise — so it gets the same streets and addresses with nothing to set
+ * up. When that cannot answer either, the browser searches Wikipedia,
+ * Wikidata and the built-in place list instead (lib/geosearch.ts). So the
  * rules are:
  *
  *   • The browser never asks the geocoder; only the server does, through this
@@ -36,7 +33,7 @@ import { httpJson } from '@/lib/httpJson';
  */
 
 /** The geocoder's address, e.g. `http://geocoder.internal:2322`; empty turns lookups off. */
-const baseUrl = () => (process.env.PHOTON_URL || '').trim().replace(/\/+$/, '');
+const baseUrl = () => (process.env.OSIRIS_GEOCODER_URL || '').trim().replace(/\/+$/, '');
 
 /** Where a copy without a geocoder searches instead: the deployment that runs osirisai.live. */
 export const DEFAULT_SHARED_SEARCH = 'https://osirisai.live/api/geosearch/shared';
@@ -61,8 +58,8 @@ const TIMEOUT_MS = 8_000;
 /** What every surface showing a geocoder answer must display. */
 export const ATTRIBUTION = '© OpenStreetMap contributors';
 
-/** Photon's parameters; a list is sent as the same key repeated (`layer=city&layer=locality`). */
-export type PhotonParams = Record<string, string | string[]>;
+/** The geocoder's parameters; a list is sent as the same key repeated (`layer=city&layer=locality`). */
+export type GeocoderParams = Record<string, string | string[]>;
 
 interface Entry { value: unknown; expires: number }
 
@@ -75,7 +72,7 @@ let downUntil = 0;
 /** Counted so the health check can show what we are actually sending. */
 const stats = { served: 0, fromCache: 0, sent: 0, refused: 0, failed: 0 };
 
-const snapshotPath = () => process.env.OSIRIS_PHOTON_CACHE || join(process.cwd(), '.cache', 'photon.json');
+const snapshotPath = () => process.env.OSIRIS_GEOCODER_CACHE || join(process.cwd(), '.cache', 'geocoder.json');
 
 let loaded: Promise<void> | null = null;
 let dirty = false;
@@ -83,7 +80,7 @@ let dirty = false;
 /** Reads the cache written by an earlier run, once. */
 function ensureLoaded(): Promise<void> {
   loaded ??= (async () => {
-    if (process.env.OSIRIS_PHOTON_CACHE === 'off') return;
+    if (process.env.OSIRIS_GEOCODER_CACHE === 'off') return;
     try {
       const raw = await fs.readFile(snapshotPath(), 'utf8');
       const saved = JSON.parse(raw) as Record<string, Entry>;
@@ -100,7 +97,7 @@ function ensureLoaded(): Promise<void> {
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 function scheduleSave() {
   dirty = true;
-  if (saveTimer || process.env.OSIRIS_PHOTON_CACHE === 'off') return;
+  if (saveTimer || process.env.OSIRIS_GEOCODER_CACHE === 'off') return;
   // Batched: a burst of lookups costs one write, a minute after the first.
   saveTimer = setTimeout(() => {
     saveTimer = null;
@@ -144,7 +141,7 @@ async function slot(): Promise<() => void> {
 }
 
 /** Whether this deployment has a geocoder to ask. */
-export function photonConfigured(): boolean {
+export function geocoderConfigured(): boolean {
   return baseUrl() !== '';
 }
 
@@ -158,7 +155,7 @@ const keyOf = (query: URLSearchParams) => [...query.entries()].map(([k, v]) => `
  * the queue is full or the geocoder is resting after a failure, or when the
  * request fails.
  */
-export async function photon<T>(params: PhotonParams): Promise<T | null> {
+export async function geocoder<T>(params: GeocoderParams): Promise<T | null> {
   const base = baseUrl();
   if (!base) return null;
 
@@ -234,12 +231,12 @@ async function ask<T>(url: string, key: string): Promise<T | null> {
 }
 
 /** How much we have asked of the geocoder since this process started. */
-export function photonStats() {
-  return { ...stats, cached: cache.size, active, queued: waiting.length, configured: photonConfigured(), shared: photonConfigured() ? null : sharedUrl() || null };
+export function geocoderStats() {
+  return { ...stats, cached: cache.size, active, queued: waiting.length, configured: geocoderConfigured(), shared: geocoderConfigured() ? null : sharedUrl() || null };
 }
 
 /** Test seam — forget every answer and reset the counters. */
-export function clearPhotonCache(): void {
+export function clearGeocoderCache(): void {
   cache.clear();
   inflight.clear();
   active = 0;

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // No snapshot file is written or read during tests.
-process.env.OSIRIS_PHOTON_CACHE = 'off';
+process.env.OSIRIS_GEOCODER_CACHE = 'off';
 
 const httpJson = vi.fn();
 vi.mock('@/lib/httpJson', () => ({
@@ -9,12 +9,12 @@ vi.mock('@/lib/httpJson', () => ({
   OSIRIS_UA: 'test',
 }));
 
-const { photon, photonStats, clearPhotonCache, sharedSearch, sharedSearchConfigured } = await import('./photon');
+const { geocoder, geocoderStats, clearGeocoderCache, sharedSearch, sharedSearchConfigured } = await import('./geocoder');
 
 beforeEach(() => {
-  process.env.PHOTON_URL = 'http://geocoder.test:2322/';
+  process.env.OSIRIS_GEOCODER_URL = 'http://geocoder.test:2322/';
   delete process.env.SHARED_SEARCH_URL;
-  clearPhotonCache();
+  clearGeocoderCache();
   httpJson.mockReset();
 });
 
@@ -45,35 +45,35 @@ describe('sharedSearch', () => {
   });
 });
 
-describe('photon', () => {
+describe('geocoder', () => {
   it('asks nothing at all when no geocoder is configured', async () => {
-    delete process.env.PHOTON_URL;
-    expect(await photon({ q: 'Sumy' })).toBeNull();
+    delete process.env.OSIRIS_GEOCODER_URL;
+    expect(await geocoder({ q: 'Sumy' })).toBeNull();
     expect(httpJson).not.toHaveBeenCalled();
-    expect(photonStats().configured).toBe(false);
+    expect(geocoderStats().configured).toBe(false);
   });
 
   it('asks the configured server, in English, with repeated keys for a list', async () => {
     httpJson.mockResolvedValue({ features: [] });
-    await photon({ q: 'Sumy', layer: ['city', 'state'] });
+    await geocoder({ q: 'Sumy', layer: ['city', 'state'] });
     expect(httpJson.mock.calls[0][0]).toBe('http://geocoder.test:2322/api?lang=en&q=Sumy&layer=city&layer=state');
   });
 
   it('asks once for a question it has been asked twice', async () => {
     httpJson.mockResolvedValue({ features: [{ properties: { name: 'Sumy' } }] });
 
-    const first = await photon({ q: 'Sumy' });
-    const second = await photon({ q: 'Sumy' });
+    const first = await geocoder({ q: 'Sumy' });
+    const second = await geocoder({ q: 'Sumy' });
 
     expect(first).toEqual(second);
     expect(httpJson).toHaveBeenCalledTimes(1);
-    expect(photonStats()).toMatchObject({ served: 2, sent: 1, fromCache: 1 });
+    expect(geocoderStats()).toMatchObject({ served: 2, sent: 1, fromCache: 1 });
   });
 
   it('treats the same parameters in any order as the same question', async () => {
     httpJson.mockResolvedValue({ features: [] });
-    await photon({ q: 'Kyiv', limit: '5' });
-    await photon({ limit: '5', q: 'Kyiv' });
+    await geocoder({ q: 'Kyiv', limit: '5' });
+    await geocoder({ limit: '5', q: 'Kyiv' });
     expect(httpJson).toHaveBeenCalledTimes(1);
   });
 
@@ -81,15 +81,15 @@ describe('photon', () => {
     vi.useFakeTimers();
     try {
       httpJson.mockRejectedValue(new Error('Upstream timed out'));
-      expect(await photon({ q: 'Kharkiv' })).toBeNull();
+      expect(await geocoder({ q: 'Kharkiv' })).toBeNull();
       // A different question during the rest is refused without a request.
-      expect(await photon({ q: 'Odesa' })).toBeNull();
+      expect(await geocoder({ q: 'Odesa' })).toBeNull();
       expect(httpJson).toHaveBeenCalledTimes(1);
-      expect(photonStats()).toMatchObject({ failed: 1, refused: 1 });
+      expect(geocoderStats()).toMatchObject({ failed: 1, refused: 1 });
 
       vi.advanceTimersByTime(31_000);
       httpJson.mockReset().mockResolvedValue({ features: [] });
-      expect(await photon({ q: 'Kharkiv' })).toEqual({ features: [] });
+      expect(await geocoder({ q: 'Kharkiv' })).toEqual({ features: [] });
     } finally {
       vi.useRealTimers();
     }
@@ -99,7 +99,7 @@ describe('photon', () => {
     let fail: (e: Error) => void = () => {};
     httpJson.mockImplementation(() => new Promise((_, reject) => { fail = reject; }));
 
-    const asked = Array.from({ length: 10 }, (_, i) => photon({ q: `town ${i}` }));
+    const asked = Array.from({ length: 10 }, (_, i) => geocoder({ q: `town ${i}` }));
     await new Promise(resolve => setTimeout(resolve, 10));
     fail(new Error('Upstream timed out')); // the last of the four in flight fails
 
@@ -120,7 +120,7 @@ describe('photon', () => {
       return { features: [] };
     });
 
-    const asked = Array.from({ length: 60 }, (_, i) => photon({ q: `place ${i}` }));
+    const asked = Array.from({ length: 60 }, (_, i) => geocoder({ q: `place ${i}` }));
     await new Promise(resolve => setTimeout(resolve, 10));
     release();
     const answers = await Promise.all(asked);
@@ -128,7 +128,7 @@ describe('photon', () => {
     expect(most).toBe(4);
     const refused = answers.filter(a => a === null).length;
     expect(refused).toBeGreaterThan(0);
-    expect(photonStats().refused).toBe(refused);
+    expect(geocoderStats().refused).toBe(refused);
     expect(httpJson.mock.calls.length).toBe(60 - refused);
   });
 });

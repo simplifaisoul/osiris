@@ -5,10 +5,10 @@
  * list's matches the moment a key is pressed, then ask one of two online
  * sources and merge what it finds in front of them:
  *
- *   • the deployment's own geocoder (PHOTON_URL) or, for a copy that runs
- *     none, the one osirisai.live shares, through /api/geosearch and
- *     lib/photon.ts: a Photon server over OpenStreetMap, with streets and
- *     addresses, biased toward where the map is looking;
+ *   • the OSIRIS geocoder, through /api/geosearch and lib/geocoder.ts: the
+ *     deployment's own (OSIRIS_GEOCODER_URL) or, for a copy that runs none,
+ *     the one osirisai.live shares. It searches OpenStreetMap data, with
+ *     streets and addresses, biased toward where the map is looking;
  *   • when that cannot answer, Wikipedia and Wikidata, asked straight from the browser with
  *     no key. Wikipedia is typo tolerant and ranked by how much each place is
  *     read about, so "heathrow" is the airport; Wikidata adds the streets and
@@ -21,16 +21,8 @@
  * Wikidata too; when everything online is out of reach, the built-in list
  * (lib/places.ts: towns, regions and countries, offline) answers alone.
  *
- * A copy whose operator turns on the Nominatim backup (NOMINATIM_URL) also
- * offers "Search OpenStreetMap" under the results. Only choosing it asks
- * Nominatim, through /api/geosearch and lib/nominatim.ts; typing never does.
- *
  * The point under the cursor and the place a dossier is about are named from
  * the built-in list only: no request leaves the browser for them.
- *
- * The public Photon server is not used, and Nominatim is off unless a copy's
- * operator turns it on. Their operators asked OSIRIS to stop: their fair-use
- * limits do not cover a public site's traffic.
  */
 import { fold, loadPlaces, nearestTown, placeLabel, searchIndex, type Place } from './places';
 
@@ -43,12 +35,8 @@ const API_USER_AGENT = 'OSIRIS place search (https://github.com/simplifaisoul/os
 
 /** Both answer type-ahead in well under a second; past this, the built-in list answers. */
 const TIMEOUT_MS = 4_000;
-/** A little past the server's own wait on the geocoder (lib/photon.ts), which answers 503 when it gives up. */
+/** A little past the server's own wait on the geocoder (lib/geocoder.ts), which answers 503 when it gives up. */
 const GEOCODER_TIMEOUT_MS = 9_000;
-/** Nominatim is asked two seconds apart (lib/nominatim.ts), so an answer can wait behind a few others. */
-const NOMINATIM_TIMEOUT_MS = 15_000;
-/** Says on every /api/geosearch answer whether the copy offers Nominatim ("on" or "off"). */
-export const NOMINATIM_HEADER = 'X-OSIRIS-Nominatim';
 /** How long to leave a source alone after it says too many, when it does not say itself. */
 const REST_MS = 60_000;
 /** How many results a search shows, and how many of them Wikipedia may take. */
@@ -192,8 +180,8 @@ export function wikidataUrl(q: string): string {
   return `${WIKIDATA}?${params}`;
 }
 
-/** One Photon hit — only the fields OSIRIS reads. */
-export interface PhotonFeature {
+/** One geocoder hit — only the fields OSIRIS reads. */
+export interface GeocoderFeature {
   geometry?: { coordinates?: [number, number] };
   properties?: Record<string, string | undefined>;
 }
@@ -213,14 +201,14 @@ export function classifyKind(key?: string, value?: string): string {
   return 'place';
 }
 
-export function normalizePhoton(f: PhotonFeature): GeoResult | null {
+export function normalizeFeature(f: GeocoderFeature): GeoResult | null {
   const c = f?.geometry?.coordinates;
   const p = f?.properties;
   if (!c || c.length < 2 || !p) return null;
   const [lng, lat] = c;
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
 
-  // Photon splits an address across name/housenumber/street
+  // The geocoder splits an address across name/housenumber/street
   const street = [p.street, p.housenumber].filter(Boolean).join(' ');
   const name = p.name || street || p.city || p.country || 'Unnamed place';
   const context = [p.name && street ? street : null, p.district, p.city, p.state, p.country]
@@ -230,34 +218,6 @@ export function normalizePhoton(f: PhotonFeature): GeoResult | null {
     .join(', ');
 
   return { name, context, lat, lng, kind: classifyKind(p.osm_key, p.osm_value) };
-}
-
-/** One Nominatim search row (format=jsonv2) — only the fields OSIRIS reads. */
-export interface NominatimRow {
-  display_name?: string;
-  lat?: string;
-  lon?: string;
-  category?: string;
-  type?: string;
-  name?: string;
-}
-
-export function normalizeNominatim(r: NominatimRow): GeoResult | null {
-  const lat = parseFloat(r?.lat || '');
-  const lng = parseFloat(r?.lon || '');
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-
-  const parts = (r.display_name || '').split(',').map(s => s.trim()).filter(Boolean);
-  // An address has no name; its first two parts are the house number and the street.
-  const numbered = !r.name && parts.length > 1 && /^\d/.test(parts[0]);
-  const skip = numbered ? 2 : 1;
-  return {
-    name: r.name || (numbered ? `${parts[0]} ${parts[1]}` : parts[0]) || 'Unnamed place',
-    context: parts.slice(skip, skip + 3).join(', '),
-    lat,
-    lng,
-    kind: classifyKind(r.category, r.type),
-  };
 }
 
 /**
@@ -341,33 +301,28 @@ export function mergeResults(wikipedia: GeoResult[], wikidata: GeoResult[], loca
 const restUntil = new Map<string, number>();
 /** Set once the deployment says it has no geocoder of its own, so later searches go straight to Wikimedia. */
 let noGeocoder = false;
-/** Set from the deployment's answers: whether its operator turned the Nominatim backup on. */
-let nominatimOffered = false;
-
-/** Whether to offer "Search OpenStreetMap" under the results; known once the deployment has answered a search. */
-export const canSearchOpenStreetMap = () => nominatimOffered;
 
 /**
  * GET a JSON body, or null if it fails or takes longer than `ms`, with the
- * status and headers it came with (0 and null when nothing came back). Throws
- * only when `signal` aborts, so a superseded search stops instead of answering.
+ * status it came with (0 when nothing came back). Throws only when `signal`
+ * aborts, so a superseded search stops instead of answering.
  */
 async function getJson<T>(
   url: string,
   signal: AbortSignal | undefined,
   ms: number,
   headers?: Record<string, string>,
-): Promise<{ status: number; headers: Headers | null; body: T | null }> {
+): Promise<{ status: number; retryAfter: string | null; body: T | null }> {
   const ctrl = new AbortController();
   const stop = () => ctrl.abort();
   signal?.addEventListener('abort', stop);
   const timer = setTimeout(stop, ms);
   try {
     const res = await fetch(url, { signal: ctrl.signal, headers });
-    return { status: res.status, headers: res.headers, body: res.ok ? ((await res.json()) as T) : null };
+    return { status: res.status, retryAfter: res.headers.get('Retry-After'), body: res.ok ? ((await res.json()) as T) : null };
   } catch (e) {
     if (signal?.aborted) throw e;
-    return { status: 0, headers: null, body: null };
+    return { status: 0, retryAfter: null, body: null };
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener('abort', stop);
@@ -378,9 +333,9 @@ async function getJson<T>(
 async function askWikimedia<T>(url: string, signal: AbortSignal | undefined): Promise<T | null> {
   const host = new URL(url).host;
   if ((restUntil.get(host) ?? 0) > Date.now()) return null;
-  const { status, headers, body } = await getJson<T>(url, signal, TIMEOUT_MS, { 'Api-User-Agent': API_USER_AGENT });
+  const { status, retryAfter, body } = await getJson<T>(url, signal, TIMEOUT_MS, { 'Api-User-Agent': API_USER_AGENT });
   if (status === 429) {
-    const wait = Number(headers?.get('Retry-After')) * 1000;
+    const wait = Number(retryAfter) * 1000;
     restUntil.set(host, Date.now() + (Number.isFinite(wait) && wait > 0 ? wait : REST_MS));
   }
   return body;
@@ -391,21 +346,9 @@ async function askGeocoder(q: string, near: { lat: number; lng: number } | null 
   if (noGeocoder) return null;
   const bias = biasOf(near);
   const url = `${GEOCODER}?q=${encodeURIComponent(q)}${bias ? `&lat=${bias.lat}&lng=${bias.lng}` : ''}`;
-  const { status, headers, body } = await getJson<{ results?: GeoResult[] }>(url, signal, GEOCODER_TIMEOUT_MS);
+  const { status, body } = await getJson<{ results?: GeoResult[] }>(url, signal, GEOCODER_TIMEOUT_MS);
   if (status === 501) noGeocoder = true;
-  if (headers) nominatimOffered = headers.get(NOMINATIM_HEADER) === 'on';
   return body?.results ?? null;
-}
-
-/**
- * Nominatim's answer for `q`, in front of the results already `shown`, or
- * null when it did not answer. Only for "Search OpenStreetMap", which the
- * person searching chooses: never as they type (see lib/nominatim.ts).
- */
-export async function searchOpenStreetMap(q: string, shown: GeoResult[], signal?: AbortSignal): Promise<GeoResult[] | null> {
-  const url = `${GEOCODER}?source=nominatim&q=${encodeURIComponent(q)}`;
-  const { body } = await getJson<{ results?: GeoResult[] }>(url, signal, NOMINATIM_TIMEOUT_MS);
-  return body?.results ? mergeResults(body.results, [], shown) : null;
 }
 
 /**
