@@ -10,11 +10,11 @@
  * shared operator or hosting provider. It is not observed traffic.
  *
  * The lines are an instance of OI's own arc layer (see lib/oi/globe), so they
- * share its ribbons, glow, draw-in, travelling pulses and Style Studio tones
- * rather than imitating them.
+ * share its ribbons, glow, draw-in and travelling pulses rather than imitating
+ * them. Their colour is their own Style Studio swatch, black by default.
  */
 import type { Map as MlMap } from 'maplibre-gl';
-import { createArcLayer, stampBirths, type ToneColors } from './oi/globe';
+import { createArcLayer, stampBirths } from './oi/globe';
 import { distanceKm, rgb, type ArcSpec, type LngLat } from './oi/arcs';
 
 export const NET_ARCS = 'net-intel-arcs';
@@ -86,8 +86,8 @@ export function familyLinks(hosts: FamilyHost[]): FamilyLink[] {
 export interface NetIntelArcs {
   /** Draws the links between these hosts; an empty list clears them. */
   set(hosts: FamilyHost[]): void;
-  /** OI's three tones, from the Style Studio. */
-  setColors(colors: ToneColors): void;
+  /** The links' colour, from the Style Studio. */
+  setColor(hex: string): void;
   destroy(): void;
 }
 
@@ -116,7 +116,7 @@ export function attachNetIntelArcs(map: MlMap): NetIntelArcs {
       const arcs: ArcSpec[] = links.map((l, i) => ({
         from: [l.from.lng, l.from.lat],
         to: [l.to.lng, l.to.lat],
-        // OI's violet: the two ends work together.
+        // OI's "aligned" tone, which here carries the links' own colour.
         tone: 0,
         id: i,
         highlight: 0,
@@ -128,8 +128,9 @@ export function attachNetIntelArcs(map: MlMap): NetIntelArcs {
       layer.setArcs(arcs, false);
       layer.setLive(arcs.length > 0);
     },
-    setColors(colors) {
-      layer.setTones([colors.support, colors.oppose, colors.neutral].map(rgb));
+    setColor(hex) {
+      const c = rgb(hex);
+      layer.setTones([c, c, c]);
     },
     destroy() {
       map.off('style.load', ensure);

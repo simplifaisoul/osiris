@@ -580,19 +580,21 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
 
       /* ══ BOTNET C2 INFRASTRUCTURE — one dot per listed server ══
          Feodo Tracker lists where a C2 is hosted and whether it still
-         answers. It records no attacker, no victim and no attack, so there is
-         nothing here to draw an arc between: a dot at the hosting country,
-         coloured by the reported status, is the whole of what is observed. */
+         answers; researchers' posts say an address was serving as a C2 when
+         they posted. Neither records an attacker, a victim or an attack, so a
+         dot coloured by what the source says — online, offline or reported —
+         is the whole of what is observed. Hosts of one family are joined by
+         Network Intel's arcs, as on the malware layer. */
       map.addLayer({ id: 'cyber-heads', type: 'circle', source: 'cyber-heads', paint: {
         'circle-radius': ['interpolate',['linear'],['zoom'], 1,2.5, 5,4, 10,6],
-        'circle-color': ['case', ['==', ['get','status'], 'online'], '#FF6D00', '#555555'],
+        'circle-color': ['match', ['get','status'], 'online', '#FF6D00', 'reported', '#FFAB40', '#555555'],
         'circle-opacity': 0.95,
         'circle-stroke-width': 1.5, 'circle-stroke-color': '#333', 'circle-stroke-opacity': 0.9,
       }});
       map.addLayer({ id: 'cyber-labels', type: 'symbol', source: 'cyber-heads', minzoom: 3, layout: {
         'text-field': ['get','malware'], 'text-size': 9, 'text-font': ['JetBrains Mono Bold', 'Open Sans Bold'],
         'text-offset': [0, 1.5], 'text-max-width': 10, 'text-allow-overlap': false,
-      }, paint: { 'text-color': '#333333', 'text-halo-color': '#000', 'text-halo-width': 1.5, 'text-opacity': 0.85 }});
+      }, paint: { 'text-color': ['match', ['get','status'], 'online', '#FF6D00', 'reported', '#FFAB40', '#8A8880'], 'text-halo-color': '#000', 'text-halo-width': 1.5, 'text-opacity': 0.85 }});
 
       map.addLayer({ id: 'gdelt-dots', type: 'circle', source: 'gdelt', paint: {
         'circle-radius': 4, 'circle-color': '#D32F2F', 'circle-opacity': 0.5, 'circle-stroke-width': 1, 'circle-stroke-color': '#D32F2F', 'circle-stroke-opacity': 0.25,
@@ -1455,36 +1457,39 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       });
     });
 
-    /* ── Botnet C2 infrastructure (abuse.ch Feodo Tracker) ──
-       Every field below is read off the blocklist row. The popup used to lead
-       with a randomly chosen attack verb and a fabricated attacker origin;
-       what a row actually supports is an address, a family, a hosting
-       country and two observation timestamps. */
+    /* ── Botnet C2 infrastructure (Feodo Tracker, researchers' posts) ──
+       Every field below is read off the blocklist row or the post. The popup
+       used to lead with a randomly chosen attack verb and a fabricated
+       attacker origin; what a row actually supports is an address, a family,
+       a hosting country and its observation times. */
     map.on('click', 'cyber-heads', e => {
       if (!e.features?.length) return;
       const p = e.features[0].properties as any;
       const coords = (e.features[0].geometry as any).coordinates;
-      const online = p.status === 'online';
-      const c = online ? '#FF6D00' : '#8A8880';
+      const posted = p.status === 'reported';
+      const c = p.status === 'online' ? '#FF6D00' : posted ? '#FFAB40' : '#8A8880';
+      const place = p.location_precision === 'city'
+        ? 'Marker sits at the address\'s own geolocation (city level).'
+        : 'Marker sits at the hosting country\'s centroid, not the host\'s location.';
       const row = (label: string, value: string, color = '#E8E6E0', mono = false) =>
         `<div><span style="color:#5C5A54;font-size:7px;letter-spacing:0.1em;">${label}</span><br/><span style="color:${color};${mono ? 'font-family:monospace;' : ''}">${value}</span></div>`;
       popup(coords, `<div style="${pStyle}border:1px solid ${c}40;">
         <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid ${c}30;padding-bottom:6px;margin-bottom:8px;">
-          <div style="color:${c};font-size:12px;font-weight:700;letter-spacing:0.12em;">BOTNET C2 SERVER</div>
+          <div style="color:${c};font-size:12px;font-weight:700;letter-spacing:0.12em;">${posted ? 'REPORTED C2 SERVER' : 'BOTNET C2 SERVER'}</div>
           <div style="font-size:8px;padding:2px 6px;border-radius:3px;font-weight:700;letter-spacing:0.1em;background:${c}20;color:${c};border:1px solid ${c}50;">${htmlEsc((p.status || 'unknown').toUpperCase())}</div>
         </div>
         <div style="color:#E8E6E0;font-size:11px;font-weight:bold;margin-bottom:10px;">${htmlEsc(p.malware || 'Family not reported')}</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:9px;margin-bottom:8px;background:rgba(0,0,0,0.35);padding:8px;border-radius:4px;border:1px solid rgba(255,255,255,0.04);">
           ${row('C2 ADDRESS', htmlEsc(p.ip || '—'), '#00E5FF', true)}
           ${row('PORT', htmlEsc(String(p.port ?? '—')), '#FFD600', true)}
-          ${row('HOSTED IN', htmlEsc(p.country || 'Not reported'))}
+          ${row('HOSTED IN', htmlEsc([p.city, p.country].filter(Boolean).join(', ') || 'Not reported'))}
           ${row('AS', htmlEsc(p.as_number ? `AS${p.as_number}` : '—'), '#E8E6E0', true)}
-          ${row('FIRST SEEN', htmlEsc(p.first_seen || 'Not reported'))}
-          ${row('LAST ONLINE', htmlEsc(p.last_online || 'Not reported'))}
+          ${row(posted ? 'REPORTED' : 'FIRST SEEN', htmlEsc(p.first_seen || 'Not reported'))}
+          ${row(posted ? 'REPORTED BY' : 'LAST ONLINE', htmlEsc(posted ? (p.reporter ? `@${p.reporter}` : 'Not named') : (p.last_online || 'Not reported')))}
         </div>
         ${p.hostname ? `<div style="font-size:9px;color:#8A8880;margin-bottom:8px;font-family:monospace;word-break:break-all;">${htmlEsc(p.hostname)}</div>` : ''}
-        <div style="font-size:8px;color:#5C5A54;line-height:1.5;margin-bottom:8px;">Blocklist entry, not an observed attack. Marker sits at the hosting country's centroid, not the host's location.</div>
-        <div style="font-size:7px;color:#5C5A54;text-align:center;letter-spacing:0.1em;">SOURCE: <a href="${urlSafe(p.source_url || 'https://feodotracker.abuse.ch/browse/')}" target="_blank" style="color:${c};text-decoration:underline;">ABUSE.CH FEODO TRACKER ↗</a></div>
+        <div style="font-size:8px;color:#5C5A54;line-height:1.5;margin-bottom:8px;">${posted ? 'A researcher\'s report, not an observed attack.' : 'Blocklist entry, not an observed attack.'} ${place}</div>
+        <div style="font-size:7px;color:#5C5A54;text-align:center;letter-spacing:0.1em;">SOURCE: <a href="${urlSafe(p.reference || p.source_url || 'https://feodotracker.abuse.ch/browse/')}" target="_blank" style="color:${c};text-decoration:underline;">${posted ? 'THE POST ON X' : 'ABUSE.CH FEODO TRACKER'} ↗</a></div>
       </div>`);
     });
 
@@ -1935,11 +1940,13 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     }, [mapReady, palette]);
 
   // OI's arcs take their three tones from the Style Studio (violet, magenta, indigo unless changed).
-  // Network Intel's links are OI arcs too, so they follow the same tones.
   useEffect(() => {
     oiGlobeRef.current?.setColors({ support: palette.oiSupport, oppose: palette.oiOppose, neutral: palette.oiNeutral });
-    netArcsRef.current?.setColors({ support: palette.oiSupport, oppose: palette.oiOppose, neutral: palette.oiNeutral });
   }, [palette.oiSupport, palette.oiOppose, palette.oiNeutral]);
+  // Network Intel's links are OI arcs in a colour of their own: black unless changed.
+  useEffect(() => {
+    netArcsRef.current?.setColor(palette.netIntel);
+  }, [palette.netIntel]);
 
     /* Cameras are circles and a label, so no image to rebuild — the colour is
        a paint property on each. */
@@ -2148,13 +2155,21 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
     const arcs = attachNetIntelArcs(mapRef.current);
-    arcs.setColors({ support: paletteRef.current.oiSupport, oppose: paletteRef.current.oiOppose, neutral: paletteRef.current.oiNeutral });
+    arcs.setColor(paletteRef.current.netIntel);
     netArcsRef.current = arcs;
     return () => { netArcsRef.current = null; arcs.destroy(); };
   }, [mapReady]);
   useEffect(() => {
-    netArcsRef.current?.set(activeLayers.malware && data.malware_threats ? data.malware_threats : []);
-  }, [mapReady, activeLayers.malware, data.malware_threats]);
+    const al = activeLayers as any;
+    netArcsRef.current?.set([
+      ...(activeLayers.malware && data.malware_threats ? data.malware_threats : []),
+      // Botnet C2 hosts join the same families. Only those placed by their own
+      // address: a line to a country centroid would end somewhere the host is not.
+      ...(al.cyber_attacks && data.cyber_attacks ? data.cyber_attacks : [])
+        .filter((c: any) => c.location_precision === 'city' && c.malware)
+        .map((c: any) => ({ ip: c.ip, lng: c.lng, lat: c.lat, malware: c.malware, asn: c.as_number })),
+    ]);
+  }, [mapReady, activeLayers.malware, (activeLayers as any).cyber_attacks, data.malware_threats, data.cyber_attacks]);
 
   /* ══ BOTNET C2 INFRASTRUCTURE ══
      Static dots, no animation. The arcs that used to fly across this layer
@@ -2171,7 +2186,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       return;
     }
 
-    // A C2 whose hosting country is unknown has no honest position on a map.
+    // A C2 with neither a geolocation nor a known country has no honest position on a map.
     const dots = indicators
       .filter((c: any) => typeof c.lng === 'number' && typeof c.lat === 'number')
       .map((c: any) => ({
@@ -2179,8 +2194,9 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         geometry: { type: 'Point', coordinates: [c.lng, c.lat] },
         properties: {
           id: c.id, ip: c.ip, port: c.port, malware: c.malware, status: c.status,
-          hostname: c.hostname, country: c.country, as_number: c.as_number, as_name: c.as_name,
-          first_seen: c.first_seen, last_online: c.last_online,
+          hostname: c.hostname, country: c.country, city: c.city, as_number: c.as_number, as_name: c.as_name,
+          first_seen: c.first_seen, last_online: c.last_online, location_precision: c.location_precision,
+          source: c.source, reference: c.reference, reporter: c.reporter,
         },
       }));
 

@@ -370,8 +370,8 @@ export const API_GROUPS: ApiGroup[] = [
       {
         path: '/api/cyber-attacks',
         method: 'GET',
-        summary: 'Listed botnet C2 servers from abuse.ch Feodo Tracker — blocklist entries, not observed attacks.',
-        returns: ['indicators', 'total', 'online', 'fetched_at', 'source', 'source_url'],
+        summary: 'Botnet C2 servers from abuse.ch Feodo Tracker and researchers\' #C2 posts (TweetFeed), geolocated per address — listings and reports, not observed attacks.',
+        returns: ['indicators', 'total', 'online', 'fetched_at', 'source', 'source_url', 'sources'],
       },
       {
         path: '/api/malware',

@@ -18,9 +18,12 @@ export function distanceKm(a: LngLat, b: LngLat): number {
   return 2 * EARTH_KM * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-/** How high an arc of this length peaks, in metres: long arcs climb higher, all stay inside the camera's reach. */
+/**
+ * How high an arc of this length peaks, in metres: long arcs climb higher, all stay inside the camera's reach.
+ * A short one rises at most a quarter of its span, so two points in one city make a low hump, not a 60 km spike.
+ */
 export function arcPeakM(km: number): number {
-  return Math.min(1_400_000, 60_000 + km * 110);
+  return Math.min(1_400_000, 60_000 + km * 110, km * 250);
 }
 
 /**
@@ -82,8 +85,8 @@ export interface ArcSpec {
   kind: number;
 }
 
-/** Floats per vertex: pos(3) prev(3) next(3) side t (2) tone id highlight (3) strength birth kind (3) length (1). */
-export const ARC_STRIDE = 18;
+/** Floats per vertex: pos(3) prev(3) next(3) side t (2) tone id highlight (3) strength birth kind (3) length (1) peak (1). */
+export const ARC_STRIDE = 19;
 
 export const ARC_SEGMENTS = 40;
 
@@ -121,6 +124,8 @@ export function packArcs(arcs: ArcSpec[], segments = ARC_SEGMENTS): { vertices: 
           arc.strength, arc.birth, arc.kind,
           // Length in km, so dashes keep their spacing whatever the arc's span.
           km,
+          // Its full height, so the shader can lower the whole arc, not clip its top, when the camera comes close.
+          peak,
         ], v);
         v += ARC_STRIDE;
       }
