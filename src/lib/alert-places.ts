@@ -1,4 +1,5 @@
-import { nominatim } from '@/lib/nominatim';
+import { placeLabel as listLabel, placesNamed, type Place } from '@/lib/places';
+import { serverPlaces } from '@/lib/places-server';
 import { classify, type AlertKind } from '@/lib/alert-digest';
 
 export type { AlertKind };
@@ -9,8 +10,10 @@ export type { AlertKind };
  * The feed used to pin every report to one of fifteen country centroids, by
  * keyword. Reports name their places — "the village of Tayasir, northeast of
  * Tubas", "an explosion in Riyadh", "Russian attack on Sumy" — so this reads
- * those names and resolves them against OpenStreetMap, and a report lands on
- * the town it is about.
+ * those names and finds them on the built-in place list (GeoNames' towns of
+ * 5,000 people or more; see lib/places.ts), and a report lands on the town it
+ * is about. No outside service is asked; a smaller village keeps the country
+ * anchor.
  *
  * A town is the ceiling. A post names a village, not a street, and the pin
  * carries the name it was placed on so a reader can judge it.
@@ -28,7 +31,7 @@ export type { AlertKind };
 export interface AlertPlace {
   /** The name as the post gives it. */
   name: string;
-  /** OpenStreetMap's name for it, with its region and country. */
+  /** The list's name for it, with its region and country. */
   label: string;
   lat: number;
   lng: number;
@@ -231,7 +234,7 @@ export function placeCandidates(text: string): PlaceCandidate[] {
 
 /* ───────────────────────────── The lookup ───────────────────────────── */
 
-/** One Nominatim search row — only the fields we consume. */
+/** A place-list entry, in the shape the matching below reads (see rowOf). */
 export interface GeoRow {
   name?: string;
   display_name?: string;
@@ -269,17 +272,18 @@ const REGION_TYPES = new Set(['state', 'region', 'province', 'county', 'district
 export interface RowPick { row: GeoRow; specificity: number; precision: AlertPlace['precision'] }
 
 /*
- * Nominatim importance a city needs before a name is trusted without "in" or
- * "near" in front of it. Worldwide the bar is higher: Pretoria (0.66) and
- * Ceuta (0.65) clear it, Independence, Missouri (0.57) — "the War of
- * Independence" — does not.
+ * How prominent a city must be before a name is trusted without "in" or
+ * "near" in front of it. Importance is a tenth of the population's order of
+ * magnitude, and a tenth more for a capital (see rowOf): a city of 100,000
+ * clears the theatre's bar, and worldwide only a city of a million or a
+ * capital does, so "the War of Independence" does not land in Missouri.
  */
 const THEATRE_MIN_IMPORTANCE = 0.5;
 const WORLD_MIN_IMPORTANCE = 0.6;
 
 /**
- * The row to pin a name to. Nominatim ranks same-named places by prominence,
- * so the first acceptable row wins — "Kohat" is the Pakistani city before the
+ * The row to pin a name to. Rows come largest first, so the first
+ * acceptable row wins — "Kohat" is the Pakistani city before the
  * Indian hamlet — and a settlement beats a region of the same name.
  *
  * With `minImportance`, only a city or town at least that prominent is
@@ -309,37 +313,22 @@ export function pickRow(query: string, rows: GeoRow[], minImportance?: number): 
   return region;
 }
 
-/**
- * Search one name through the app's single door to Nominatim, which holds the
- * request budget and the cache for every caller — see lib/nominatim.ts.
- * Resolves null when the lookup could not be made, so a caller can tell "not
- * on the map" from "could not ask".
- */
-function search(name: string, countries: string[] | null, cacheOnly = false): Promise<GeoRow[] | null> {
-  return nominatim<GeoRow[]>('search', {
-    q: name,
-    limit: '5',
-    featureType: 'settlement',
-    ...(countries ? { countrycodes: countries.join(',') } : {}),
-  }, { cacheOnly });
+/** Importance from size: a tenth of the population's order of magnitude, a tenth more for a capital. */
+function importance(p: Place): number {
+  return Math.log10(Math.max(1, p.population)) / 10 + (p.capital ? 0.1 : 0);
 }
 
-/**
- * A lookup that may ask Nominatim at most `max` questions it does not already
- * know the answer to. Anything past that is answered from the cache or not at
- * all, so one refresh of a feed of a hundred reports cannot turn into a
- * hundred requests to somebody else's server. What went unasked this time is
- * asked on a later refresh, and once asked it is remembered for a month.
- */
-export function budgetedLookup(max: number): (name: string, countries: string[] | null) => Promise<GeoRow[] | null> {
-  let left = max;
-  return async (name, countries) => {
-    const known = await search(name, countries, true);
-    if (known !== null) return known;
-    if (left <= 0) return null;
-    left--;
-    return search(name, countries);
-  };
+/** A list entry as a row: a town is a city, town or village by its size, a region a state. */
+export function rowOf(p: Place): GeoRow {
+  const addresstype = p.kind === 'country' ? 'country'
+    : p.kind === 'region' ? 'state'
+    : p.population >= 100_000 ? 'city' : p.population >= 10_000 ? 'town' : 'village';
+  return { name: p.name, display_name: listLabel(p), lat: String(p.lat), lon: String(p.lng), addresstype, importance: importance(p) };
+}
+
+/** Search one name on the built-in place list, largest first. No outside service is asked. */
+async function search(name: string, countries: string[] | null): Promise<GeoRow[]> {
+  return placesNamed(serverPlaces(), name, countries).slice(0, 5).map(rowOf);
 }
 
 /**
@@ -362,9 +351,7 @@ function placeLabel(displayName: string): string {
  * ones that did resolve ("Al-Bureij refugee camp", not "Gaza"), so the report
  * keeps its country anchor until the name can be asked again.
  *
- * `lookup` is injectable for tests; it defaults to the Nominatim search, which
- * goes through the app's shared budget. Pass `cachedOnly` for a report that may
- * be placed from names already known but must not spend a request of its own.
+ * `lookup` is injectable for tests; it defaults to the built-in place list.
  */
 export async function locateReport(
   title: string,

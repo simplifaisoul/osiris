@@ -40,7 +40,7 @@ const DrawHud = dynamic(() => import('@/components/DrawHud'), { ssr: false });
 import { toShape, queryRing, type DrawMode, type DrawnShape, type DrawProgress, type DrawResult } from '@/lib/draw';
 import { selectInPolygon } from '@/lib/aoi';
 import { pickLandingCity } from '@/lib/landing-cities';
-import { searchPlaces } from '@/lib/geosearch';
+import { placeAt, searchPlaces } from '@/lib/geosearch';
 import { diffSweep, appendEvents, type WatchBaseline, type WatchEvent } from '@/lib/watch';
 import { STORAGE_KEY, serializeShapes, deserializeShapes, shapesToGeoJSON, downloadFile } from '@/lib/aoi-export';
 const TokenPanel = dynamic(() => import('@/components/TokenPanel'));
@@ -853,19 +853,14 @@ export default function Dashboard() {
       }
       const gk = `${coords.lat.toFixed(1)},${coords.lng.toFixed(1)}`; // coarser grid = more cache hits
       if (geocodeCache.current.has(gk)) { setLocationLabel(geocodeCache.current.get(gk)!); lastGeocodedPos.current = coords; return; }
+      /* Named from the built-in place list, in the browser: nothing is asked
+         of any outside service (see lib/geosearch.ts). Open sea has no name. */
       try {
-        /* Our own route, not Nominatim directly: it rounds the coordinate,
-           caches the answer for everyone, and holds the app's request budget
-           for the service — see lib/nominatim.ts. */
-        const res = await fetch(`/api/geo/reverse?lat=${coords.lat}&lng=${coords.lng}`);
-        if (res.ok) {
-          const d = await res.json();
-          const label = d.label || 'Unknown';
-          if (geocodeCache.current.size > 500) { const it = geocodeCache.current.keys(); for (let i=0;i<100;i++) { const k = it.next().value; if(k) geocodeCache.current.delete(k); }}
-          geocodeCache.current.set(gk, label);
-          setLocationLabel(label);
-          lastGeocodedPos.current = coords;
-        }
+        const label = (await placeAt(coords.lat, coords.lng))?.label ?? '';
+        if (geocodeCache.current.size > 500) { const it = geocodeCache.current.keys(); for (let i=0;i<100;i++) { const k = it.next().value; if(k) geocodeCache.current.delete(k); }}
+        geocodeCache.current.set(gk, label);
+        setLocationLabel(label);
+        lastGeocodedPos.current = coords;
       } catch (e) { console.warn('[OSIRIS] Suppressed error:', e instanceof Error ? e.message : e); }
     }, 3000); // 3s debounce (was 1.5s)
   }, []);
