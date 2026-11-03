@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { nominatimStats } from '@/lib/nominatim';
+import { geocoderStats } from '@/lib/geocoder';
 
 /**
  * OSIRIS — process liveness.
@@ -27,14 +27,14 @@ export async function GET() {
     version: '1.0.0',
     uptime_seconds: process.uptime ? Math.round(process.uptime()) : null,
     /*
-     * What this process has asked of nominatim.openstreetmap.org since it
+     * What this process has asked of the deployment's own geocoder since it
      * started: `sent` is requests that left the building, `served` is how many
-     * times the app wanted an answer, and the gap between them is the cache
-     * doing its job. Reported so the rate can be watched against the one
-     * request a second the service allows, rather than discovered by its
-     * sysadmin — see lib/nominatim.ts and issue #16.
+     * times a search wanted an answer, and the gap between them is the cache
+     * doing its job. `configured` is false when OSIRIS_GEOCODER_URL is unset;
+     * `shared` is then the shared search asked instead (null when it is off,
+     * and search runs in the browser) — see lib/geocoder.ts.
      */
-    nominatim: nominatimStats(),
+    geocoder: geocoderStats(),
     timestamp: new Date().toISOString(),
   });
 }

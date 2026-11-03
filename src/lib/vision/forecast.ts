@@ -8,8 +8,9 @@
  * dated source the actors and the report can quote and cite, like any article.
  * Two cameras a place, four at most: a glimpse of the ground, not a survey.
  */
-import { nominatim } from '@/lib/nominatim';
 import type { ContextItem } from '@/lib/oi/types';
+import { placesNamed } from '@/lib/places';
+import { serverPlaces } from '@/lib/places-server';
 import { describeFrame, type FrameAnalysis } from './analysis';
 import { frameOf, stillsNear, type CatalogueCamera, type Frame } from './frames';
 
@@ -20,13 +21,18 @@ export interface CameraDeps {
   analyse(bytes: Buffer, at: string): Promise<FrameAnalysis>;
 }
 
-interface NominatimRow { lat?: string; lon?: string }
-
 const live: CameraDeps = {
+  /* From the built-in place list (lib/places.ts), so no geocoder is asked.
+     "Times Square, New York" is not on it, so each part is tried in turn and
+     the first that is wins; a town before a region of the same name. */
   async geocode(place) {
-    const rows = await nominatim<NominatimRow[]>('search', { q: place, limit: '1' });
-    const lat = Number(rows?.[0]?.lat), lng = Number(rows?.[0]?.lon);
-    return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+    const index = serverPlaces();
+    for (const part of [place, ...place.split(',')].map((s) => s.trim()).filter(Boolean)) {
+      const found = placesNamed(index, part);
+      const best = found.find((p) => p.kind === 'city') ?? found[0];
+      if (best) return { lat: best.lat, lng: best.lng };
+    }
+    return null;
   },
   near: stillsNear,
   frame: frameOf,

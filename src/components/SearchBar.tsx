@@ -32,7 +32,7 @@ interface SearchBarProps {
   embedded?: boolean;
 }
 
-/** How close to fly for each kind /api/geosearch returns. */
+/** How close to fly for each kind of place. */
 const ZOOM_BY_KIND: Record<string, number> = {
   address: 18,
   street: 16,
@@ -117,11 +117,12 @@ export default function SearchBar({ onLocate, center = null, onClose, onDirectio
     }
     if (q.trim().length < 2) { abortRef.current?.abort(); setResults([]); setLoading(false); setAnswered(q); return; }
 
-    /* Photon from the browser, Nominatim only through our own route (see
-       lib/geosearch.ts). It sends where the map is looking, so "Notre-Dame"
-       over Montreal is the basilica rather than a village in Normandy, and
-       abandons the lookup for an earlier keystroke, so a slow reply for "Par"
-       can never land after the one for "Paris". */
+    /* The built-in place list at once, then the deployment's own geocoder,
+       or Wikipedia and Wikidata from the browser (see lib/geosearch.ts). It
+       sends where the map is looking, so "Notre-Dame" over Montreal is the
+       basilica rather than a village in Normandy, and abandons the lookup for
+       an earlier keystroke, so a slow reply for "Par" can never land after
+       the one for "Paris". */
     setLoading(true);
     timerRef.current = setTimeout(async () => {
       abortRef.current?.abort();
@@ -318,9 +319,12 @@ export default function SearchBar({ onLocate, center = null, onClose, onDirectio
             <span className="flex items-center gap-1"><Key>Esc</Key> close</span>
           </span>
         )}
-        <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className="ml-auto hover:text-[var(--gold-light)] transition-colors">
-          © OpenStreetMap
-        </a>
+        <span className="ml-auto whitespace-nowrap" title="Places from OpenStreetMap, Wikipedia, Wikidata and GeoNames">
+          © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className="hover:text-[var(--gold-light)] transition-colors">OpenStreetMap</a>
+          {' · '}<a href="https://www.wikipedia.org/" target="_blank" rel="noopener noreferrer" className="hover:text-[var(--gold-light)] transition-colors">Wikipedia</a>
+          {' · '}<a href="https://www.wikidata.org/" target="_blank" rel="noopener noreferrer" className="hover:text-[var(--gold-light)] transition-colors">Wikidata</a>
+          {' · '}<a href="https://www.geonames.org/" target="_blank" rel="noopener noreferrer" className="hover:text-[var(--gold-light)] transition-colors">GeoNames</a>
+        </span>
       </div>
     </div>
   );

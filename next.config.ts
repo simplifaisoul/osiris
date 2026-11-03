@@ -67,6 +67,15 @@ const nextConfig: NextConfig = {
           { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
         ],
       },
+      /* The built-in place list (lib/places.ts): over a megabyte, and it only
+         changes when tools/build-places.mjs is run again, so a browser keeps
+         it for a day rather than asking again on every page load. */
+      {
+        source: '/places.json',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=86400, stale-while-revalidate=604800' },
+        ],
+      },
       {
         source: '/(.*)',
         headers: [

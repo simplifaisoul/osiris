@@ -1,8 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-const gateway = vi.fn();
-vi.mock('@/lib/nominatim', () => ({ nominatim: (...args: unknown[]) => gateway(...args) }));
-
-import { alertKind, placeCandidates, pickRow, locateReport, budgetedLookup, type GeoRow } from './alert-places';
+import { describe, it, expect } from 'vitest';
+import { alertKind, placeCandidates, pickRow, locateReport, type GeoRow } from './alert-places';
 
 /* Headlines and leads below are real posts from the feed, captured 2026-09-19. */
 
@@ -130,7 +127,7 @@ describe('pickRow', () => {
     expect(pick?.precision).toBe('settlement');
   });
 
-  it('keeps Nominatim’s order among places of the same name', () => {
+  it('keeps the list’s order among places of the same name', () => {
     const pick = pickRow('Kohat', [
       row({ name: 'Kohat', addresstype: 'city', importance: 0.46, display_name: 'Kohat, Khyber Pakhtunkhwa, Pakistan' }),
       row({ name: 'Kohat', addresstype: 'hamlet', importance: 0.13, display_name: 'Kohat, Mohkhed Tahsil, India' }),
@@ -162,7 +159,7 @@ describe('pickRow', () => {
 });
 
 describe('locateReport', () => {
-  /** A stand-in for Nominatim: answers from a table, and records what was asked. */
+  /** A stand-in for the place list: answers from a table, and records what was asked. */
   function fakeLookup(table: Record<string, GeoRow[]>) {
     const asked: string[] = [];
     const lookup = async (name: string, countries: string[] | null) => {
@@ -234,36 +231,15 @@ describe('locateReport', () => {
   });
 });
 
-describe('budgetedLookup', () => {
-  beforeEach(() => gateway.mockReset());
-
-  it('spends its allowance and then asks only what is already known', async () => {
-    // The gateway answers a cacheOnly call with null unless it knows the name.
-    gateway.mockImplementation(async (_endpoint?: string, params?: { q: string }, options?: { cacheOnly?: boolean }) => {
-      if (!params) return null;
-      if (options?.cacheOnly) return params.q === 'Kyiv' ? [{ name: 'Kyiv' }] : null;
-      return [{ name: params.q }];
-    });
-
-    const lookup = budgetedLookup(2);
-    const asked = [];
-    for (const name of ['Sumy', 'Odesa', 'Kharkiv', 'Dnipro']) asked.push(await lookup(name, ['ua']));
-
-    // Two new names were asked for; the rest came back empty-handed.
-    expect(asked[0]).toEqual([{ name: 'Sumy' }]);
-    expect(asked[1]).toEqual([{ name: 'Odesa' }]);
-    expect(asked[2]).toBeNull();
-    expect(asked[3]).toBeNull();
-    const sent = gateway.mock.calls.filter(([, params, options]) => params && !options?.cacheOnly);
-    expect(sent).toHaveLength(2);
+describe('locateReport on the built-in place list', () => {
+  it('pins a report to the town it names, with no lookup given', async () => {
+    const place = await locateReport('Russian attack on Sumy kills 2, injures 7 as guided aerial bombs hit apartment building.', '');
+    expect(place).toMatchObject({ name: 'Sumy', precision: 'settlement' });
+    expect(place!.label).toContain('Ukraine');
+    expect(place!.lat).toBeCloseTo(50.9, 0);
   });
 
-  it('answers a name it already knows without spending anything', async () => {
-    gateway.mockImplementation(async (_e?: string, params?: { q: string }, options?: { cacheOnly?: boolean }) =>
-      (params?.q === 'Kyiv' ? [{ name: 'Kyiv' }] : options?.cacheOnly ? null : []));
-
-    const lookup = budgetedLookup(0);
-    expect(await lookup('Kyiv', ['ua'])).toEqual([{ name: 'Kyiv' }]);
-    expect(gateway.mock.calls.filter(([, params]) => params).every(([, , options]) => options?.cacheOnly)).toBe(true);
+  it('does not pin a bare word to a small place somewhere else in the world', async () => {
+    expect(await locateReport('Independence Day celebrations planned', '')).toBeNull();
   });
 });

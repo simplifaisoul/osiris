@@ -1,3 +1,4 @@
+import http from 'http';
 import https from 'https';
 import zlib from 'zlib';
 import type { IncomingHttpHeaders } from 'http';
@@ -12,7 +13,7 @@ import type { Readable } from 'stream';
  * in a few hundred ms. This helper is the shared escape hatch.
  *
  * It also sends a real identifying User-Agent rather than a spoofed browser
- * one: the OSM community endpoints (Nominatim, Overpass) reject browser UAs
+ * one: OSM community endpoints such as Overpass reject browser UAs
  * with 406/429 and ask for contact details in their usage policies.
  */
 
@@ -39,7 +40,8 @@ interface RawResponse {
  */
 function request(url: string, { timeoutMs = 20000, headers = {} }: RequestOptions): Promise<RawResponse> {
   return new Promise<RawResponse>((resolve, reject) => {
-    const req = https.get(
+    // Plain http only for a service the deployment runs on its own network, such as its geocoder.
+    const req = (url.startsWith('http:') ? http : https).get(
       url,
       {
         headers: { 'User-Agent': OSIRIS_UA, Accept: 'application/json', 'Accept-Language': 'en', ...headers },
