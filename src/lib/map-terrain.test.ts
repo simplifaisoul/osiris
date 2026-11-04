@@ -1,18 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Map as MapLibreMap } from 'maplibre-gl';
-import { attachTerrain, TERRAIN_SOURCE, TERRAIN_MIN_ZOOM, TERRAIN_SETTLE_MS } from './map-terrain';
+import { attachTerrain, TERRAIN_SOURCE, TERRAIN_MIN_ZOOM, TERRAIN_SETTLE_MS, TERRAIN_FADE_MS } from './map-terrain';
 
 function createMap(initialZoom = 11) {
   const listeners = new Map<string, Set<(event: Record<string, unknown>) => void>>();
   const sources = new Set(['flights', 'satellite-tiles']);
   const operations: string[] = [];
   let terrain: { source: string; exaggeration: number } | null = null;
+  // MapLibre's live Terrain object, whose exaggeration the renderer reads each frame.
+  let liveTerrain: { exaggeration: number } | null = null;
   let zoom = initialZoom;
+  let pitch = 20;
   let moving = false;
   let pixelRatio = 3;
   let maxPitch = 85;
   const map = {
     getZoom: () => zoom,
+    getPitch: () => pitch,
+    get terrain() { return liveTerrain; },
+    triggerRepaint: vi.fn(),
     getLayersOrder: () => [],
     setSourceTileLodParams: vi.fn(),
     isMoving: () => moving,
@@ -35,6 +41,7 @@ function createMap(initialZoom = 11) {
     getTerrain: vi.fn(() => terrain),
     setTerrain: vi.fn((value: typeof terrain) => {
       terrain = value;
+      liveTerrain = value ? { exaggeration: value.exaggeration } : null;
       operations.push(value ? 'enable terrain' : 'disable terrain');
     }),
   };
@@ -42,12 +49,18 @@ function createMap(initialZoom = 11) {
     map: map as unknown as MapLibreMap,
     methods: map, sources, operations, listeners,
     moveTo: (value: number, inMotion = false) => { zoom = value; moving = inMotion; },
+    pitchTo: (value: number) => { pitch = value; },
+    exaggeration: () => liveTerrain?.exaggeration,
     emit: (name: string, event: Record<string, unknown> = {}) => listeners.get(name)?.forEach(callback => callback(event)),
   };
 }
 
 describe('lightweight terrain', () => {
-  beforeEach(() => vi.useFakeTimers());
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => setTimeout(() => callback(Date.now()), 16) as unknown as number);
+    vi.stubGlobal('cancelAnimationFrame', (id: number) => clearTimeout(id));
+  });
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
   it('makes no elevation requests at globe zoom and waits until the camera settles', () => {
     const fixture = createMap(2);
@@ -121,6 +134,76 @@ describe('lightweight terrain', () => {
     fixture.emit('sourcedata', { sourceId: TERRAIN_SOURCE, tile: {}, isSourceLoaded: true });
     expect(status).toHaveBeenLastCalledWith('ready');
     dispose();
+  });
+
+  it('keeps the relief flat until its elevation loads, then eases it in', () => {
+    const fixture = createMap();
+    const dispose = attachTerrain(fixture.map, vi.fn());
+    vi.advanceTimersByTime(TERRAIN_SETTLE_MS);
+    expect(fixture.map.getTerrain()).toEqual({ source: TERRAIN_SOURCE, exaggeration: 1 });
+    expect(fixture.exaggeration()).toBe(0);
+    fixture.emit('sourcedata', { sourceId: TERRAIN_SOURCE, sourceDataType: 'metadata', isSourceLoaded: true });
+    vi.advanceTimersByTime(TERRAIN_FADE_MS);
+    expect(fixture.exaggeration()).toBe(0);
+    fixture.emit('sourcedata', { sourceId: TERRAIN_SOURCE, tile: {}, isSourceLoaded: true });
+    vi.advanceTimersByTime(TERRAIN_FADE_MS / 3);
+    expect(fixture.exaggeration()).toBeGreaterThan(0);
+    expect(fixture.exaggeration()).toBeLessThan(1);
+    vi.advanceTimersByTime(TERRAIN_FADE_MS);
+    expect(fixture.exaggeration()).toBe(1);
+    expect(fixture.methods.triggerRepaint).toHaveBeenCalled();
+    dispose();
+  });
+
+  it('eases the relief away before removing terrain when switched off', () => {
+    const fixture = createMap();
+    const dispose = attachTerrain(fixture.map, vi.fn());
+    vi.advanceTimersByTime(TERRAIN_SETTLE_MS);
+    fixture.emit('sourcedata', { sourceId: TERRAIN_SOURCE, tile: {}, isSourceLoaded: true });
+    vi.advanceTimersByTime(TERRAIN_FADE_MS * 2);
+    dispose();
+    expect(fixture.map.getTerrain()).not.toBeNull();
+    vi.advanceTimersByTime(TERRAIN_FADE_MS / 3);
+    expect(fixture.exaggeration()).toBeGreaterThan(0);
+    expect(fixture.exaggeration()).toBeLessThan(1);
+    vi.advanceTimersByTime(TERRAIN_FADE_MS);
+    expect(fixture.map.getTerrain()).toBeNull();
+    expect(fixture.sources.has(TERRAIN_SOURCE)).toBe(false);
+    expect(fixture.map.getPixelRatio()).toBe(3);
+    expect(fixture.map.getMaxPitch()).toBe(85);
+    expect([...fixture.listeners.values()].every(listeners => listeners.size === 0)).toBe(true);
+  });
+
+  it('finishes removing fading terrain at once when it is switched back on', () => {
+    const fixture = createMap();
+    const dispose = attachTerrain(fixture.map, vi.fn());
+    vi.advanceTimersByTime(TERRAIN_SETTLE_MS);
+    fixture.emit('sourcedata', { sourceId: TERRAIN_SOURCE, tile: {}, isSourceLoaded: true });
+    vi.advanceTimersByTime(TERRAIN_FADE_MS * 2);
+    dispose();
+    vi.advanceTimersByTime(TERRAIN_FADE_MS / 3);
+    const again = attachTerrain(fixture.map, vi.fn());
+    expect(fixture.map.getTerrain()).toBeNull();
+    expect(fixture.sources.has(TERRAIN_SOURCE)).toBe(false);
+    vi.advanceTimersByTime(TERRAIN_SETTLE_MS);
+    expect(fixture.methods.addSource).toHaveBeenCalledTimes(2);
+    expect(fixture.exaggeration()).toBe(0);
+    again();
+  });
+
+  it('never flattens a steeper camera to fit the terrain pitch limit', () => {
+    const fixture = createMap();
+    fixture.pitchTo(70);
+    const dispose = attachTerrain(fixture.map, vi.fn());
+    expect(fixture.map.getMaxPitch()).toBe(85);
+    fixture.pitchTo(65);
+    fixture.emit('pitchend');
+    expect(fixture.map.getMaxPitch()).toBe(85);
+    fixture.pitchTo(50);
+    fixture.emit('pitchend');
+    expect(fixture.map.getMaxPitch()).toBe(60);
+    dispose();
+    expect(fixture.map.getMaxPitch()).toBe(85);
   });
 
   it('falls back to the normal map after a tile error, without automatic retry loops', async () => {

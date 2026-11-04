@@ -2542,31 +2542,47 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
     const map = mapRef.current;
-    try {
-      const projectionChanged = applyMapProjection(map, projection, terrainEnabled);
-      const configureSky = projectionChanged || !containerRef.current?.dataset.mapProjection;
-      if (containerRef.current) containerRef.current.dataset.mapProjection = projection;
-      if (projection === 'globe') {
-        // The overview globe's resting tilt, which used to be the initial
-        // pitch. Only on a real projection change, so toggling terrain never
-        // re-tilts a camera the user has already placed.
-        if (configureSky && map.getPitch() < 0.5) map.easeTo({ pitch: 20, duration: 1200 });
-        try {
-          if (configureSky) map.setSky({
-            'sky-color': '#04040A',
-            'sky-horizon-blend': 0.5,
-            'horizon-color': '#0a0a1a',
-            'horizon-fog-blend': 0.3,
-            'fog-color': '#04040A',
-            'fog-ground-blend': 0.9,
-          });
-        } catch (e) { console.warn('[OSIRIS] Suppressed error:', e instanceof Error ? e.message : e); }
-      } else {
-        if (map.getPitch() > 0.5) map.easeTo({ pitch: 0, duration: 350 });
+    const apply = () => {
+      try {
+        const previousMode = containerRef.current?.dataset.mapProjection;
+        const projectionChanged = applyMapProjection(map, projection, terrainEnabled);
+        const configureSky = projectionChanged || !previousMode;
+        if (containerRef.current) containerRef.current.dataset.mapProjection = projection;
+        if (projection === 'globe') {
+          // The overview globe's resting tilt, which used to be the initial
+          // pitch. Only when arriving from the flat map (or at start): terrain
+          // swaps the globe's projection too, and must never re-tilt a camera
+          // the user has already placed.
+          if (previousMode !== projection && map.getPitch() < 0.5) map.easeTo({ pitch: 20, duration: 1200 });
+          try {
+            if (configureSky) map.setSky({
+              'sky-color': '#04040A',
+              'sky-horizon-blend': 0.5,
+              'horizon-color': '#0a0a1a',
+              'horizon-fog-blend': 0.3,
+              'fog-color': '#04040A',
+              'fog-ground-blend': 0.9,
+            });
+          } catch (e) { console.warn('[OSIRIS] Suppressed error:', e instanceof Error ? e.message : e); }
+        } else {
+          if (map.getPitch() > 0.5) map.easeTo({ pitch: 0, duration: 350 });
+        }
+      } catch (e) {
+        console.warn('Projection switch failed:', e);
       }
-    } catch (e) {
-      console.warn('Projection switch failed:', e);
+    };
+    // Switched-off terrain eases away first. Keep its projection until it is
+    // gone, so the globe never has to draw that terrain for those frames.
+    if (!terrainEnabled && map.getTerrain()) {
+      const onTerrain = () => {
+        if (map.getTerrain()) return;
+        map.off('terrain', onTerrain);
+        apply();
+      };
+      map.on('terrain', onTerrain);
+      return () => { map.off('terrain', onTerrain); };
     }
+    apply();
   }, [mapReady, projection, terrainEnabled]);
 
   // Terrain loads only at regional zooms; globe overview stays inexpensive.
