@@ -1202,7 +1202,7 @@ export default function Dashboard() {
   }, [activeLayers, fetchEndpoint]);
 
   /* ── LIVE MALWARE — pushed over SSE while the layer is on ──
-     Detections arrive when URLhaus reports them rather than on a timer, so
+     Detections arrive when the C2 feeds list them rather than on a timer, so
      there is no poll interval to tune and no request that re-downloads the
      same rows to discover nothing changed. The connection also carries the
      progressive geolocation fill, which is why a cold server paints the map in
@@ -1232,8 +1232,8 @@ export default function Dashboard() {
           for (const d of event.detections) byIp.set(d.ip, d);
           commit();
         } else if (event.type === 'detections') {
-          // Only a first sighting is an arrival. An existing host that served
-          // another payload arrives with fresh:false and keeps whatever beacon
+          // Only a first sighting is an arrival. An existing host that was
+          // listed again arrives with fresh:false and keeps whatever beacon
           // state it already had, so it does not re-flag itself as new.
           const beacon = filled && event.fresh;
           for (const d of event.detections) {

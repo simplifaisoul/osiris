@@ -422,6 +422,9 @@ function StyleStudio({ onClose, isMobile }: { onClose: () => void; isMobile?: bo
           <Row k="oiSupport" label="Aligned"><ResettableSwatch label="OI arcs: aligned or agreeing" value={s.map.oiSupport} fallback={MAP_DEFAULTS.oiSupport} onChange={v => setMap('oiSupport', v)} /></Row>
           <Row k="oiOppose" label="Opposed"><ResettableSwatch label="OI arcs: opposed or disputing" value={s.map.oiOppose} fallback={MAP_DEFAULTS.oiOppose} onChange={v => setMap('oiOppose', v)} /></Row>
           <Row k="oiNeutral" label="Neutral"><ResettableSwatch label="OI arcs: neutral, evidence" value={s.map.oiNeutral} fallback={MAP_DEFAULTS.oiNeutral} onChange={v => setMap('oiNeutral', v)} /></Row>
+
+          <SubHead label="Network Intel" note="The arcs joining C2 servers of one malware family." />
+          <Row k="netIntel" label="Links"><ResettableSwatch label="Network Intel links" value={s.map.netIntel} fallback={MAP_DEFAULTS.netIntel} onChange={v => setMap('netIntel', v)} /></Row>
         </Section>
 
         <Section title="Surface">

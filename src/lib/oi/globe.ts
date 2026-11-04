@@ -98,6 +98,25 @@ float inSight(vec2 merc, float elevation) {
 #else
   return 1.0;
 #endif
+}
+
+/**
+ * MapLibre's projectTileFor3D, except for the units of height. A custom layer
+ * on the globe takes metres; on the flat map (2D, and the globe once it flattens
+ * close in) it takes mercator units, a whole world wide. Handing metres to the
+ * flat map raised every arc a few thousand times too high, so it shot off the
+ * screen as a beam. Here the flat side gets metres converted at the point's own
+ * latitude, and the globe side is MapLibre's own.
+ */
+vec4 place(vec2 merc, float metres) {
+  float flatZ = metres * cosh(3.14159265 * (1.0 - 2.0 * merc.y)) / 40075016.686;
+#ifdef GLOBE
+  vec4 globe = u_projection_matrix * vec4(projectToSphere(merc, merc) * (1.0 + metres / GLOBE_RADIUS), 1.0);
+  if (u_projection_transition > 0.999) return globe;
+  return mix(u_projection_fallback_matrix * vec4(merc, flatZ, 1.0), globe, u_projection_transition);
+#else
+  return u_projection_matrix * vec4(merc, flatZ, 1.0);
+#endif
 }`;
 
 const ARC_VERT = `
@@ -108,9 +127,12 @@ layout(location = 3) in vec2 a_meta;   // side, t along the arc
 layout(location = 4) in vec3 a_style;  // tone, id, highlight
 layout(location = 5) in vec3 a_info;   // strength, birth, kind
 layout(location = 6) in float a_len;   // km
+layout(location = 7) in float a_peak;  // metres, the arc's full height
 uniform vec2 u_viewport;
 uniform float u_ratio;
 uniform float u_lift;
+uniform float u_ceiling; // metres: no arc rises above this, so none reaches the camera
+uniform float u_wrap;    // which copy of the world, on the flat map
 uniform float u_now;
 uniform float u_dim;
 uniform float u_hover;
@@ -128,10 +150,13 @@ out float v_vis;
 ${IN_SIGHT}
 vec2 screen(vec4 c) { return c.xy / c.w * u_viewport * 0.5; }
 void main() {
-  float elevation = a_pos.z * u_lift;
-  vec4 cur = projectTileFor3D(a_pos.xy, elevation);
-  vec4 prv = projectTileFor3D(a_prev.xy, a_prev.z * u_lift);
-  vec4 nxt = projectTileFor3D(a_next.xy, a_next.z * u_lift);
+  // The whole arc is lowered as one, so it keeps its shape rather than flattening on top.
+  float lift = min(u_lift, u_ceiling / max(a_peak, 1.0));
+  vec2 wrap = vec2(u_wrap, 0.0);
+  float elevation = a_pos.z * lift;
+  vec4 cur = place(a_pos.xy + wrap, elevation);
+  vec4 prv = place(a_prev.xy + wrap, a_prev.z * lift);
+  vec4 nxt = place(a_next.xy + wrap, a_next.z * lift);
   vec2 d = screen(nxt) - screen(prv);
   float len = length(d);
   vec2 dir = len > 1e-4 ? d / len : vec2(1.0, 0.0);
@@ -236,13 +261,14 @@ uniform vec2 u_viewport;
 uniform float u_ratio;
 uniform float u_now;
 uniform float u_motion;
+uniform float u_wrap;
 out vec2 v_corner;
 out vec3 v_color;
 out float v_phase;
 out float v_alive;
 ${IN_SIGHT}
 void main() {
-  vec4 c = projectTileFor3D(a_pos, 0.0);
+  vec4 c = projectTileFor3D(a_pos + vec2(u_wrap, 0.0), 0.0);
   float px = a_ping.w * u_ratio;
   gl_Position = c + vec4(a_corner * px / u_viewport * 2.0 * c.w, 0.0, 0.0);
   float age = u_now - a_time.x;
@@ -275,9 +301,21 @@ interface Ping { pos: [number, number]; color: [number, number, number]; size: n
 
 const clock = () => performance.now() / 1000;
 
+/** Stamps when each new arc starts drawing, staggered so a burst draws in sequence rather than at once. */
+export function stampBirths(births: Map<string, number>, keys: string[], now = clock()): void {
+  const fresh = keys.filter(k => !births.has(k));
+  const gap = fresh.length > 1 ? Math.min(0.14, 3 / fresh.length) : 0;
+  fresh.forEach((k, i) => births.set(k, now + i * gap));
+}
+
 type Programs = { arc: WebGLProgram; pick: WebGLProgram; ping: WebGLProgram };
 
-function createArcLayer(): CustomLayerInterface & {
+/**
+ * OI's arc layer. Other map layers that draw links (Network Intel) create
+ * their own instance under their own id, so every arc on the map shares one
+ * look: the same ribbons, glow, draw-in, pulses and tones.
+ */
+export function createArcLayer(id: string = OI_ARCS): CustomLayerInterface & {
   setArcs(arcs: ArcSpec[], dim: boolean): void;
   setPings(pings: Ping[]): void;
   setLive(live: boolean): void;
@@ -384,6 +422,7 @@ function createArcLayer(): CustomLayerInterface & {
     attrib(4, 3, S, 44);
     attrib(5, 3, S, 56);
     attrib(6, 1, S, 68);
+    attrib(7, 1, S, 72);
     const ibo = g.createBuffer()!;
     g.bindBuffer(g.ELEMENT_ARRAY_BUFFER, ibo);
     g.bufferData(g.ELEMENT_ARRAY_BUFFER, indices, g.STATIC_DRAW);
@@ -425,6 +464,28 @@ function createArcLayer(): CustomLayerInterface & {
   /** Arcs a thousand kilometres high mean nothing over a city: they settle as the view closes in. */
   const liftFor = (zoom: number) => (zoom <= 3.5 ? 1 : Math.max(0.12, 1 - (zoom - 3.5) * 0.22));
 
+  /**
+   * The highest an arc may rise this frame: a fifth of the camera's height.
+   * Close in, the camera sits a few kilometres up while a long arc can still
+   * peak far above that; past the camera its points project inside out, and
+   * the line smears into a beam. Kept below it, an arc stays a clean line.
+   */
+  const ceilingFor = (m: MlMap) => {
+    const centre = m.getCenter();
+    const metresPerPixel = (40075016.686 * Math.cos((centre.lat * Math.PI) / 180)) / (512 * 2 ** m.getZoom());
+    const toCentre = (0.5 * m.getCanvas().clientHeight) / Math.tan((m.getVerticalFieldOfView() * Math.PI) / 360);
+    return 0.2 * toCentre * metresPerPixel * Math.cos((m.getPitch() * Math.PI) / 180);
+  };
+
+  /**
+   * World copies to draw. The globe wraps on its own, but the flat map shows
+   * the world side by side, and an arc over the date line runs past ±180 into
+   * the next copy: drawn once, it is cut off wherever the view sits on the
+   * other side of the line.
+   */
+  const wrapsFor = (shader: CustomRenderMethodInput['shaderData']) =>
+    !shader.define.includes('GLOBE') && map!.getRenderWorldCopies() ? [-1, 0, 1] : [0];
+
   const arcUniforms = (program: WebGLProgram, proj: NonNullable<CustomRenderMethodInput['defaultProjectionData']>, now: number, widen: number) => {
     const g = gl!;
     g.useProgram(program);
@@ -433,6 +494,7 @@ function createArcLayer(): CustomLayerInterface & {
     g.uniform2f(u('u_viewport'), g.drawingBufferWidth, g.drawingBufferHeight);
     g.uniform1f(u('u_ratio'), window.devicePixelRatio || 1);
     g.uniform1f(u('u_lift'), liftFor(map!.getZoom()));
+    g.uniform1f(u('u_ceiling'), ceilingFor(map!));
     g.uniform1f(u('u_now'), now);
     g.uniform1f(u('u_motion'), reduced ? 0 : 1);
     g.uniform1f(u('u_flow'), live ? 1 : 0);
@@ -445,7 +507,7 @@ function createArcLayer(): CustomLayerInterface & {
   };
 
   return {
-    id: OI_ARCS,
+    id,
     type: 'custom',
     renderingMode: '3d',
 
@@ -497,7 +559,10 @@ function createArcLayer(): CustomLayerInterface & {
       const ratio = w / (g.canvas as HTMLCanvasElement).clientWidth;
       arcUniforms(set.pick, lastProjection, clock(), 8 * ratio);
       g.bindVertexArray(arcBuf.vao);
-      g.drawElements(g.TRIANGLES, arcBuf.count, g.UNSIGNED_INT, 0);
+      for (const wrap of wrapsFor(lastShader)) {
+        g.uniform1f(g.getUniformLocation(set.pick, 'u_wrap'), wrap);
+        g.drawElements(g.TRIANGLES, arcBuf.count, g.UNSIGNED_INT, 0);
+      }
 
       // A small box, nearest hit to the cursor wins: a line a few pixels wide is otherwise hard to hit.
       const px = Math.round(x * ratio);
@@ -575,10 +640,14 @@ function createArcLayer(): CustomLayerInterface & {
       g.enable(g.BLEND);
       g.blendFunc(g.ONE, g.ONE_MINUS_SRC_ALPHA);
 
+      const wraps = wrapsFor(args.shaderData);
       if (arcBuf) {
         arcUniforms(set.arc, proj, now, 0);
         g.bindVertexArray(arcBuf.vao);
-        g.drawElements(g.TRIANGLES, arcBuf.count, g.UNSIGNED_INT, 0);
+        for (const wrap of wraps) {
+          g.uniform1f(g.getUniformLocation(set.arc, 'u_wrap'), wrap);
+          g.drawElements(g.TRIANGLES, arcBuf.count, g.UNSIGNED_INT, 0);
+        }
       }
       if (pingBuf) {
         const p = set.ping;
@@ -590,7 +659,10 @@ function createArcLayer(): CustomLayerInterface & {
         g.uniform1f(u('u_now'), now);
         g.uniform1f(u('u_motion'), reduced ? 0 : 1);
         g.bindVertexArray(pingBuf.vao);
-        g.drawArraysInstanced(g.TRIANGLES, 0, 6, pingBuf.count);
+        for (const wrap of wraps) {
+          g.uniform1f(u('u_wrap'), wrap);
+          g.drawArraysInstanced(g.TRIANGLES, 0, 6, pingBuf.count);
+        }
       }
       g.bindVertexArray(null);
 
@@ -791,9 +863,7 @@ export function attachOi(map: MlMap, options: OiGlobeOptions = {}): OiGlobe {
     const version = (l: Link) => `${l.id}|${l.round}|${l.tone}`;
     // A quote's thread runs to a headline or a passage, most of them nowhere on Earth: the graph draws those.
     const shown = s.links.filter(l => l.kind !== 'cite');
-    const fresh = shown.filter(l => !births.has(version(l)));
-    const gap = fresh.length > 1 ? Math.min(0.14, 3 / fresh.length) : 0;
-    fresh.forEach((l, i) => births.set(version(l), now + i * gap));
+    stampBirths(births, shown.map(version), now);
     const arcs: ArcSpec[] = [];
     drawn = [];
     for (const l of shown) {

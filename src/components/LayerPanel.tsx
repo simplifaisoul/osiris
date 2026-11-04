@@ -142,8 +142,8 @@ const LAYER_GROUPS: LayerGroupDef[] = [
     fullLabel: 'NETWORK INTEL',
     icon: Network,
     layers: [
-      { key: 'malware', label: 'Live Malware', dataKey: 'malware_threats' },
-      { key: 'cyber_attacks', label: 'Botnet C2 Servers', dataKey: 'cyber_attacks' },
+      { key: 'malware', label: 'Live Malware', description: 'C2 servers · arcs join a family', dataKey: 'malware_threats' },
+      { key: 'cyber_attacks', label: 'Botnet C2 Servers', description: 'Feodo blocklist · researcher reports', dataKey: 'cyber_attacks' },
     ],
   },
   {

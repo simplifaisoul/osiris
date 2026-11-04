@@ -56,6 +56,7 @@
   --map-oi-support: #b388ff;
   --map-oi-oppose: #ff5ccb;
   --map-oi-neutral: #8c7cff;
+  --map-net-intel: #000000;
 
   /* ── Borders ── */
   --border-primary: rgba(var(--gold-rgb), 0.15);

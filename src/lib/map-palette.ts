@@ -27,6 +27,8 @@ export interface MapPalette {
   oiSupport: string;
   oiOppose: string;
   oiNeutral: string;
+  /** Network Intel's links: OI's arcs, drawn in one colour of their own. */
+  netIntel: string;
 }
 
 export type MapPaletteKey = keyof MapPalette;
@@ -48,6 +50,7 @@ export const MAP_VARS: Record<MapPaletteKey, string> = {
   oiSupport: '--map-oi-support',
   oiOppose: '--map-oi-oppose',
   oiNeutral: '--map-oi-neutral',
+  netIntel: '--map-net-intel',
 };
 
 /**
@@ -73,6 +76,7 @@ export const MAP_DEFAULTS: MapPalette = {
   oiSupport: '#b388ff',
   oiOppose: '#ff5ccb',
   oiNeutral: '#8c7cff',
+  netIntel: '#000000',
 };
 
 export const MAP_PALETTE_KEYS = Object.keys(MAP_DEFAULTS) as MapPaletteKey[];

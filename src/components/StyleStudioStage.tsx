@@ -269,6 +269,19 @@ function specimens(s: StyleSettings): { title: string; items: Specimen[] }[] {
       })),
     },
     {
+      title: 'Map layers: Network Intel',
+      items: [{
+        k: 'netIntel', label: 'Links', where: 'The arcs joining C2 servers of one malware family, drawn the way OI draws its own.',
+        body: (
+          <Patch>
+            <path d="M24 63 Q60 -6 96 63" fill="none" strokeWidth="2" strokeLinecap="round" style={stroke('netIntel')} />
+            <circle cx="24" cy="63" r="2.5" fill="#D32F2F" />
+            <circle cx="96" cy="63" r="2.5" fill="#D32F2F" />
+          </Patch>
+        ),
+      }],
+    },
+    {
       title: 'Surface',
       items: [
         {
