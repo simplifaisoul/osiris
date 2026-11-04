@@ -141,23 +141,52 @@ void main() {
  *
  * The instance index is written straight out as a colour. gl_InstanceID means
  * no extra attribute is needed.
+ *
+ * A satellite is clickable exactly where it is seen: the target is the drawn
+ * marker, no wider, and one hidden behind the planet is not a target at all.
+ * The visible pass hides those with the globe's depth, which this buffer does
+ * not have, so they are tested against the planet here instead (the same
+ * test OI's arcs use). A padded target over a catalogue this dense made
+ * nearly half the globe open a satellite.
  */
 const PICK_VERT = `
 in vec2 a_corner;
 in vec3 a_pos;
 in float a_size;
 uniform vec2 u_viewport;
+uniform int u_selected;
 flat out vec3 v_id;
 out vec2 v_corner;
+bool behindPlanet(vec2 merc, float elevation) {
+#ifdef GLOBE
+  vec4 plane = u_projection_clipping_plane;
+  if (plane.w > -1e-6 || u_projection_transition < 0.999) return false;
+  // The horizon plane is (unit normal toward the camera, -1 / camera distance): the camera, in Earth radii.
+  vec3 cam = plane.xyz * (-1.0 / plane.w);
+  vec3 p = projectToSphere(merc, merc) * (1.0 + elevation / GLOBE_RADIUS);
+  vec3 ray = p - cam;
+  float a = dot(ray, ray);
+  float b = 2.0 * dot(cam, ray);
+  float c = dot(cam, cam) - 1.0;
+  float disc = b * b - 4.0 * a * c;
+  if (disc <= 0.0) return false;
+  float t = (-b - sqrt(disc)) / (2.0 * a);
+  return t > 0.0 && t < 0.9995;
+#else
+  return false;
+#endif
+}
 void main() {
+  v_corner = a_corner;
+  v_id = vec3(0.0);
+  if (behindPlanet(a_pos.xy, a_pos.z)) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
   vec4 clip = projectTileFor3D(a_pos.xy, a_pos.z);
-  // A little larger than the drawn marker: clicking is coarse, and a target
-  // the exact size of a 3px dot is a target nobody can hit.
-  float px = clamp(a_size * 260.0 / max(clip.w, 0.0001), 2.5, 16.0) + 4.0;
+  // The drawn marker's size, the selected one's ring included.
+  float px = clamp(a_size * 260.0 / max(clip.w, 0.0001), 2.5, 16.0);
+  if (gl_InstanceID == u_selected) px += 9.0;
   gl_Position = clip + vec4(a_corner * px / u_viewport * 2.0 * clip.w, 0.0, 0.0);
   int id = gl_InstanceID + 1;   // 0 is reserved for 'nothing here'
   v_id = vec3(float(id & 255), float((id >> 8) & 255), float((id >> 16) & 255)) / 255.0;
-  v_corner = a_corner;
 }`;
 
 const PICK_FRAG = `
@@ -453,7 +482,7 @@ export function createSatelliteLayer(id: string): CustomLayerInterface & {
 
     /**
      * Renders the satellites into an offscreen buffer with each instance
-     * coloured by its index, then reads back the pixels around (x, y).
+     * coloured by its index, then reads back the pixel at (x, y).
      *
      * Coordinates are CSS pixels, as an event reports them; the draw buffer
      * may be larger on a scaled display, so they are converted first.
@@ -477,36 +506,26 @@ export function createSatelliteLayer(id: string): CustomLayerInterface & {
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
       gl.disable(gl.BLEND);
-      // No globe in this buffer to occlude against, so depth testing here
-      // would only let satellites hide each other. Nearest-to-cursor wins.
+      // No globe in this buffer to occlude against (the vertex shader drops
+      // the hidden satellites itself), so depth testing here would only let
+      // satellites hide each other.
       gl.disable(gl.DEPTH_TEST);
       gl.useProgram(pickProgram);
       setProjectionUniforms(pickProgram, lastProjection);
       gl.uniform2f(gl.getUniformLocation(pickProgram, 'u_viewport'), w, h);
+      gl.uniform1i(gl.getUniformLocation(pickProgram, 'u_selected'), selected);
       const cornerLoc = bindAttributes(pickProgram);
       gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, count);
       clearDivisors(pickProgram, cornerLoc);
 
-      // Read a small box, not one pixel: a click is never exact, and a marker
-      // a few pixels across is otherwise unhittable.
-      const R = 7;
-      const x0 = Math.max(0, px - R), y0 = Math.max(0, py - R);
-      const bw = Math.min(w - x0, R * 2 + 1), bh = Math.min(h - y0, R * 2 + 1);
+      // Only the pixel under the cursor: a click near a satellite is not a
+      // click on it.
       let best: number | null = null;
-      if (bw > 0 && bh > 0) {
-        const buf = new Uint8Array(bw * bh * 4);
-        gl.readPixels(x0, y0, bw, bh, gl.RGBA, gl.UNSIGNED_BYTE, buf);
-        let bestDist = Infinity;
-        for (let iy = 0; iy < bh; iy++) {
-          for (let ix = 0; ix < bw; ix++) {
-            const o = (iy * bw + ix) * 4;
-            const id = buf[o] | (buf[o + 1] << 8) | (buf[o + 2] << 16);
-            if (id === 0) continue;
-            const dx = x0 + ix - px, dy = y0 + iy - py;
-            const d = dx * dx + dy * dy;
-            if (d < bestDist) { bestDist = d; best = id - 1; }
-          }
-        }
+      if (px >= 0 && px < w && py >= 0 && py < h) {
+        const buf = new Uint8Array(4);
+        gl.readPixels(px, py, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+        const id = buf[0] | (buf[1] << 8) | (buf[2] << 16);
+        if (id !== 0) best = id - 1;
       }
 
       gl.bindFramebuffer(gl.FRAMEBUFFER, prevFbo);
