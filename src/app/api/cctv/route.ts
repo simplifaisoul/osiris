@@ -39,6 +39,8 @@ import { fetchAlbertaCameras } from './alberta';
 import { fetchOregonCameras } from './oregon';
 import { fetchMichiganCameras } from './michigan';
 import { fetchIndianaCameras } from './indiana';
+import { fetchIowaCameras } from './iowa';
+import { fetchCaltransCameras } from './caltrans';
 import { fetchNevadaCameras } from './nevada';
 import { fetchLouisianaCameras } from './louisiana';
 import { fetchFloridaCameras } from './florida';
@@ -105,36 +107,6 @@ async function fetchWSDOTCameras(): Promise<any[]> {
       feed_url: cam.ImageURL || '', source: 'WSDOT',
     })).filter((c: any) => c.lat && c.lng && c.feed_url);
   } catch (e) { return []; }
-}
-
-// ── US-WEST: Caltrans California ──
-async function fetchCaltransCameras(): Promise<any[]> {
-  try {
-    const res = await stealthFetch('https://caltrans-gis.dot.ca.gov/arcgis/rest/services/CHhighway/CCTV/FeatureServer/0/query?where=1%3D1&outFields=*&f=json', { signal: AbortSignal.timeout(12000) });
-    if (!res.ok) return [];
-    const data = await res.json();
-    const cams = [];
-    for (const feature of (data?.features || [])) {
-      const p = feature.attributes;
-      const lat = p.latitude;
-      const lng = p.longitude;
-      const url = p.currentImageURL;
-      if (!lat || !lng || !url) continue;
-      cams.push({
-        id: `cal-${p.OBJECTID}`,
-        lat,
-        lng,
-        name: p.locationName || 'Caltrans',
-        city: p.nearbyPlace || p.county || 'California',
-        country: 'US',
-        feed_url: url,
-        source: 'Caltrans'
-      });
-    }
-    return cams;
-  } catch (e) {
-    return [];
-  }
 }
 
 /**
@@ -478,6 +450,7 @@ const RAW_REGION_FETCHERS: Record<string, RegionFetcher> = {
   'oregon': fetchOregonCameras,
   'michigan': fetchMichiganCameras,
   'indiana': fetchIndianaCameras,
+  'iowa': fetchIowaCameras,
   'nevada': fetchNevadaCameras,
   'louisiana': fetchLouisianaCameras,
   'florida': fetchFloridaCameras,
@@ -799,6 +772,8 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   if (lat > 41.6 && lat < 48.3 && lng > -90.5 && lng < -82.1) regions.push('michigan');
   // Indiana (INDOT TrafficWise) — explicit, since us-central only covers Illinois
   if (lat > 37.7 && lat < 41.9 && lng > -88.2 && lng < -84.6) regions.push('indiana');
+  // Iowa (Iowa DOT 511) — explicit, since us-central only covers Illinois
+  if (lat > 40.3 && lat < 43.6 && lng > -96.7 && lng < -90.1) regions.push('iowa');
   // Louisiana (LADOTD 511) — explicit, since neither us-central nor us-east reaches the Gulf coast
   if (lat > 28.8 && lat < 33.1 && lng > -94.2 && lng < -88.6) regions.push('louisiana');
   /* The rest of the southern tier, all on the same IBI 511 stack. Each is
