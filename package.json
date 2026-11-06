@@ -31,6 +31,7 @@
     "rss-parser": "^3.13.0",
     "satellite.js": "^7.0.0",
     "sharp": "^0.35.5",
+    "three": "^0.187.0",
     "ws": "^8.21.0"
   },
   "devDependencies": {
@@ -39,6 +40,7 @@
     "@types/node": "^22.20.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/three": "^0.187.0",
     "@types/web-bluetooth": "^0.0.21",
     "@types/ws": "^8.18.1",
     "eslint": "^9",

@@ -16,6 +16,7 @@ import { motion } from 'framer-motion';
 import {
   ArrowUp, ArrowUpRight, Cctv, Eraser, ExternalLink, Globe2, KeyRound, Layers, LayoutDashboard, List, Loader2, LocateFixed, MapPin, Mic, MousePointerClick, Navigation, Orbit, PanelRight,
   Radar, RotateCcw, ScanSearch, Search, Square, TrendingUp, Volume2, VolumeX, X, type LucideProps,
+  Mountain,
 } from 'lucide-react';
 import type { OiClient } from '@/lib/oi/client';
 import type { ActionView, AssistClient, Entry } from '@/lib/oi/assist/client';
@@ -28,7 +29,7 @@ import { canSpeak, useDictation } from './voice';
 
 const TOOL_ICON: Record<ToolName, typeof Navigation> = {
   go_to: Navigation, layers: Layers, find: Search, scan: ScanSearch, camera: Cctv, highlight: MapPin, show: List, markets: TrendingUp,
-  open: PanelRight, map_view: Globe2, recon: Radar, forecast: Orbit, workspace: LayoutDashboard, select: MousePointerClick, clear: Eraser,
+  open: PanelRight, map_view: Globe2, recon: Radar, forecast: Orbit, workspace: LayoutDashboard, select: MousePointerClick, terrain: Mountain, clear: Eraser,
 };
 
 function ToolIcon({ tool, ...rest }: LucideProps & { tool: ToolName }) {
@@ -50,6 +51,7 @@ const CAPABILITIES: { icon: typeof Navigation; title: string; mode: Mode; text: 
   { icon: ScanSearch, title: 'Explain my view', mode: 'research', text: 'What am I looking at?' },
   { icon: TrendingUp, title: 'Check the markets', mode: 'research', text: 'How are oil, gold and bitcoin trading?' },
   { icon: LayoutDashboard, title: 'Drive the workspace', mode: 'auto', text: 'Open the workspace on the graph' },
+  { icon: Mountain, title: 'Read the ground', mode: 'research', text: 'Where does water stand on the field at 35.862, -90.163?' },
 ];
 
 /** Assist hands a question to the prediction engine. */
@@ -73,6 +75,7 @@ function describe(a: ActionView): string {
     case 'forecast': return `Forecast: ${g('question')}`;
     case 'workspace': return a.args.open === false ? 'Close the workspace' : `Open the workspace${g('view') ? ` on the ${g('view')}` : ''}`;
     case 'select': return `Open ${g('name')}`;
+    case 'terrain': return ({ relief: 'Shade the map with lidar', profile: 'Profile the elevation', field: `Analyse the field${g('analysis') ? ` (${g('analysis')})` : ''}`, coverage: 'Check lidar coverage', rain3d: 'Rain on the field in 3D', clear: 'Clear the terrain tools' } as Record<string, string>)[g('do')] ?? 'Terrain';
     case 'clear': return 'Clear the highlights';
   }
 }

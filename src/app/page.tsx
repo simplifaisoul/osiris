@@ -34,6 +34,7 @@ const OsintPanel = dynamic(() => import('@/components/OsintPanel'));
 const OiPanel = dynamic(() => import('@/components/OiPanel'));
 const DrawingToolbar = dynamic(() => import('@/components/DrawingToolbar'), { ssr: false });
 const DrawHud = dynamic(() => import('@/components/DrawHud'), { ssr: false });
+const FieldView3D = dynamic(() => import('@/components/lidar/FieldView3D'), { ssr: false });
 // The measurement helpers are pure functions — importing them directly keeps
 // them out of the lazy chunk, so a finished polygon can be measured whether or
 // not the toolbar has loaded yet.
@@ -56,6 +57,9 @@ import { searchObjects, TYPE_LABEL, objectsOf } from '@/lib/oi/objects';
 import { workspaceInsets } from '@/lib/oi/layout';
 import type { OiGlobe, OiHover } from '@/lib/oi/globe';
 import { look } from '@/lib/vision/store';
+import { useLidar, lidarStore, completeDraw as lidarCompleteDraw, cancelDraw as lidarCancelDraw, setCursor as lidarCursor, setTab as setLidarTab, setRelief as setLidarRelief, analyseArea, profileAlong, open3dWithRain, clearField as clearLidarField, clearProfile as clearLidarProfile } from '@/lib/lidar/store';
+import { describeFlight, lidarFlightAt } from '@/lib/lidar/usgs';
+import type { TerrainBridge } from '@/lib/oi/assist/tools';
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
@@ -227,6 +231,19 @@ export default function Dashboard() {
   const [showDrawing, setShowDrawing] = useState(false);
   const [drawMode, setDrawMode] = useState<DrawMode | null>(null);
   const [drawProgress, setDrawProgress] = useState<DrawProgress | null>(null);
+  // The ArcGIS panel's terrain tools borrow the map's draw interaction.
+  const lidar = useLidar();
+  useEffect(() => {
+    let armed = lidarStore.get().drawing;
+    return lidarStore.subscribe(() => {
+      const want = lidarStore.get().drawing;
+      if (want === armed) return;
+      armed = want;
+      if (!want) return;
+      setDrawMode(want === 'field' ? 'polygon' : 'line');
+      setDrawProgress(null);
+    });
+  }, []);
   const [drawCommand, setDrawCommand] = useState<{ action: 'undo' | 'finish' | 'cancel'; seq: number } | null>(null);
   const sendDraw = useCallback((action: 'undo' | 'finish' | 'cancel') => {
     setDrawCommand(c => ({ action, seq: (c?.seq ?? 0) + 1 }));
@@ -550,6 +567,7 @@ export default function Dashboard() {
     else if (panel === 'intel') { if (phone) setMobilePanel('recon'); else right(() => setShowIntel(true)); }
     else if (panel === 'layers') { if (phone) setMobilePanel('layers'); else setShowLayers(true); }
     else if (panel === 'directions') setShowDirections(true);
+    else if (panel === 'terrain') { setLidarTab('terrain'); setShowArcGIS(true); }
     else if (panel === 'forecast' || panel === 'workspace') {
       setOiMode('forecast');
       if (phone) setMobilePanel('oi'); else setShowOi(true);
@@ -560,7 +578,22 @@ export default function Dashboard() {
   const assistStage = useRef<Stage>(oiStage);
   useEffect(() => { assistTheater.current = oiTheater; }, [oiTheater]);
   useEffect(() => { assistStage.current = oiStage; }, [oiStage]);
+  // OI drives the ArcGIS panel's terrain tools through the same store the panel uses.
+  const terrainBridge = useMemo<TerrainBridge>(() => ({
+    relief: ({ mode, opacity, off }) => {
+      if (off) { setLidarRelief({ opacity: 0 }); return 'Lidar relief off'; }
+      const cur = lidarStore.get().relief;
+      setLidarRelief({ ...(mode ? { mode } : {}), opacity: opacity ?? (cur.opacity || 0.75) });
+      return `Lidar relief on: ${mode ?? cur.mode}, ${Math.round((opacity ?? (cur.opacity || 0.75)) * 100)}% (shows from about zoom 8)`;
+    },
+    profile: line => profileAlong(line),
+    field: (ring, analysis, ratio) => analyseArea(ring, analysis, ratio),
+    coverage: async (lat, lng) => { const f = await lidarFlightAt(lng, lat); return f ? `${describeFlight(f)}, project ${f.project}${f.gsdM ? `, ${f.gsdM} m DEM` : ''}` : null; },
+    rain3d: () => { if (lidarStore.get().field?.status !== 'ready') return false; open3dWithRain(); return true; },
+    clear: () => { clearLidarField(); clearLidarProfile(); setLidarRelief({ opacity: 0 }); },
+  }), []);
   const assistSite = useMemo<Omit<Site, 'forecast'>>(() => ({
+    terrain: terrainBridge,
     data: () => dataRef.current,
     view: () => assistView.current,
     layers: () => assistLayers.current,
@@ -610,7 +643,7 @@ export default function Dashboard() {
       const out = await look(cam, { watch, by: 'oi' });
       return { analysis: out.analysis, watch: out.watch };
     },
-  }), [openFromAssist]);
+  }), [openFromAssist, terrainBridge]);
   const assist = useAssist({
     site: assistSite,
     startForecast: async (question, depth, auth) => {
@@ -842,6 +875,7 @@ export default function Dashboard() {
   // Mouse coords + reverse geocode (Zero-Render)
   const handleMouseCoords = useCallback((coords: { lat: number; lng: number }) => {
     mouseCoordsRef.current = coords;
+    lidarCursor(coords.lng, coords.lat);
     if (coordsDisplayRef.current) {
       coordsDisplayRef.current.innerText = `${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`;
     }
@@ -936,6 +970,12 @@ export default function Dashboard() {
   }, []);
 
   const handleDrawComplete = useCallback((result: DrawResult) => {
+    if (lidarStore.get().drawing) {
+      lidarCompleteDraw(result);
+      setDrawMode(null);
+      setDrawProgress(null);
+      return;
+    }
     setDrawnPolygons(prev => [toShape(result, prev, prev.length), ...prev]);
     // One shape per arming: staying armed after a finish is how you end up
     // with an accidental second AOI from the click that dismisses the first.
@@ -1565,6 +1605,7 @@ export default function Dashboard() {
           mapStyle={mapStyle === 'satellite' ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}' : 'dark'} 
           onEntityClick={handleEntityClick} 
           onMouseCoords={handleMouseCoords} 
+          lidar={lidar.overlay}
           onRightClick={handleRightClick} 
           onViewStateChange={setMapView}
           onReady={() => setMapReady(true)}
@@ -1589,7 +1630,7 @@ export default function Dashboard() {
           drawMode={drawMode}
           onDrawProgress={setDrawProgress}
           drawCommand={drawCommand}
-          onDrawCancel={() => { setDrawMode(null); setDrawProgress(null); }}
+          onDrawCancel={() => { lidarCancelDraw(); setDrawMode(null); setDrawProgress(null); }}
           onDrawComplete={handleDrawComplete}
           drawnPolygons={drawnPolygons}
           aircraftAirports={aircraftAirports}
@@ -1989,6 +2030,7 @@ export default function Dashboard() {
                     onUpdateLayer={(id, updates) => setArcgisLayers(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l))}
                     importedLayers={arcgisLayers}
                     mapBounds={mapCenter?.bounds || null}
+                    onSatellite={() => setMapStyle('satellite')}
                   />
                 </div>
               </motion.div>
@@ -2303,6 +2345,9 @@ export default function Dashboard() {
         </motion.div>
       )}
 
+      {/* ── Field in 3D (ArcGIS panel terrain tools) ── */}
+      {lidar.view3d && <FieldView3D />}
+
       {/* ── Camera Viewer ── */}
       <CameraViewer
         camera={activeCamera}
@@ -2319,7 +2364,7 @@ export default function Dashboard() {
           progress={drawProgress}
           onUndo={() => sendDraw('undo')}
           onFinish={() => sendDraw('finish')}
-          onCancel={() => { sendDraw('cancel'); setDrawMode(null); setDrawProgress(null); }}
+          onCancel={() => { sendDraw('cancel'); lidarCancelDraw(); setDrawMode(null); setDrawProgress(null); }}
         />
       )}
 
@@ -2327,7 +2372,7 @@ export default function Dashboard() {
         <div className="absolute right-12 top-1/2 -translate-y-1/2 z-[400] w-80 pointer-events-auto">
           <DrawingToolbar
             drawMode={drawMode}
-            onSetDrawMode={setDrawMode}
+            onSetDrawMode={(m) => { lidarCancelDraw(); setDrawMode(m); }}
             progress={drawProgress}
             polygons={drawnPolygons}
             onDeletePolygon={(id) => setDrawnPolygons(p => p.filter(x => x.id !== id))}

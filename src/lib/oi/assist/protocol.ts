@@ -17,7 +17,7 @@
 import { extractJson } from '../parse';
 import { FIND_LAYERS, LAYERS, PANELS, SOURCES } from './catalog';
 
-export const TOOL_NAMES = ['go_to', 'layers', 'find', 'scan', 'camera', 'highlight', 'show', 'markets', 'open', 'map_view', 'recon', 'forecast', 'workspace', 'select', 'clear'] as const;
+export const TOOL_NAMES = ['go_to', 'layers', 'find', 'scan', 'camera', 'highlight', 'show', 'markets', 'open', 'map_view', 'recon', 'forecast', 'workspace', 'select', 'terrain', 'clear'] as const;
 export type ToolName = typeof TOOL_NAMES[number];
 
 /** What the reader asked OI to concentrate on. Auto lets the model choose. */
@@ -105,6 +105,16 @@ workspace {open?: boolean, view?: "globe"|"graph"|"timeline"|"table"}
 
 select {name}
   Open an object of the current forecast by name: an actor, a simulated world ("World A"), an event, a source, a scenario or a signpost (see the forecast's objects in CONTEXT). It opens in the object view and lights up on the globe and in the graph.
+
+terrain {do: "relief"|"profile"|"field"|"coverage"|"rain3d"|"clear", …}
+  USGS 3DEP lidar — bare-earth elevation at 1 m wherever a lidar flight exists in the United States — through the ArcGIS panel's terrain tools. Results come back to you, in feet, acres and cubic yards.
+    relief {mode?: "hillshade"|"tinted"|"color"|"slope"|"contour2"|"contour5", opacity?: 0-1, off?: true}: shade the map with lidar relief (visible from about zoom 8 in).
+    profile {from: place | {lat, lng}, to: place | {lat, lng}} or {points: [{lat, lng}, …]}: elevation along a line — length, start and end, low, high, climb, drop, overall grade. Drawn on the map with a chart in the panel.
+    field {points: [{lat, lng}, … at least 3 corners]} or {near: place | {lat, lng}, size_m?: 50-3000}, analysis?: "elevation"|"drainage"|"cutfill", ratio?: target cut:fill (default 1.2): download the lidar for an area (up to 3,000 acres) and analyse it. elevation: acres, low, high, relief. drainage: where water leaves the field (outlets, each with the acres draining to it) and where it stands after rain (acres, cubic yards). cutfill: grade it to a best-fit plane — cut and fill in cubic yards, cut per acre, max cut and fill, slope and the heading water runs. Drawn on the map on satellite imagery. Takes 10 to 60 seconds.
+    coverage {near: place | {lat, lng}}: whether lidar covers a place, which project, when it was flown and its quality level.
+    rain3d {}: open the analysed field in 3D on its own screen and run a 2 in/hr, one-hour storm over it.
+    clear {}: remove the field, profile and relief.
+  Use it for elevation, slope, drainage, flooding of a field or site, earthwork, land levelling and "how high/low is…" questions in the US.
 
 clear {}
   Remove your highlights from the map.`;
