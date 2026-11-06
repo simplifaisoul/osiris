@@ -82,12 +82,7 @@ export default function CameraViewer({ camera, onClose, onLocate, besideOi = fal
     return () => { live = false; };
   }, [resolveKey]);
 
-  /* A camera whose live stream will not open, kept by id so the next camera
-     tries its own. Its still is shown instead: Caltrans and Iowa publish both,
-     and at any moment a share of their streams are down while every still is
-     fine. */
-  const [stillFor, setStillFor] = useState<string | null>(null);
-  const streamType = resolvedEmbed ? 'iframe' : (stillFor !== null && stillFor === camera?.id ? 'jpg' : (camera?.stream_type || 'jpg'));
+  const streamType = resolvedEmbed ? 'iframe' : (camera?.stream_type || 'jpg');
   const streamUrl: string | undefined = resolvedEmbed || camera?.stream_url;
   const view = offPlatformView({ hostedOffPlatform, resolving, resolvedEmbed, offline });
   const externalOnly = view !== 'inline';
@@ -120,9 +115,7 @@ export default function CameraViewer({ camera, onClose, onLocate, besideOi = fal
           videoRef.current?.play().catch(() => {});
         });
         hls.on(Hls.Events.ERROR, (event, data) => {
-          if (!data.fatal) return;
-          if (camera.feed_url && camera.id) setStillFor(camera.id);
-          else setError(true);
+          if (data.fatal) setError(true);
         });
       } else if (videoRef.current?.canPlayType('application/vnd.apple.mpegurl')) {
         videoRef.current.src = camera.stream_url;
