@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeBsq, describeFlight, toMerc, fromMerc } from './usgs';
+import { decodeBsq, describeFlight, toMerc, fromMerc, usgsErrorText } from './usgs';
 import { planGrid, rasterizeRing, fieldStats, robustRange, type DemGrid } from './grid';
 import { analyseDrainage, chaikin } from './drainage';
 import { designFor, evaluate, fitPlane, labelSections, makeSection, sectionCells, solveBase } from './cutfill';
@@ -203,5 +203,16 @@ describe('rain', () => {
     const sim = createRainSim(g.z, inside, 21, 21, 2);
     for (let k = 0; k < 2000; k++) stepRain(sim, Math.min(1, stableStep(sim)), k < 600 ? 0.02 / 3600 : 0);
     expect(sim.water[10 * 21 + 10]).toBeGreaterThan(sim.water[10 * 21 + 3]);
+  });
+});
+
+describe('usgsErrorText', () => {
+  it('turns a dropped gateway request into a plain sentence', () => {
+    expect(usgsErrorText(new TypeError('Failed to fetch'), 'x')).toMatch(/not answering/);
+    expect(usgsErrorText(new Error('USGS elevation HTTP 504'), 'x')).toMatch(/not answering/);
+  });
+  it('keeps messages that already say what to do', () => {
+    expect(usgsErrorText(new Error('Area is too small — draw at least a few corners around a field'), 'x')).toMatch(/too small/);
+    expect(usgsErrorText('nope', 'Profile failed')).toBe('Profile failed');
   });
 });

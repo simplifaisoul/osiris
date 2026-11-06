@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from 'react';
 import type { DrawResult } from '@/lib/draw';
 import {
-  describeFlight, fetchElevationTiled, fromMerc, lidarFlightAt, M2_PER_ACRE, M3_TO_YD3, M_TO_FT, sampleProfile,
+  describeFlight, fetchElevationTiled, fromMerc, lidarFlightAt, M2_PER_ACRE, M3_TO_YD3, M_TO_FT, sampleProfile, usgsErrorText,
   type Bbox, type LidarFlight, type ProfileSample,
 } from './usgs';
 import {
@@ -80,6 +80,8 @@ export interface ReliefState {
   alt: number;
   ex: number;
   stretch: [number, number] | null;
+  /** Colour modes wait for the view's stretch; this says how that is going. */
+  fitting: 'loading' | 'failed' | null;
 }
 
 export type DrawPurpose = 'field' | 'profile' | 'split';
@@ -109,7 +111,7 @@ const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: 
 
 let state: LidarState = {
   tab: 'layers',
-  relief: { mode: 'hillshade', opacity: 0, az: 315, alt: 45, ex: 3, stretch: null },
+  relief: { mode: 'hillshade', opacity: 0, az: 315, alt: 45, ex: 3, stretch: null, fitting: null },
   coverage: null,
   drawing: null,
   profile: null,
@@ -179,16 +181,27 @@ async function refreshStretch() {
   if (!viewBox || relief.opacity <= 0 || (relief.mode !== 'color' && relief.mode !== 'tinted')) return;
   viewAbort?.abort();
   const ctl = (viewAbort = new AbortController());
+  if (!state.relief.stretch) set({ relief: { ...state.relief, fitting: 'loading' } });
   try {
     const range = await viewRange(viewBox, ctl.signal);
-    if (!range || ctl.signal.aborted) return;
+    if (ctl.signal.aborted) return;
+    if (!range) { set({ relief: { ...state.relief, fitting: state.relief.stretch ? null : 'failed' } }); return; }
     const old = state.relief.stretch;
     // Only re-render when the stretch actually moves, or tiles flicker on every pan.
     const span = range[1] - range[0];
-    if (old && Math.abs(old[0] - range[0]) < span * 0.08 && Math.abs(old[1] - range[1]) < span * 0.08) return;
-    set({ relief: { ...state.relief, stretch: range } });
-  } catch { /* the stretch is cosmetic; keep the old one */ }
+    if (old && Math.abs(old[0] - range[0]) < span * 0.08 && Math.abs(old[1] - range[1]) < span * 0.08) {
+      if (state.relief.fitting) set({ relief: { ...state.relief, fitting: null } });
+      return;
+    }
+    set({ relief: { ...state.relief, stretch: range, fitting: null } });
+  } catch {
+    // Keep the last stretch if there is one; without one, say so and try again on the next move.
+    if (!ctl.signal.aborted) set({ relief: { ...state.relief, fitting: state.relief.stretch ? null : 'failed' } });
+  }
 }
+
+/** Try the view's colour stretch again after it failed. */
+export function retryStretch() { void refreshStretch(); }
 
 let coverageAbort: AbortController | null = null;
 async function refreshCoverage(lng: number, lat: number) {
@@ -218,6 +231,10 @@ export function completeDraw(result: DrawResult) {
 
 /* ───────────────────────────── Profile ───────────────────────────── */
 
+/** Run the last profile or field again after USGS failed it. */
+export function retryProfile() { if (state.profile) void loadProfile(state.profile.coords); }
+export function retryField() { if (state.field) void loadField(state.field.ring); }
+
 async function loadProfile(coords: [number, number][]) {
   set({ profile: { coords, status: 'loading', samples: [], hover: null }, tab: 'terrain' });
   try {
@@ -227,7 +244,7 @@ async function loadProfile(coords: [number, number][]) {
     set({ profile: { coords, status: 'ready', samples, hover: null } });
   } catch (e) {
     if (state.profile?.coords !== coords) return;
-    set({ profile: { coords, status: 'error', error: e instanceof Error ? e.message : 'Profile failed', samples: [], hover: null } });
+    set({ profile: { coords, status: 'error', error: usgsErrorText(e, 'Profile failed'), samples: [], hover: null } });
   }
 }
 
@@ -266,7 +283,7 @@ async function loadField(ring: [number, number][]) {
     setField({ status: 'ready', grid, mask, stats, flight, range: robustRange(z, mask) });
   } catch (e) {
     if (seq !== fieldSeq || ctl.signal.aborted) return;
-    setField({ status: 'error', error: e instanceof Error ? e.message : 'Lidar download failed' });
+    setField({ status: 'error', error: usgsErrorText(e, 'Lidar download failed') });
   }
 }
 
@@ -458,7 +475,9 @@ export function close3d() { set({ view3d: false }); }
 /* ───────────────────────────── Map overlay ───────────────────────────── */
 
 function buildOverlay(s: LidarState): LidarMapOverlay {
-  const relief = s.relief.opacity > 0
+  // Colour modes wait for the view's stretch rather than colouring each tile on its own.
+  const colour = s.relief.mode === 'tinted' || s.relief.mode === 'color';
+  const relief = s.relief.opacity > 0 && !(colour && !s.relief.stretch)
     ? { url: reliefTileUrl({ mode: s.relief.mode, az: s.relief.az, alt: s.relief.alt, ex: s.relief.ex, lo: s.relief.stretch?.[0], hi: s.relief.stretch?.[1] }), opacity: s.relief.opacity }
     : null;
   const features: GeoJSON.Feature[] = [];

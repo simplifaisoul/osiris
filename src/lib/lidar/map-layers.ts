@@ -1,6 +1,6 @@
 import type { Map as MapLibreMap, GeoJSONSource, ImageSource, RasterTileSource } from 'maplibre-gl';
 import type { LidarMapOverlay } from './store';
-import { RELIEF_MAX_ZOOM, RELIEF_MIN_ZOOM } from './relief-tiles';
+import { onReliefTile, RELIEF_MAX_ZOOM, RELIEF_MIN_ZOOM } from './relief-tiles';
 
 /**
  * Puts the terrain tools' overlay on the map: lidar relief tiles under the
@@ -45,6 +45,21 @@ function addProfileLayers(map: MapLibreMap) {
   map.addLayer({ id: 'lidar-profile-label', type: 'symbol', source: PROFILE, filter: kind('profile-cursor'), layout: { 'text-field': ['get', 'label'], 'text-font': FONT, 'text-size': 11, 'text-anchor': 'bottom', 'text-offset': [0, -1], 'text-allow-overlap': true }, paint: { 'text-color': '#00E5FF', 'text-halo-color': '#000', 'text-halo-width': 2 } });
 }
 
+/** Redraw relief tiles as their heights arrive, a batch at a time. */
+function listenForTiles(map: MapLibreMap) {
+  let ids: { x: number; y: number; z: number }[] = [];
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  onReliefTile((z, x, y) => {
+    ids.push({ x, y, z });
+    timer ??= setTimeout(() => {
+      timer = null;
+      const batch = ids;
+      ids = [];
+      if (map.getSource(RELIEF)) map.refreshTiles(RELIEF, batch);
+    }, 150);
+  });
+}
+
 export function syncLidarLayers(map: MapLibreMap, overlay: LidarMapOverlay | null | undefined, prev: LidarMapOverlay | null): void {
   const o = overlay ?? null;
 
@@ -52,11 +67,13 @@ export function syncLidarLayers(map: MapLibreMap, overlay: LidarMapOverlay | nul
   if (o?.relief) {
     const src = map.getSource(RELIEF) as RasterTileSource | undefined;
     if (!src) {
+      listenForTiles(map);
       map.addSource(RELIEF, { type: 'raster', tiles: [o.relief.url], tileSize: 256, minzoom: RELIEF_MIN_ZOOM, maxzoom: RELIEF_MAX_ZOOM, attribution: 'Elevation: USGS 3DEP' });
       map.addLayer({ id: RELIEF, type: 'raster', source: RELIEF, paint: { 'raster-opacity': o.relief.opacity, 'raster-fade-duration': 0 } }, map.getLayer('day-night-fill') ? 'day-night-fill' : undefined);
     } else if (prev?.relief?.url !== o.relief.url) src.setTiles([o.relief.url]);
     map.setPaintProperty(RELIEF, 'raster-opacity', o.relief.opacity);
   } else if (map.getSource(RELIEF)) {
+    onReliefTile(null);
     if (map.getLayer(RELIEF)) map.removeLayer(RELIEF);
     map.removeSource(RELIEF);
   }

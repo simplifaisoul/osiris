@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Mountain, Spline, Hexagon, Droplets, Layers, Box, FileText, Download, Undo2, Loader2, X, Info, ChevronDown, ChevronRight, Scissors, Crosshair } from 'lucide-react';
+import { Mountain, Spline, Hexagon, Droplets, Layers, Box, FileText, Download, Undo2, Loader2, X, Info, ChevronDown, ChevronRight, Scissors, Crosshair, RotateCw } from 'lucide-react';
 import {
   useLidar, useCursorElevation, setRelief, setView, startDraw, cancelDraw, clearProfile, setProfileHover, clearField,
   setFieldMode, setFieldOpacity, setDetail, bestFit, setDesign, undoDesign, setRatio, selectSection, setContours,
-  removeSplits, exportCsv, openReport, open3d, totals, ft, acres, yd3, CONTOUR_STEPS_FT,
+  removeSplits, exportCsv, openReport, open3d, totals, ft, acres, yd3, CONTOUR_STEPS_FT, retryField, retryProfile, retryStretch,
   type FieldState, type ProfileState, type Detail,
 } from '@/lib/lidar/store';
 import { RELIEF_MODES, type ReliefMode } from '@/lib/lidar/relief-tiles';
@@ -67,6 +67,11 @@ export default function LidarPanel({ mapBounds, onSatellite }: {
         >
           {RELIEF_MODES.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
         </select>
+        {s.relief.opacity > 0 && (s.relief.mode === 'tinted' || s.relief.mode === 'color') && !s.relief.stretch && (
+          s.relief.fitting === 'failed'
+            ? <Failed text="USGS did not answer, so the colours could not be fitted to this view." onRetry={retryStretch} />
+            : <Busy text="Fitting colours to this view…" />
+        )}
         <div className="mt-2 flex items-center gap-2">
           <span className={label}>Lidar</span>
           <input
@@ -198,7 +203,7 @@ function ProfileCard({ p }: { p: ProfileState }) {
         <button onClick={clearProfile} className="rounded p-0.5 text-white/40 hover:bg-white/10 hover:text-white" title="Clear profile"><X className="h-3 w-3" /></button>
       </div>
       {p.status === 'loading' && <Busy text="Sampling USGS elevation…" />}
-      {p.status === 'error' && <p className="mt-2 text-[10px] font-mono text-red-400">{p.error}</p>}
+      {p.status === 'error' && <Failed text={p.error ?? 'Profile failed'} onRetry={retryProfile} />}
       {p.status === 'ready' && geom && (
         <>
           <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="mt-2 w-full cursor-crosshair rounded bg-black/40" onMouseMove={onMove} onMouseLeave={() => setProfileHover(null)}>
@@ -243,6 +248,19 @@ function Busy({ text }: { text: string }) {
   return <div className="mt-2 flex items-center gap-2 text-[10px] font-mono text-[#D4AF37]"><Loader2 className="h-3 w-3 animate-spin" />{text}</div>;
 }
 
+function Failed({ text, onRetry }: { text: string; onRetry?: () => void }) {
+  return (
+    <div className="mt-2 flex items-start gap-2">
+      <p className="flex-1 text-[10px] font-mono leading-relaxed text-red-400">{text}</p>
+      {onRetry && (
+        <button onClick={onRetry} className={`${btn} shrink-0 border-white/15 text-white/80 hover:border-[#D4AF37]/50 hover:text-[#D4AF37]`}>
+          <RotateCw className="h-3 w-3" />Try again
+        </button>
+      )}
+    </div>
+  );
+}
+
 /* ─────────────── Field ─────────────── */
 
 function FieldCard({ f, drawing }: { f: FieldState; drawing: string | null }) {
@@ -261,7 +279,7 @@ function FieldCard({ f, drawing }: { f: FieldState; drawing: string | null }) {
           </div>
         </div>
       )}
-      {f.status === 'error' && <p className="mt-2 text-[10px] font-mono leading-relaxed text-red-400">{f.error}</p>}
+      {f.status === 'error' && <Failed text={f.error ?? 'Lidar download failed'} onRetry={/USGS/.test(f.error ?? '') ? retryField : undefined} />}
 
       {f.status === 'ready' && f.stats && (
         <>

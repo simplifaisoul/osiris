@@ -1,6 +1,6 @@
 import type { AddProtocolAction } from 'maplibre-gl';
 import { EARTH_R, fetchElevation, M_TO_FT, type Bbox } from './usgs';
-import { ELEVATION_RAMP, ramp, shade } from './grid';
+import { ELEVATION_RAMP, ramp, robustRange, shade } from './grid';
 
 /**
  * Map-wide lidar relief, drawn in the browser.
@@ -11,6 +11,11 @@ import { ELEVATION_RAMP, ramp, shade } from './grid';
  * rendered layers fix all three, and its contours come on an opaque page.
  *
  * Tile URL: osiris-lidar://{mode}/{z}/{x}/{y}?az=315&alt=45&ex=1&lo=..&hi=..
+ *
+ * The heights download in the background. A tile whose heights are not here
+ * yet comes back empty at once and is redrawn when they land (see
+ * onReliefTile), so a slow USGS answer never holds one of the map's image
+ * request slots: satellite imagery and the field picture share those.
  */
 
 export type ReliefMode = 'hillshade' | 'tinted' | 'color' | 'slope' | 'contour2' | 'contour5';
@@ -45,29 +50,58 @@ function tileBbox(z: number, x: number, y: number, padPx = 0): Bbox {
   return [minx - padPx * px, maxy - size - padPx * px, minx + size + padPx * px, maxy + padPx * px];
 }
 
-/* Raw tiles, newest last. 64 tiles of 258² floats is ~17 MB. */
+/* Raw tiles, newest last. 96 tiles of 258² floats is ~26 MB. */
 const raw = new Map<string, Float32Array>();
-const inflight = new Map<string, Promise<Float32Array>>();
-const RAW_LIMIT = 64;
+const RAW_LIMIT = 96;
 
 function remember(key: string, z: Float32Array) {
   raw.delete(key); raw.set(key, z);
   while (raw.size > RAW_LIMIT) raw.delete(raw.keys().next().value!);
 }
 
-async function rawTile(z: number, x: number, y: number, signal: AbortSignal): Promise<Float32Array> {
+/* Downloads under way, oldest first. Past the limit the oldest are dropped:
+   the operator has panned or zoomed away from them. */
+const pending = new Map<string, { ctl: AbortController; job: Promise<Float32Array | null> }>();
+const PENDING_LIMIT = 64;
+/* Tiles handed to the map empty, to be redrawn when their heights land. */
+const servedBlank = new Set<string>();
+/** How long a tile waits for its heights before the map gets it empty. */
+const WAIT_MS = 2500;
+let onReady: ((z: number, x: number, y: number) => void) | null = null;
+
+/** Called with each tile whose heights have just arrived, so the map can redraw it. */
+export function onReliefTile(fn: ((z: number, x: number, y: number) => void) | null) { onReady = fn; }
+
+function want(z: number, x: number, y: number): Promise<Float32Array | null> {
   const key = `${z}/${x}/${y}`;
   const hit = raw.get(key);
-  if (hit) { remember(key, hit); return hit; }
-  let job = inflight.get(key);
-  if (!job) {
-    // Shared by every caller for this tile (a re-render with a new stretch asks
-    // again), and dropped from the queue if the map gives up on it first.
-    job = fetchElevation(tileBbox(z, x, y, 1), RAW, RAW, signal, 3, false).then(v => { remember(key, v); return v; })
-      .finally(() => inflight.delete(key));
-    inflight.set(key, job);
+  if (hit) return Promise.resolve(hit);
+  const running = pending.get(key);
+  if (running) return running.job;
+  const ctl = new AbortController();
+  const job = fetchElevation(tileBbox(z, x, y, 1), RAW, RAW, ctl.signal, 5, false)
+    .then(v => {
+      remember(key, v);
+      // Only a tile the map already holds empty needs redrawing; one still
+      // waiting for these heights paints them itself.
+      if (servedBlank.delete(key)) onReady?.(z, x, y);
+      return v;
+    }, () => {
+      if (!ctl.signal.aborted && !warned) {
+        warned = true;
+        console.warn('[OSIRIS] USGS elevation is not answering; some lidar relief tiles are blank');
+      }
+      return null;
+    })
+    .finally(() => { if (pending.get(key)?.ctl === ctl) pending.delete(key); });
+  pending.set(key, { ctl, job });
+  while (pending.size > PENDING_LIMIT) {
+    const [k, old] = pending.entries().next().value!;
+    old.ctl.abort();
+    pending.delete(k);
+    servedBlank.delete(k);
   }
-  return await Promise.race([job, new Promise<never>((_, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }))]);
+  return job;
 }
 
 function slopeColor(pct: number): [number, number, number] {
@@ -112,13 +146,8 @@ export function paintTile(zs: Float32Array, z: number, y: number, p: ReliefParam
 
   const img = new ImageData(SIZE, SIZE);
   const out = img.data;
-  let span: [number, number] | null = p.lo !== undefined && p.hi !== undefined && p.hi > p.lo ? [p.lo, p.hi] : null;
-  if (!span && (p.mode === 'tinted' || p.mode === 'color')) {
-    // Until the view's stretch arrives, stretch to this tile alone.
-    let lo = Infinity, hi = -Infinity;
-    for (const v of zs) if (Number.isFinite(v)) { if (v < lo) lo = v; if (v > hi) hi = v; }
-    span = hi > lo ? [lo, hi] : [lo - 1, lo + 1];
-  }
+  // Colour tiles share the view's stretch: a stretch per tile shows every tile edge.
+  const span: [number, number] = p.lo !== undefined && p.hi !== undefined && p.hi > p.lo ? [p.lo, p.hi] : [0, 1];
   for (let r = 0; r < SIZE; r++) {
     for (let c = 0; c < SIZE; c++) {
       const R0 = r + 1, C0 = c + 1;
@@ -142,7 +171,7 @@ export function paintTile(zs: Float32Array, z: number, y: number, p: ReliefParam
         const k = 0.55 + 0.45 * s;
         rgb = [col[0] * k, col[1] * k, col[2] * k];
       } else {
-        const [lo, hi] = span!;
+        const [lo, hi] = span;
         const col = ramp(ELEVATION_RAMP, (zc - lo) / (hi - lo));
         if (p.mode === 'tinted') {
           const k = 0.5 + 0.5 * shade(dzdx * p.ex, dzdy * p.ex, p.az, p.alt);
@@ -185,21 +214,34 @@ export const reliefProtocol: AddProtocolAction = async (request, controller) => 
     mode: mode as ReliefMode, az: +(q.get('az') ?? 315), alt: +(q.get('alt') ?? 45), ex: +(q.get('ex') ?? 1),
     lo: q.has('lo') ? +q.get('lo')! : undefined, hi: q.has('hi') ? +q.get('hi')! : undefined,
   };
-  let heights: Float32Array;
-  try {
-    heights = await rawTile(z, x, y, controller.signal);
-  } catch (e) {
-    if (controller.signal.aborted) throw e;
-    if (!warned) { warned = true; console.warn('[OSIRIS] USGS elevation is not answering; some lidar relief tiles are blank'); }
-    return { data: await blankTile() };
+  const key = `${z}/${x}/${y}`;
+  let heights = raw.get(key) ?? null;
+  if (!heights) {
+    const job = want(z, x, y);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    heights = await Promise.race([job, new Promise<null>(r => { timer = setTimeout(() => r(null), WAIT_MS); })]);
+    clearTimeout(timer);
+    if (controller.signal.aborted) throw controller.signal.reason;
+    if (!heights) {
+      if (pending.has(key)) servedBlank.add(key);
+      return { data: await blankTile() };
+    }
   }
-  return { data: await encode(paintTile(heights, z, y, p)), cacheControl: 'max-age=3600' };
+  remember(key, heights);
+  // The store only asks for colour tiles once the view's stretch is known.
+  if ((p.mode === 'tinted' || p.mode === 'color') && p.lo === undefined) return { data: await blankTile() };
+  if (controller.signal.aborted) throw controller.signal.reason;
+  return { data: await encode(paintTile(heights, z, y, p)) };
 };
 
 let warned = false;
 let blank: ArrayBuffer | null = null;
 async function blankTile(): Promise<ArrayBuffer> {
-  if (!blank) blank = await (await new OffscreenCanvas(SIZE, SIZE).convertToBlob({ type: 'image/png' })).arrayBuffer();
+  if (!blank) {
+    const canvas = new OffscreenCanvas(SIZE, SIZE);
+    canvas.getContext('2d'); // convertToBlob refuses a canvas that never had a context
+    blank = await (await canvas.convertToBlob({ type: 'image/png' })).arrayBuffer();
+  }
   return blank.slice(0);
 }
 
@@ -232,18 +274,17 @@ export function cachedElevationAt(lng: number, lat: number): number | null {
   return null;
 }
 
-/** Elevation range (m) over a Mercator box, from the service's statistics. */
+/**
+ * Elevation range (m) over a Mercator box: the 1st to 99th percentile of a
+ * coarse sample of the whole view, so one tower or quarry does not wash out a
+ * valley. Same request (and retries) as the tiles, ahead of them in the queue.
+ */
 export async function viewRange(bbox: Bbox, signal?: AbortSignal): Promise<[number, number] | null> {
-  const geometry = JSON.stringify({ xmin: bbox[0], ymin: bbox[1], xmax: bbox[2], ymax: bbox[3], spatialReference: { wkid: 3857 } });
-  const pixel = Math.max(1, (bbox[2] - bbox[0]) / 400);
-  const q = new URLSearchParams({ geometry, geometryType: 'esriGeometryEnvelope', pixelSize: String(pixel), f: 'json' });
-  const res = await fetch(`https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer/computeStatisticsHistograms?${q}`, { signal, credentials: 'omit' });
-  if (!res.ok) return null;
-  const j = await res.json();
-  const s = j?.statistics?.[0];
-  if (!s || !Number.isFinite(s.min) || !Number.isFinite(s.max)) return null;
-  // Mean ± 2.5σ, inside the true range: one tower or quarry should not wash out a valley.
-  const lo = Math.max(s.min, s.mean - 2.5 * s.standardDeviation);
-  const hi = Math.min(s.max, s.mean + 2.5 * s.standardDeviation);
-  return hi > lo ? [lo, hi] : [s.min, s.max];
+  const w = 128;
+  const h = Math.max(16, Math.min(256, Math.round(w * (bbox[3] - bbox[1]) / Math.max(1, bbox[2] - bbox[0]))));
+  const z = await fetchElevation(bbox, w, h, signal, 6, true);
+  const mask = new Uint8Array(w * h);
+  let n = 0;
+  for (let i = 0; i < z.length; i++) if (Number.isFinite(z[i])) { mask[i] = 1; n++; }
+  return n ? robustRange(z, mask) : null;
 }

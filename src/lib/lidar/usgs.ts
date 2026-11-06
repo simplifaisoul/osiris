@@ -203,16 +203,30 @@ const haversineM = (a: [number, number], b: [number, number]) => {
 };
 
 /** Evenly spaced elevations along a drawn line, straight from the service. */
-export async function sampleProfile(coords: [number, number][], count = 400, signal?: AbortSignal): Promise<ProfileSample[]> {
+export async function sampleProfile(coords: [number, number][], count = 400, signal?: AbortSignal, attempts = 6): Promise<ProfileSample[]> {
   const geometry = JSON.stringify({ paths: [coords], spatialReference: { wkid: 4326 } });
   const body = new URLSearchParams({
     geometry, geometryType: 'esriGeometryPolyline', sampleCount: String(count),
     returnFirstValueOnly: 'true', interpolation: 'RSP_BilinearInterpolation', f: 'json',
   });
-  const res = await fetch(`${DEP_IMAGE}/getSamples`, { method: 'POST', body, signal, credentials: 'omit' });
-  if (!res.ok) throw new Error(`USGS profile HTTP ${res.status}`);
-  const json = await res.json();
-  if (json?.error) throw new Error(json.error.message || 'USGS profile failed');
+  // Same gateway as the heights, same habit of dropping requests: retry those.
+  let json: { samples?: { location: { x: number; y: number }; locationId: number; value: string }[]; error?: { message?: string } } | null = null;
+  let last: unknown;
+  for (let attempt = 0; attempt < attempts && !json; attempt++) {
+    if (attempt) await sleep(Math.min(8000, 1000 * 2 ** (attempt - 1)), signal);
+    try {
+      const res = await withSlot(() => fetch(`${DEP_IMAGE}/getSamples`, { method: 'POST', body, signal, credentials: 'omit' }), true, signal);
+      if (res.status >= 500) { last = new Error(`USGS profile HTTP ${res.status}`); continue; }
+      if (!res.ok) throw new Error(`USGS profile HTTP ${res.status}`);
+      json = await res.json();
+    } catch (e) {
+      if (signal?.aborted) throw e;
+      last = e;
+      if (e instanceof Error && /HTTP 4/.test(e.message)) throw e;
+    }
+  }
+  if (!json) throw last instanceof Error ? last : new Error('USGS profile unavailable');
+  if (json.error) throw new Error(json.error.message || 'USGS profile failed');
   const samples: { location: { x: number; y: number }; locationId: number; value: string }[] = json?.samples ?? [];
   samples.sort((a, b) => a.locationId - b.locationId);
   let dist = 0;
@@ -224,4 +238,13 @@ export async function sampleProfile(coords: [number, number][], count = 400, sig
     const v = Number(s.value);
     return { distM: dist, z: Number.isFinite(v) && v > -1000 ? v : null, lng: here[0], lat: here[1] };
   });
+}
+
+/** What to tell the operator when a USGS request finally gives up. */
+export function usgsErrorText(e: unknown, fallback: string): string {
+  const msg = e instanceof Error ? e.message : '';
+  if (!msg) return fallback;
+  // A gateway error arrives without CORS headers, so the browser only says "Failed to fetch".
+  if (/failed to fetch|networkerror|load failed|HTTP 5\d\d/i.test(msg)) return 'The USGS elevation service is not answering right now. Try again in a minute.';
+  return msg;
 }
