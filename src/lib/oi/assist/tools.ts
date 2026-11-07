@@ -43,6 +43,30 @@ export interface Site {
   select?(name: string): { ok: true; summary: string } | { ok: false; error: string };
   /** Open a camera for the reader and look through it with the built-in analysis: one frame, or `watch` seconds of them. */
   camera?(camera: CameraRecord, watch: number): Promise<{ analysis: FrameAnalysis; watch?: WatchSummary }>;
+  /** The ArcGIS panel's lidar terrain tools. */
+  terrain?: TerrainBridge;
+}
+
+export type TerrainAnalysis = 'elevation' | 'drainage' | 'cutfill';
+export const RELIEF_MODES = ['hillshade', 'tinted', 'color', 'slope', 'contour2', 'contour5'] as const;
+
+/** What the page's terrain tools offer the assistant; rings and lines are [lng, lat]. */
+export interface TerrainBridge {
+  relief(o: { mode?: typeof RELIEF_MODES[number]; opacity?: number; off?: boolean }): string;
+  profile(line: [number, number][]): Promise<{ lengthMi: number; startFt: number; endFt: number; lowFt: number; highFt: number; climbFt: number; dropFt: number; gradePct: number }>;
+  field(ring: [number, number][], analysis: TerrainAnalysis, ratio?: number): Promise<object>;
+  coverage(lat: number, lng: number): Promise<string | null>;
+  rain3d(): boolean;
+  /** Lift a box (west, south, east, north) out of the map into its own 3D tab. */
+  cutout(box: [number, number, number, number]): { path: string; label: string; opened: boolean; error?: string };
+  clear(): void;
+}
+
+/** A square of `sizeM` metres a side around a point, as a closed [lng, lat] ring. */
+export function squareRing(at: Point, sizeM: number): [number, number][] {
+  const h = sizeM / 2;
+  const dLat = h / 111_320, dLng = h / (111_320 * Math.cos(at.lat * Math.PI / 180));
+  return [[at.lng - dLng, at.lat - dLat], [at.lng + dLng, at.lat - dLat], [at.lng + dLng, at.lat + dLat], [at.lng - dLng, at.lat + dLat], [at.lng - dLng, at.lat - dLat]];
 }
 
 /** A camera as the page holds it. */
@@ -457,8 +481,114 @@ export async function runCall(call: Call, site: Site, signal?: AbortSignal): Pro
       return out.ok ? ok('select', out.summary) : fail('select', out.error);
     }
 
+    case 'terrain': return runTerrain(a, site);
+
     case 'clear':
       site.highlight(null);
       return ok('clear', 'Cleared the highlights');
   }
+}
+
+interface FieldOut {
+  acres: number; lowFt: number; highFt: number; reliefFt: number; lidar: string;
+  drainage?: { outlets: { acres: number; lat: number; lng: number }[]; standingWaterAcres: number; standingWaterYd3: number };
+  cutfill?: { cutYd3: number; fillYd3: number; cutToFill: number; cutPerAcreYd3: number; sections: { slopePct: number; headingDeg: number }[] };
+}
+
+async function runTerrain(a: Record<string, unknown>, site: Site): Promise<Outcome> {
+  const t = site.terrain;
+  if (!t) return fail('terrain', 'The terrain tools are not available here');
+  const op = str(a.do ?? a.action ?? a.op, 20).toLowerCase();
+  const failed = (e: unknown) => fail('terrain', e instanceof Error ? e.message : 'The lidar service did not answer');
+
+  if (op === 'relief') {
+    const mode = RELIEF_MODES.find(m => m === str(a.mode, 20).toLowerCase());
+    const opacity = numIn(a.opacity, 0, 1) ?? undefined;
+    return ok('terrain', t.relief({ mode, opacity, off: a.off === true || a.off === 'true' || opacity === 0 }));
+  }
+
+  if (op === 'profile') {
+    let line: Point[] = Array.isArray(a.points) ? (a.points.map(point).filter(Boolean) as Point[]) : [];
+    if (line.length < 2) {
+      const from = await placeOf(site, a.from), to = await placeOf(site, a.to);
+      if (!from || !to) return fail('terrain', 'A profile needs from and to (places or coordinates), or two or more points');
+      line = [from, to];
+    }
+    try {
+      const out = await t.profile(line.map(p => [p.lng, p.lat]));
+      const mid = line[Math.floor(line.length / 2)];
+      site.flyTo(mid.lat, mid.lng, out.lengthMi > 20 ? 9 : out.lengthMi > 3 ? 12 : 14);
+      return ok('terrain', `Profile ${out.lengthMi} mi: ${out.startFt} ft to ${out.endFt} ft, low ${out.lowFt}, high ${out.highFt}, climb ${out.climbFt} ft, drop ${out.dropFt} ft, grade ${out.gradePct}%`, out,
+        { kind: 'show', title: 'Elevation profile', items: [
+          { label: 'Length', value: `${out.lengthMi} mi` }, { label: 'Start → end', value: `${out.startFt} → ${out.endFt} ft` },
+          { label: 'Low / high', value: `${out.lowFt} / ${out.highFt} ft` }, { label: 'Climb / drop', value: `${out.climbFt} / ${out.dropFt} ft` },
+          { label: 'Grade', value: `${out.gradePct}%`, lat: mid.lat, lng: mid.lng },
+        ] });
+    } catch (e) { return failed(e); }
+  }
+
+  if (op === 'field') {
+    const analysis: TerrainAnalysis = a.analysis === 'drainage' || a.analysis === 'cutfill' ? a.analysis : 'elevation';
+    let ring: [number, number][] = Array.isArray(a.points) ? (a.points.map(point).filter(Boolean) as Point[]).map(p => [p.lng, p.lat] as [number, number]) : [];
+    if (ring.length < 3) {
+      const at = await placeOf(site, a.near ?? a.at ?? a.place);
+      if (!at) return fail('terrain', 'A field needs 3 or more corner points, or near (a place or coordinates) with size_m');
+      ring = squareRing(at, numIn(a.size_m ?? a.size, 50, 3000) ?? 400);
+    }
+    const ratio = numIn(a.ratio, 0.5, 3) ?? undefined;
+    const corners = ring.length > 3 && ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1] ? ring.slice(0, -1) : ring;
+    const c = corners.reduce((m, [lng, lat]) => ({ lng: m.lng + lng / corners.length, lat: m.lat + lat / corners.length }), { lng: 0, lat: 0 });
+    site.setView({ style: 'satellite' });
+    site.flyTo(c.lat, c.lng, 15);
+    try {
+      const out = await t.field(ring, analysis, ratio) as unknown as FieldOut;
+      const head = `${out.acres} ac, ${out.lowFt}–${out.highFt} ft (${out.reliefFt} ft relief), ${out.lidar}`;
+      const items: Card['items'] = [{ label: 'Area', value: `${out.acres} ac`, lat: c.lat, lng: c.lng }, { label: 'Elevation', value: `${out.lowFt}–${out.highFt} ft` }, { label: 'Lidar', detail: out.lidar }];
+      let tail = '';
+      if (out.drainage) {
+        const d = out.drainage;
+        tail = `; ${d.outlets.length} outlet(s)${d.outlets.length ? ` (${d.outlets.map(o => `${o.acres} ac`).join(', ')})` : ''}; water stands on ${d.standingWaterAcres} ac (${d.standingWaterYd3} yd³)`;
+        items.push({ label: 'Standing water', value: `${d.standingWaterAcres} ac`, detail: `${d.standingWaterYd3.toLocaleString()} yd³` });
+        d.outlets.slice(0, 5).forEach((o, k) => items.push({ label: `Outlet ${k + 1}`, value: `${o.acres} ac`, lat: o.lat, lng: o.lng }));
+      }
+      if (out.cutfill) {
+        const f = out.cutfill;
+        const s0 = f.sections[0];
+        tail = `; cut ${f.cutYd3} yd³, fill ${f.fillYd3} yd³ (cut:fill ${f.cutToFill}, ${f.cutPerAcreYd3} yd³/ac)${s0 ? `, best-fit slope ${s0.slopePct}% toward ${s0.headingDeg}°` : ''}`;
+        items.push({ label: 'Cut', value: `${f.cutYd3.toLocaleString()} yd³` }, { label: 'Fill', value: `${f.fillYd3.toLocaleString()} yd³` });
+        if (s0) items.push({ label: 'Design slope', value: `${s0.slopePct}% → ${s0.headingDeg}°` });
+      }
+      return ok('terrain', `Field: ${head}${tail}`.slice(0, 400), out, { kind: 'show', title: `Field ${analysis === 'cutfill' ? 'cut / fill' : analysis}`, items });
+    } catch (e) { return failed(e); }
+  }
+
+  if (op === 'coverage') {
+    const at = await placeOf(site, a.near ?? a.at ?? a.place);
+    if (!at) return fail('terrain', 'Coverage needs near: a place or coordinates');
+    try {
+      const text = await t.coverage(at.lat, at.lng);
+      return ok('terrain', text ? `Lidar at ${at.lat.toFixed(4)}, ${at.lng.toFixed(4)}: ${text}` : `No USGS lidar flight covers ${at.lat.toFixed(4)}, ${at.lng.toFixed(4)}`);
+    } catch (e) { return failed(e); }
+  }
+
+  if (op === 'cutout') {
+    const pts: Point[] = Array.isArray(a.points) ? (a.points.map(point).filter(Boolean) as Point[]) : [];
+    let box: [number, number, number, number];
+    if (pts.length >= 2) {
+      box = [Math.min(...pts.map(p => p.lng)), Math.min(...pts.map(p => p.lat)), Math.max(...pts.map(p => p.lng)), Math.max(...pts.map(p => p.lat))];
+    } else {
+      const at = await placeOf(site, a.near ?? a.at ?? a.place);
+      if (!at) return fail('terrain', 'A cut-out needs near (a place or coordinates) with size_m, or two or more corner points');
+      const ring = squareRing(at, numIn(a.size_m ?? a.size, 100, 50_000) ?? 2000);
+      box = [ring[0][0], ring[0][1], ring[2][0], ring[2][1]];
+    }
+    const c = t.cutout(box);
+    if (c.error) return fail('terrain', c.error);
+    site.flyTo((box[1] + box[3]) / 2, (box[0] + box[2]) / 2, 13);
+    return ok('terrain', `Cut-out ${c.label} ${c.opened ? 'opened in a new tab' : 'ready; the browser held the tab back, so the reader opens it from the Terrain panel'}: ${c.path}`, c);
+  }
+
+  if (op === 'rain3d') return t.rain3d() ? ok('terrain', 'Opened the field in 3D and started a 2 in/hr, one-hour storm') : fail('terrain', 'Analyse a field first (terrain do: field)');
+  if (op === 'clear') { t.clear(); return ok('terrain', 'Cleared the field, profile and relief'); }
+  return fail('terrain', 'do is one of relief, profile, field, coverage, rain3d, cutout, clear');
 }

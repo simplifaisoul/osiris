@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Pentagon, Ruler, Trash2, Download, Copy, Check, Clock , Square, Circle, Spline} from 'lucide-react';
+import { Pentagon, Ruler, Trash2, Download, Copy, Check, Clock , Square, Circle, Spline, Scissors, ExternalLink} from 'lucide-react';
 import type { DrawMode, DrawProgress, DrawnShape } from '@/lib/draw';
 import { formatArea, formatDistance } from '@/lib/geo';
 import { selectInPolygon, MAX_ITEMS_PER_GROUP } from '@/lib/aoi';
 import { formatAgo as watchAgo, type WatchEvent } from '@/lib/watch';
 import { contentsToCSV, contentsToGeoJSON, downloadFile } from '@/lib/aoi-export';
+import { boxAround, type LngLatBox } from '@/lib/cutout';
 import { FileDown, Table } from 'lucide-react';
 import { Radar, LogIn, LogOut } from 'lucide-react';
 
@@ -31,6 +32,20 @@ interface DrawingToolbarProps {
   watched?: Set<string>;
   onToggleWatch?: (id: string) => void;
   watchEvents?: WatchEvent[];
+  /** The next box drawn opens as a cut-out: its own tab, in 3D, with the cameras and network hosts inside. */
+  cutoutArmed?: boolean;
+  onArmCutout?: (on: boolean) => void;
+  /** Open a box of the map as a cut-out. */
+  onCutOut?: (box: LngLatBox) => void;
+  /** What happened to the last cut-out: opened, held back by the browser, or too big. */
+  cutoutNote?: { text: string; path?: string; error?: boolean } | null;
+}
+
+/** The box around any drawn shape, area or path. */
+function shapeBox(shape: DrawnShape): LngLatBox {
+  const g = shape.geojson.geometry;
+  const coords = (g.type === 'Polygon' ? g.coordinates[0] : g.coordinates) as [number, number][];
+  return boxAround(coords);
 }
 
 /** Calculate area of a GeoJSON polygon in km² using the Shoelace formula on a spheroid */
@@ -109,7 +124,7 @@ export default function DrawingToolbar({
   drawMode, onSetDrawMode, progress, polygons, onDeletePolygon,
   onClearAll, onExportGeoJSON, selectedPolygon, onSelectPolygon,
   data, onLocateEntity, watched, onToggleWatch, watchEvents = [],
-  onRenamePolygon,
+  onRenamePolygon, cutoutArmed = false, onArmCutout, onCutOut, cutoutNote,
 }: DrawingToolbarProps) {
   const [editingName, setEditingName] = useState<string | null>(null);
   const [nameValue, setNameValue] = useState('');
@@ -197,7 +212,7 @@ export default function DrawingToolbar({
           </p>
           <div className="grid grid-cols-2 gap-1.5">
             {MODES.map(m => {
-              const on = drawMode === m.id;
+              const on = drawMode === m.id && !cutoutArmed;
               return (
                 <button
                   key={m.id}
@@ -223,6 +238,33 @@ export default function DrawingToolbar({
               );
             })}
           </div>
+          {onArmCutout && (
+            <button
+              onClick={() => onArmCutout(!cutoutArmed)}
+              aria-pressed={cutoutArmed}
+              className={`mt-1.5 w-full flex items-start gap-2 p-2 rounded border text-left transition-all ${
+                cutoutArmed
+                  ? 'border-[var(--gold-primary)]/60 bg-[var(--gold-primary)]/15'
+                  : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.07]'
+              }`}
+            >
+              <Scissors className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${cutoutArmed ? 'text-[var(--gold-primary)]' : 'text-white/60'}`} />
+              <span className="min-w-0">
+                <span className={`block text-[11px] font-mono tracking-wider ${cutoutArmed ? 'text-[var(--gold-primary)]' : 'text-white/80'}`}>CUT OUT</span>
+                <span className="block text-[10px] font-mono text-white/40 leading-tight mt-0.5">
+                  Draw a box and open it in 3D in a new tab, with its cameras and network hosts
+                </span>
+              </span>
+            </button>
+          )}
+          {cutoutNote && !cutoutArmed && (
+            <p className={`mt-1.5 px-1 text-[10px] font-mono leading-relaxed ${cutoutNote.error ? 'text-[#FF3D57]' : 'text-[var(--gold-primary)]/90'}`}>
+              {cutoutNote.text}
+              {cutoutNote.path && (
+                <> <a href={cutoutNote.path} target="_blank" rel="noopener" className="underline underline-offset-2 hover:text-white">Open it</a></>
+              )}
+            </p>
+          )}
 
           {/* Live figures while drawing. Measuring only on completion is what
               makes a tool feel like a form; this makes it feel like a ruler. */}
@@ -332,6 +374,11 @@ export default function DrawingToolbar({
                           <Radar className={`w-3 h-3 ${watched?.has(polygon.id) ? 'animate-pulse' : ''}`} />
                         </button>
                       )}
+                      {onCutOut && (
+                        <button onClick={(e) => { e.stopPropagation(); onCutOut(shapeBox(polygon)); }} className="p-1.5 rounded bg-white/5 hover:bg-[var(--gold-primary)]/20 text-white/50 hover:text-[var(--gold-primary)] transition" title="Cut out: open this area in 3D in a new tab">
+                          <Scissors className="w-3 h-3" />
+                        </button>
+                      )}
                       <button onClick={(e) => { e.stopPropagation(); handleCopy(polygon); }} className="p-1.5 rounded bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition" title="Copy GeoJSON">
                         {copied === polygon.id ? <Check className="w-3 h-3 text-[var(--alert-green)]" /> : <Copy className="w-3 h-3" />}
                       </button>
@@ -369,6 +416,14 @@ export default function DrawingToolbar({
                         </div>
                         {report.total === 0 && (
                           <p className="text-[10px] font-mono text-white/30 pb-1">Nothing tracked inside this area.</p>
+                        )}
+                        {onCutOut && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onCutOut(shapeBox(polygon)); }}
+                            className="w-full mb-2 flex items-center justify-center gap-1.5 py-1.5 rounded text-[10px] font-mono tracking-[0.18em] border border-[var(--gold-primary)]/40 bg-[var(--gold-primary)]/10 text-[var(--gold-primary)] hover:bg-[var(--gold-primary)]/20 transition"
+                          >
+                            <Scissors className="w-3 h-3" /> CUT OUT IN 3D <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+                          </button>
                         )}
                         {report.groups.map(g => (
                           <div key={g.key} className="mb-1.5">

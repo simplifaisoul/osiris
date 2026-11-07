@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { entitiesOf, find, frame, km, loaded } from './catalog';
 import { parseStep, sanitizeContext, sanitizeMessages, systemPrompt, transcript, userPrompt, type AssistMessage, type Step } from './protocol';
-import { findLayer, quotesOf, runCall, zoomFor, type Highlight, type Site } from './tools';
+import { findLayer, quotesOf, runCall, zoomFor, type Highlight, type Site, type TerrainBridge } from './tools';
 import { converse } from './agent';
 import { demoAssist, placeIn } from './demo';
 import { assistStep } from './server';
@@ -336,5 +336,81 @@ describe('driving the workspace', () => {
     expect(ask('Close full screen').actions).toEqual([{ tool: 'workspace', args: { open: false } }]);
     expect(ask('Show me the timeline').actions).toEqual([{ tool: 'workspace', args: { open: true, view: 'timeline' } }]);
     expect(ask('Open Mara Ellison').actions).toEqual([{ tool: 'select', args: { name: 'Mara Ellison' } }]);
+  });
+});
+
+describe('terrain: the ArcGIS panel lidar tools', () => {
+  function terrainSite() {
+    const got = { field: [] as unknown[][], profile: [] as unknown[], relief: [] as unknown[], cutout: [] as unknown[] };
+    const terrain: TerrainBridge = {
+      relief: o => { got.relief.push(o); return o.off ? 'Lidar relief off' : `Lidar relief on: ${o.mode ?? 'hillshade'}`; },
+      profile: async line => { got.profile.push(line); return { lengthMi: 1.2, startFt: 240, endFt: 236.5, lowFt: 235, highFt: 241, climbFt: 3.1, dropFt: 6.6, gradePct: -0.05 }; },
+      field: async (ring, analysis, ratio) => {
+        got.field.push([ring, analysis, ratio]);
+        return { acres: 82.1, lowFt: 233.7, highFt: 240, reliefFt: 6.3, lidar: 'Flown Jan 2014 · QL 2', drainage: analysis === 'drainage' ? { outlets: [{ acres: 70.5, lat: 35.86, lng: -90.16 }], standingWaterAcres: 0.6, standingWaterYd3: 192 } : undefined };
+      },
+      coverage: async lat => (lat > 30 ? 'Flown Jan 2014 · QL 2, project AR_X' : null),
+      rain3d: () => true,
+      cutout: box => { got.cutout.push(box); return { path: `/cutout?bbox=${box.join(',')}`, label: '2.0 × 2.0 km', opened: true }; },
+      clear: () => {},
+    };
+    return { ...fakeSite({ terrain }), got };
+  }
+
+  it('outlines a square around a place and reports the drainage', async () => {
+    const { site, calls, got } = terrainSite();
+    const out = await runCall({ tool: 'terrain', args: { do: 'field', near: { lat: 35.862, lng: -90.163 }, size_m: 400, analysis: 'drainage' } }, site);
+    expect(out.result.ok).toBe(true);
+    expect(out.result.summary).toContain('82.1 ac');
+    expect(out.result.summary).toContain('1 outlet(s) (70.5 ac)');
+    const [ring, analysis] = got.field[0] as [[number, number][], string];
+    expect(analysis).toBe('drainage');
+    expect(ring).toHaveLength(5);
+    expect(ring[0]).toEqual(ring[4]);
+    // The ring spans 400 m east-west.
+    expect((ring[1][0] - ring[0][0]) * 111_320 * Math.cos(35.862 * Math.PI / 180)).toBeCloseTo(400, 0);
+    expect(calls.view).toContainEqual({ style: 'satellite' });
+    expect(out.card?.items.some(i => i.label === 'Outlet 1')).toBe(true);
+  });
+
+  it('cuts out a box around a place and gives back its link', async () => {
+    const { site, got } = terrainSite();
+    const out = await runCall({ tool: 'terrain', args: { do: 'cutout', near: { lat: 35.862, lng: -90.163 }, size_m: 2000 } }, site);
+    expect(out.result.ok).toBe(true);
+    expect(out.result.summary).toContain('/cutout?bbox=');
+    const [w, s, e, n] = got.cutout[0] as number[];
+    expect(w).toBeLessThan(-90.163);
+    expect(e).toBeGreaterThan(-90.163);
+    expect((n - s) * 111_320).toBeCloseTo(2000, -1);
+  });
+
+  it('profiles between two named places', async () => {
+    const { site, got } = terrainSite();
+    const out = await runCall({ tool: 'terrain', args: { do: 'profile', from: 'Tokyo', to: { lat: 35.7, lng: 139.8 } } }, site);
+    expect(out.result.ok).toBe(true);
+    expect(got.profile[0]).toEqual([[139.69, 35.68], [139.8, 35.7]]);
+    expect(out.result.summary).toMatch(/grade -0.05%/);
+  });
+
+  it('refuses what it cannot do, in words the model can act on', async () => {
+    const { site } = terrainSite();
+    expect((await runCall({ tool: 'terrain', args: { do: 'field' } }, site)).result.ok).toBe(false);
+    expect((await runCall({ tool: 'terrain', args: { do: 'profile', from: 'Nowhere' } }, site)).result.summary).toMatch(/from and to/);
+    expect((await runCall({ tool: 'terrain', args: { do: 'dig' } }, site)).result.summary).toMatch(/relief, profile, field/);
+    const bare = fakeSite();
+    expect((await runCall({ tool: 'terrain', args: { do: 'relief' } }, bare.site)).result.ok).toBe(false);
+  });
+
+  it('switches relief and reads coverage', async () => {
+    const { site, got } = terrainSite();
+    expect((await runCall({ tool: 'terrain', args: { do: 'relief', mode: 'slope', opacity: 0.6 } }, site)).result.summary).toBe('Lidar relief on: slope');
+    expect(got.relief[0]).toEqual({ mode: 'slope', opacity: 0.6, off: false });
+    expect((await runCall({ tool: 'terrain', args: { do: 'coverage', near: 'Frankfurt' } }, site)).result.summary).toContain('QL 2');
+  });
+
+  it('is a tool the model may call', () => {
+    expect(parseStep('{"say":"Reading the ground.","actions":[{"tool":"terrain","args":{"do":"field","near":"Blytheville","analysis":"drainage"}}],"done":false}').calls)
+      .toEqual([{ tool: 'terrain', args: { do: 'field', near: 'Blytheville', analysis: 'drainage' } }]);
+    expect(systemPrompt()).toContain('terrain {do:');
   });
 });

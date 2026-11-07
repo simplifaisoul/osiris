@@ -318,4 +318,5 @@ export const PANELS: Record<string, string> = {
   directions: 'driving directions',
   forecast: 'the OI forecast panel (the prediction engine)',
   workspace: 'the full-screen OI workspace for the current forecast',
+  terrain: 'the ArcGIS panel on its terrain tab: lidar relief, elevation profile, field drainage and cut/fill',
 };

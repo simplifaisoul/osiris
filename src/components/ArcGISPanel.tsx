@@ -22,7 +22,10 @@ import {
   SlidersHorizontal,
   ChevronDown,
   ChevronUp,
+  Mountain,
 } from 'lucide-react';
+import LidarPanel from '@/components/lidar/LidarPanel';
+import { useLidar, setTab } from '@/lib/lidar/store';
 
 /* ═══════════════════════════════════════════════════════════════
    ArcGIS Search & Import Panel — OSIRIS OSINT Dashboard
@@ -56,6 +59,10 @@ export interface ArcGISPanelProps {
   onUpdateLayer: (id: string, updates: Partial<{ color: string; visible: boolean; opacity: number }>) => void;
   importedLayers: ImportedLayer[];
   mapBounds?: { west: number; south: number; east: number; north: number } | null;
+  /** Switch the basemap to satellite imagery — the terrain tools work over it. */
+  onSatellite?: () => void;
+  /** Move the map, for the terrain tools' example field. */
+  onFlyTo?: (lat: number, lng: number, zoom: number) => void;
 }
 
 const CATEGORIES = [
@@ -94,7 +101,12 @@ export default function ArcGISPanel({
   onUpdateLayer,
   importedLayers,
   mapBounds,
+  onSatellite,
+  onFlyTo,
 }: ArcGISPanelProps) {
+  // Kept in the terrain store, so the panel reopens where the work is — and OI
+  // can send the reader to it.
+  const { tab } = useLidar();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ArcGISResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -188,8 +200,35 @@ export default function ArcGISPanel({
 
   const totalFeatures = Object.values(featureCounts).reduce((a, b) => a + b, 0);
 
+  const tabs = (
+    <div className="grid grid-cols-2 gap-1 rounded-lg border border-white/10 bg-black/40 p-0.5 shrink-0" role="tablist">
+      {([['layers', 'Intel layers', Database], ['terrain', 'Terrain · Lidar', Mountain]] as const).map(([id, text, Icon]) => (
+        <button
+          key={id}
+          role="tab"
+          aria-selected={tab === id}
+          onClick={() => setTab(id)}
+          className={`flex items-center justify-center gap-1.5 rounded-md py-1.5 text-[9px] font-mono font-bold uppercase tracking-[0.16em] transition-colors ${tab === id ? 'bg-[#D4AF37]/20 text-[#D4AF37]' : 'text-white/55 hover:text-white'}`}
+        >
+          <Icon className="w-3 h-3" />
+          {text}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (tab === 'terrain') {
+    return (
+      <div className="flex flex-col gap-3 h-full">
+        {tabs}
+        <LidarPanel mapBounds={mapBounds} onSatellite={onSatellite} onFlyTo={onFlyTo} />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-3 h-full">
+      {tabs}
       {/* ── Prominent Stats Header ───────────────────────────────── */}
       <div className="flex items-center justify-between bg-[#D4AF37]/10 border border-[#D4AF37]/30 rounded-lg p-2.5">
         <div className="flex items-center gap-2">

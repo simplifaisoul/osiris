@@ -3,6 +3,7 @@ import { stealthFetch } from '@/lib/stealthFetch';
 import { cachedSource, isStale, peekSource, seedSource } from '@/lib/sourceCache';
 import { buildPayload, clearPayload, getPayload, readSnapshot, writeSnapshot, type Payload, type RegionCameras } from '@/lib/cctv-snapshot';
 import { createPool } from '@/lib/fetch-pool';
+import { inBox, parseBox } from '@/lib/cutout';
 
 export const maxDuration = 60;
 import { fetchAsfinagCameras } from './asfinag';
@@ -937,6 +938,31 @@ export async function GET(request: Request) {
     const lat = parseFloat(searchParams.get('lat') || '0');
     const lng = parseFloat(searchParams.get('lng') || '0');
     const radius = parseFloat(searchParams.get('radius') || '10');
+
+    /* A cut-out asks for the cameras standing in its box. They are read from
+       the whole catalogue, since a box can straddle regions, and only the
+       ones inside go back: a few dozen rows rather than the world. */
+    if (searchParams.has('bbox')) {
+      const box = parseBox(searchParams.get('bbox'));
+      if (!box) return NextResponse.json({ cameras: [], total: 0, error: 'bbox is west,south,east,north in degrees' }, { status: 400 });
+      const collected = await collectRegions(ALL_REGIONS());
+      const seen = new Set<string>();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cameras: any[] = [];
+      for (const list of Object.values(collected.cameras)) {
+        for (const cam of list) {
+          if (typeof cam?.lat !== 'number' || typeof cam?.lng !== 'number' || !inBox(cam.lng, cam.lat, box)) continue;
+          const id = String(cam.id);
+          if (seen.has(id)) continue;
+          seen.add(id);
+          cameras.push(cam);
+        }
+      }
+      return NextResponse.json(
+        { cameras, total: cameras.length, pendingRegions: collected.pending, timestamp: new Date().toISOString() },
+        { headers: { 'Cache-Control': collected.pending.length ? 'no-store, max-age=0' : 'public, max-age=60, stale-while-revalidate=300' } },
+      );
+    }
 
     let regionsToFetch: string[];
 
