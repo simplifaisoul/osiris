@@ -17,6 +17,7 @@ import {
 } from './cutfill';
 import { contourSegments, smoothMasked } from './contours';
 import { cachedElevationAt, reliefTileUrl, viewRange, type ReliefMode } from './relief-tiles';
+import { boxAround, boxProblem, cutoutPath, describeBox, openCutoutTab, type LngLatBox } from '@/lib/cutout';
 
 /**
  * State for the ArcGIS panel's terrain tools: map-wide lidar relief, the
@@ -84,7 +85,19 @@ export interface ReliefState {
   fitting: 'loading' | 'failed' | null;
 }
 
-export type DrawPurpose = 'field' | 'profile' | 'split';
+export type DrawPurpose = 'field' | 'profile' | 'split' | 'cutout';
+
+/** A box lifted out of the map onto its own page (see /cutout). */
+export interface CutoutState {
+  box: LngLatBox;
+  /** "2.4 × 1.6 km" */
+  label: string;
+  /** The page's address, or '' when the box cannot be cut out. */
+  path: string;
+  /** Whether the browser let us open the tab; a blocked pop-up leaves the button. */
+  opened: boolean;
+  error?: string;
+}
 
 export interface LidarState {
   /** Which tab the ArcGIS panel shows; terrain work switches it to terrain. */
@@ -94,6 +107,7 @@ export interface LidarState {
   drawing: DrawPurpose | null;
   profile: ProfileState | null;
   field: FieldState | null;
+  cutout: CutoutState | null;
   view3d: boolean;
   overlay: LidarMapOverlay;
 }
@@ -116,6 +130,7 @@ let state: LidarState = {
   drawing: null,
   profile: null,
   field: null,
+  cutout: null,
   view3d: false,
   overlay: { relief: null, image: null, field: EMPTY, profile: EMPTY },
 };
@@ -227,7 +242,26 @@ export function completeDraw(result: DrawResult) {
   if (purpose === 'field') void loadField(coords);
   else if (purpose === 'profile') void loadProfile(coords);
   else if (purpose === 'split') addSplit(coords);
+  else if (purpose === 'cutout') makeCutout(boxAround(coords));
 }
+
+/* ───────────────────────────── Cut-out ───────────────────────────── */
+
+/** Lift a box out of the map into its own tab; `open` false only records it. */
+export function makeCutout(box: LngLatBox, open = true): CutoutState {
+  const label = describeBox(box);
+  const error = boxProblem(box);
+  const cutout: CutoutState = error
+    ? { box, label, path: '', opened: false, error }
+    : { box, label, path: cutoutPath(box), opened: open && openCutoutTab(box) };
+  set({ cutout, tab: 'terrain' });
+  return cutout;
+}
+export function reopenCutout() {
+  const c = state.cutout;
+  if (c?.path) set({ cutout: { ...c, opened: openCutoutTab(c.box) } });
+}
+export function clearCutout() { if (state.cutout) set({ cutout: null }); }
 
 /* ───────────────────────────── Profile ───────────────────────────── */
 
@@ -493,6 +527,10 @@ function buildOverlay(s: LidarState): LidarMapOverlay {
       if (img) image = { url: img, coordinates: gridCorners(f.grid), opacity: f.opacity };
       features.push(...fieldVectorFeatures(f));
     }
+  }
+  if (s.cutout && !s.cutout.error) {
+    const [w, so, e, n] = s.cutout.box;
+    features.push({ type: 'Feature', properties: { kind: 'cutout' }, geometry: { type: 'LineString', coordinates: [[w, so], [e, so], [e, n], [w, n], [w, so]] } });
   }
   const p = s.profile;
   if (p) {

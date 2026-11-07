@@ -20,6 +20,8 @@ import { formatArea, formatDistance } from '@/lib/geo';
 
 interface DrawHudProps {
   mode: DrawMode;
+  /** What the shape is for, when a tool armed it ("CUT OUT", "FIELD"); defaults to the shape's name. */
+  title?: string;
   progress: DrawProgress | null;
   onUndo: () => void;
   onFinish: () => void;
@@ -55,7 +57,7 @@ function step(mode: DrawMode, vertices: number): string {
   }
 }
 
-export default function DrawHud({ mode, progress, onUndo, onFinish, onCancel }: DrawHudProps) {
+export default function DrawHud({ mode, title, progress, onUndo, onFinish, onCancel }: DrawHudProps) {
   const vertices = progress?.vertices ?? 0;
   const canFinish = progress?.closable ?? false;
   // Two-click shapes complete themselves, so offering Finish would be a button
@@ -69,7 +71,7 @@ export default function DrawHud({ mode, progress, onUndo, onFinish, onCancel }: 
           <span className="flex items-center gap-2">
             <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--cyan-primary)]" />
             <span className="text-[11px] font-mono font-bold tracking-[0.2em] text-[var(--cyan-primary)]">
-              {TITLE[mode]}
+              {title ?? TITLE[mode]}
             </span>
           </span>
 

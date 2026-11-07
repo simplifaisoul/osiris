@@ -341,7 +341,7 @@ describe('driving the workspace', () => {
 
 describe('terrain: the ArcGIS panel lidar tools', () => {
   function terrainSite() {
-    const got = { field: [] as unknown[][], profile: [] as unknown[], relief: [] as unknown[] };
+    const got = { field: [] as unknown[][], profile: [] as unknown[], relief: [] as unknown[], cutout: [] as unknown[] };
     const terrain: TerrainBridge = {
       relief: o => { got.relief.push(o); return o.off ? 'Lidar relief off' : `Lidar relief on: ${o.mode ?? 'hillshade'}`; },
       profile: async line => { got.profile.push(line); return { lengthMi: 1.2, startFt: 240, endFt: 236.5, lowFt: 235, highFt: 241, climbFt: 3.1, dropFt: 6.6, gradePct: -0.05 }; },
@@ -351,6 +351,7 @@ describe('terrain: the ArcGIS panel lidar tools', () => {
       },
       coverage: async lat => (lat > 30 ? 'Flown Jan 2014 · QL 2, project AR_X' : null),
       rain3d: () => true,
+      cutout: box => { got.cutout.push(box); return { path: `/cutout?bbox=${box.join(',')}`, label: '2.0 × 2.0 km', opened: true }; },
       clear: () => {},
     };
     return { ...fakeSite({ terrain }), got };
@@ -370,6 +371,17 @@ describe('terrain: the ArcGIS panel lidar tools', () => {
     expect((ring[1][0] - ring[0][0]) * 111_320 * Math.cos(35.862 * Math.PI / 180)).toBeCloseTo(400, 0);
     expect(calls.view).toContainEqual({ style: 'satellite' });
     expect(out.card?.items.some(i => i.label === 'Outlet 1')).toBe(true);
+  });
+
+  it('cuts out a box around a place and gives back its link', async () => {
+    const { site, got } = terrainSite();
+    const out = await runCall({ tool: 'terrain', args: { do: 'cutout', near: { lat: 35.862, lng: -90.163 }, size_m: 2000 } }, site);
+    expect(out.result.ok).toBe(true);
+    expect(out.result.summary).toContain('/cutout?bbox=');
+    const [w, s, e, n] = got.cutout[0] as number[];
+    expect(w).toBeLessThan(-90.163);
+    expect(e).toBeGreaterThan(-90.163);
+    expect((n - s) * 111_320).toBeCloseTo(2000, -1);
   });
 
   it('profiles between two named places', async () => {

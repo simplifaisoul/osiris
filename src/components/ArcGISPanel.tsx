@@ -61,6 +61,8 @@ export interface ArcGISPanelProps {
   mapBounds?: { west: number; south: number; east: number; north: number } | null;
   /** Switch the basemap to satellite imagery — the terrain tools work over it. */
   onSatellite?: () => void;
+  /** Move the map, for the terrain tools' example field. */
+  onFlyTo?: (lat: number, lng: number, zoom: number) => void;
 }
 
 const CATEGORIES = [
@@ -100,6 +102,7 @@ export default function ArcGISPanel({
   importedLayers,
   mapBounds,
   onSatellite,
+  onFlyTo,
 }: ArcGISPanelProps) {
   // Kept in the terrain store, so the panel reopens where the work is — and OI
   // can send the reader to it.
@@ -218,7 +221,7 @@ export default function ArcGISPanel({
     return (
       <div className="flex flex-col gap-3 h-full">
         {tabs}
-        <LidarPanel mapBounds={mapBounds} onSatellite={onSatellite} />
+        <LidarPanel mapBounds={mapBounds} onSatellite={onSatellite} onFlyTo={onFlyTo} />
       </div>
     );
   }

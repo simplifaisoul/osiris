@@ -17,7 +17,7 @@ const GOLD = '#FFD54A';
 
 const FIELD_LAYERS = [
   'lidar-field-contour-existing', 'lidar-field-contour-design', 'lidar-field-stream-casing', 'lidar-field-stream',
-  'lidar-field-split', 'lidar-field-outline', 'lidar-field-arrow', 'lidar-field-arrow-label',
+  'lidar-field-split', 'lidar-cutout', 'lidar-field-outline', 'lidar-field-arrow', 'lidar-field-arrow-label',
   'lidar-field-outlet', 'lidar-field-outlet-label', 'lidar-field-vertex', 'lidar-field-vertex-label',
 ];
 const PROFILE_LAYERS = ['lidar-profile-line', 'lidar-profile-cursor', 'lidar-profile-label'];
@@ -30,6 +30,7 @@ function addFieldLayers(map: MapLibreMap) {
   map.addLayer({ id: 'lidar-field-stream-casing', type: 'line', source: FIELD, filter: kind('stream'), layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#E8F3FF', 'line-opacity': 0.55, 'line-width': ['interpolate', ['linear'], ['get', 'ac'], 0.25, 2, 5, 3.5, 50, 6.5] } });
   map.addLayer({ id: 'lidar-field-stream', type: 'line', source: FIELD, filter: kind('stream'), layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#1554D6', 'line-width': ['interpolate', ['linear'], ['get', 'ac'], 0.25, 0.9, 5, 2, 50, 4.2] } });
   map.addLayer({ id: 'lidar-field-split', type: 'line', source: FIELD, filter: kind('split'), layout: { 'line-cap': 'round' }, paint: { 'line-color': '#FFFFFF', 'line-width': 2.2 } });
+  map.addLayer({ id: 'lidar-cutout', type: 'line', source: FIELD, filter: kind('cutout'), layout: { 'line-join': 'miter' }, paint: { 'line-color': GOLD, 'line-width': 2.5, 'line-dasharray': [3, 1.5] } });
   map.addLayer({ id: 'lidar-field-outline', type: 'line', source: FIELD, filter: kind('outline'), layout: { 'line-join': 'round' }, paint: { 'line-color': GOLD, 'line-width': 2, 'line-dasharray': [2.2, 1.6] } });
   map.addLayer({ id: 'lidar-field-arrow', type: 'line', source: FIELD, filter: kind('arrow'), layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['case', ['get', 'selected'], GOLD, '#FFFFFF'], 'line-width': 3 } });
   map.addLayer({ id: 'lidar-field-arrow-label', type: 'symbol', source: FIELD, filter: kind('arrow-label'), layout: { 'text-field': ['get', 'label'], 'text-font': FONT, 'text-size': 11, 'text-offset': [0, 1.6], 'text-allow-overlap': true }, paint: { 'text-color': '#000', 'text-halo-color': ['case', ['get', 'selected'], GOLD, '#FFFFFF'], 'text-halo-width': 3 } });

@@ -57,6 +57,8 @@ export interface TerrainBridge {
   field(ring: [number, number][], analysis: TerrainAnalysis, ratio?: number): Promise<object>;
   coverage(lat: number, lng: number): Promise<string | null>;
   rain3d(): boolean;
+  /** Lift a box (west, south, east, north) out of the map into its own 3D tab. */
+  cutout(box: [number, number, number, number]): { path: string; label: string; opened: boolean; error?: string };
   clear(): void;
 }
 
@@ -569,7 +571,24 @@ async function runTerrain(a: Record<string, unknown>, site: Site): Promise<Outco
     } catch (e) { return failed(e); }
   }
 
+  if (op === 'cutout') {
+    const pts: Point[] = Array.isArray(a.points) ? (a.points.map(point).filter(Boolean) as Point[]) : [];
+    let box: [number, number, number, number];
+    if (pts.length >= 2) {
+      box = [Math.min(...pts.map(p => p.lng)), Math.min(...pts.map(p => p.lat)), Math.max(...pts.map(p => p.lng)), Math.max(...pts.map(p => p.lat))];
+    } else {
+      const at = await placeOf(site, a.near ?? a.at ?? a.place);
+      if (!at) return fail('terrain', 'A cut-out needs near (a place or coordinates) with size_m, or two or more corner points');
+      const ring = squareRing(at, numIn(a.size_m ?? a.size, 100, 50_000) ?? 2000);
+      box = [ring[0][0], ring[0][1], ring[2][0], ring[2][1]];
+    }
+    const c = t.cutout(box);
+    if (c.error) return fail('terrain', c.error);
+    site.flyTo((box[1] + box[3]) / 2, (box[0] + box[2]) / 2, 13);
+    return ok('terrain', `Cut-out ${c.label} ${c.opened ? 'opened in a new tab' : 'ready; the browser held the tab back, so the reader opens it from the Terrain panel'}: ${c.path}`, c);
+  }
+
   if (op === 'rain3d') return t.rain3d() ? ok('terrain', 'Opened the field in 3D and started a 2 in/hr, one-hour storm') : fail('terrain', 'Analyse a field first (terrain do: field)');
   if (op === 'clear') { t.clear(); return ok('terrain', 'Cleared the field, profile and relief'); }
-  return fail('terrain', 'do is one of relief, profile, field, coverage, rain3d, clear');
+  return fail('terrain', 'do is one of relief, profile, field, coverage, rain3d, cutout, clear');
 }

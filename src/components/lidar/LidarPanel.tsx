@@ -1,21 +1,24 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Mountain, Spline, Hexagon, Droplets, Layers, Box, FileText, Download, Undo2, Loader2, X, Info, ChevronDown, ChevronRight, Scissors, Crosshair, RotateCw } from 'lucide-react';
+import { Mountain, Spline, Hexagon, Droplets, Layers, Box, FileText, Download, Undo2, Loader2, X, Info, ChevronDown, ChevronRight, Scissors, Crosshair, RotateCw, ExternalLink, Link2, Check as CheckIcon, MapPin } from 'lucide-react';
 import {
   useLidar, useCursorElevation, setRelief, setView, startDraw, cancelDraw, clearProfile, setProfileHover, clearField,
   setFieldMode, setFieldOpacity, setDetail, bestFit, setDesign, undoDesign, setRatio, selectSection, setContours,
   removeSplits, exportCsv, openReport, open3d, totals, ft, acres, yd3, CONTOUR_STEPS_FT, retryField, retryProfile, retryStretch,
-  type FieldState, type ProfileState, type Detail,
+  reopenCutout, clearCutout,
+  type FieldState, type ProfileState, type Detail, type DrawPurpose, type CutoutState,
 } from '@/lib/lidar/store';
-import { RELIEF_MODES, type ReliefMode } from '@/lib/lidar/relief-tiles';
+import { type ReliefMode } from '@/lib/lidar/relief-tiles';
 import { describeFlight } from '@/lib/lidar/usgs';
 import { ELEVATION_RAMP } from '@/lib/lidar/grid';
 
 /**
- * Terrain tab of the ArcGIS panel: USGS lidar relief across the map, an
- * elevation profile along any line, and a field workbench — elevation,
- * drainage and cut/fill for an area the operator outlines, with a 3D rain view.
+ * Terrain tab of the ArcGIS panel. The three things it does come first, each
+ * saying what it is for: an elevation profile along a line, a field workbench
+ * (elevation, drainage, cut/fill, rain in 3D), and a cut-out that lifts a box
+ * of the map into its own 3D tab with its cameras and network hosts. Lidar
+ * relief across the whole map sits below them.
  */
 
 const GOLD = '#D4AF37';
@@ -29,101 +32,91 @@ const input = 'w-full rounded-md border border-white/10 bg-black/60 px-2 py-1.5 
 const gradient = (stops: typeof ELEVATION_RAMP) => `linear-gradient(to right, ${stops.map(([t, r, g, b]) => `rgb(${r},${g},${b}) ${t * 100}%`).join(', ')})`;
 const fmt = (v: number, d = 0) => v.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
 
-export default function LidarPanel({ mapBounds, onSatellite }: {
+type Tool = Exclude<DrawPurpose, 'split'>;
+const TOOLS: { id: Tool; Icon: typeof Spline; name: string; blurb: string; hint: string }[] = [
+  { id: 'profile', Icon: Spline, name: 'Profile', blurb: 'Heights along a line you draw', hint: 'Click along the line on the map, then double-click to finish.' },
+  { id: 'field', Icon: Hexagon, name: 'Field', blurb: 'Drainage, cut / fill and rain in 3D', hint: 'Click the field corners on the map, then double-click the last one.' },
+  { id: 'cutout', Icon: Scissors, name: 'Cut out', blurb: 'A box of the map in its own 3D tab, with its cameras and network hosts', hint: 'Click one corner of the box on the map, then the opposite corner.' },
+];
+
+/** Short names, so every rendering is one click away. */
+const RELIEF_CHOICES: { id: ReliefMode | 'off'; label: string }[] = [
+  { id: 'off', label: 'Off' }, { id: 'hillshade', label: 'Shaded' }, { id: 'tinted', label: 'Color + shade' }, { id: 'color', label: 'Color' },
+  { id: 'slope', label: 'Slope' }, { id: 'contour2', label: '2 ft lines' }, { id: 'contour5', label: '5 ft lines' },
+];
+
+/** A farm field in Arkansas with good lidar: a known place to try the tools. */
+const EXAMPLE = { lat: 35.862, lng: -90.163, zoom: 15 };
+
+export default function LidarPanel({ mapBounds, onSatellite, onFlyTo }: {
   mapBounds?: { west: number; south: number; east: number; north: number } | null;
   onSatellite?: () => void;
+  onFlyTo?: (lat: number, lng: number, zoom: number) => void;
 }) {
   const s = useLidar();
-  const [shadows, setShadows] = useState(false);
   const [help, setHelp] = useState(false);
 
   useEffect(() => { setView(mapBounds ?? null); }, [mapBounds]);
 
-  const drawField = () => { onSatellite?.(); startDraw('field'); };
+  const toggleTool = (id: Tool) => {
+    if (s.drawing === id) { cancelDraw(); return; }
+    if (id !== 'profile') onSatellite?.();
+    startDraw(id);
+  };
+  const tryExample = () => {
+    onSatellite?.();
+    onFlyTo?.(EXAMPLE.lat, EXAMPLE.lng, EXAMPLE.zoom);
+    if (s.relief.opacity === 0) setRelief({ mode: 'hillshade', opacity: 0.75 });
+  };
+  const idle = !s.drawing && !s.profile && !s.field && !s.cutout;
+  const tool = TOOLS.find(t => t.id === s.drawing);
 
   return (
     <div className="flex flex-col gap-2.5">
       {/* Coverage under the map centre */}
       <div className="flex items-center gap-2 px-1">
-        <span className={`h-1.5 w-1.5 rounded-full ${s.coverage?.covered ? 'bg-[var(--alert-green)]' : 'bg-white/25'}`} />
-        <span className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-muted)] truncate">
+        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${s.coverage?.covered ? 'bg-[var(--alert-green)]' : 'bg-white/25'}`} />
+        <span className="truncate text-[9px] font-mono uppercase tracking-wider text-[var(--text-muted)]">
           {s.coverage?.text ?? 'USGS 3DEP lidar · move the map to check coverage'}
         </span>
       </div>
 
-      {/* Relief across the map */}
-      <div className={box}>
-        <div className="flex items-center justify-between">
-          <span className={label}><Mountain className="mr-1 inline h-2.5 w-2.5" />Rendering</span>
-          <span className="text-[10px] font-mono font-bold tabular-nums" style={{ color: s.relief.opacity > 0 ? GOLD : 'rgba(255,255,255,0.35)' }}>
-            {s.relief.opacity > 0 ? `${Math.round(s.relief.opacity * 100)}%` : 'OFF'}
-          </span>
-        </div>
-        <select
-          value={s.relief.mode}
-          onChange={e => setRelief({ mode: e.target.value as ReliefMode, opacity: s.relief.opacity || 0.75 })}
-          className={`${input} mt-1.5`}
-          aria-label="Lidar rendering"
-        >
-          {RELIEF_MODES.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-        </select>
-        {s.relief.opacity > 0 && (s.relief.mode === 'tinted' || s.relief.mode === 'color') && !s.relief.stretch && (
-          s.relief.fitting === 'failed'
-            ? <Failed text="USGS did not answer, so the colours could not be fitted to this view." onRetry={retryStretch} />
-            : <Busy text="Fitting colours to this view…" />
-        )}
-        <div className="mt-2 flex items-center gap-2">
-          <span className={label}>Lidar</span>
-          <input
-            type="range" min={0} max={100} value={Math.round(s.relief.opacity * 100)}
-            onChange={e => setRelief({ opacity: +e.target.value / 100 })}
-            className="h-1 flex-1 cursor-pointer appearance-none rounded-full"
-            style={{ background: `linear-gradient(to right, ${GOLD} ${s.relief.opacity * 100}%, rgba(255,255,255,0.1) ${s.relief.opacity * 100}%)`, accentColor: GOLD }}
-            aria-label="Lidar layer opacity"
-          />
-        </div>
-        <button onClick={() => setShadows(v => !v)} className="mt-2 flex w-full items-center gap-1 text-left">
-          {shadows ? <ChevronDown className="h-3 w-3 text-white/40" /> : <ChevronRight className="h-3 w-3 text-white/40" />}
-          <span className={label}>Relief &amp; shadows</span>
-        </button>
-        {shadows && (
-          <div className="mt-1.5 flex flex-col gap-1.5">
-            <Slider name="Sun azimuth" value={s.relief.az} min={0} max={360} unit="°" onChange={az => setRelief({ az })} />
-            <Slider name="Sun altitude" value={s.relief.alt} min={5} max={85} unit="°" onChange={alt => setRelief({ alt })} />
-            <Slider name="Exaggeration" value={s.relief.ex} min={1} max={30} unit="×" onChange={ex => setRelief({ ex })} />
-          </div>
-        )}
-        <CursorReadout />
-      </div>
-
-      {/* Tools */}
-      <div className="flex flex-col gap-1.5">
-        <span className={`${label} px-1`}>Tools</span>
-        <div className="grid grid-cols-2 gap-1.5">
-          <button
-            onClick={() => (s.drawing === 'profile' ? cancelDraw() : startDraw('profile'))}
-            className={s.drawing === 'profile' ? goldBtn : quietBtn}
-          >
-            <Spline className="h-3 w-3" /> Profile
+      {/* What it does, one click each */}
+      <div className="flex flex-col gap-1.5" role="group" aria-label="Terrain tools">
+        {TOOLS.map(t => {
+          const on = s.drawing === t.id;
+          return (
+            <button
+              key={t.id}
+              onClick={() => toggleTool(t.id)}
+              aria-pressed={on}
+              data-tool={t.id}
+              className={`flex items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left transition-colors ${on ? 'border-[#D4AF37]/60 bg-[#D4AF37]/15' : 'border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]'}`}
+            >
+              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border ${on ? 'border-[#D4AF37]/60 bg-[#D4AF37]/20 text-[#D4AF37]' : 'border-white/10 bg-black/40 text-white/75'}`}>
+                <t.Icon className="h-3.5 w-3.5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className={`block text-[11px] font-mono font-bold uppercase tracking-[0.18em] ${on ? 'text-[#D4AF37]' : 'text-white/90'}`}>{t.name}</span>
+                <span className="block text-[10px] font-mono leading-snug text-white/45">{t.blurb}</span>
+              </span>
+              {on && <span className="shrink-0 text-[9px] font-mono uppercase tracking-widest text-white/50">Cancel</span>}
+            </button>
+          );
+        })}
+        {tool && <p className="px-1 text-[10px] font-mono leading-relaxed text-[#D4AF37]/90">{tool.hint}</p>}
+        {idle && onFlyTo && (
+          <button onClick={tryExample} className="flex items-center gap-1.5 self-start px-1 text-[10px] font-mono text-white/55 hover:text-[#D4AF37]">
+            <MapPin className="h-3 w-3" />New here? Try it on an example field
           </button>
-          <button
-            onClick={() => (s.drawing === 'field' ? cancelDraw() : drawField())}
-            className={s.drawing === 'field' ? goldBtn : quietBtn}
-          >
-            <Hexagon className="h-3 w-3" /> Field area
-          </button>
-        </div>
-        {s.drawing && (
-          <p className="px-1 text-[10px] font-mono leading-relaxed text-[#D4AF37]/90">
-            {s.drawing === 'field' && 'Click the field corners on the map — double-click the last one.'}
-            {s.drawing === 'profile' && 'Click along the line to profile — double-click to finish.'}
-            {s.drawing === 'split' && 'Draw a split line across the area — double-click to finish.'}
-          </p>
         )}
       </div>
 
+      {s.cutout && <CutoutCard c={s.cutout} />}
       {s.profile && <ProfileCard p={s.profile} />}
       {s.field && <FieldCard f={s.field} drawing={s.drawing} />}
+
+      <ReliefSection />
 
       <button onClick={() => setHelp(v => !v)} className="flex items-center gap-1 px-1 text-left">
         <Info className="h-3 w-3 text-white/40" />
@@ -131,11 +124,113 @@ export default function LidarPanel({ mapBounds, onSatellite }: {
       </button>
       {help && (
         <div className="px-1 text-[10px] font-mono leading-relaxed text-[var(--text-muted)]">
-          <p>Elevation: USGS 3D Elevation Program — 1 m lidar where flown, raw heights, no key.</p>
+          <p>Elevation: USGS 3D Elevation Program — 1 m lidar where flown, raw heights, no key. Cut-outs outside the US use the open Terrain Tiles on AWS (about 30 m).</p>
           <p className="mt-1">Imagery: Esri World Imagery (Maxar, Earthstar Geographics) — the SAT basemap.</p>
           <p className="mt-1">Flight dates and quality level: USGS 3DEP Elevation Index.</p>
           <p className="mt-1">Drainage floods the field from its edge (Priority-Flood) to find flow paths, outlets and standing water. Cut/fill grades each section to a plane, balancing cut to fill at the ratio set.</p>
+          <p className="mt-1">A cut-out shows the CCTV cameras and the Network Intel C2 hosts inside its box. Hosts are placed by IP address, to about the city.</p>
         </div>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────── Map relief ─────────────── */
+
+function ReliefSection() {
+  const s = useLidar();
+  const [shadows, setShadows] = useState(false);
+  const on = s.relief.opacity > 0;
+  const current = on ? s.relief.mode : 'off';
+  return (
+    <div className={box}>
+      <div className="flex items-center justify-between">
+        <span className={label}><Mountain className="mr-1 inline h-2.5 w-2.5" />Lidar relief on the map</span>
+        <span className="text-[10px] font-mono font-bold tabular-nums" style={{ color: on ? GOLD : 'rgba(255,255,255,0.35)' }}>
+          {on ? `${Math.round(s.relief.opacity * 100)}%` : 'OFF'}
+        </span>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1" role="radiogroup" aria-label="Lidar rendering">
+        {RELIEF_CHOICES.map(c => {
+          const sel = current === c.id;
+          return (
+            <button
+              key={c.id}
+              role="radio"
+              aria-checked={sel}
+              data-mode={c.id}
+              onClick={() => (c.id === 'off' ? setRelief({ opacity: 0 }) : setRelief({ mode: c.id, opacity: s.relief.opacity || 0.75 }))}
+              className={`rounded-md border px-2 py-1 text-[9.5px] font-mono font-bold uppercase tracking-wider transition-colors ${sel ? 'border-[#D4AF37]/60 bg-[#D4AF37]/20 text-[#D4AF37]' : 'border-white/10 bg-black/30 text-white/60 hover:border-white/25 hover:text-white'}`}
+            >
+              {c.label}
+            </button>
+          );
+        })}
+      </div>
+      {on && (s.relief.mode === 'tinted' || s.relief.mode === 'color') && !s.relief.stretch && (
+        s.relief.fitting === 'failed'
+          ? <Failed text="USGS did not answer, so the colours could not be fitted to this view." onRetry={retryStretch} />
+          : <Busy text="Fitting colours to this view…" />
+      )}
+      {on && (
+        <>
+          <div className="mt-2 flex items-center gap-2">
+            <span className={label}>Opacity</span>
+            <input
+              type="range" min={5} max={100} value={Math.round(s.relief.opacity * 100)}
+              onChange={e => setRelief({ opacity: +e.target.value / 100 })}
+              className="h-1 flex-1 cursor-pointer appearance-none rounded-full"
+              style={{ background: `linear-gradient(to right, ${GOLD} ${s.relief.opacity * 100}%, rgba(255,255,255,0.1) ${s.relief.opacity * 100}%)`, accentColor: GOLD }}
+              aria-label="Lidar layer opacity"
+            />
+          </div>
+          <button onClick={() => setShadows(v => !v)} className="mt-2 flex w-full items-center gap-1 text-left">
+            {shadows ? <ChevronDown className="h-3 w-3 text-white/40" /> : <ChevronRight className="h-3 w-3 text-white/40" />}
+            <span className={label}>Sun &amp; height</span>
+          </button>
+          {shadows && (
+            <div className="mt-1.5 flex flex-col gap-1.5">
+              <Slider name="Sun azimuth" value={s.relief.az} min={0} max={360} unit="°" onChange={az => setRelief({ az })} />
+              <Slider name="Sun altitude" value={s.relief.alt} min={5} max={85} unit="°" onChange={alt => setRelief({ alt })} />
+              <Slider name="Exaggeration" value={s.relief.ex} min={1} max={30} unit="×" onChange={ex => setRelief({ ex })} />
+            </div>
+          )}
+        </>
+      )}
+      <CursorReadout />
+    </div>
+  );
+}
+
+/* ─────────────── Cut-out ─────────────── */
+
+function CutoutCard({ c }: { c: CutoutState }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(new URL(c.path, window.location.origin).href);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch { /* clipboard refused */ }
+  };
+  return (
+    <div className={box}>
+      <div className="flex items-center justify-between">
+        <span className={label}><Scissors className="mr-1 inline h-2.5 w-2.5" />Cut-out · {c.label}</span>
+        <button onClick={clearCutout} className="rounded p-0.5 text-white/40 hover:bg-white/10 hover:text-white" title="Clear cut-out"><X className="h-3 w-3" /></button>
+      </div>
+      {c.error ? (
+        <p className="mt-2 text-[10px] font-mono leading-relaxed text-red-400">{c.error}</p>
+      ) : (
+        <>
+          <p className="mt-1.5 text-[10px] font-mono leading-relaxed text-white/60">
+            {c.opened ? 'Opened in a new tab: the box in 3D with its cameras and network hosts.' : 'Your browser held the new tab back. Open it here:'}
+          </p>
+          <div className="mt-2 flex gap-1.5">
+            <button onClick={reopenCutout} className={`${goldBtn} flex-1 py-2`}><ExternalLink className="h-3 w-3" />{c.opened ? 'Open again' : 'Open in new tab'}</button>
+            <button onClick={copy} className={quietBtn} title="Copy link">{copied ? <CheckIcon className="h-3 w-3 text-[var(--alert-green)]" /> : <Link2 className="h-3 w-3" />}</button>
+          </div>
+        </>
       )}
     </div>
   );

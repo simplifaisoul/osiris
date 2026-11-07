@@ -121,6 +121,26 @@ describe('CCTV partial responses', () => {
     expect(body.pendingRegions).toEqual(['uk']);
   });
 
+  /* A cut-out's page asks only for the cameras in its box, from the catalogue
+     the server already holds, and must not wait on regions that hang. */
+  it('answers a box with just the cameras inside it', async () => {
+    vi.mocked(stealthFetch).mockResolvedValue(Response.json([
+      { id: 'JamCams_1', lat: 51.5, lon: -0.1, commonName: 'London' },
+      { id: 'JamCams_2', lat: 53.8, lon: -1.55, commonName: 'Leeds' },
+    ]));
+    expect((await (await GET(new Request('http://localhost/api/cctv?region=uk'))).json()).total).toBe(2);
+
+    vi.mocked(stealthFetch).mockReturnValue(new Promise(() => {}));
+    const pending = GET(new Request('http://localhost/api/cctv?bbox=-0.2,51.4,0,51.6'));
+    await flushIO();
+    await vi.advanceTimersByTimeAsync(2_000);
+    const body = await (await pending).json();
+    expect(body.cameras.map((c: { id: string }) => c.id)).toEqual(['tfl-JamCams_1']);
+
+    const bad = await GET(new Request('http://localhost/api/cctv?bbox=1,2,3'));
+    expect(bad.status).toBe(400);
+  });
+
   it('allows a bounded retry for an empty/failed provider response', async () => {
     vi.mocked(stealthFetch).mockResolvedValue(new Response('', { status: 503 }));
     const response = await GET(new Request('http://localhost/api/cctv?region=uk'));
