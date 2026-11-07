@@ -42,6 +42,7 @@ describe('keys and models', () => {
   it('scrubs the key, and anything shaped like one', () => {
     expect(scrub(`bad key ${KEY} here`, KEY)).toBe('bad key [key] here');
     expect(scrub('leaked AIzaSyA1234567890abcdefghijklmn')).toBe('leaked [key]');
+    expect(scrub('leaked ci_live_0123456789abcdef')).toBe('leaked [key]');
   });
 
   it('lists the providers, the demo only outside production', () => {

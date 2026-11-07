@@ -512,7 +512,7 @@ docker compose up -d`}</Pre>
             </p>
             <div className="grid sm:grid-cols-2 gap-2.5">
               {[
-                { k: 'Your own key', v: 'OpenAI, Anthropic, Google Gemini, OpenRouter, Groq, DeepSeek, xAI, Mistral or Qwen. The key stays in your browser and travels in a header with your requests; the server uses it for your run and never stores or logs it.' },
+                { k: 'Your own key', v: 'OpenAI, Anthropic, Google Gemini, OpenRouter, Groq, DeepSeek, xAI, Mistral, Qwen or Cheaper Inference. The key stays in your browser and travels in a header with your requests; the server uses it for your run and never stores or logs it.' },
                 { k: 'Cost', v: 'Quick: 4 actors × 3 periods × 2 worlds, about 34 model calls. Standard: 6 × 4 × 3, about 88. Deep: 7 × 4 × 4, about 132. A world that settles early stops spending. Billed by your provider at its own rates.' },
                 { k: 'Sharing', v: 'Every run has a link, /?oi=<id>, that replays the whole analysis on the globe for anyone who opens it. Runs are kept for three hours after they finish.' },
                 { k: 'Steering', v: 'Whoever started a run holds its token: they alone can inject events into it or stop it. Anyone with a key can question the actors and the report agent.' },
