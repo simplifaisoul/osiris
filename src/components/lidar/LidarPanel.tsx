@@ -224,11 +224,20 @@ function CutoutCard({ c }: { c: CutoutState }) {
       ) : (
         <>
           <p className="mt-1.5 text-[10px] font-mono leading-relaxed text-white/60">
-            {c.opened ? 'Opened in a new tab: the box in 3D with its cameras and network hosts.' : 'Your browser held the new tab back. Open it here:'}
+            {c.opened ? 'Opened in a new tab: the box in 3D with its cameras, network hosts and water.' : 'Your browser held the new tab back. Open it here:'}
           </p>
           <div className="mt-2 flex gap-1.5">
-            <button onClick={reopenCutout} className={`${goldBtn} flex-1 py-2`}><ExternalLink className="h-3 w-3" />{c.opened ? 'Open again' : 'Open in new tab'}</button>
+            <button onClick={() => reopenCutout()} className={`${goldBtn} flex-1 py-2`}><ExternalLink className="h-3 w-3" />{c.opened ? 'Open again' : 'Open in new tab'}</button>
             <button onClick={copy} className={quietBtn} title="Copy link">{copied ? <CheckIcon className="h-3 w-3 text-[var(--alert-green)]" /> : <Link2 className="h-3 w-3" />}</button>
+          </div>
+          <div className="mt-2 flex items-center gap-1.5">
+            <span className="text-[9px] font-mono uppercase tracking-wider text-white/40">Open with</span>
+            {([['rain', 'Rain'], ['flow', 'Flow paths'], ['flood', 'Water level']] as const).map(([w, name]) => (
+              <button key={w} onClick={() => reopenCutout(w)} data-cutout-water={w}
+                className="flex-1 rounded border border-[#4FA3FF]/30 py-1 text-[9px] font-mono font-bold uppercase tracking-wider text-[#8CC4FF] hover:border-[#4FA3FF]/70 hover:bg-[#1554D6]/20">
+                {name}
+              </button>
+            ))}
           </div>
         </>
       )}

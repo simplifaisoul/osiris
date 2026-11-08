@@ -351,7 +351,7 @@ describe('terrain: the ArcGIS panel lidar tools', () => {
       },
       coverage: async lat => (lat > 30 ? 'Flown Jan 2014 · QL 2, project AR_X' : null),
       rain3d: () => true,
-      cutout: box => { got.cutout.push(box); return { path: `/cutout?bbox=${box.join(',')}`, label: '2.0 × 2.0 km', opened: true }; },
+      cutout: (box, water) => { got.cutout.push(box); return { path: `/cutout?bbox=${box.join(',')}${water ? `&water=${water}` : ''}`, label: '2.0 × 2.0 km', opened: true }; },
       clear: () => {},
     };
     return { ...fakeSite({ terrain }), got };
@@ -382,6 +382,15 @@ describe('terrain: the ArcGIS panel lidar tools', () => {
     expect(w).toBeLessThan(-90.163);
     expect(e).toBeGreaterThan(-90.163);
     expect((n - s) * 111_320).toBeCloseTo(2000, -1);
+  });
+
+  it('opens a cut-out with rain running when asked, and ignores water it does not know', async () => {
+    const { site } = terrainSite();
+    const rain = await runCall({ tool: 'terrain', args: { do: 'cutout', near: { lat: 35.862, lng: -90.163 }, water: 'rain' } }, site);
+    expect(rain.result.summary).toContain('&water=rain');
+    const odd = await runCall({ tool: 'terrain', args: { do: 'cutout', near: { lat: 35.862, lng: -90.163 }, water: 'lava' } }, site);
+    expect(odd.result.ok).toBe(true);
+    expect(odd.result.summary).not.toContain('water=');
   });
 
   it('profiles between two named places', async () => {

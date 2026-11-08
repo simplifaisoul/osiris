@@ -50,12 +50,15 @@ export function resetRainSim(s: RainSim): void {
   s.time = 0; s.rainedM = 0; s.ranOffM3 = 0;
 }
 
-/** Largest step the pipes stay stable at for the deepest water present. */
-export function stableStep(s: RainSim): number {
+/**
+ * Largest step the pipes stay stable at for the deepest water present, and
+ * no more than `maxStep` seconds (coarse grids over big areas can take more).
+ */
+export function stableStep(s: RainSim, maxStep = 2): number {
   let dmax = 0.001;
   const { water } = s;
   for (let i = 0; i < water.length; i++) if (water[i] > dmax) dmax = water[i];
-  return Math.min(2, 0.35 * s.l / Math.sqrt(G * dmax));
+  return Math.min(maxStep, 0.35 * s.l / Math.sqrt(G * dmax));
 }
 
 /** Advance `dt` seconds with rain falling at `rainMps` metres per second. */

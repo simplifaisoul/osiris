@@ -4,11 +4,15 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Camera, Network, Loader2, RotateCcw, Link2, Check, Eye, EyeOff, X, ExternalLink, Mountain, AlertTriangle } from 'lucide-react';
 import CameraViewer from '@/components/CameraViewer';
-import { describeBox, type LngLatBox } from '@/lib/cutout';
+import { cutoutPath, describeBox, type CutoutWater, type LngLatBox } from '@/lib/cutout';
 import { loadCutoutTerrain, type CutoutTerrain } from '@/lib/cutout-terrain';
-import { autoStretch, createCutoutScene, type CutoutScene, type Pin } from '@/lib/cutout-scene';
+import { autoStretch, createCutoutScene, type CutoutScene, type Hover, type Pin } from '@/lib/cutout-scene';
 import { loadCutoutCameras, loadCutoutHosts, type CutoutCamera, type NetHost } from '@/lib/cutout-data';
+import type { FlowSummary, RainSettings, WaterMode } from '@/lib/cutout-water';
+import type { FloodSummary, FlowDetail } from '@/lib/cutout-hydro';
+import type { RainStats } from '@/lib/lidar/rain';
 import { M_TO_FT } from '@/lib/lidar/usgs';
+import WaterPanel, { depthText } from './WaterPanel';
 
 /**
  * A cut-out on its own page: the box in 3D, and a list of the cameras and
@@ -23,7 +27,7 @@ type Load<T> = { status: 'loading' } | { status: 'ready'; value: T } | { status:
 
 const coord = (v: number, pos: string, neg: string) => `${Math.abs(v).toFixed(4)}° ${v >= 0 ? pos : neg}`;
 
-export default function CutoutView({ box, problem }: { box: LngLatBox | null; problem: string | null }) {
+export default function CutoutView({ box, problem, initialWater = null }: { box: LngLatBox | null; problem: string | null; initialWater?: CutoutWater | null }) {
   const host = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<CutoutScene | null>(null);
   const [terrain, setTerrain] = useState<Load<CutoutTerrain>>({ status: 'loading' });
@@ -38,6 +42,16 @@ export default function CutoutView({ box, problem }: { box: LngLatBox | null; pr
   /** Bumped when the 3D scene is up, so pins and settings are pushed into it. */
   const [sceneReady, setSceneReady] = useState(0);
   const [listTab, setListTab] = useState<'cctv' | 'net'>('cctv');
+  const [water, setWater] = useState<WaterMode>(initialWater ?? 'off');
+  const [rain, setRain] = useState<RainSettings>({ rainInHr: 1.5, stormMin: 60, speed: 'normal' });
+  const [running, setRunning] = useState(false);
+  const [rainStats, setRainStats] = useState<RainStats | null>(null);
+  const [detail, setDetail] = useState<FlowDetail>('more');
+  const [flow, setFlow] = useState<FlowSummary | null>(null);
+  const [rangeFt, setRangeFt] = useState<[number, number]>([0, 100]);
+  const [levelFt, setLevelFt] = useState(0);
+  const [flood, setFlood] = useState<FloodSummary | null>(null);
+  const [hover, setHover] = useState<Hover | null>(null);
 
   // Heights, cameras and hosts all load at once; the block goes up when the heights land.
   useEffect(() => {
@@ -71,15 +85,41 @@ export default function CutoutView({ box, problem }: { box: LngLatBox | null; pr
       stretch: stretchRef.current,
       onPick: id => { setSelected(id); setListTab(id.startsWith('cam-') ? 'cctv' : 'net'); },
       onImagery: ok => setImagery(ok ? 'ready' : 'failed'),
+      onRain: (st, on) => { setRainStats(st); setRunning(on); },
+      onHover: setHover,
     }).then(s => {
       if (disposed) { s.dispose(); return; }
       sceneRef.current = s;
+      // The water level runs from the lowest land to the highest, starting a little above the lowest.
+      const [lo, hi] = s.water.landRange();
+      const loFt = Math.floor(lo * M_TO_FT), hiFt = Math.max(loFt + 1, Math.ceil(hi * M_TO_FT));
+      setRangeFt([loFt, hiFt]);
+      setLevelFt(Math.round(loFt + Math.min(20, Math.max(3, (hiFt - loFt) * 0.05))));
       setSceneReady(v => v + 1);
     }, e => setSceneError(e instanceof Error ? e.message : '3D view did not start'));
     return () => { disposed = true; sceneRef.current?.dispose(); sceneRef.current = null; };
   }, [t]);
 
   useEffect(() => { sceneRef.current?.setStretch(stretch); }, [stretch, sceneReady]);
+
+  // Water: the mode and its settings are pushed into the scene as they change.
+  useEffect(() => { sceneRef.current?.water.setMode(water); }, [water, sceneReady]);
+  useEffect(() => { sceneRef.current?.water.setRain(rain); }, [rain, sceneReady]);
+  useEffect(() => {
+    if (water === 'flow' && sceneRef.current) setFlow(sceneRef.current.water.flow(detail));
+  }, [water, detail, sceneReady]);
+  useEffect(() => {
+    if (water === 'flood' && sceneRef.current) setFlood(sceneRef.current.water.flood(levelFt / M_TO_FT));
+  }, [water, levelFt, sceneReady]);
+  // A link that asks for rain opens with the storm already running.
+  const autoRain = useRef(initialWater === 'rain');
+  useEffect(() => {
+    if (sceneReady && autoRain.current) { autoRain.current = false; sceneRef.current?.water.play(true); }
+  }, [sceneReady]);
+  // The address carries the water mode, so a copied link opens the same view.
+  useEffect(() => {
+    if (box && !problem) window.history.replaceState(window.history.state, '', cutoutPath(box, water === 'off' ? null : water));
+  }, [box, problem, water]);
 
   const camList = useMemo(() => (cameras.status === 'ready' ? cameras.value : []), [cameras]);
   const hostList = useMemo(() => (hosts.status === 'ready' ? hosts.value : []), [hosts]);
@@ -96,10 +136,18 @@ export default function CutoutView({ box, problem }: { box: LngLatBox | null; pr
   useEffect(() => { sceneRef.current?.setSelected(selected); }, [selected, sceneReady]);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSelected(null); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelected(null);
+      // Space runs and pauses the storm, unless a control has the keyboard.
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (e.key === ' ' && water === 'rain' && tag !== 'INPUT' && tag !== 'BUTTON' && tag !== 'TEXTAREA') {
+        e.preventDefault();
+        sceneRef.current?.water.play(!running);
+      }
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [water, running]);
 
   const pick = (id: string) => { setSelected(id); sceneRef.current?.focus(id); };
   const copyLink = async () => {
@@ -179,8 +227,18 @@ export default function CutoutView({ box, problem }: { box: LngLatBox | null; pr
         </p>
       </aside>
 
-      {/* Bottom left: view controls */}
-      <div className="absolute bottom-4 left-4 flex items-center gap-3 rounded-lg border border-white/10 bg-black/85 px-3 py-2 backdrop-blur">
+      {/* Bottom left: water, then the view controls */}
+      <div className="styled-scrollbar absolute bottom-4 left-4 flex max-h-[calc(100vh-6rem)] flex-col items-start gap-2 overflow-y-auto">
+      {t && (
+        <WaterPanel
+          ready={sceneReady > 0} mode={water} onMode={setWater}
+          rain={rain} onRain={setRain} running={running}
+          onPlay={on => sceneRef.current?.water.play(on)} onReset={() => sceneRef.current?.water.resetRain()} stats={rainStats}
+          detail={detail} onDetail={setDetail} flow={flow}
+          levelFt={levelFt} rangeFt={rangeFt} onLevel={setLevelFt} flood={flood}
+        />
+      )}
+      <div className="flex items-center gap-3 rounded-lg border border-white/10 bg-black/85 px-3 py-2 backdrop-blur">
         <Mountain className="h-4 w-4 text-[#D4AF37]" />
         <label className="flex items-center gap-2">
           <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-white/50">Height</span>
@@ -194,6 +252,25 @@ export default function CutoutView({ box, problem }: { box: LngLatBox | null; pr
         </label>
         <button onClick={() => sceneRef.current?.resetView()} className="rounded-md p-1.5 text-white/70 hover:bg-white/10 hover:text-white" title="Reset view"><RotateCcw className="h-4 w-4" /></button>
       </div>
+      </div>
+
+      {/* Bottom centre: the ground under the pointer, or how to move around */}
+      {sceneReady > 0 && (
+        <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/10 bg-black/80 px-3.5 py-1.5 text-[10px] font-mono tabular-nums text-white/75 backdrop-blur">
+          {hover ? (
+            <>
+              <b className="text-white">{Math.round(hover.z * M_TO_FT).toLocaleString('en-US')} ft</b>
+              <span className="text-white/45"> ({Math.round(hover.z).toLocaleString('en-US')} m)</span>
+              {hover.water !== null && hover.water > 0.0005 && (
+                <> · <span style={{ color: '#4FA3FF' }}>{water === 'flood' ? 'under ' : water === 'flow' ? 'stands ' : 'water '}{depthText(hover.water)}</span></>
+              )}
+              <span className="text-white/45"> · {coord(hover.lat, 'N', 'S')}, {coord(hover.lng, 'E', 'W')}</span>
+            </>
+          ) : (
+            <span className="text-white/45">Drag to turn · right-drag to move · scroll to zoom</span>
+          )}
+        </div>
+      )}
 
       {selHost && <HostCard h={selHost} onClose={() => setSelected(null)} />}
 

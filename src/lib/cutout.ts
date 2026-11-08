@@ -65,17 +65,24 @@ export function inBox(lng: number, lat: number, b: LngLatBox): boolean {
   return lng >= b[0] && lng <= b[2] && lat >= b[1] && lat <= b[3];
 }
 
-export function cutoutPath(b: LngLatBox): string {
-  return `/cutout?bbox=${formatBox(b)}`;
+/** Water shown when a cut-out opens: a rain storm, the flow paths, or a water level. */
+export type CutoutWater = 'rain' | 'flow' | 'flood';
+const WATER: readonly CutoutWater[] = ['rain', 'flow', 'flood'];
+export function parseWater(v: unknown): CutoutWater | null {
+  return WATER.includes(v as CutoutWater) ? (v as CutoutWater) : null;
+}
+
+export function cutoutPath(b: LngLatBox, water?: CutoutWater | null): string {
+  return `/cutout?bbox=${formatBox(b)}${water ? `&water=${water}` : ''}`;
 }
 
 /**
  * Open a cut-out in a new tab. Called from the click that finished drawing it,
  * so the browser counts it as the user's own; false when a blocker refused.
  */
-export function openCutoutTab(b: LngLatBox): boolean {
+export function openCutoutTab(b: LngLatBox, water?: CutoutWater | null): boolean {
   if (typeof window === 'undefined') return false;
-  const tab = window.open(cutoutPath(b), '_blank');
+  const tab = window.open(cutoutPath(b, water), '_blank');
   if (!tab) return false;
   try { tab.opener = null; } catch { /* cross-origin already */ }
   return true;
