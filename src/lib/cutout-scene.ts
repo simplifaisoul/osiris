@@ -1,5 +1,8 @@
 import { boxFraction, heightAt, type CutoutTerrain } from './cutout-terrain';
 import { loadImagery } from './cutout-imagery';
+import { createWater, type WaterLayer } from './cutout-water';
+import { fromMerc } from './lidar/usgs';
+import type { RainStats } from './lidar/rain';
 
 /**
  * The cut-out in 3D: the piece of ground lifted out of the map as a solid
@@ -23,8 +26,12 @@ export interface CutoutScene {
   setSelected(id: string | null): void;
   focus(id: string): void;
   resetView(): void;
+  water: WaterLayer;
   dispose(): void;
 }
+
+/** What is under the pointer: the ground, and the water on it in the current water mode. */
+export interface Hover { lng: number; lat: number; z: number; water: number | null }
 
 const GOLD = '#D4AF37';
 const COLOR = { cctv: '#00E676', net: '#FF3B6B' } as const;
@@ -43,7 +50,13 @@ export function autoStretch(t: Pick<CutoutTerrain, 'widthM' | 'heightM' | 'minZ'
 export async function createCutoutScene(
   el: HTMLElement,
   t: CutoutTerrain,
-  opts: { stretch: number; onPick: (id: string) => void; onImagery?: (ok: boolean) => void },
+  opts: {
+    stretch: number;
+    onPick: (id: string) => void;
+    onImagery?: (ok: boolean) => void;
+    onRain?: (stats: RainStats, running: boolean) => void;
+    onHover?: (h: Hover | null) => void;
+  },
 ): Promise<CutoutScene> {
   const THREE = await import('three');
   const { OrbitControls } = await import('three/examples/jsm/controls/OrbitControls.js');
@@ -66,7 +79,8 @@ export async function createCutoutScene(
 
   const labels = new CSS2DRenderer();
   labels.setSize(el.clientWidth, el.clientHeight);
-  Object.assign(labels.domElement.style, { position: 'absolute', inset: '0', pointerEvents: 'none' });
+  // zIndex 0 keeps the pins' own stacking inside this layer, under the page's panels.
+  Object.assign(labels.domElement.style, { position: 'absolute', inset: '0', pointerEvents: 'none', zIndex: '0' });
   el.appendChild(labels.domElement);
   disposers.push(() => labels.domElement.remove());
 
@@ -229,6 +243,46 @@ export async function createCutoutScene(
   };
   redrawEdges();
 
+  const water = createWater({ THREE, scene, t, size, top, X, Y, Z, sides, onRain: opts.onRain });
+  disposers.push(() => water.dispose());
+
+  // The ground under the pointer, read once a frame at most.
+  const ray = new THREE.Raycaster();
+  const ndc = new THREE.Vector2();
+  let pointer: { x: number; y: number } | null = null;
+  let pointerDirty = false;
+  const canvas = renderer.domElement;
+  const onMove = (e: PointerEvent) => {
+    const b = canvas.getBoundingClientRect();
+    pointer = { x: ((e.clientX - b.left) / b.width) * 2 - 1, y: -((e.clientY - b.top) / b.height) * 2 + 1 };
+    pointerDirty = true;
+  };
+  const onLeave = () => { pointer = null; pointerDirty = true; };
+  canvas.addEventListener('pointermove', onMove);
+  canvas.addEventListener('pointerleave', onLeave);
+  disposers.push(() => { canvas.removeEventListener('pointermove', onMove); canvas.removeEventListener('pointerleave', onLeave); });
+  const groundAt = (c: number, r: number) => {
+    const c0 = Math.max(0, Math.min(W - 1, Math.floor(c))), r0 = Math.max(0, Math.min(H - 1, Math.floor(r)));
+    const c1 = Math.min(W - 1, c0 + 1), r1 = Math.min(H - 1, r0 + 1);
+    const ac = Math.max(0, Math.min(1, c - c0)), ar = Math.max(0, Math.min(1, r - r0));
+    const z = (cc: number, rr: number) => t.z[rr * W + cc];
+    return (z(c0, r0) * (1 - ac) + z(c1, r0) * ac) * (1 - ar) + (z(c0, r1) * (1 - ac) + z(c1, r1) * ac) * ar;
+  };
+  const readPointer = () => {
+    if (!opts.onHover) return;
+    if (!pointer) { opts.onHover(null); return; }
+    ndc.set(pointer.x, pointer.y);
+    ray.setFromCamera(ndc, camera);
+    const hit = ray.intersectObject(surface, false)[0];
+    if (!hit) { opts.onHover(null); return; }
+    const c = (hit.point.x / t.widthM + 0.5) * (W - 1), r = (hit.point.z / t.heightM + 0.5) * (H - 1);
+    const [lng, lat] = fromMerc(
+      t.merc[0] + ((c + 0.5) / W) * (t.merc[2] - t.merc[0]),
+      t.merc[3] - ((r + 0.5) / H) * (t.merc[3] - t.merc[1]),
+    );
+    opts.onHover({ lng, lat, z: groundAt(c, r), water: water.depthAt(c, r) });
+  };
+
   // Pins.
   type PinObj = { pin: Pin; group: import('three').Group; stem: import('three').Line; el: HTMLDivElement; ground: number };
   const pins = new Map<string, PinObj>();
@@ -333,8 +387,16 @@ export async function createCutoutScene(
   disposers.push(() => ro.disconnect());
 
   let raf = 0;
+  let last = performance.now();
+  let frames = 0;
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
+    const real = Math.min(0.1, (now - last) / 1000);
+    last = now;
+    water.frame(real);
+    // Water moves under a still pointer too, so read it again now and then.
+    if (pointer && ++frames % 15 === 0) pointerDirty = true;
+    if (pointerDirty) { pointerDirty = false; readPointer(); }
     if (tween) {
       const k = Math.min(1, (now - tween.t0) / tween.ms);
       const e = k < 0.5 ? 4 * k * k * k : 1 - (-2 * k + 2) ** 3 / 2;
@@ -358,6 +420,7 @@ export async function createCutoutScene(
       top.computeBoundingSphere();
       redrawEdges();
       pins.forEach(placePin);
+      water.restretch();
     },
     setPins,
     setSelected(id: string | null) {
@@ -375,6 +438,7 @@ export async function createCutoutScene(
       flyTo(target.clone().add(dir.multiplyScalar(size * 0.32)), target);
     },
     resetView() { flyTo(home.pos.clone(), home.target.clone()); },
+    water,
     dispose() {
       disposers.reverse().forEach(fn => { try { fn(); } catch { /* already gone */ } });
     },

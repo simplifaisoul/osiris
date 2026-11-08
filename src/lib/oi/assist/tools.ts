@@ -58,7 +58,7 @@ export interface TerrainBridge {
   coverage(lat: number, lng: number): Promise<string | null>;
   rain3d(): boolean;
   /** Lift a box (west, south, east, north) out of the map into its own 3D tab. */
-  cutout(box: [number, number, number, number]): { path: string; label: string; opened: boolean; error?: string };
+  cutout(box: [number, number, number, number], water?: 'rain' | 'flow' | 'flood' | null): { path: string; label: string; opened: boolean; error?: string };
   clear(): void;
 }
 
@@ -582,7 +582,8 @@ async function runTerrain(a: Record<string, unknown>, site: Site): Promise<Outco
       const ring = squareRing(at, numIn(a.size_m ?? a.size, 100, 50_000) ?? 2000);
       box = [ring[0][0], ring[0][1], ring[2][0], ring[2][1]];
     }
-    const c = t.cutout(box);
+    const water = a.water === 'rain' || a.water === 'flow' || a.water === 'flood' ? a.water : null;
+    const c = t.cutout(box, water);
     if (c.error) return fail('terrain', c.error);
     site.flyTo((box[1] + box[3]) / 2, (box[0] + box[2]) / 2, 13);
     return ok('terrain', `Cut-out ${c.label} ${c.opened ? 'opened in a new tab' : 'ready; the browser held the tab back, so the reader opens it from the Terrain panel'}: ${c.path}`, c);

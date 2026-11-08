@@ -17,7 +17,7 @@ import {
 } from './cutfill';
 import { contourSegments, smoothMasked } from './contours';
 import { cachedElevationAt, reliefTileUrl, viewRange, type ReliefMode } from './relief-tiles';
-import { boxAround, boxProblem, cutoutPath, describeBox, openCutoutTab, type LngLatBox } from '@/lib/cutout';
+import { boxAround, boxProblem, cutoutPath, describeBox, openCutoutTab, type CutoutWater, type LngLatBox } from '@/lib/cutout';
 
 /**
  * State for the ArcGIS panel's terrain tools: map-wide lidar relief, the
@@ -247,19 +247,22 @@ export function completeDraw(result: DrawResult) {
 
 /* ───────────────────────────── Cut-out ───────────────────────────── */
 
-/** Lift a box out of the map into its own tab; `open` false only records it. */
-export function makeCutout(box: LngLatBox, open = true): CutoutState {
+/**
+ * Lift a box out of the map into its own tab; `open` false only records it.
+ * `water` opens it with rain running, the flow paths, or a water level.
+ */
+export function makeCutout(box: LngLatBox, open = true, water: CutoutWater | null = null): CutoutState {
   const label = describeBox(box);
   const error = boxProblem(box);
   const cutout: CutoutState = error
     ? { box, label, path: '', opened: false, error }
-    : { box, label, path: cutoutPath(box), opened: open && openCutoutTab(box) };
+    : { box, label, path: cutoutPath(box, water), opened: open && openCutoutTab(box, water) };
   set({ cutout, tab: 'terrain' });
   return cutout;
 }
-export function reopenCutout() {
+export function reopenCutout(water: CutoutWater | null = null) {
   const c = state.cutout;
-  if (c?.path) set({ cutout: { ...c, opened: openCutoutTab(c.box) } });
+  if (c?.path) set({ cutout: { ...c, opened: openCutoutTab(c.box, water) } });
 }
 export function clearCutout() { if (state.cutout) set({ cutout: null }); }
 

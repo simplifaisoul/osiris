@@ -50,7 +50,7 @@ const DC = [1, 1, 0, -1, -1, -1, 0, 1];
 const DR = [0, 1, 1, 1, 0, -1, -1, -1];
 
 /** A binary min-heap of cell indices keyed by elevation, on typed arrays. */
-class CellHeap {
+export class CellHeap {
   private keys: Float64Array;
   private vals: Int32Array;
   size = 0;

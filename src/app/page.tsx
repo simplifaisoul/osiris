@@ -605,7 +605,7 @@ export default function Dashboard() {
     field: (ring, analysis, ratio) => analyseArea(ring, analysis, ratio),
     coverage: async (lat, lng) => { const f = await lidarFlightAt(lng, lat); return f ? `${describeFlight(f)}, project ${f.project}${f.gsdM ? `, ${f.gsdM} m DEM` : ''}` : null; },
     rain3d: () => { if (lidarStore.get().field?.status !== 'ready') return false; open3dWithRain(); return true; },
-    cutout: box => { const c = lidarMakeCutout(box); return { path: c.path, label: c.label, opened: c.opened, error: c.error }; },
+    cutout: (box, water) => { const c = lidarMakeCutout(box, true, water ?? null); return { path: c.path, label: c.label, opened: c.opened, error: c.error }; },
     clear: () => { clearLidarField(); clearLidarProfile(); setLidarRelief({ opacity: 0 }); },
   }), []);
   const assistSite = useMemo<Omit<Site, 'forecast'>>(() => ({

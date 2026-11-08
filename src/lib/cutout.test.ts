@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { boxAround, boxAt, boxProblem, boxSizeM, cutoutPath, describeBox, inBox, parseBox } from './cutout';
+import { boxAround, boxAt, boxProblem, boxSizeM, cutoutPath, describeBox, inBox, parseBox, parseWater } from './cutout';
 
 describe('cut-out boxes', () => {
   it('reads a box from the link and refuses anything else', () => {
@@ -12,6 +12,15 @@ describe('cut-out boxes', () => {
   it('round-trips through the link', () => {
     const b = boxAround([[-90.163, 35.862], [-90.151, 35.871], [-90.17, 35.858]]);
     expect(parseBox(cutoutPath(b).split('bbox=')[1])).toEqual(b);
+  });
+
+  it('names the water to open with, and only water it knows', () => {
+    const b = boxAt(-90.16, 35.86, 2000);
+    const q = new URLSearchParams(cutoutPath(b, 'rain').split('?')[1]);
+    expect(parseWater(q.get('water'))).toBe('rain');
+    expect(q.get('bbox')).toBe(cutoutPath(b).split('bbox=')[1]);
+    expect(cutoutPath(b, null)).not.toContain('water');
+    for (const bad of [null, '', 'snow', ['rain']]) expect(parseWater(bad)).toBeNull();
   });
 
   it('measures ground size and refuses boxes too big or too thin', () => {
