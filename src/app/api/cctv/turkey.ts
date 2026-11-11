@@ -1,10 +1,9 @@
-import type { CctvCamera } from './types';
+import { fetchTurkeyBoxCameras } from './opencctv';
 
-// Turkey cameras temporarily removed due to Windy.com iframe embed restrictions (X-Frame-Options blocks).
-const TURKEY_CAMERAS: CctvCamera[] = [];
-
-export async function fetchTurkeyCameras(): Promise<CctvCamera[]> {
-  return TURKEY_CAMERAS;
-}
-
-export default TURKEY_CAMERAS;
+/**
+ * Turkey's cameras are mostly its cities' own streams: Balıkesir, Konya,
+ * Ankara and Istanbul's districts, played through tvkur and player.im. They
+ * come through the OpenCCTV directory, which republishes them. The cities' own
+ * camera sites (İBB, Kocaeli'yi Seyret) refuse connections from outside Turkey.
+ */
+export const fetchTurkeyCameras = fetchTurkeyBoxCameras;

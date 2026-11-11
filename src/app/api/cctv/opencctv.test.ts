@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mapRecord, streamKind, sample, type OpenCctvRecord } from './opencctv';
+import { mapRecord, streamKind, sample, idsInBox, TURKEY_BOX, type OpenCctvRecord } from './opencctv';
 
 /** A representative row from /api/cameras/batch. */
 const sampleRow: OpenCctvRecord = {
@@ -125,5 +125,26 @@ describe('sample', () => {
     const picked = sample(Array.from({ length: 100 }, (_, i) => i), 10);
     expect(picked[0]).toBe(0);
     expect(picked[picked.length - 1]).toBeGreaterThan(80);
+  });
+});
+
+describe('idsInBox', () => {
+  const index = {
+    ids: ['konya', 'balikesir', 'tbilisi', 'tehran', 'seoul'],
+    lats: [37.87, 39.65, 41.72, 35.69, 37.50],
+    lngs: [32.48, 27.88, 44.79, 51.39, 127.03],
+  };
+  const westAsia = { minLat: 5, maxLat: 56, minLng: 25, maxLng: 92 };
+
+  it('gives Turkey every camera in its box', () => {
+    expect(idsInBox(index, TURKEY_BOX)).toEqual(['konya', 'balikesir', 'tbilisi']);
+  });
+
+  it('leaves the Turkey box out of West Asia, so no camera is sent twice', () => {
+    expect(idsInBox(index, westAsia, TURKEY_BOX)).toEqual(['tehran']);
+  });
+
+  it('copes with a missing index', () => {
+    expect(idsInBox(undefined, TURKEY_BOX)).toEqual([]);
   });
 });
