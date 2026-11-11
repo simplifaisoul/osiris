@@ -51,6 +51,21 @@ const REGIONS: Record<string, { bounds: Bounds; cap: number }> = {
 };
 
 /**
+ * Turkey takes every camera OpenCCTV has inside its box, not a share of the
+ * West Asia sample. Most are the cities' own streams (Balıkesir, Konya, Ankara
+ * and Istanbul's districts), and a stride across all of West and Central Asia
+ * left about 80 of them. This is the box the route uses to decide a viewer is
+ * over Turkey, so it also holds the edges of its neighbours; westasia skips it,
+ * so no camera lands twice (the route does not dedupe across regions).
+ */
+export const TURKEY_BOX: Bounds = { minLat: 35.5, maxLat: 42.5, minLng: 25.5, maxLng: 45 };
+const TURKEY_CAP = 2000;
+
+function inside(b: Bounds, lat: number, lng: number): boolean {
+  return lat > b.minLat && lat < b.maxLat && lng > b.minLng && lng < b.maxLng;
+}
+
+/**
  * Hosts another module already fetches in full. The westasia box reaches west
  * to 25°E, which takes in eastern Lithuania, and OpenCCTV republishes Via
  * Lietuva's cameras — so without this each one lands on the map twice: once
@@ -189,22 +204,25 @@ const markerIndex = cachedSource('opencctv-index', async (): Promise<MarkerIndex
   return [index];
 });
 
-function loader(region: string, bounds: Bounds, cap: number) {
+/** The index's ids inside `bounds`, leaving out any inside `skip`. */
+export function idsInBox(index: MarkerIndex | undefined, bounds: Bounds, skip?: Bounds): string[] {
+  const ids = index?.ids ?? [];
+  const lats = index?.lats ?? [];
+  const lngs = index?.lngs ?? [];
+
+  const out: string[] = [];
+  for (let i = 0; i < ids.length; i++) {
+    if (!inside(bounds, lats[i], lngs[i])) continue;
+    if (skip && inside(skip, lats[i], lngs[i])) continue;
+    out.push(ids[i]);
+  }
+  return out;
+}
+
+function loader(region: string, bounds: Bounds, cap: number, skip?: Bounds) {
   return async (): Promise<CctvCamera[]> => {
     const [index] = await markerIndex();
-    const ids = index?.ids ?? [];
-    const lats = index?.lats ?? [];
-    const lngs = index?.lngs ?? [];
-
-    const inRegion: string[] = [];
-    for (let i = 0; i < ids.length; i++) {
-      const lat = lats[i];
-      const lng = lngs[i];
-      if (lat > bounds.minLat && lat < bounds.maxLat &&
-          lng > bounds.minLng && lng < bounds.maxLng) {
-        inRegion.push(ids[i]);
-      }
-    }
+    const inRegion = idsInBox(index, bounds, skip);
 
     const wanted = sample(inRegion, cap);
     const chunks: string[][] = [];
@@ -230,4 +248,5 @@ function loader(region: string, bounds: Bounds, cap: number) {
 
 export const fetchEastAsiaCameras = cachedSource('eastasia', loader('East Asia', REGIONS.eastasia.bounds, REGIONS.eastasia.cap));
 export const fetchSeAsiaCameras = cachedSource('seasia', loader('Southeast Asia', REGIONS.seasia.bounds, REGIONS.seasia.cap));
-export const fetchWestAsiaCameras = cachedSource('westasia', loader('West & Central Asia', REGIONS.westasia.bounds, REGIONS.westasia.cap));
+export const fetchWestAsiaCameras = cachedSource('westasia', loader('West & Central Asia', REGIONS.westasia.bounds, REGIONS.westasia.cap, TURKEY_BOX));
+export const fetchTurkeyBoxCameras = cachedSource('opencctv-turkey', loader('Turkey', TURKEY_BOX, TURKEY_CAP));
