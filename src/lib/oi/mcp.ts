@@ -191,7 +191,7 @@ const ok = (summary: string, data: Record<string, unknown>): ToolResult => ({
 const toolError = (message: string): ToolResult => ({ content: [{ type: 'text', text: message }], isError: true });
 
 const needKey = (ctx: McpContext) => (!ctx.creds.provider || (!ctx.creds.key && providerInfo(ctx.creds.provider).needsKey))
-  ? toolError('This connection has no model key. Configure the MCP server with headers X-OI-Provider (openai, anthropic, google, openrouter, groq, deepseek, xai, mistral or qwen) and X-OI-Key (or Authorization: Bearer <key>), optionally X-OI-Model. The key is used only for your runs and never stored.')
+  ? toolError('This connection has no model key. Configure the MCP server with headers X-OI-Provider (openai, anthropic, google, openrouter, groq, deepseek, xai, mistral, qwen or cheaperinference) and X-OI-Key (or Authorization: Bearer <key>), optionally X-OI-Model. The key is used only for your runs and never stored.')
   : null;
 
 function headline(run: Run): string {

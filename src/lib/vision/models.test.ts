@@ -69,6 +69,8 @@ describe('pictures in a request', () => {
     expect(canSeeImages('groq', 'meta-llama/llama-4-scout-17b-16e-instruct')).toBe(true);
     expect(canSeeImages('openrouter', 'google/gemini-2.5-flash')).toBe(true);
     expect(canSeeImages('qwen', 'qwen-plus')).toBe(false);
+    expect(canSeeImages('cheaperinference', 'gpt-5.4-mini')).toBe(true);
+    expect(canSeeImages('cheaperinference', 'deepseek-v4-flash')).toBe(false);
   });
 });
 
