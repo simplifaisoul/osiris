@@ -69,9 +69,10 @@ function inside(b: Bounds, lat: number, lng: number): boolean {
  * Hosts another module already fetches in full. The westasia box reaches west
  * to 25°E, which takes in eastern Lithuania, and OpenCCTV republishes Via
  * Lietuva's cameras — so without this each one lands on the map twice: once
- * here, and once from lithuania.ts, which carries the whole live set.
+ * here, and once from lithuania.ts, which carries the whole live set. Japan's
+ * river cameras are the same: japan-rivers.ts takes every one river.go.jp lists.
  */
-const COVERED_ELSEWHERE = ['eismoinfo.lt'];
+const COVERED_ELSEWHERE = ['eismoinfo.lt', 'cam.river.go.jp'];
 
 function coveredElsewhere(url: string): boolean {
   try {
@@ -123,6 +124,10 @@ export function mapRecord(rec: OpenCctvRecord): CctvCamera | null {
 
   const url = rec.feed_url?.trim();
   if (!url) return null;
+  /* Some rows carry OpenCCTV's own link schemes (singapore://4712,
+     jma-volcam://20301, ipcamlive://…) that only its site can resolve. A
+     browser cannot load them, so the pin could only ever show a dead feed. */
+  if (!/^https?:\/\//i.test(url)) return null;
   if (coveredElsewhere(url)) return null;
   /* Malaysia's LLM cameras point at the operator's own "camera offline"
      placeholder while a camera is down, and that path 404s. A pin that can

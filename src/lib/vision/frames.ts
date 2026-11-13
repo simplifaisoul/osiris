@@ -12,6 +12,7 @@
 import { getPayload, readSnapshot } from '@/lib/cctv-snapshot';
 import { haversine } from '@/lib/geo';
 import { safeFetch } from '@/lib/ssrf-guard';
+import { currentFrameUrl, FRAME_ROUTE as SINGAPORE_FRAME_ROUTE } from '@/app/api/cctv/singapore';
 
 export interface CatalogueCamera {
   id: string;
@@ -37,6 +38,8 @@ export function stillOf(raw: Record<string, unknown>): string | null {
   const type = str(raw.stream_type) || 'jpg';
   const feed = str(raw.feed_url);
   if (type !== 'jpg' || !feed) return null;
+  // A Singapore camera's picture link changes with every picture, so its feed names the camera instead.
+  if (feed.startsWith(`${SINGAPORE_FRAME_ROUTE}?`)) return feed;
   if (feed.startsWith('/api/cctv/proxy?')) {
     const inner = new URLSearchParams(feed.slice(feed.indexOf('?') + 1)).get('url') ?? '';
     return httpUrl(inner) ?? null;
@@ -159,8 +162,17 @@ async function readCapped(res: Response): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
+/** The link to fetch now: looked up for a Singapore camera, the still itself for every other. */
+async function currentStill(still: string): Promise<string> {
+  if (!still.startsWith(`${SINGAPORE_FRAME_ROUTE}?`)) return still;
+  const url = await currentFrameUrl(new URLSearchParams(still.slice(still.indexOf('?') + 1)).get('id') ?? '');
+  if (!url) throw new FrameError(502, 'The camera has no current picture');
+  return url;
+}
+
 async function fetchFrame(cam: CatalogueCamera & { still: string }): Promise<Frame> {
-  const host = new URL(cam.still).hostname;
+  const still = await currentStill(cam.still);
+  const host = new URL(still).hostname;
   const headers: Record<string, string> = {
     Accept: 'image/avif,image/webp,image/*;q=0.9,*/*;q=0.5',
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
@@ -168,7 +180,7 @@ async function fetchFrame(cam: CatalogueCamera & { still: string }): Promise<Fra
   if (sendsReferer(host)) headers.Referer = `https://${host}/`;
   let res: Response;
   try {
-    res = await safeFetch(cam.still, { headers, signal: AbortSignal.timeout(TIMEOUT_MS), cache: 'no-store' });
+    res = await safeFetch(still, { headers, signal: AbortSignal.timeout(TIMEOUT_MS), cache: 'no-store' });
   } catch (err) {
     const timedOut = err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError');
     throw new FrameError(502, timedOut ? 'The camera did not answer in time' : 'The camera could not be reached');
