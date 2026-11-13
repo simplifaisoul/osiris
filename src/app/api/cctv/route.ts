@@ -28,6 +28,7 @@ import { fetchFinlandCameras } from './finland';
 import { fetchSwedenCameras } from './sweden';
 import { fetchHongKongCameras } from './hongkong';
 import { fetchSingaporeCameras } from './singapore';
+import { fetchJapanRiverCameras } from './japan-rivers';
 import { fetchUtahCameras } from './utah';
 import { fetchIcelandCameras } from './iceland';
 import { fetchTaiwanCameras } from './taiwan';
@@ -428,6 +429,7 @@ const RAW_REGION_FETCHERS: Record<string, RegionFetcher> = {
   'spain': fetchSpainCameras,
   'poland': fetchPolandCameras,
   'japan': fetchJapanCameras,
+  'japan-rivers': fetchJapanRiverCameras,
   'switzerland': fetchSwitzerlandCameras,
   'finland': fetchFinlandCameras,
   'sweden': fetchSwedenCameras,
@@ -499,8 +501,9 @@ const REGION_BUDGET_MS = 12_000;
 const PAGED_REGION_BUDGET_MS = 30_000;
 /* The regions given PAGED_REGION_BUDGET_MS. Queensland reads the date on each
    of its ~270 pictures to leave stopped cameras out, about 5s on its own and
-   past 12s while every region loads at once on a cold start. */
-const SLOW_REGIONS = new Set(['florida', 'georgia', 'queensland']);
+   past 12s while every region loads at once on a cold start. Japan's river
+   cameras are 51 lists, about 13 MB together. */
+const SLOW_REGIONS = new Set(['florida', 'georgia', 'queensland', 'japan-rivers']);
 
 /**
  * Regions are fetched a few at a time, not all forty-eight at once.
@@ -843,7 +846,7 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   if (inMiddleEast) regions.push('middle-east');
 
   // Japan
-  if (lat > 24 && lat < 46 && lng > 122 && lng < 154) regions.push('japan');
+  if (lat > 24 && lat < 46 && lng > 122 && lng < 154) regions.push('japan', 'japan-rivers');
 
   // Hong Kong
   if (lat > 22.1 && lat < 22.6 && lng > 113.8 && lng < 114.4) regions.push('hongkong');
