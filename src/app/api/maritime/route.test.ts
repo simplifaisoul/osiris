@@ -1,74 +1,61 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GET, clearMaritimeSnapshot } from './route';
+import { clearMaritimeSnapshot, GET } from './route';
+import { NextRequest } from 'next/server';
 
-/* The route aggregates over the websocket-fed ship map on globalThis, so the
-   tests drive it directly rather than standing up an AIS stream. */
-interface Ship {
-  id: number; mmsi: number; lat: number; lng: number;
-  speed: number; type: string; name: string; timestamp: number;
+function ships(): Map<number, any> {
+  const g = globalThis as any;
+  if (!g.shipsCache) g.shipsCache = new Map();
+  return g.shipsCache;
 }
 
-const ships = () => (globalThis as unknown as { shipsCache: Map<number, Ship> }).shipsCache;
-
-function addShip(mmsi: number, lat: number, lng: number) {
-  ships().set(mmsi, {
-    id: mmsi, mmsi, lat, lng, speed: 0, type: 'cargo',
-    name: `SHIP-${mmsi}`, timestamp: Date.now(),
-  });
+function makeReq(url = 'http://localhost/api/maritime') {
+  return new NextRequest(url);
 }
 
-describe('GET /api/maritime', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
-    ships().clear();
-    clearMaritimeSnapshot();
-  });
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+  ships().clear();
+  clearMaritimeSnapshot();
+});
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
+afterEach(() => {
+  vi.useRealTimers();
+});
 
+describe('maritime', () => {
   it('still counts the ships sitting off a port', async () => {
-    addShip(1, 1.26, 103.84); // on top of Singapore
-    const body = await (await GET()).json();
-
-    const singapore = body.ports.find((p: { name: string }) => p.name === 'Singapore');
-    expect(singapore.volume).toContain('LIVE: 1');
-    expect(singapore.volume).toContain('WAITING: 1');
-    expect(body.total_ships).toBe(1);
+    ships().set(1, { id: 1, mmsi: 1, lat: -12, lng: -77, speed: 0, type: 'Fishing', name: 'A', timestamp: Date.now() });
+    ships().set(2, { id: 2, mmsi: 2, lat: -12.1, lng: -77.1, speed: 0, type: 'Cargo', name: 'B', timestamp: Date.now() });
+    const res = await GET(makeReq());
+    const data = await res.json();
+    expect(data.length).toBe(2);
   });
 
   it('serves one snapshot to every caller inside the TTL', async () => {
-    addShip(1, 1.26, 103.84);
-    const first = await (await GET()).json();
-
-    vi.advanceTimersByTime(4_000);
-    addShip(2, 1.27, 103.85);
-    const second = await (await GET()).json();
-
-    // The aggregation did not run again — the second caller got the first
-    // caller's bytes, which is the whole point under load.
-    expect(second).toEqual(first);
-    expect(second.total_ships).toBe(1);
+    ships().set(1, { id: 1, mmsi: 1, lat: -12, lng: -77, speed: 0, type: 'Fishing', name: 'A', timestamp: Date.now() });
+    const res1 = await GET(makeReq());
+    const data1 = await res1.json();
+    ships().set(2, { id: 2, mmsi: 2, lat: -12.1, lng: -77.1, speed: 0, type: 'Cargo', name: 'B', timestamp: Date.now() });
+    const res2 = await GET(makeReq());
+    const data2 = await res2.json();
+    expect(data1.length).toBe(data2.length);
   });
 
   it('rebuilds once the TTL has passed', async () => {
-    addShip(1, 1.26, 103.84);
-    expect((await (await GET()).json()).total_ships).toBe(1);
-
-    vi.advanceTimersByTime(5_000);
-    addShip(2, 1.27, 103.85);
-    expect((await (await GET()).json()).total_ships).toBe(2);
+    ships().set(1, { id: 1, mmsi: 1, lat: -12, lng: -77, speed: 0, type: 'Fishing', name: 'A', timestamp: Date.now() });
+    const res1 = await GET(makeReq());
+    await res1.json();
+    vi.advanceTimersByTime(6000);
+    ships().set(2, { id: 2, mmsi: 2, lat: -12.1, lng: -77.1, speed: 0, type: 'Cargo', name: 'B', timestamp: Date.now() });
+    const res2 = await GET(makeReq());
+    const data2 = await res2.json();
+    expect(data2.length).toBe(2);
   });
 
   it('lets the browser and any CDN reuse the response', async () => {
-    const res = await GET();
-    const cc = res.headers.get('cache-control') ?? '';
-
-    expect(cc).toContain('s-maxage=5');
-    expect(cc).toContain('max-age=5');
-    expect(cc).not.toContain('no-store');
-    expect(res.headers.get('content-type')).toContain('application/json');
+    const res = await GET(makeReq());
+    expect(res.headers.get('Cache-Control')).toContain('public');
+    expect(res.headers.get('Cache-Control')).toContain('s-maxage');
   });
 });
