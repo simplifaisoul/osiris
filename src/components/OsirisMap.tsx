@@ -3060,13 +3060,18 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     const map = mapRef.current;
     let raf = 0;
     const started = performance.now();
+    let last = 0;
     const tick = (now: number) => {
+      raf = requestAnimationFrame(tick);
+      // Every setPaintProperty marks the style dirty and repaints the whole map,
+      // so ~10 updates/s is plenty for a 2 s pulse, and a hidden tab needs none.
+      if (document.hidden || now - last < 100) return;
+      last = now;
       if (map.getLayer('user-dot-pulse')) {
         const t = ((now - started) % 2000) / 2000;
         map.setPaintProperty('user-dot-pulse', 'circle-radius', 8 + t * 22);
         map.setPaintProperty('user-dot-pulse', 'circle-opacity', 0.35 * (1 - t));
       }
-      raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
