@@ -123,6 +123,10 @@ export function mapRecord(rec: OpenCctvRecord): CctvCamera | null {
 
   const url = rec.feed_url?.trim();
   if (!url) return null;
+  /* Some rows carry OpenCCTV's own link schemes (singapore://4712,
+     jma-volcam://20301, ipcamlive://…) that only its site can resolve. A
+     browser cannot load them, so the pin could only ever show a dead feed. */
+  if (!/^https?:\/\//i.test(url)) return null;
   if (coveredElsewhere(url)) return null;
   /* Malaysia's LLM cameras point at the operator's own "camera offline"
      placeholder while a camera is down, and that path 404s. A pin that can

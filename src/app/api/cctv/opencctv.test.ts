@@ -92,6 +92,12 @@ describe('mapRecord', () => {
     })).toBeNull();
   });
 
+  it('drops a camera whose feed is one of OpenCCTV’s own link schemes', () => {
+    expect(mapRecord({ ...sampleRow, id: 'singapore-4712', feed_type: 'image', feed_url: 'singapore://4712' })).toBeNull();
+    expect(mapRecord({ ...sampleRow, id: 'jma-volcam-20301', feed_type: 'image', feed_url: 'jma-volcam://20301' })).toBeNull();
+    expect(mapRecord({ ...sampleRow, feed_type: 'iframe', feed_url: 'ipcamlive://mypefkosmainbeach' })).toBeNull();
+  });
+
   it('leaves Via Lietuva cameras to lithuania.ts, so none lands twice', () => {
     expect(mapRecord({
       ...sampleRow,
