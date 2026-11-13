@@ -27,6 +27,7 @@ import { fetchSwitzerlandCameras } from './switzerland';
 import { fetchFinlandCameras } from './finland';
 import { fetchSwedenCameras } from './sweden';
 import { fetchHongKongCameras } from './hongkong';
+import { fetchSingaporeCameras } from './singapore';
 import { fetchUtahCameras } from './utah';
 import { fetchIcelandCameras } from './iceland';
 import { fetchTaiwanCameras } from './taiwan';
@@ -342,25 +343,7 @@ async function fetchAsiaCameras(): Promise<any[]> {
   const cams: any[] = [];
 
   // Singapore Live Traffic Images
-  {
-    const data = await subSource('LTA Singapore', 'https://api.data.gov.sg/v1/transport/traffic-images', 10000);
-    if (data) {
-      const items = data.items?.[0]?.cameras || [];
-      for (const cam of items) {
-        if (!cam.location?.latitude || !cam.location?.longitude || !cam.image) continue;
-        cams.push({
-          id: `sin-${cam.camera_id}`,
-          lat: cam.location.latitude,
-          lng: cam.location.longitude,
-          name: `Camera ${cam.camera_id}`,
-          city: 'Singapore',
-          country: 'Singapore',
-          feed_url: cam.image,
-          source: 'LTA Singapore'
-        });
-      }
-    }
-  }
+  cams.push(...await fetchSingaporeCameras());
 
   return cams;
 }
