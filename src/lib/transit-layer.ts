@@ -211,6 +211,7 @@ export function attachTransit(map: MlMap, opts: TransitLayerOptions): () => void
       <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin-bottom:8px;">${kpis}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:9px;margin-bottom:8px;background:rgba(0,0,0,0.3);padding:6px;border-radius:4px;overflow-wrap:anywhere;">${cells}</div>
       <div style="font-size:8.5px;color:#5C5A54;line-height:1.45;">From the operator's own GPS feed. Speeds and distance are measured between the places it reported, over the stretch of this trip tracked so far. Shown ${lagS} s behind live so it can move between those places; it is never guessed ahead. The line is where it has been this trip.</div>
+      ${feed?.notice ? `<div style="font-size:8.5px;color:#8A8880;line-height:1.45;margin-top:6px;">${esc(feed.notice)}</div>` : ''}
       ${feed?.license ? `<a href="${safeUrl(feed.license)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin-top:8px;padding:5px 12px;font-size:10px;letter-spacing:0.12em;text-decoration:none;border-radius:5px;color:${color};border:1px solid ${color}40;background:${color}15;">[ FEED TERMS ↗ ]</a>` : ''}
     </div>`;
   };
@@ -284,6 +285,28 @@ export function attachTransit(map: MlMap, opts: TransitLayerOptions): () => void
   };
   const startFrames = () => { if (frame === undefined && !disposed) frame = requestAnimationFrame(tick); };
 
+  // ── Credits ──
+  // A feed whose terms ask for a notice has it in the map's attribution while
+  // its vehicles are on screen. MapLibre credits the sources visible layers
+  // draw from, so each notice rides on an empty source and layer.
+  const credited = new Set<string>();
+  const creditId = (feedId: string) => `transit-credit-${feedId}`;
+  const setCredits = (shown: TransitFeedInfo[]) => {
+    const want = new Map(shown.filter(f => f.notice).map(f => [f.id, f.notice!]));
+    for (const id of credited) {
+      if (want.has(id)) continue;
+      if (map.getLayer(creditId(id))) map.removeLayer(creditId(id));
+      if (map.getSource(creditId(id))) map.removeSource(creditId(id));
+      credited.delete(id);
+    }
+    for (const [id, notice] of want) {
+      if (credited.has(id)) continue;
+      map.addSource(creditId(id), { type: 'geojson', data: EMPTY, attribution: esc(notice) });
+      map.addLayer({ id: creditId(id), type: 'circle', source: creditId(id) });
+      credited.add(id);
+    }
+  };
+
   // ── Polling ──
   const loadCoverage = async () => {
     try {
@@ -325,6 +348,7 @@ export function attachTransit(map: MlMap, opts: TransitLayerOptions): () => void
       startFrames();
 
       const live = (data.feeds ?? []).filter((f: { count: number }) => f.count > 0);
+      setCredits(live);
       const failing = (data.feeds ?? []).filter((f: { ok: boolean }) => !f.ok).length;
       if (!(data.feeds ?? []).length) report('empty', 'No live transit feed covers this view');
       else if (!data.vehicles?.length) report('empty', failing ? `${failing} feed${failing === 1 ? '' : 's'} here not answering` : 'No vehicles running here right now');
@@ -351,6 +375,7 @@ export function attachTransit(map: MlMap, opts: TransitLayerOptions): () => void
         source(SRC_LABELS)?.setData(EMPTY);
         deselect();
         popup?.remove();
+        setCredits([]);
       }
       if (coverageLoaded) report('overview', overviewText);
       else void loadCoverage();
@@ -456,6 +481,7 @@ export function attachTransit(map: MlMap, opts: TransitLayerOptions): () => void
     map.getCanvas().style.cursor = '';
     // The style may already be gone when the whole map is being torn down.
     try {
+      setCredits([]);
       for (const id of TRANSIT_LAYER_IDS) if (map.getLayer(id)) map.removeLayer(id);
       for (const id of OWN_SOURCES) if (map.getSource(id)) map.removeSource(id);
     } catch { /* map removed */ }

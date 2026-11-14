@@ -48,8 +48,12 @@ export const KEYED_TRANSIT_FEEDS: TransitFeed[] = [
     id: 'translink-vancouver', provider: 'TransLink', country: 'CA', region: 'Vancouver, BC',
     url: 'https://gtfsapi.translink.ca/v3/gtfsposition',
     bbox: [-123.4, 49.0, -122.2, 49.5], center: [-123.1, 49.27], core: [-123.25, 49.17, -122.8, 49.32],
-    license: 'https://www.translink.ca/about-us/doing-business-with-translink/app-developer-resources', vehiclesAtProbe: 0, defaultMode: 'bus',
-    key: { env: 'TRANSIT_TRANSLINK_KEY', query: 'apikey', signup: 'https://developer.translink.ca/' },
+    license: 'https://developer.translink.ca/Home/TermsOfUse', vehiclesAtProbe: 0, defaultMode: 'bus',
+    // A key may make 1,000 requests a day under TransLink's terms: one read every 90 s is 960.
+    ttlMs: 90_000,
+    // The terms ask for this notice wherever the data is shown.
+    notice: 'Some of the data used in this product or service is provided by permission of TransLink. TransLink assumes no responsibility for the accuracy or currency of the Data used in this product or service.',
+    key: { env: 'TRANSIT_TRANSLINK_KEY', query: 'apikey', signup: 'https://developer.translink.ca/Account/Register' },
   },
   {
     id: 'stm-montreal', provider: 'STM', country: 'CA', region: 'Montréal, QC',

@@ -4,7 +4,8 @@
  * A feed is read only when someone is looking at the area it covers, and each
  * read is shared by every visitor for FEED_TTL_MS, so however many people
  * watch a city, its operator sees one request every 20 seconds. That is the
- * pace the feeds themselves update at and well inside their published limits.
+ * pace the feeds themselves update at and well inside their published limits;
+ * a feed with a tighter limit sets a longer `ttlMs` of its own.
  */
 import { decodeVehicleFeed } from './gtfs-rt';
 import { TRANSIT_FEEDS } from './transit-feeds.generated';
@@ -86,7 +87,7 @@ export function activeFeeds(env: Record<string, string | undefined> = process.en
 export const FEEDS: TransitFeed[] = activeFeeds();
 
 export function feedInfo(f: TransitFeed): TransitFeedInfo {
-  return { id: f.id, provider: f.provider, region: f.region, country: f.country, ...(f.license ? { license: f.license } : {}) };
+  return { id: f.id, provider: f.provider, region: f.region, country: f.country, ...(f.license ? { license: f.license } : {}), ...(f.notice ? { notice: f.notice } : {}) };
 }
 
 function padded(b: number[]): BBox {
@@ -119,7 +120,8 @@ export function requestFor(feed: TransitFeed, env: Record<string, string | undef
  */
 export async function readFeed(feed: TransitFeed, fetchImpl: typeof fetch = fetch, now = Date.now()): Promise<Entry> {
   const hit = cache.get(feed.id);
-  if (hit && now - hit.at < (hit.ok ? feed.ttlMs ?? FEED_TTL_MS : FAILURE_TTL_MS)) return hit;
+  // A failed read is not retried sooner than a good one, so a feed with a daily allowance stays inside it.
+  if (hit && now - hit.at < (hit.ok ? feed.ttlMs ?? FEED_TTL_MS : Math.max(FAILURE_TTL_MS, feed.ttlMs ?? 0))) return hit;
   const running = inflight.get(feed.id) ?? refresh(feed, fetchImpl, hit);
   if (hit && hit.vehicles.length && now - hit.at < SERVE_STALE_MS) return hit;
   return running;
