@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { deflateRawSync } from 'zlib';
 import {
-  activeFeeds, clearTransitCache, feedsFor, feedsWaitingForKeys, readFeed, requestFor, vehiclesIn, MAX_FEEDS_PER_VIEW, FEEDS,
+  activeFeeds, clearTransitCache, feedInfo, feedsFor, feedsWaitingForKeys, readFeed, requestFor, vehiclesIn, MAX_FEEDS_PER_VIEW, FEEDS,
 } from './transit-live';
 import { KEYED_TRANSIT_FEEDS } from './transit-feeds-keyed';
 import { encodeFeed, type FixtureVehicle } from './gtfs-rt.fixtures';
@@ -133,6 +133,46 @@ describe('keyed feeds', () => {
     const entry = await readFeed(header, vi.fn(async () => new Response('', { status: 401 })));
     vi.unstubAllEnvs();
     expect(entry).toMatchObject({ ok: false, error: 'key refused (HTTP 401)' });
+  });
+});
+
+describe('TransLink (Metro Vancouver)', () => {
+  const translink = KEYED_TRANSIT_FEEDS.find(f => f.id === 'translink-vancouver')!;
+
+  it('is read only with TRANSIT_TRANSLINK_KEY, sent as the apikey parameter', () => {
+    expect(activeFeeds({})).not.toContain(translink);
+    expect(activeFeeds({ TRANSIT_TRANSLINK_KEY: 'k' })).toContain(translink);
+    expect(requestFor(translink, { TRANSIT_TRANSLINK_KEY: 'k' })?.url).toBe('https://gtfsapi.translink.ca/v3/gtfsposition?apikey=k');
+    expect(feedsWaitingForKeys({}).find(w => w.env === 'TRANSIT_TRANSLINK_KEY')?.signup).toBe('https://developer.translink.ca/Account/Register');
+  });
+
+  it('shows Vancouver buses and carries the notice TransLink’s terms ask for', async () => {
+    vi.stubEnv('TRANSIT_TRANSLINK_KEY', 'k');
+    const entry = await readFeed(translink, serve([{ lat: 49.2827, lng: -123.1207, ts: now(), id: '9001', route: '6641' }]));
+    vi.unstubAllEnvs();
+    expect(entry.vehicles).toHaveLength(1);
+    expect(entry.vehicles[0]).toMatchObject({ f: 'translink-vancouver', id: '9001', route: '6641', mode: 'bus' });
+    expect(feedInfo(translink).notice).toMatch(/^Some of the data used in this product or service is provided by permission of TransLink\./);
+  });
+
+  it('stays inside the 1,000 requests a day a key allows, failed reads included', async () => {
+    expect(86_400_000 / translink.ttlMs!).toBeLessThanOrEqual(1000);
+    vi.stubEnv('TRANSIT_TRANSLINK_KEY', 'k');
+    const ok = serve([{ lat: 49.28, lng: -123.12, ts: now() }]);
+    const read = await readFeed(translink, ok);
+    await readFeed(translink, ok, read.at + translink.ttlMs! - 1_000);
+    expect(ok).toHaveBeenCalledTimes(1);
+
+    clearTransitCache();
+    const refused = vi.fn(async () => new Response('', { status: 403 }));
+    const failed = await readFeed(translink, refused);
+    expect(failed).toMatchObject({ ok: false, error: 'key refused (HTTP 403)' });
+    // Past the minute other feeds wait after a failure, but not past TransLink's own pace.
+    await readFeed(translink, refused, failed.at + 61_000);
+    expect(refused).toHaveBeenCalledTimes(1);
+    await readFeed(translink, refused, failed.at + translink.ttlMs! + 1_000);
+    expect(refused).toHaveBeenCalledTimes(2);
+    vi.unstubAllEnvs();
   });
 });
 

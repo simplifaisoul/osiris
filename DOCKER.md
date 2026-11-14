@@ -146,7 +146,7 @@ key stays on the server; without it that operator is simply not shown.
 | `TRANSIT_WMATA_KEY` | Washington DC Metrobus and Metrorail | <https://developer.wmata.com/> |
 | `TRANSIT_511_KEY` | San Francisco Bay Area, every operator | <https://511.org/open-data/token> |
 | `TRANSIT_TRIMET_KEY` | Portland TriMet | <https://developer.trimet.org/appid/registration/> |
-| `TRANSIT_TRANSLINK_KEY` | Vancouver TransLink | <https://developer.translink.ca/> |
+| `TRANSIT_TRANSLINK_KEY` | Metro Vancouver TransLink buses (a key allows 1,000 requests a day, so it is read every 90 s) | <https://developer.translink.ca/Account/Register> |
 | `TRANSIT_STM_KEY` | Montréal STM | <https://portail.developpeurs.stm.info/> |
 | `TRANSIT_NTA_KEY` | All of Ireland | <https://developer.nationaltransport.ie/> |
 | `TRANSIT_TRAFIKLAB_KEY` | Stockholm SL | <https://developer.trafiklab.se/> |
