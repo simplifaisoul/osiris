@@ -328,7 +328,7 @@ export const API_GROUPS: ApiGroup[] = [
         ],
         returns: ['vehicles', 'feeds', 'skippedFeeds', 'truncated', 'total', 'timestamp'],
         env: ['TRANSIT_WMATA_KEY', 'TRANSIT_511_KEY', 'TRANSIT_TRIMET_KEY', 'TRANSIT_TRANSLINK_KEY', 'TRANSIT_STM_KEY', 'TRANSIT_NTA_KEY', 'TRANSIT_TRAFIKLAB_KEY', 'TRANSIT_TFNSW_KEY', 'TRANSIT_METLINK_KEY', 'TRANSIT_AT_KEY'],
-        notes: 'Each vehicle carries its feed id `f`, `lat`, `lng`, and where known `route` (the feed’s route id), `name` (the route as riders know it, from the operator’s timetable), `mode` (bus, tram, metro, rail, ferry, cable), `label`, `trip`, bearing `b` (degrees), speed `s` (m/s), position time `t` (epoch seconds) and occupancy `occ`. Feeds are read only for the area asked about and shared between callers for 20 s (30 s for Great Britain’s nationwide file); up to 40 feeds are read per box, nearest its centre first. Positions older than 15 minutes are left out. Every variable listed is optional and adds one operator.',
+        notes: 'Each vehicle carries its feed id `f`, `lat`, `lng`, and where known `route` (the feed’s route id), `name` (the route as riders know it, from the operator’s timetable), `mode` (bus, tram, metro, rail, ferry, cable), `label`, `trip`, bearing `b` (degrees), speed `s` (m/s), position time `t` (epoch seconds) and occupancy `occ`. Feeds are read only for the area asked about and shared between callers for 20 s (30 s for Great Britain’s nationwide file, 90 s for TransLink, whose key allows 1,000 requests a day); up to 40 feeds are read per box, nearest its centre first. Positions older than 15 minutes are left out. Every variable listed is optional and adds one operator.',
       },
       {
         path: '/api/arcgis',

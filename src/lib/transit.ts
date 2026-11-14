@@ -36,8 +36,10 @@ export interface TransitFeed {
   vehiclesAtProbe: number;
   /** The body is a ZIP archive holding the FeedMessage (the UK's nationwide file). */
   format?: 'zip';
-  /** How long one read is shared, when the feed is too big to read every 20 s. */
+  /** How long one read is shared, when the feed is too big, or its key too limited, to read every 20 s. */
   ttlMs?: number;
+  /** A notice the publisher's terms require wherever its data is shown. */
+  notice?: string;
   /**
    * The feed needs a key. It is read from the server's environment and put
    * where the operator expects it; without it the feed is left out entirely.
@@ -141,6 +143,7 @@ export interface TransitFeedInfo {
   region: string;
   country: string;
   license?: string;
+  notice?: string;
 }
 
 /** The layer's colour: a teal no other layer uses. */
