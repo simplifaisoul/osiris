@@ -66,8 +66,25 @@ function ipv4InBlocked(ip: string): boolean {
   return false;
 }
 
+/**
+ * The compressed spelling the URL parser writes, so each address has one
+ * form for the prefix checks: `0:0:0:0:0:0:0:1` and `0::1` are both `::1`,
+ * and `0:0::ffff:7f00:1` is `::ffff:7f00:1`. A zone id (`%eth0`) is dropped
+ * first. Null when the parser refuses it.
+ */
+function canonicalIPv6(ip: string): string | null {
+  const bare = ip.replace(/^\[/, '').replace(/\]$/, '').split('%')[0];
+  try {
+    return new URL(`http://[${bare}]/`).hostname.slice(1, -1);
+  } catch {
+    return null;
+  }
+}
+
 function ipv6InBlocked(ip: string): boolean {
-  const lower = ip.toLowerCase().replace(/^\[/, '').replace(/\]$/, '');
+  const lower = canonicalIPv6(ip);
+  // Something isIP accepts but the parser does not is not a target worth the risk.
+  if (lower === null) return true;
   // Exact-match singletons first
   if (lower === '::' || lower === '::1') return true;
   for (const prefix of IPV6_BLOCK_PREFIXES) {
