@@ -188,94 +188,124 @@ async function fetchCelesTrakGroup(url: string): Promise<{ name: string; line1: 
   }
 }
 
-export async function GET() {
-  try {
-    const nowTime = Date.now();
-    let allSats: any[] = globalCachedSats;
-    let source = 'memory-cache';
+/* Building an answer means propagating the whole catalogue (~18,700 objects)
+   and serialising ~2.7 MB of JSON, the heaviest work this route does. One
+   build per request let a busy server queue builds behind each other until
+   requests timed out. Positions ten seconds old are well within what a marker
+   on the map shows, so one build answers every request for that long. */
+const BUILD_TTL_MS = 10_000;
+let lastBuild: { at: number; body: string; cacheControl: string } | null = null;
 
-    if (globalCachedSats.length === 0 || globalCachedSats.length < 5000 || nowTime - globalCacheTime > 3600000) { // refresh if empty, too few, or stale
-      
-      // Primary: Fetch multiple CelesTrak groups in parallel
-      const groupResults = await Promise.allSettled(
-        CELESTRAK_GROUPS.map(url => fetchCelesTrakGroup(url))
-      );
-      
-      const seen = new Set<string>();
-      const merged: { name: string; line1: string; line2: string }[] = [];
-      
-      // 1. Add all newly fetched satellites
-      for (const result of groupResults) {
-        if (result.status === 'fulfilled') {
-          for (const sat of result.value) {
-            const noradId = sat.line1.substring(2, 7).trim();
-            if (!seen.has(noradId)) {
-              seen.add(noradId);
-              merged.push(sat);
-            }
-          }
-        }
-      }
-      
-      // 2. Backfill with cached satellites that failed to fetch this time (due to rate limits)
-      let backfilled = 0;
-      for (const sat of globalCachedSats) {
+const freshBuild = () => (lastBuild && Date.now() - lastBuild.at < BUILD_TTL_MS ? lastBuild : null);
+const respond = (build: { body: string; cacheControl: string }) =>
+  new NextResponse(build.body, { headers: { 'Content-Type': 'application/json', 'Cache-Control': build.cacheControl } });
+
+/* One TLE refresh at a time. Requests that arrive while it runs wait for that
+   refresh instead of each starting ~44 CelesTrak downloads of their own. */
+let refreshing: Promise<string> | null = null;
+
+/** Refresh the TLE catalogue from CelesTrak (SatNOGS as fallback); returns the source label. */
+async function refreshCatalogue(nowTime: number): Promise<string> {
+  let allSats: unknown[] = globalCachedSats;
+  let source = 'memory-cache';
+
+  // Primary: Fetch multiple CelesTrak groups in parallel
+  const groupResults = await Promise.allSettled(
+    CELESTRAK_GROUPS.map(url => fetchCelesTrakGroup(url))
+  );
+  
+  const seen = new Set<string>();
+  const merged: { name: string; line1: string; line2: string }[] = [];
+  
+  // 1. Add all newly fetched satellites
+  for (const result of groupResults) {
+    if (result.status === 'fulfilled') {
+      for (const sat of result.value) {
         const noradId = sat.line1.substring(2, 7).trim();
         if (!seen.has(noradId)) {
           seen.add(noradId);
           merged.push(sat);
-          backfilled++;
-        }
-      }
-      
-      if (merged.length > 500) {
-        globalCachedSats = merged;
-        globalCacheTime = nowTime;
-        allSats = merged;
-        source = `celestrak (${merged.length} TLEs: ${merged.length - backfilled} new, ${backfilled} cached)`;
-        saveToDisk(merged);
-      }
-
-
-      // Fallback: SatNOGS if nothing yielded enough
-      if (allSats.length < 500) {
-        try {
-          const res = await stealthFetch(SATNOGS_API, {
-            signal: AbortSignal.timeout(15000),
-            headers: { 'Accept': 'application/json' },
-          });
-          
-          if (res.ok) {
-            const data = await res.json();
-            const fetchedSats: any[] = [];
-            const seenNames = new Set<string>();
-
-            for (const item of data) {
-              const rawName = (item.tle0 || '').trim();
-              const cleanName = rawName.replace(/^0\s+/, '');
-              if (cleanName && item.tle1 && item.tle2 && !seenNames.has(cleanName)) {
-                seenNames.add(cleanName);
-                fetchedSats.push({
-                  name: cleanName,
-                  line1: item.tle1.trim(),
-                  line2: item.tle2.trim(),
-                });
-              }
-            }
-            
-            if (fetchedSats.length > 0) {
-              globalCachedSats = fetchedSats;
-              globalCacheTime = nowTime;
-              allSats = fetchedSats;
-              source = 'satnogs-api';
-              saveToDisk(fetchedSats);
-            }
-          }
-        } catch (err) {
-          console.error('SatNOGS fetch error:', err);
         }
       }
     }
+  }
+  
+  // 2. Backfill with cached satellites that failed to fetch this time (due to rate limits)
+  let backfilled = 0;
+  for (const sat of globalCachedSats) {
+    const noradId = sat.line1.substring(2, 7).trim();
+    if (!seen.has(noradId)) {
+      seen.add(noradId);
+      merged.push(sat);
+      backfilled++;
+    }
+  }
+  
+  if (merged.length > 500) {
+    globalCachedSats = merged;
+    globalCacheTime = nowTime;
+    allSats = merged;
+    source = `celestrak (${merged.length} TLEs: ${merged.length - backfilled} new, ${backfilled} cached)`;
+    saveToDisk(merged);
+  }
+
+
+  // Fallback: SatNOGS if nothing yielded enough
+  if (allSats.length < 500) {
+    try {
+      const res = await stealthFetch(SATNOGS_API, {
+        signal: AbortSignal.timeout(15000),
+        headers: { 'Accept': 'application/json' },
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        const fetchedSats: any[] = [];
+        const seenNames = new Set<string>();
+
+        for (const item of data) {
+          const rawName = (item.tle0 || '').trim();
+          const cleanName = rawName.replace(/^0\s+/, '');
+          if (cleanName && item.tle1 && item.tle2 && !seenNames.has(cleanName)) {
+            seenNames.add(cleanName);
+            fetchedSats.push({
+              name: cleanName,
+              line1: item.tle1.trim(),
+              line2: item.tle2.trim(),
+            });
+          }
+        }
+        
+        if (fetchedSats.length > 0) {
+          globalCachedSats = fetchedSats;
+          globalCacheTime = nowTime;
+          allSats = fetchedSats;
+          source = 'satnogs-api';
+          saveToDisk(fetchedSats);
+        }
+      }
+    } catch (err) {
+      console.error('SatNOGS fetch error:', err);
+    }
+  }
+  return source;
+}
+
+export async function GET() {
+  try {
+    const cached = freshBuild();
+    if (cached) return respond(cached);
+
+    let source = 'memory-cache';
+    if (globalCachedSats.length === 0 || globalCachedSats.length < 5000 || Date.now() - globalCacheTime > 3600000) { // refresh if empty, too few, or stale
+      refreshing ??= refreshCatalogue(Date.now()).finally(() => { refreshing = null; });
+      source = await refreshing;
+      // Whoever was first after the refresh has already built the answer.
+      const built = freshBuild();
+      if (built) return respond(built);
+    }
+
+    let allSats: any[] = globalCachedSats;
 
     // Emergency Fallback if cache is totally empty
     if (allSats.length === 0) {
@@ -291,12 +321,12 @@ export async function GET() {
       if (!pos) continue;
 
       const classification = classifySatellite(sat.name);
-      
+
       // High-level category for sub-layer filtering
       let category = 'other';
       const m = classification.mission;
       const upperName = sat.name.toUpperCase();
-      
+
       // Debris detection
       if (upperName.includes(' DEB') || upperName.includes('DEBRIS') || upperName.includes(' R/B')) {
         category = 'other'; // debris goes to "other" category
@@ -318,8 +348,8 @@ export async function GET() {
       });
     }
 
-    const cacheControl = satellites.length < 10 
-      ? 'no-store, max-age=0' 
+    const cacheControl = satellites.length < 10
+      ? 'no-store, max-age=0'
       : 'public, s-maxage=120, stale-while-revalidate=300';
 
     // Count by category
@@ -328,18 +358,19 @@ export async function GET() {
       categoryCounts[s.category] = (categoryCounts[s.category] || 0) + 1;
     }
 
-    return NextResponse.json({
-      satellites,
-      total: satellites.length,
-      category_counts: categoryCounts,
-      source,
-      raw_count: allSats.length,
-      timestamp: new Date().toISOString(),
-    }, {
-      headers: {
-        'Cache-Control': cacheControl,
-      },
-    });
+    lastBuild = {
+      at: Date.now(),
+      body: JSON.stringify({
+        satellites,
+        total: satellites.length,
+        category_counts: categoryCounts,
+        source,
+        raw_count: allSats.length,
+        timestamp: new Date().toISOString(),
+      }),
+      cacheControl,
+    };
+    return respond(lastBuild);
   } catch (error) {
     console.error('Satellite fetch error:', error);
     return NextResponse.json({ satellites: [], error: 'Failed to fetch satellite data' }, { status: 500 });
