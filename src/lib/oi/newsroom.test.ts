@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { FEEDS, isSocial, parseFeed, rankStories, searchNewsroom, tickerFeed } from './newsroom';
 import type { Fetcher } from './web';
 
@@ -79,6 +79,10 @@ describe('ranking the stories', () => {
 });
 
 describe('searching the newsroom', () => {
+  // The sample stories are from early October; read them as if it were still then, not 45 days later.
+  beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-03T00:00:00Z')); });
+  afterEach(() => { vi.useRealTimers(); });
+
   it('reads only the desks asked for, plus the tickers’ newswires', async () => {
     const asked: string[] = [];
     const api: Fetcher = async url => { asked.push(url); return new Response(RSS, { status: 200 }); };
