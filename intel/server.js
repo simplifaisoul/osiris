@@ -17,8 +17,15 @@
 
 const net = require('node:net');
 const express = require('express');
+const helmet = require('helmet');
 const app = express();
 const PORT = process.env.INTEL_PORT || 4000;
+
+// Standard security headers on every answer, and no X-Powered-By. This
+// service only ever returns JSON, so nothing it serves needs to load anything.
+app.use(helmet({
+  contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } },
+}));
 
 // ════════════════════════════════════════════════════
 // §1 — CONFIGURATION

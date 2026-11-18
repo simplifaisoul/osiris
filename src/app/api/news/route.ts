@@ -277,7 +277,7 @@ function assess(text: string) {
   };
 }
 
-const hashId = (s: string) => crypto.createHash('md5').update(s).digest('hex');
+const hashId = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 
 /** How an item names where it came from: the channel, or the wire's own site. */
 export function sourceRef(channel: Channel): string {

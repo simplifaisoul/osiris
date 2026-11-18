@@ -61,6 +61,23 @@ describe('loadSanctions', () => {
   });
 });
 
+describe('security headers', () => {
+  it('sends them on every answer and does not name the framework', async () => {
+    const server = intel.app.listen(0);
+    try {
+      const { port } = server.address() as AddressInfo;
+      const res = await fetch(`http://127.0.0.1:${port}/health`);
+      expect(res.headers.get('x-powered-by')).toBeNull();
+      expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+      expect(res.headers.get('x-frame-options')).toBe('SAMEORIGIN');
+      expect(res.headers.get('content-security-policy')).toContain("default-src 'none'");
+      expect(res.headers.get('strict-transport-security')).toBeTruthy();
+    } finally {
+      server.close();
+    }
+  });
+});
+
 describe('normalizeId', () => {
   it('keeps accented and non-Latin names as written', () => {
     expect(intel.normalizeId('person', 'José Álvarez')).toBe('José Álvarez');

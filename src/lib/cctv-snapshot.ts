@@ -87,7 +87,7 @@ export function buildPayload(body: unknown, total: number, complete: boolean): P
   payload = {
     json,
     gzip: gzipSync(json, { level: 6 }),
-    etag: `W/"${createHash('sha1').update(json).digest('base64url')}"`,
+    etag: `W/"${createHash('sha256').update(json).digest('base64url')}"`,
     total,
     complete,
     builtAt: Date.now(),

@@ -414,7 +414,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         break;
       } catch (e) {
         // A failed constructor leaves its canvas behind; the next attempt needs a clean container.
-        container.innerHTML = '';
+        container.replaceChildren();
         if (canvasContextAttributes === attributeFallbacks[attributeFallbacks.length - 1]) throw e;
         console.warn('[OSIRIS] WebGL context rejected, retrying with weaker attributes:', e instanceof Error ? e.message : e);
       }
@@ -1002,6 +1002,15 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     // An http(s) link, escaped and ready for an href or src attribute: a quote
     // in a feed's URL would otherwise close the attribute and open a handler.
     const urlSafe = (s: any): string => { const u = String(s ?? ''); return /^https?:\/\//i.test(u) ? htmlEsc(u) : '#'; };
+    // An element whose contents go in as text, never parsed as markup: for
+    // filling in a popup after it opens, with answers from another request.
+    const node = (tag: string, style: string, ...kids: (Node | string)[]): HTMLElement => {
+      const n = document.createElement(tag);
+      n.style.cssText = style;
+      n.append(...kids);
+      return n;
+    };
+    const note = (text: string) => node('span', 'color:#5C5A54;font-size:9px;', text);
 
     const formatTime = (iso: string | null) => {
       if (!iso) return '—';
@@ -1056,14 +1065,15 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
             .then((d) => {
               const el = document.getElementById(`ac-${p.icao24}`);
               if (!el || !d || d.error) {
-                if (el) el.innerHTML = '<span style="color:#5C5A54;font-size:9px;">AIRFRAME NOT IN REGISTRY</span>';
+                if (el) el.replaceChildren(note('AIRFRAME NOT IN REGISTRY'));
                 return;
               }
               const bits = [d.registration, d.typeCode, d.operator].filter(Boolean)
-                .map((x: string) => htmlEsc(String(x))).join(' · ');
-              el.innerHTML =
-                `<div style="color:#E8E6E0;font-size:11px;line-height:1.35;">${htmlEsc(d.model || 'Unidentified type')}</div>` +
-                (bits ? `<div style="color:#78909C;font-size:9px;margin-top:2px;">${bits}</div>` : '');
+                .map((x: string) => String(x)).join(' · ');
+              el.replaceChildren(
+                node('div', 'color:#E8E6E0;font-size:11px;line-height:1.35;', String(d.model || 'Unidentified type')),
+                ...(bits ? [node('div', 'color:#78909C;font-size:9px;margin-top:2px;', bits)] : []),
+              );
             })
             .catch(() => {});
         }
@@ -1089,26 +1099,35 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
               const arrTime = formatTime(routeData.arrivalTime);
               const pct = Math.round((routeData.progress || 0) * 100);
               const distKm = routeData.totalDistanceKm || 0;
-              el.innerHTML = `
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-                  <div><span style="color:#5C5A54;font-size:8px;">FROM</span><br/><span style="color:#E8E6E0;font-size:13px;font-weight:700;">${htmlEsc(routeData.origin.iata || routeData.origin.icao)}</span> <span style="color:#5C5A54;font-size:9px;">${htmlEsc(routeData.origin.city)}</span></div>
-                  <span style="color:#5C5A54;font-size:11px;">&rarr;</span>
-                  <div style="text-align:right;"><span style="color:#5C5A54;font-size:8px;">TO</span><br/><span style="color:#E8E6E0;font-size:13px;font-weight:700;">${htmlEsc(routeData.destination.iata || routeData.destination.icao)}</span> <span style="color:#5C5A54;font-size:9px;">${htmlEsc(routeData.destination.city)}</span></div>
-                </div>
-                <div style="height:2px;background:rgba(255,255,255,0.06);border-radius:1px;margin:6px 0;"><div style="width:${pct}%;height:100%;background:rgba(255,255,255,0.35);border-radius:1px;"></div></div>
-                <div style="display:flex;justify-content:space-between;font-size:10px;color:#78909C;">
-                  <span>DEP ${depTime}</span>
-                  <span>${pct}% &middot; ${distKm.toLocaleString()}km</span>
-                  <span>ARR ${arrTime}</span>
-                </div>
-              `;
+              const end = (label: string, place: any, align: string) => node('div', align,
+                node('span', 'color:#5C5A54;font-size:8px;', label),
+                document.createElement('br'),
+                node('span', 'color:#E8E6E0;font-size:13px;font-weight:700;', String(place.iata || place.icao || '')),
+                ' ',
+                node('span', 'color:#5C5A54;font-size:9px;', String(place.city ?? '')),
+              );
+              el.replaceChildren(
+                node('div', 'display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;',
+                  end('FROM', routeData.origin, ''),
+                  node('span', 'color:#5C5A54;font-size:11px;', '→'),
+                  end('TO', routeData.destination, 'text-align:right;'),
+                ),
+                node('div', 'height:2px;background:rgba(255,255,255,0.06);border-radius:1px;margin:6px 0;',
+                  node('div', `width:${pct}%;height:100%;background:rgba(255,255,255,0.35);border-radius:1px;`),
+                ),
+                node('div', 'display:flex;justify-content:space-between;font-size:10px;color:#78909C;',
+                  node('span', '', `DEP ${depTime}`),
+                  node('span', '', `${pct}% · ${distKm.toLocaleString()}km`),
+                  node('span', '', `ARR ${arrTime}`),
+                ),
+              );
             } else {
-              el.innerHTML = `<span style="color:#5C5A54;font-size:9px;">NO SCHEDULED ROUTE</span>`;
+              el.replaceChildren(note('NO SCHEDULED ROUTE'));
             }
           })
           .catch(() => {
             const el = document.getElementById(routeLoadingId);
-            if (el) el.innerHTML = `<span style="color:#5C5A54;font-size:9px;">ROUTE UNAVAILABLE</span>`;
+            if (el) el.replaceChildren(note('ROUTE UNAVAILABLE'));
           });
       });
       map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
