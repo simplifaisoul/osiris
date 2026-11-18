@@ -276,6 +276,8 @@ export type Encoding =
   | "iso88596"
   | "iso88597"
   | "iso88598"
+  | "iso88598e"
+  | "iso88598i"
   | "iso88599"
   | "isoceltic"
   | "isoir100"

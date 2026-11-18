@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.14.0](https://github.com/inspect-js/object-inspect/compare/v1.13.4...v1.14.0) - 2026-11-18
+
+### Fixed
+
+- [New] add `breakLength` option [`#47`](https://github.com/inspect-js/object-inspect/issues/47)
+- [New] add `maxCollectionLength` option [`#44`](https://github.com/inspect-js/object-inspect/issues/44) [`#51`](https://github.com/inspect-js/object-inspect/issues/51)
+
+### Commits
+
+- [New] `breakLength`: measure array entries by display width, like `util.inspect` [`77a3946`](https://github.com/inspect-js/object-inspect/commit/77a394674a5ef46830c93869af28da57f6793263)
+- [meta] add `generate:string-width` script, to regenerate the display width table [`6aabdb7`](https://github.com/inspect-js/object-inspect/commit/6aabdb75a5c5a908bcc371abdff52ccb392f647b)
+- [Dev Deps] update `eslint` [`02726bd`](https://github.com/inspect-js/object-inspect/commit/02726bd9df6d829020438e5a5940cbf2f4fac1ce)
+- [Fix] guard `toStringTag` with correct ternary precedence [`012c719`](https://github.com/inspect-js/object-inspect/commit/012c71960f9fcc70b59f180f355ec752e068dcb3)
+- [Fix] only report a null prototype when the immediate prototype is `null` [`bc9b5bb`](https://github.com/inspect-js/object-inspect/commit/bc9b5bb99a25d10b5d1275c145dcd75b7d543b12)
+- [New] add `multilineStrings` option, to print newlines in strings as line breaks [`59f64e0`](https://github.com/inspect-js/object-inspect/commit/59f64e0220b9bc079f177b4c3791f9a9f5c7f3f3)
+- [Fix] avoid quadratic time when inspecting collections [`46f23b9`](https://github.com/inspect-js/object-inspect/commit/46f23b985fc62841140b9c816f812d831511d98f)
+- [actions] update workflows [`f1d2734`](https://github.com/inspect-js/object-inspect/commit/f1d273499d0da648ab68e99709178f28cad0599b)
+- [Tests] restore the require cache via `require-stash` instead of deleting [`4cf972c`](https://github.com/inspect-js/object-inspect/commit/4cf972c77e17cf64c7f9bc18e3e160c5d1472853)
+- [Dev Deps] update `@ljharb/eslint-config`, `auto-changelog`, `mock-property`, `npmignore`, `semver`, `tape` [`aa960eb`](https://github.com/inspect-js/object-inspect/commit/aa960ebd1eba690196c3312919a7dc24660b574d)
+- [meta] npmignore tests [`cf245d6`](https://github.com/inspect-js/object-inspect/commit/cf245d60882b25c5c9c020b95c8ede799b43e9cd)
+- [Dev Deps] update `eslint` [`0c6b083`](https://github.com/inspect-js/object-inspect/commit/0c6b083853b4b04964276a434263dad6c604752f)
+- [Dev Deps] update `@ljharb/eslint-config`, `eslint`, `npmignore` [`693b6e8`](https://github.com/inspect-js/object-inspect/commit/693b6e82d841985ce7aedab192654ed70df88d03)
+- [Dev Deps] update `@ljharb/eslint-config`, `error-cause`, `for-each` [`01f6906`](https://github.com/inspect-js/object-inspect/commit/01f6906422395d7ec69ca93fdc46c9c6662f4115)
+- [meta] sort `devDependencies` [`09ee536`](https://github.com/inspect-js/object-inspect/commit/09ee536fd3c3a41e6f0ad7c3dabb47ade1b8c6e5)
+- [Fix] `maxStringLength`: error message should say "non-negative", since `0` is allowed [`8d669a8`](https://github.com/inspect-js/object-inspect/commit/8d669a804bb3cf84f62d9d2b1c145d032ffaae20)
+- [meta] Fix broken repository URL in package.json [`195f7ea`](https://github.com/inspect-js/object-inspect/commit/195f7ea1d6ce0749cf687437c226303fe9e2d96b)
+- [Dev Deps] update `@ljharb/eslint-config` [`f5eb186`](https://github.com/inspect-js/object-inspect/commit/f5eb186e5066e071895a5916dd1a67ea706512e6)
+- [readme] replace runkit CI badge with shields.io check-runs badge [`c32b915`](https://github.com/inspect-js/object-inspect/commit/c32b91506b44ffba774812b16e46c8ac6bf4c242)
+- [Dev Deps] add `keyv` [`711eca7`](https://github.com/inspect-js/object-inspect/commit/711eca7871f5b215521f7633be68f253d79a2e35)
+- [New] add `breakLength` option for single-line output [`3504471`](https://github.com/inspect-js/object-inspect/commit/3504471482fef1b7c073d164f8d78298f2f29df7)
+
 ## [v1.13.4](https://github.com/inspect-js/object-inspect/compare/v1.13.3...v1.13.4) - 2025-02-04
 
 ### Commits

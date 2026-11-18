@@ -10,9 +10,9 @@
  * Module dependencies.
  */
 
-var debug = require('debug')('body-parser:raw')
-var read = require('../read')
-var { normalizeOptions, passthrough } = require('../utils')
+const debug = require('debug')('body-parser:raw')
+const read = require('../read')
+const { normalizeOptions, passthrough } = require('../utils')
 
 /**
  * Module exports.

@@ -24,41 +24,25 @@ exports = module.exports = bodyParser
  * JSON parser.
  * @public
  */
-Object.defineProperty(exports, 'json', {
-  configurable: true,
-  enumerable: true,
-  get: () => require('./lib/types/json')
-})
+exports.json = require('./lib/types/json')
 
 /**
  * Raw parser.
  * @public
  */
-Object.defineProperty(exports, 'raw', {
-  configurable: true,
-  enumerable: true,
-  get: () => require('./lib/types/raw')
-})
+exports.raw = require('./lib/types/raw')
 
 /**
  * Text parser.
  * @public
  */
-Object.defineProperty(exports, 'text', {
-  configurable: true,
-  enumerable: true,
-  get: () => require('./lib/types/text')
-})
+exports.text = require('./lib/types/text')
 
 /**
  * URL-encoded parser.
  * @public
  */
-Object.defineProperty(exports, 'urlencoded', {
-  configurable: true,
-  enumerable: true,
-  get: () => require('./lib/types/urlencoded')
-})
+exports.urlencoded = require('./lib/types/urlencoded')
 
 /**
  * Create a middleware to parse json and urlencoded bodies.

@@ -28,6 +28,22 @@ test('getSideChannel', function (t) {
 		channel.set(o, 'data');
 		st.doesNotThrow(function () { channel.assert(o); }, 'existent value noops');
 
+		var accessed = false;
+		var trap = {};
+		Object.defineProperty(trap, 'foo', {
+			enumerable: true,
+			get: function () {
+				accessed = true;
+				return 1;
+			}
+		});
+		st['throws'](
+			function () { channel.assert(trap); },
+			TypeError,
+			'missing object key throws'
+		);
+		st.equal(accessed, false, 'a missing object key is not observably accessed');
+
 		st.end();
 	});
 

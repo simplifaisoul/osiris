@@ -39,7 +39,7 @@ indent_style = off
 indent = off
 max_line_length = off
 
-[.nycrc]
+[{.nycrc,*.mjs}]
 indent_style = tab
 
 [tea.yaml]

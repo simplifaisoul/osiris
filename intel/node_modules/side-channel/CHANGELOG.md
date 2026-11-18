@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.1.1](https://github.com/ljharb/side-channel/compare/v1.1.0...v1.1.1) - 2026-06-08
+
+### Commits
+
+- [Fix] `assert`: do not observably access object keys when throwing [`fc17361`](https://github.com/ljharb/side-channel/commit/fc173615136e6a6c3194656e6088afbc0bd6f9b8)
+- [actions] update workflows [`35b18c0`](https://github.com/ljharb/side-channel/commit/35b18c0bced5769d59226cd44a7e4003ad0aee81)
+- [Dev Deps] update `@arethetypeswrong/cli`, `@ljharb/eslint-config`, `@ljharb/tsconfig`, `@types/tape`, `auto-changelog`, `eslint`, `npmignore` [`b456a01`](https://github.com/ljharb/side-channel/commit/b456a01396cfdd028e5d39ea84885fe9178a72cf)
+- [Deps] update `object-inspect`, `side-channel-list` [`accf1a1`](https://github.com/ljharb/side-channel/commit/accf1a1a2767a22b1f5eeb5769a1db4c35a78090)
+- [readme] replace runkit CI badge with shields.io check-runs badge [`7e0c956`](https://github.com/ljharb/side-channel/commit/7e0c956411cc29267197a49a155a3d9bd01bacac)
+
 ## [v1.1.0](https://github.com/ljharb/side-channel/compare/v1.0.6...v1.1.0) - 2024-12-11
 
 ### Commits
