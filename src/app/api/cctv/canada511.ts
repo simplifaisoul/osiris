@@ -5,11 +5,13 @@ import type { CctvCamera } from './types';
 /**
  * OSIRIS — the provinces and territories whose 511 sites run the IBI stack
  * Ontario and Alberta already use: Manitoba, New Brunswick, Nova Scotia,
- * Newfoundland and Labrador, and Yukon. No API key; stills only, and every
- * one of them answers Access-Control-Allow-Origin: *.
+ * Newfoundland and Labrador, Yukon, Saskatchewan (its Highway Hotline) and
+ * Prince Edward Island. No API key; stills only, and every one of them
+ * answers Access-Control-Allow-Origin: *.
  *
- * About 225 highway cameras between them, mostly at 640×480 or better
- * (Manitoba's are 1280×720), Newfoundland's at 352×240. Each site lists a
+ * About 290 highway cameras between them, mostly at 640×480 or better
+ * (Manitoba's are 1280×720, Saskatchewan's 1920×1080), Newfoundland's at
+ * 352×240. Each site lists a
  * handful of rows from the platform's `USER` and `IBI` accounts beside the
  * ministry's own; those are cameras the ministry added by hand, not
  * neighbours', so no agency is left out.
@@ -60,9 +62,27 @@ export const CANADA_511: Ibi511Source[] = [
     countySuffix: '',
     bounds: { minLat: 59.9, maxLat: 69.7, minLng: -141.1, maxLng: -123.7 },
   },
+  {
+    base: 'https://hotline.gov.sk.ca',
+    idPrefix: 'sk',
+    source: 'Saskatchewan Highway Hotline',
+    state: 'Saskatchewan',
+    country: 'Canada',
+    countySuffix: '',
+    bounds: { minLat: 48.9, maxLat: 60.1, minLng: -110.1, maxLng: -101.3 },
+  },
+  {
+    base: 'https://511.gov.pe.ca',
+    idPrefix: 'pe',
+    source: 'PEI 511',
+    state: 'Prince Edward Island',
+    country: 'Canada',
+    countySuffix: '',
+    bounds: { minLat: 45.9, maxLat: 47.1, minLng: -64.5, maxLng: -61.9 },
+  },
 ];
 
-/** All five at once; a province that fails drops out of this refresh alone. */
+/** All seven at once; a province that fails drops out of this refresh alone. */
 export const fetchCanada511Cameras = cachedSource('canada-511', async (): Promise<CctvCamera[]> => {
   const results = await Promise.allSettled(CANADA_511.map(loadIbi511Cameras));
   const cams: CctvCamera[] = [];

@@ -61,6 +61,12 @@ import { fetchEastAsiaCameras, fetchSeAsiaCameras, fetchWestAsiaCameras } from '
 import { fetchQueenslandCameras } from './queensland';
 import { fetchCanada511Cameras } from './canada511';
 import { fetchAlaskaCameras } from './alaska';
+import { fetchMinnesotaCameras, fetchColoradoCameras } from './cars511x';
+import { fetchNebraskaCameras, fetchKansasCameras } from './cars-graphql';
+import { fetchNewEnglandCameras } from './newengland';
+import { fetchAustinCameras } from './austin';
+import { fetchCalgaryCameras } from './calgary';
+import { fetchEstoniaCameras } from './estonia';
 import {
   fetchLatamLiveCameras,
   fetchAfricaLiveCameras,
@@ -405,9 +411,11 @@ const RAW_REGION_FETCHERS: Record<string, RegionFetcher> = {
   'us-east': fetchUSEastCameras,
   'us-central': fetchUSCentralCameras,
   'canada': fetchCanadaCameras,
-  /* Manitoba, New Brunswick, Nova Scotia, Newfoundland and Labrador, and Yukon. */
+  /* Manitoba, New Brunswick, Nova Scotia, Newfoundland and Labrador, Yukon,
+     Saskatchewan and Prince Edward Island. */
   'canada-511': fetchCanada511Cameras,
   'alaska': fetchAlaskaCameras,
+  'calgary': fetchCalgaryCameras,
   'europe': fetchEuropeCameras,
   'netherlands': fetchNetherlandsCameras,
   'asia': fetchAsiaCameras,
@@ -441,6 +449,7 @@ const RAW_REGION_FETCHERS: Record<string, RegionFetcher> = {
   'asia-live': fetchAsiaLiveCameras,
   'newzealand': fetchNewZealandCameras,
   'lithuania': fetchLithuaniaCameras,
+  'estonia': fetchEstoniaCameras,
   'edmonton': fetchEdmontonCameras,
   'oregon': fetchOregonCameras,
   'michigan': fetchMichiganCameras,
@@ -458,6 +467,14 @@ const RAW_REGION_FETCHERS: Record<string, RegionFetcher> = {
   'texas': fetchTexasCameras,
   'delaware': fetchDelawareCameras,
   'virginia': fetchVirginiaCameras,
+  /* MnDOT and CDOT, from their new 511 sites' camera files. */
+  'minnesota': fetchMinnesotaCameras,
+  'colorado': fetchColoradoCameras,
+  'nebraska': fetchNebraskaCameras,
+  'kansas': fetchKansasCameras,
+  /* Vermont, New Hampshire and Maine. */
+  'new-england': fetchNewEnglandCameras,
+  'austin': fetchAustinCameras,
   'basque': fetchBasqueCameras,
   'eastasia': fetchEastAsiaCameras,
   'seasia': fetchSeAsiaCameras,
@@ -502,8 +519,9 @@ const PAGED_REGION_BUDGET_MS = 30_000;
 /* The regions given PAGED_REGION_BUDGET_MS. Queensland reads the date on each
    of its ~270 pictures to leave stopped cameras out, about 5s on its own and
    past 12s while every region loads at once on a cold start. Japan's river
-   cameras are 51 lists, about 13 MB together. */
-const SLOW_REGIONS = new Set(['florida', 'georgia', 'queensland', 'japan-rivers']);
+   cameras are 51 lists, about 13 MB together. Austin, like Queensland, reads
+   the date on each of its ~820 pictures. */
+const SLOW_REGIONS = new Set(['florida', 'georgia', 'queensland', 'japan-rivers', 'austin']);
 
 /**
  * Regions are fetched a few at a time, not all forty-eight at once.
@@ -796,6 +814,13 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   // Alaska (DOT&PF 511)
   if (lat > 51 && lat < 71.6 && lng > -170 && lng < -129.9) regions.push('alaska');
   if (lat > 53.3 && lat < 53.8 && lng > -114.0 && lng < -113.2) regions.push('edmonton');
+  if (lat > 50.8 && lat < 51.3 && lng > -114.4 && lng < -113.8) regions.push('calgary');
+  if (lat > 43.4 && lat < 49.5 && lng > -97.3 && lng < -89.4) regions.push('minnesota');
+  if (lat > 36.9 && lat < 41.1 && lng > -109.1 && lng < -102.0) regions.push('colorado');
+  if (lat > 39.9 && lat < 43.1 && lng > -104.1 && lng < -95.3) regions.push('nebraska');
+  if (lat > 36.9 && lat < 40.1 && lng > -102.1 && lng < -94.5) regions.push('kansas');
+  if (lat > 42.6 && lat < 47.5 && lng > -73.5 && lng < -66.8) regions.push('new-england');
+  if (lat > 29.9 && lat < 30.8 && lng > -98.2 && lng < -97.3) regions.push('austin');
   // Europe
   const inBulgaria = lat > 41 && lat < 44.5 && lng > 22 && lng < 29.5;
   const inGreece = lat > 34.5 && lat < 41.8 && lng > 19 && lng < 30;
@@ -812,9 +837,10 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   const inPoland = lat > 49.0 && lat < 55.0 && lng > 14.1 && lng < 24.1;
   const inFinland = lat > 59.5 && lat < 70.1 && lng > 20 && lng < 31.6;
   const inLithuania = lat > 53.8 && lat < 56.5 && lng > 20.9 && lng < 26.9;
+  const inEstonia = lat > 57.4 && lat < 59.9 && lng > 21.6 && lng < 28.3;
   const inIceland = lat > 63.0 && lat < 67.0 && lng > -25.0 && lng < -13.0;
   const inBalkans = inBulgaria || inGreece || inSerbia || inMacedonia || inRomania || inTurkey;
-  const inWesternEurope = inItaly || inCzechia || inSlovakia || inGermany || inFrance || inSpain || inPoland || inFinland || inIceland || inLithuania;
+  const inWesternEurope = inItaly || inCzechia || inSlovakia || inGermany || inFrance || inSpain || inPoland || inFinland || inIceland || inLithuania || inEstonia;
 
   if (lat > 35 && lat < 72 && lng > -11 && lng < 40 && !inBalkans && !inWesternEurope) {
     regions.push('europe');
@@ -840,6 +866,7 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   if (lat > 55.0 && lat < 69.2 && lng > 10.5 && lng < 24.3) regions.push('sweden');
   if (inIceland) regions.push('iceland');
   if (inLithuania) regions.push('lithuania');
+  if (inEstonia) regions.push('estonia');
 
   // Middle East
   const inMiddleEast = lat > 29 && lat < 34.5 && lng > 34 && lng < 36.5;
