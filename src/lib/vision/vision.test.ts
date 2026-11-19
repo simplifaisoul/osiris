@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { LABELS, MODEL, decode, fit, toInput } from './detect';
-import { countWords, countsOf, describeFrame, describeWatch, lightOf, motionBetween, summariseWatch, vehiclesIn, type FrameAnalysis } from './analysis';
+import { countWords, countsOf, describeFrame, describeSeen, describeWatch, lightOf, motionBetween, summariseWatch, vehiclesIn, type FrameAnalysis } from './analysis';
 
 const ROWS = 3549;
 
@@ -118,7 +118,15 @@ describe('analysis', () => {
     expect(w.counts.car).toEqual({ min: 4, mean: 7.7, max: 12 });
     expect(w.changed).toBe(4);
     expect(w.trend).toBe('busier');
-    expect(describeWatch(w)).toBe('watched 30 s, 6 frames, vehicles 4–12 (mean 7.7), traffic busier, the picture changed in 4 of 5 intervals');
+    expect(describeWatch(w)).toBe('watched 30 s, 6 frames, vehicles in view 4–12 (mean 7.7), traffic busier, the picture changed in 4 of 5 intervals');
+  });
+
+  it('leads with everything a live watch saw, each counted once', () => {
+    const seen = { counts: { car: 51, truck: 9, bus: 2, person: 3 }, vehicles: 62, people: 3, moving: 48, standing: 14 };
+    const w = summariseWatch([frame({ car: 4 }), frame({ car: 5 }, 0.05)], 30, seen);
+    expect(w.seen).toEqual(seen);
+    expect(describeWatch(w)).toBe('62 vehicles seen in 30 s (48 moving, 14 standing): 51 cars, 9 trucks, 2 buses; 3 people; watched 30 s, 2 frames, vehicles in view 4–5 (mean 4.5), the picture changed in 1 of 1 intervals');
+    expect(describeSeen({ counts: {}, vehicles: 0, people: 0, moving: 0, standing: 0 }, 30)).toBe('0 vehicles seen in 30 s');
   });
 
   it('says so when a slow camera never changed its picture', () => {

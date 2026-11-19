@@ -8,6 +8,7 @@
  */
 import { LABELS, VEHICLES, type Detection, type Label } from './detect';
 import type { Colour } from './colour';
+import type { Tally } from './track';
 
 /** How light the picture is: measured, not the time of day (a floodlit square at night reads bright). */
 export type Light = 'bright' | 'dim' | 'dark';
@@ -79,6 +80,8 @@ export interface WatchSummary {
   motion: { mean: number; max: number } | null;
   /** Whether the vehicles in view grew or fell from the first third of the watch to the last. */
   trend: 'busier' | 'quieter' | 'steady' | null;
+  /** On a live stream, everything seen over the whole watch, each counted once (see track.ts). */
+  seen?: Tally;
 }
 
 const range = (xs: number[]): Range => {
@@ -90,7 +93,7 @@ const range = (xs: number[]): Range => {
 /** A frame counts as changed above this share of moving pixels. */
 const CHANGED = 0.002;
 
-export function summariseWatch(samples: FrameAnalysis[], seconds: number): WatchSummary {
+export function summariseWatch(samples: FrameAnalysis[], seconds: number, seen?: Tally): WatchSummary {
   const counts: Partial<Record<Label, Range>> = {};
   for (const label of LABELS) {
     const xs = samples.map(s => s.counts[label] ?? 0);
@@ -114,6 +117,7 @@ export function summariseWatch(samples: FrameAnalysis[], seconds: number): Watch
     vehicles: range(vehicles),
     motion: motions.length ? { mean: Math.round((motions.reduce((a, b) => a + b, 0) / motions.length) * 1000) / 1000, max: Math.round(Math.max(...motions) * 1000) / 1000 } : null,
     trend,
+    ...(seen ? { seen } : {}),
   };
 }
 
@@ -149,16 +153,27 @@ export function describeFrame(a: FrameAnalysis): string {
   return `${countWords(a.counts)} in view, ${LIGHT_WORDS[a.light]}${colours ? `; vehicles by colour: ${colours}` : ''}`;
 }
 
+/** "62 vehicles seen in 30 s (48 moving, 14 standing): 51 cars, 9 trucks, 2 buses". */
+export function describeSeen(seen: Tally, seconds: number): string {
+  const n = seen.vehicles;
+  const vehicles = (Object.entries(seen.counts) as [Label, number][]).filter(([l]) => VEHICLES.includes(l));
+  const kinds = n ? `: ${countWords(Object.fromEntries(vehicles))}` : '';
+  const how = n ? ` (${seen.moving} moving, ${seen.standing} standing)` : '';
+  const people = seen.people ? `; ${seen.people} ${seen.people === 1 ? 'person' : 'people'}` : '';
+  return `${n} vehicle${n === 1 ? '' : 's'} seen in ${seconds} s${how}${kinds}${people}`;
+}
+
 /** One line on a watch. */
 export function describeWatch(w: WatchSummary): string {
   const v = w.vehicles;
   const parts = [
     `watched ${w.seconds} s, ${w.frames} frame${w.frames === 1 ? '' : 's'}`,
-    v.max > 0 ? `vehicles ${v.min === v.max ? v.max : `${v.min}–${v.max}`} (mean ${v.mean})` : 'no vehicles',
+    v.max > 0 ? `vehicles in view ${v.min === v.max ? v.max : `${v.min}–${v.max}`} (mean ${v.mean})` : 'no vehicles in view',
     w.trend ? `traffic ${w.trend}` : '',
     w.frames > 1 ? (w.changed ? `the picture changed in ${w.changed} of ${w.frames - 1} intervals` : 'the picture did not change: this camera refreshes slowly') : '',
   ];
-  return parts.filter(Boolean).join(', ');
+  const frames = parts.filter(Boolean).join(', ');
+  return w.seen ? `${describeSeen(w.seen, w.seconds)}; ${frames}` : frames;
 }
 
 /**
@@ -173,7 +188,10 @@ export function forModel(a: FrameAnalysis, watch?: WatchSummary) {
     vehicle_colours: a.colours ?? 'not readable (no colour in the picture)',
     light: a.light,
     picture: `${a.width}x${a.height}`,
-    ...(watch ? { watch: { seconds: watch.seconds, frames: watch.frames, changed: watch.changed, vehicles: watch.vehicles, counts: watch.counts, motion: watch.motion, trend: watch.trend } } : {}),
+    ...(watch ? { watch: {
+      seconds: watch.seconds, frames: watch.frames, changed: watch.changed, vehicles: watch.vehicles, counts: watch.counts, motion: watch.motion, trend: watch.trend,
+      ...(watch.seen ? { seen_over_the_watch: { vehicles: watch.seen.vehicles, moving: watch.seen.moving, standing: watch.seen.standing, people: watch.seen.people, by_kind: watch.seen.counts } } : {}),
+    } } : {}),
     detector: 'OSIRIS built-in detector (YOLOX-nano). Counts what is clearly visible; small, distant, dark or hidden objects are missed, so treat counts as a floor.',
   };
 }
