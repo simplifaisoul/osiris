@@ -6,13 +6,15 @@ import { VEHICLES, type Detection, type Label } from '@/lib/vision/detect';
 import { countWords, describeWatch, labelWord, type FrameAnalysis } from '@/lib/vision/analysis';
 import type { Colour } from '@/lib/vision/colour';
 import { identityWords, pickVehicles, type Identity } from '@/lib/vision/identify';
-import { clearLook, identifyVehicles, look, prime, sourceOf, useLook, type Look, type VisionCamera } from '@/lib/vision/store';
+import { clearLook, identifyVehicles, look, prime, sourceOf, useLook, type Look, type VisionCamera, type WatchCount } from '@/lib/vision/store';
 
 /**
  * OSIRIS — AI Analyze on a camera.
  *
  * AI Analyze counts what is in the current frame and reads each vehicle's
- * colour; Watch follows the feed for half a minute and reports how it changed.
+ * colour; Watch follows the feed for half a minute and reports how it changed,
+ * and on a live stream counts every vehicle that passes, each once, as it
+ * goes: a box locks on and takes its number as it is counted.
  * Both run on the reader's own device, free, with the detector in a worker.
  * Identify asks the reader's own AI model to name the largest vehicles' makes
  * and models. OI Assist looks through the same overlay, so whatever it is
@@ -144,9 +146,11 @@ function chipText(d: Detection, id?: Identity): string {
   return `${d.colour ? `${d.colour} ` : ''}${labelWord(d.label, 1)}`.toUpperCase();
 }
 
-function Targets({ a, reveal, px, byIndex }: { a: FrameAnalysis; reveal: boolean; px: number | null; byIndex?: Record<number, Identity> }) {
+function Targets({ a, reveal, px, byIndex, count }: { a: FrameAnalysis; reveal: boolean; px: number | null; byIndex?: Record<number, Identity>; count?: WatchCount }) {
   const [focus, setFocus] = useState<number | null>(null);
   const { width: W, height: H, detections } = a;
+  // A box's number: the make and model's once named, else its place in a live watch's count.
+  const tagOf = (i: number) => (byIndex ? byIndex[i]?.n : count?.numbers[i] ?? undefined);
   // The largest boxes are drawn first, so a small one inside a large one can still be pointed at.
   const order = detections.map((_, i) => i).sort((x, y) => detections[y].box[2] * detections[y].box[3] - detections[x].box[2] * detections[x].box[3]);
   const dot = px ? 7 * px : W / 70;
@@ -158,11 +162,13 @@ function Targets({ a, reveal, px, byIndex }: { a: FrameAnalysis; reveal: boolean
         const colour = tone(d.label);
         const at = reveal ? reachedAt(d.box, H) : 0;
         const arm = Math.max(Math.min(w, h) * 0.28, Math.min(w, h, (px ?? 1) * 5));
+        // Revealed with the frame, or counted on this frame of a watch: it locks on.
+        const lock = reveal || !!count?.fresh.includes(i);
         return (
           <g key={i} style={{ opacity: focus !== null && focus !== i ? 0.22 : 1, transition: 'opacity 0.2s' }}
             onPointerEnter={() => setFocus(i)} onClick={e => { e.stopPropagation(); setFocus(focus === i ? null : i); }}>
-            <g className={reveal ? 'vision-lock' : undefined} style={{ '--at': `${at}ms` } as CSSProperties}>
-              <rect x={x} y={y} width={w} height={h} opacity={0} className={reveal ? 'vision-flash' : undefined} style={{ fill: colour, '--at': `${at}ms` } as CSSProperties} pointerEvents="all" />
+            <g className={lock ? 'vision-lock' : undefined} style={{ '--at': `${at}ms` } as CSSProperties}>
+              <rect x={x} y={y} width={w} height={h} opacity={0} className={lock ? 'vision-flash' : undefined} style={{ fill: colour, '--at': `${at}ms` } as CSSProperties} pointerEvents="all" />
               <rect x={x} y={y} width={w} height={h} fill="none" style={{ stroke: colour }} strokeOpacity={0.3} strokeWidth={1} vectorEffect="non-scaling-stroke" />
               <path d={corners(x, y, w, h, arm)} fill="none" style={{ stroke: colour }} strokeWidth={focus === i ? 2.5 : 2} vectorEffect="non-scaling-stroke" />
               {d.colour && w > dot * 2.6 && h > dot * 2 && (
@@ -177,17 +183,19 @@ function Targets({ a, reveal, px, byIndex }: { a: FrameAnalysis; reveal: boolean
         if (focus !== null && detections[focus]) {
           const d = detections[focus];
           const id = byIndex?.[focus];
+          const n = tagOf(focus);
           const text = [chipText(d, id), id?.make ? id.confidence.toUpperCase() : `${Math.round(d.score * 100)}%`, clock(a.at)].join(' · ');
-          const at = placeChip(d.box, text, id !== undefined, px, W, null);
-          return at && <Chip at={at} text={text} n={id?.n} colour={tone(d.label)} px={px} />;
+          const at = placeChip(d.box, text, n !== undefined, px, W, null);
+          return at && <Chip at={at} text={text} n={n} colour={tone(d.label)} px={px} />;
         }
         const placed: Place[] = [];
         return pickVehicles(detections).map(i => {
           const d = detections[i];
           const id = byIndex?.[i];
+          const n = tagOf(i);
           const text = chipText(d, id);
-          const at = placeChip(d.box, text, id !== undefined, px, W, placed);
-          return at && <Chip key={i} at={at} text={text} n={id?.n} colour={tone(d.label)} px={px} delay={reveal ? reachedAt(d.box, H) : undefined} />;
+          const at = placeChip(d.box, text, n !== undefined, px, W, placed);
+          return at && <Chip key={i} at={at} text={text} n={n} colour={tone(d.label)} px={px} delay={reveal ? reachedAt(d.box, H) : undefined} />;
         });
       })()}
     </g>
@@ -249,14 +257,17 @@ function Frame({ state, fit }: { state: Look; fit: 'cover' | 'contain' }) {
         {/* The veil slides off behind the sweep line: above it the frame is clear, below it still being read. */}
         {a && state.reveal && <g key={a.at} className="vision-sweep" style={{ '--sweep': `${REVEAL_MS}ms` } as CSSProperties}>{sweep}{veil}</g>}
       </g>
-      {a && <Targets key={a.at} a={a} reveal={!!state.reveal} px={px} byIndex={state.identify?.byIndex} />}
+      {a && <Targets key={a.at} a={a} reveal={!!state.reveal} px={px} byIndex={state.identify?.byIndex} count={state.watch?.count} />}
     </svg>
   );
 }
 
 /** What the look is doing, in a few words. */
 function doing(state: Look): string {
-  if (state.mode === 'watch' && state.watch && state.analysis) return `WATCHING ${Math.round(state.watch.elapsed)} / ${state.watch.seconds}S`;
+  if (state.mode === 'watch' && state.watch && state.analysis) {
+    const counted = state.watch.count ? ` · ${state.watch.count.tally.vehicles} COUNTED` : '';
+    return `WATCHING ${Math.round(state.watch.elapsed)} / ${state.watch.seconds}S${counted}`;
+  }
   if (!state.frame) return 'ACQUIRING FRAME';
   if (state.scan) {
     if (!state.scan.pass) return 'LOADING DETECTOR';
@@ -299,7 +310,9 @@ export default function CameraVision({ camera, fit, ready }: { camera: VisionCam
           </button>
           <button onClick={() => start(WATCH_SECONDS)} onPointerEnter={warm} onFocus={warm} onTouchStart={warm} aria-label={`Watch for ${WATCH_SECONDS} seconds`}
             className="flex items-center gap-1.5 px-2.5 py-1.5 bg-black/75 border border-white/15 text-[9px] font-mono tracking-[0.2em] text-[var(--text-secondary)] transition-colors hover:text-white hover:border-white/40"
-            title={`Follow the feed for ${WATCH_SECONDS} seconds and see how it changes`}>
+            title={source === 'video'
+              ? `Follow the stream for ${WATCH_SECONDS} seconds and count every vehicle that passes`
+              : `Follow the feed for ${WATCH_SECONDS} seconds and see how it changes`}>
             <Timer className="w-3 h-3" /> WATCH {WATCH_SECONDS}S
           </button>
         </div>
@@ -352,7 +365,10 @@ function Report({ camera, state, a }: { camera: VisionCamera; state: Look; a: Fr
   const ms = state.reveal ? REVEAL_MS : 400;
   const vehicles = a.detections.filter(d => isVehicle(d.label)).length;
   const people = a.counts.person ?? 0;
-  const kinds = (Object.entries(a.counts) as [Label, number][]).filter(([l]) => l !== 'person').sort((x, y) => y[1] - x[1]);
+  // A live watch tells everything it has counted so far; anything else, what is in this frame.
+  const count = state.watch?.count?.tally;
+  const over = busy ? 'COUNTED' : `IN ${state.watch?.seconds}S`;
+  const kinds = (Object.entries(count?.counts ?? a.counts) as [Label, number][]).filter(([l]) => l !== 'person').sort((x, y) => y[1] - x[1]);
   const colours = a.colours ? (Object.entries(a.colours) as [Colour, number][]).sort((x, y) => y[1] - x[1]) : [];
   const identifiable = pickVehicles(a.detections).length;
   const ids = state.identify;
@@ -382,10 +398,24 @@ function Report({ camera, state, a }: { camera: VisionCamera; state: Look; a: Fr
       </div>
 
       <div className="mt-2 flex items-end gap-5">
-        <Big n={vehicles} word={vehicles === 1 ? 'VEHICLE' : 'VEHICLES'} colour="var(--cyan-primary)" ms={ms} />
-        <Big n={people} word={people === 1 ? 'PERSON' : 'PEOPLE'} colour="var(--gold-primary)" ms={ms} />
+        {count ? (
+          <>
+            <Big n={count.vehicles} word={`${count.vehicles === 1 ? 'VEHICLE' : 'VEHICLES'} ${over}`} colour="var(--cyan-primary)" ms={ms} />
+            <Big n={count.people} word={`${count.people === 1 ? 'PERSON' : 'PEOPLE'} ${over}`} colour="var(--gold-primary)" ms={ms} />
+          </>
+        ) : (
+          <>
+            <Big n={vehicles} word={vehicles === 1 ? 'VEHICLE' : 'VEHICLES'} colour="var(--cyan-primary)" ms={ms} />
+            <Big n={people} word={people === 1 ? 'PERSON' : 'PEOPLE'} colour="var(--gold-primary)" ms={ms} />
+          </>
+        )}
         <div className="ml-auto pb-0.5 text-right text-[9px] font-mono tracking-wide text-[var(--text-secondary)] leading-relaxed">
           <div>{kinds.length ? kinds.map(([l, n]) => `${n} ${labelWord(l, n)}`).join(' · ').toUpperCase() : vehicles + people ? '' : 'NOTHING IN VIEW IT CAN COUNT'}</div>
+          {count && (
+            <div title="Moving: it crossed the picture while watched. Standing: parked, queued or waiting the whole time it was seen.">
+              {vehicles} IN VIEW · {count.moving} MOVING · {count.standing} STANDING
+            </div>
+          )}
           <div className="text-white/45" title="Read by a detector running in this browser: nothing is sent anywhere">
             {a.passes > 1 ? `${a.passes} PASSES · ` : ''}<span style={{ color: accent }}>{a.ms < 1000 ? `${a.ms} MS` : `${(a.ms / 1000).toFixed(1)} S`}</span> · ON THIS DEVICE
           </div>

@@ -10,6 +10,7 @@ import { useSyncExternalStore } from 'react';
 import { describeFrame, summariseWatch, type FrameAnalysis, type WatchSummary } from './analysis';
 import { analyseBitmap, fetchStillEarly, forgetSession, grabStill, grabVideo, warmUp, type Grab } from './client';
 import type { Region } from './scan';
+import { Tracker, type Tally } from './track';
 import { sourceOf, type VisionCamera } from './source';
 import { cropOf, pickVehicles, type Identity } from './identify';
 import { errorOf, headersFor, loadEngine, loadKey } from '../oi/client';
@@ -33,11 +34,17 @@ export interface Look {
   analysis?: FrameAnalysis;
   /** The analysis is the look's first, so the overlay reveals it rather than swapping boxes in place. */
   reveal?: boolean;
-  /** A watch: how long, how far through, and once done what it came to. */
-  watch?: { seconds: number; elapsed: number; summary?: WatchSummary };
+  /**
+   * A watch: how long, how far through, and once done what it came to. On a
+   * live stream, also what it has counted so far, which number each box in the
+   * frame shown has in that count, and which boxes were counted on this frame.
+   */
+  watch?: { seconds: number; elapsed: number; summary?: WatchSummary; count?: WatchCount };
   /** The vehicles named by the reader's own model, by their index among the detections. */
   identify?: { status: 'working' | 'done' | 'error'; error?: string; byIndex: Record<number, Identity> };
 }
+
+export interface WatchCount { tally: Tally; numbers: (number | null)[]; fresh: number[] }
 
 const looks = new Map<string, Look>();
 const running = new Map<string, AbortController>();
@@ -97,8 +104,12 @@ async function videoFor(id: string, signal: AbortSignal, ms = 10_000): Promise<H
   }
 }
 
-/** Seconds between frames in a watch: a still camera's picture is held for a few seconds anyway. */
-const STEP = { still: 5, video: 1 } as const;
+/**
+ * Seconds between frames in a watch: a still camera's picture is held for a
+ * few seconds anyway. A live watch counts everything that passes, so it reads
+ * up to four frames a second, fewer on a device whose detector is slower.
+ */
+const STEP = { still: 5, video: 0.25 } as const;
 
 export interface LookResult { camera: string; analysis: FrameAnalysis; watch?: WatchSummary; text: string }
 
@@ -122,31 +133,45 @@ export async function look(camera: VisionCamera, options: { watch?: number; by?:
   forgetSession(id);
 
   const samples: FrameAnalysis[] = [];
+  const tracker = source === 'video' && mode === 'watch' ? new Tracker() : null;
+  let count: WatchCount | undefined;
+  let media: number | undefined;
   const started = Date.now();
   try {
     for (;;) {
       const grab: Grab = source === 'still' ? await grabStill(id, signal) : await grabVideo(await videoFor(id, signal));
       if (signal.aborted) { grab.image.close(); URL.revokeObjectURL(grab.url); throw signal.reason; }
+      // A stream that is buffering shows the frame already read: counted again after it caught up, its cars would be new ones.
+      if (tracker && grab.media !== undefined && grab.media === media) {
+        grab.image.close();
+        URL.revokeObjectURL(grab.url);
+        if ((Date.now() - started) / 1000 >= seconds) break;
+        await sleep(STEP.video * 1000, signal);
+        continue;
+      }
+      media = grab.media;
       const first = samples.length === 0;
       // The first frame is shown as soon as it is in hand, and each pass of the detector as it begins.
       if (first) set(id, { ...base, frame: grab.url, scan: { width: grab.image.width, height: grab.image.height, pass: 0, of: 0, region: null, found: 0 } });
       const analysis = await analyseBitmap(grab.image, grab.at, id, {
-        // A live watch wants a frame a second, so it reads each one once.
+        // A live watch wants several frames a second, so it reads each one once.
         tiles: !(source === 'video' && mode === 'watch'),
         onPass: first ? p => { const now = looks.get(id); if (now?.scan && !signal.aborted) set(id, { ...now, scan: { ...now.scan, ...p } }); } : undefined,
       });
       if (signal.aborted) { if (!first) URL.revokeObjectURL(grab.url); throw signal.reason; }
       samples.push(analysis);
+      // Timed by the stream's own clock, so a stall does not read as the cars having raced ahead.
+      if (tracker) count = { ...tracker.update(analysis.detections, (grab.media ?? 0) * 1000), tally: tracker.tally() };
       const elapsed = Math.min(seconds, (Date.now() - started) / 1000);
-      set(id, { ...base, frame: grab.url, analysis, reveal: first, ...(mode === 'watch' ? { watch: { seconds, elapsed } } : {}) });
+      set(id, { ...base, frame: grab.url, analysis, reveal: first, ...(mode === 'watch' ? { watch: { seconds, elapsed, count } } : {}) });
       if (mode === 'frame' || elapsed >= seconds) break;
       // Frames on a fixed beat from the start, so a slow fetch does not stretch the watch.
       await sleep(Math.max(0, started + samples.length * STEP[source] * 1000 - Date.now()), signal);
     }
     const last = samples[samples.length - 1];
-    const watch = mode === 'watch' ? summariseWatch(samples, seconds) : undefined;
+    const watch = mode === 'watch' ? summariseWatch(samples, seconds, count?.tally) : undefined;
     const current = looks.get(id);
-    set(id, { ...base, status: 'done', frame: current?.frame, analysis: last, reveal: current?.reveal, ...(watch ? { watch: { seconds, elapsed: seconds, summary: watch } } : {}) });
+    set(id, { ...base, status: 'done', frame: current?.frame, analysis: last, reveal: current?.reveal, ...(watch ? { watch: { seconds, elapsed: seconds, summary: watch, count } } : {}) });
     return { camera: id, analysis: last, watch, text: describeFrame(last) };
   } catch (err) {
     if (signal.aborted) throw new Error('The look was stopped');

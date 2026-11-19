@@ -3,6 +3,8 @@ import { clearSourceCache } from '@/lib/sourceCache';
 import { fetchCanada511Cameras } from './canada511';
 import { fetchAlaskaCameras } from './alaska';
 import { fetchNewEnglandCameras } from './newengland';
+import { fetchPennsylvaniaCameras } from './pennsylvania';
+import { fetchConnecticutCameras } from './connecticut';
 import type { Ibi511Record } from './ibi511';
 
 afterEach(() => {
@@ -30,6 +32,11 @@ const SITES: Record<string, Ibi511Record[]> = {
   'hotline.gov.sk.ca': [row(1, 'Hwy 1 @ Wapella', -101.9796, 50.2593)],
   '511.gov.pe.ca': [row(1, 'Albany Hwy 1 E', -63.5935, 46.2513)],
   'newengland511.org': [row(622, 'I-189 SOUTH BURLINGTON', -73.1937, 44.4602), row(623, 'Mis-geocoded in New York', -74.0, 40.7)],
+  'www.511pa.com': [
+    { ...row(4357, 'I-78 EB MM 47.9 @ ADAMS ROAD OVERPASS', -75.65852, 40.57533), images: [{ imageUrl: '/map/Cctv/6406', videoUrl: 'https://pa-se3.arcadis-ivds.com:8200/chan-29713/index.m3u8', isVideoAuthRequired: true }] },
+    { ...row(4129, 'I-376 @ BUNKER HILL ROAD', -80.31978, 40.61313), images: [{ imageUrl: '/map/Cctv/6178', blocked: true }] },
+  ],
+  'ctroads.org': [row(475, 'Cam 137 Waterbury I-84 EB W/O Exit 25 Hamilton Ave', -73.026686, 41.5452)],
 };
 
 const stub = (down: string[] = []) => vi.stubGlobal('fetch', vi.fn(async (url: string) => {
@@ -71,6 +78,17 @@ describe('Canadian and Alaskan 511 cameras', () => {
     stub();
     expect(await fetchNewEnglandCameras()).toEqual([expect.objectContaining({
       id: 'ne511-622', country: 'US', source: 'New England 511', feed_url: 'https://newengland511.org/map/Cctv/622',
+    })]);
+  });
+
+  it('loads Pennsylvania and Connecticut by their public stills, leaving out cameras the site blocks', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    stub();
+    const pa = await fetchPennsylvaniaCameras();
+    expect(pa).toEqual([expect.objectContaining({ id: 'pa511-4357', source: 'PennDOT', feed_url: 'https://www.511pa.com/map/Cctv/6406' })]);
+    expect(pa[0].stream_url).toBeUndefined();
+    expect(await fetchConnecticutCameras()).toEqual([expect.objectContaining({
+      id: 'ct511-475', source: 'CTDOT', feed_url: 'https://ctroads.org/map/Cctv/475',
     })]);
   });
 });

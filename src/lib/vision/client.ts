@@ -70,6 +70,8 @@ export interface Grab {
   /** An object URL of the same frame, for the overlay to show; the caller revokes it. */
   url: string;
   at: string;
+  /** For a live stream, where its own clock stood, in seconds: it stops while the stream buffers. */
+  media?: number;
 }
 
 const frameUrl = (cameraId: string) => `/api/cctv/frame?id=${encodeURIComponent(cameraId)}`;
@@ -117,5 +119,5 @@ export async function grabVideo(video: HTMLVideoElement): Promise<Grab> {
     throw new Error('The browser will not let this feed be read');
   }
   if (!blob) { image.close(); throw new Error('The stream frame could not be captured'); }
-  return { image, url: URL.createObjectURL(blob), at: new Date().toISOString() };
+  return { image, url: URL.createObjectURL(blob), at: new Date().toISOString(), media: video.currentTime };
 }

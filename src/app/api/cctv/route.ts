@@ -61,9 +61,12 @@ import { fetchEastAsiaCameras, fetchSeAsiaCameras, fetchWestAsiaCameras } from '
 import { fetchQueenslandCameras } from './queensland';
 import { fetchCanada511Cameras } from './canada511';
 import { fetchAlaskaCameras } from './alaska';
-import { fetchMinnesotaCameras, fetchColoradoCameras } from './cars511x';
+import { fetchMinnesotaCameras, fetchColoradoCameras, fetchNewYorkCameras } from './cars511x';
 import { fetchNebraskaCameras, fetchKansasCameras } from './cars-graphql';
 import { fetchNewEnglandCameras } from './newengland';
+import { fetchPennsylvaniaCameras } from './pennsylvania';
+import { fetchConnecticutCameras } from './connecticut';
+import { fetchMissouriCameras } from './missouri';
 import { fetchAustinCameras } from './austin';
 import { fetchCalgaryCameras } from './calgary';
 import { fetchEstoniaCameras } from './estonia';
@@ -470,10 +473,14 @@ const RAW_REGION_FETCHERS: Record<string, RegionFetcher> = {
   /* MnDOT and CDOT, from their new 511 sites' camera files. */
   'minnesota': fetchMinnesotaCameras,
   'colorado': fetchColoradoCameras,
+  'new-york': fetchNewYorkCameras,
   'nebraska': fetchNebraskaCameras,
   'kansas': fetchKansasCameras,
   /* Vermont, New Hampshire and Maine. */
   'new-england': fetchNewEnglandCameras,
+  'pennsylvania': fetchPennsylvaniaCameras,
+  'connecticut': fetchConnecticutCameras,
+  'missouri': fetchMissouriCameras,
   'austin': fetchAustinCameras,
   'basque': fetchBasqueCameras,
   'eastasia': fetchEastAsiaCameras,
@@ -520,8 +527,9 @@ const PAGED_REGION_BUDGET_MS = 30_000;
    of its ~270 pictures to leave stopped cameras out, about 5s on its own and
    past 12s while every region loads at once on a cold start. Japan's river
    cameras are 51 lists, about 13 MB together. Austin, like Queensland, reads
-   the date on each of its ~820 pictures. */
-const SLOW_REGIONS = new Set(['florida', 'georgia', 'queensland', 'japan-rivers', 'austin']);
+   the date on each of its ~820 pictures. Missouri waits up to 8s on each
+   streaming server that does not answer. */
+const SLOW_REGIONS = new Set(['florida', 'georgia', 'queensland', 'japan-rivers', 'austin', 'missouri']);
 
 /**
  * Regions are fetched a few at a time, not all forty-eight at once.
@@ -820,6 +828,10 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   if (lat > 39.9 && lat < 43.1 && lng > -104.1 && lng < -95.3) regions.push('nebraska');
   if (lat > 36.9 && lat < 40.1 && lng > -102.1 && lng < -94.5) regions.push('kansas');
   if (lat > 42.6 && lat < 47.5 && lng > -73.5 && lng < -66.8) regions.push('new-england');
+  if (lat > 40.4 && lat < 45.1 && lng > -79.8 && lng < -71.8) regions.push('new-york');
+  if (lat > 39.7 && lat < 42.3 && lng > -80.6 && lng < -74.6) regions.push('pennsylvania');
+  if (lat > 40.9 && lat < 42.1 && lng > -73.8 && lng < -71.7) regions.push('connecticut');
+  if (lat > 35.9 && lat < 40.7 && lng > -95.8 && lng < -89.0) regions.push('missouri');
   if (lat > 29.9 && lat < 30.8 && lng > -98.2 && lng < -97.3) regions.push('austin');
   // Europe
   const inBulgaria = lat > 41 && lat < 44.5 && lng > 22 && lng < 29.5;
