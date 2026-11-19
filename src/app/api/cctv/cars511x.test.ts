@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { clearSourceCache } from '@/lib/sourceCache';
-import { COLORADO, fetchMinnesotaCameras, loadCars511xCameras, MINNESOTA, mapCars511xFeature, STALE_MS, type Cars511xFeature, type Cars511xView } from './cars511x';
+import { COLORADO, fetchMinnesotaCameras, loadCars511xCameras, MINNESOTA, mapCars511xFeature, NEW_YORK, STALE_MS, type Cars511xFeature, type Cars511xView } from './cars511x';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -18,7 +18,7 @@ const site = (id: number, views: Cars511xView[], extra: Record<string, unknown> 
 const hls = (n: string) => ({ type: 'WMP', url: `https://video.dot.state.mn.us/public/${n}.stream/playlist.m3u8`, videoPreviewUrl: `https://public.carsprogram.org/cameras/MN/${n}`, broken: false });
 const still = (url: string, imageTimestamp?: number) => ({ type: 'STILL_IMAGE', url, imageTimestamp, broken: false });
 
-describe('511x cameras (Minnesota, Colorado)', () => {
+describe('511x cameras (Minnesota, Colorado, New York)', () => {
   it('plays the live view and shows its preview as the still', () => {
     expect(mapCars511xFeature(site(520199, [hls('C1273')]), MINNESOTA, NOW)).toEqual({
       id: 'mn511-520199',
@@ -54,6 +54,21 @@ describe('511x cameras (Minnesota, Colorado)', () => {
     expect(mapCars511xFeature({ ...site(2, [hls('C2')]), geometry: { coordinates: [0, 0] } }, MINNESOTA, NOW)).toBeNull();
     expect(mapCars511xFeature(site(3, [{ type: 'WMP', url: 'http://insecure.example/x.m3u8', broken: false }]), MINNESOTA, NOW)).toBeNull();
     expect(mapCars511xFeature(site(4, []), MINNESOTA, NOW)).toBeNull();
+  });
+
+  it('leaves out New York City DOT pictures, from a host that never answers', () => {
+    const at = (coordinates: number[], views: Cars511xView[]): Cars511xFeature => ({ geometry: { coordinates }, properties: { id: 20930, name: 'Central Park West @ 86 St', public: true, views } });
+    expect(mapCars511xFeature(at([-73.969353, 40.785302], [still('https://nyctmc.org/api/cameras/8a6bc417/image')]), NEW_YORK, NOW)).toBeNull();
+    const nysdot = { type: 'WMP', url: 'https://s51.nysdot.skyvdn.com/rtplive/R4_001/playlist.m3u8', videoPreviewUrl: 'https://public.carsprogram.org/cameras/NYSDOT/R4_001.flv.png', broken: false };
+    expect(mapCars511xFeature(at([-77.5, 43.15], [nysdot]), NEW_YORK, NOW)).toMatchObject({
+      id: 'ny511-20930', source: 'NYSDOT', city: 'New York', stream_url: nysdot.url, feed_url: nysdot.videoPreviewUrl,
+    });
+  });
+
+  it('leaves out the Ontario cameras NYSDOT republishes from across the Niagara', () => {
+    const qew: Cars511xFeature = { geometry: { coordinates: [-79.188, 43.165] }, properties: { id: 34182, name: 'QEW E/Welland Canal', route: 'QEW', public: true, views: [still('https://public.carsprogram.org/cameras/NYSDOT/other/52.jpg')] } };
+    expect(mapCars511xFeature(qew, NEW_YORK, NOW)).toBeNull();
+    expect(mapCars511xFeature({ ...qew, properties: { ...qew.properties, route: 'I-190' } }, NEW_YORK, NOW)).not.toBeNull();
   });
 
   it('reads the state file once, without duplicates, and fails loudly when it cannot', async () => {
