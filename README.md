@@ -222,6 +222,7 @@ OPENSKY_CLIENT_ID=            # OpenSky OAuth2 (since Mar 2025) — opensky-netw
 OPENSKY_CLIENT_SECRET=
 N2YO_API_KEY=                 # N2YO satellites — n2yo.com (Profile → API key)
 AIS_API_KEY=                 # aisstream.io maritime
+WSDOT_ACCESS_CODE=            # WSDOT Washington cameras — wsdot.wa.gov/traffic/api
 ```
 
 > Without `SCANNER_URL`/`SCANNER_KEY` the RECON toolkit returns `503`; every
