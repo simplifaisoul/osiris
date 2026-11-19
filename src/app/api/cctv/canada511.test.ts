@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { clearSourceCache } from '@/lib/sourceCache';
 import { fetchCanada511Cameras } from './canada511';
 import { fetchAlaskaCameras } from './alaska';
+import { fetchNewEnglandCameras } from './newengland';
 import type { Ibi511Record } from './ibi511';
 
 afterEach(() => {
@@ -26,6 +27,9 @@ const SITES: Record<string, Ibi511Record[]> = {
   '511nl.ca': [row(2, 'Flowers Cove Route 430', -56.7012, 51.3131)],
   '511yukon.ca': [row(1, 'S.Klondike Hwy - km 106.5', -134.7053, 60.1749), row(9, 'Mis-geocoded at 0,0', 0, 0)],
   '511.alaska.gov': [row(1, 'Seward Highway MP 78.9 / Portage Glacier Road', -148.9755, 60.8189)],
+  'hotline.gov.sk.ca': [row(1, 'Hwy 1 @ Wapella', -101.9796, 50.2593)],
+  '511.gov.pe.ca': [row(1, 'Albany Hwy 1 E', -63.5935, 46.2513)],
+  'newengland511.org': [row(622, 'I-189 SOUTH BURLINGTON', -73.1937, 44.4602), row(623, 'Mis-geocoded in New York', -74.0, 40.7)],
 };
 
 const stub = (down: string[] = []) => vi.stubGlobal('fetch', vi.fn(async (url: string) => {
@@ -36,11 +40,12 @@ const stub = (down: string[] = []) => vi.stubGlobal('fetch', vi.fn(async (url: s
 }));
 
 describe('Canadian and Alaskan 511 cameras', () => {
-  it('loads all five provinces and territories, each with its own prefix, inside its own borders', async () => {
+  it('loads all seven provinces and territories, each with its own prefix, inside its own borders', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     stub();
     const cams = await fetchCanada511Cameras();
-    expect(cams.map(c => c.id).sort()).toEqual(['mb-62', 'nb-1', 'nl-2', 'ns-53', 'yt-1']);
+    expect(cams.map(c => c.id).sort()).toEqual(['mb-62', 'nb-1', 'nl-2', 'ns-53', 'pe-1', 'sk-1', 'yt-1']);
+    expect(cams.find(c => c.id === 'sk-1')).toMatchObject({ source: 'Saskatchewan Highway Hotline', feed_url: 'https://hotline.gov.sk.ca/map/Cctv/1' });
     const yt = cams.find(c => c.id === 'yt-1');
     expect(yt).toMatchObject({ source: '511 Yukon', country: 'Canada', feed_url: 'https://511yukon.ca/map/Cctv/1' });
   });
@@ -50,7 +55,7 @@ describe('Canadian and Alaskan 511 cameras', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     stub(['511.gnb.ca']);
     const cams = await fetchCanada511Cameras();
-    expect(cams.map(c => c.id).sort()).toEqual(['mb-62', 'nl-2', 'ns-53', 'yt-1']);
+    expect(cams.map(c => c.id).sort()).toEqual(['mb-62', 'nl-2', 'ns-53', 'pe-1', 'sk-1', 'yt-1']);
   });
 
   it('loads Alaska', async () => {
@@ -58,6 +63,14 @@ describe('Canadian and Alaskan 511 cameras', () => {
     stub();
     expect(await fetchAlaskaCameras()).toEqual([expect.objectContaining({
       id: 'ak-1', lat: 60.8189, lng: -148.9755, country: 'US', source: 'Alaska 511', feed_url: 'https://511.alaska.gov/map/Cctv/1',
+    })]);
+  });
+
+  it('loads New England 511 inside Vermont, New Hampshire and Maine', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    stub();
+    expect(await fetchNewEnglandCameras()).toEqual([expect.objectContaining({
+      id: 'ne511-622', country: 'US', source: 'New England 511', feed_url: 'https://newengland511.org/map/Cctv/622',
     })]);
   });
 });

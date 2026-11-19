@@ -12,7 +12,8 @@
 import { getPayload, readSnapshot } from '@/lib/cctv-snapshot';
 import { haversine } from '@/lib/geo';
 import { safeFetch } from '@/lib/ssrf-guard';
-import { currentFrameUrl, FRAME_ROUTE as SINGAPORE_FRAME_ROUTE } from '@/app/api/cctv/singapore';
+import { currentFrameUrl as singaporeFrameUrl, FRAME_ROUTE as SINGAPORE_FRAME_ROUTE } from '@/app/api/cctv/singapore';
+import { currentFrameUrl as estoniaFrameUrl, FRAME_ROUTE as ESTONIA_FRAME_ROUTE } from '@/app/api/cctv/estonia';
 
 export interface CatalogueCamera {
   id: string;
@@ -31,6 +32,17 @@ export interface CatalogueCamera {
 interface Index { cameras: Map<string, CatalogueCamera>; stills: CatalogueCamera[]; builtAt: number; at: number }
 
 const str = (v: unknown) => (typeof v === 'string' ? v : '');
+
+/**
+ * Singapore's and Estonia's picture links change with every picture, so those
+ * cameras' feeds name the camera instead, and the link is looked up when the
+ * frame is fetched.
+ */
+const LOOKED_UP: Array<[prefix: string, lookup: (id: string) => Promise<string | null>]> = [
+  [`${SINGAPORE_FRAME_ROUTE}?`, singaporeFrameUrl],
+  [`${ESTONIA_FRAME_ROUTE}?`, estoniaFrameUrl],
+];
+
 const httpUrl = (v: string) => (/^https?:\/\/[^\s]+$/i.test(v) ? v : undefined);
 
 /** The still image a catalogue entry points at: its snapshot, unwrapped from the camera proxy where it goes through one. */
@@ -38,8 +50,7 @@ export function stillOf(raw: Record<string, unknown>): string | null {
   const type = str(raw.stream_type) || 'jpg';
   const feed = str(raw.feed_url);
   if (type !== 'jpg' || !feed) return null;
-  // A Singapore camera's picture link changes with every picture, so its feed names the camera instead.
-  if (feed.startsWith(`${SINGAPORE_FRAME_ROUTE}?`)) return feed;
+  if (LOOKED_UP.some(([prefix]) => feed.startsWith(prefix))) return feed;
   if (feed.startsWith('/api/cctv/proxy?')) {
     const inner = new URLSearchParams(feed.slice(feed.indexOf('?') + 1)).get('url') ?? '';
     return httpUrl(inner) ?? null;
@@ -162,10 +173,11 @@ async function readCapped(res: Response): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-/** The link to fetch now: looked up for a Singapore camera, the still itself for every other. */
+/** The link to fetch now: looked up for a Singapore or Estonia camera, the still itself for every other. */
 async function currentStill(still: string): Promise<string> {
-  if (!still.startsWith(`${SINGAPORE_FRAME_ROUTE}?`)) return still;
-  const url = await currentFrameUrl(new URLSearchParams(still.slice(still.indexOf('?') + 1)).get('id') ?? '');
+  const lookup = LOOKED_UP.find(([prefix]) => still.startsWith(prefix))?.[1];
+  if (!lookup) return still;
+  const url = await lookup(new URLSearchParams(still.slice(still.indexOf('?') + 1)).get('id') ?? '');
   if (!url) throw new FrameError(502, 'The camera has no current picture');
   return url;
 }
