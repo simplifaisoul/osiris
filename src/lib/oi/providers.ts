@@ -11,7 +11,7 @@
 import { createDemoChat } from './demo';
 
 export type ProviderId =
-  | 'openai' | 'anthropic' | 'google' | 'openrouter' | 'groq' | 'deepseek' | 'xai' | 'mistral' | 'qwen' | 'demo';
+  | 'openai' | 'anthropic' | 'google' | 'openrouter' | 'groq' | 'deepseek' | 'xai' | 'mistral' | 'qwen' | 'cheaperinference' | 'demo';
 
 type Wire = 'openai' | 'anthropic' | 'google' | 'demo';
 
@@ -86,6 +86,12 @@ const DEFS: ProviderDef[] = ([
     defaultModel: 'qwen-plus', suggested: ['qwen-plus', 'qwen-max', 'qwen-turbo'], concurrency: 4,
   },
   {
+    id: 'cheaperinference', name: 'Cheaper Inference', wire: 'openai', base: 'https://api.cheaperinference.com/v1',
+    keyUrl: 'https://cheaperinference.com/signup', keyHint: 'ci_live_…',
+    defaultModel: 'gpt-5.4-mini',
+    suggested: ['gpt-5.4-mini', 'gpt-5.4', 'claude-sonnet-5', 'gemini-3.1-pro', 'deepseek-v4-flash'], concurrency: 4,
+  },
+  {
     // Scripted answers for development and tests: the whole pipeline, no key, no cost. Never offered in production.
     id: 'demo', name: 'Demo (scripted, dev only)', wire: 'demo', base: '',
     keyUrl: '', keyHint: 'no key needed', defaultModel: 'scripted', suggested: ['scripted'], concurrency: 4,
@@ -144,7 +150,7 @@ export class ProviderError extends Error {
   }
 }
 
-const KEYLIKE = /\b(?:sk-[A-Za-z0-9_-]{8,}|sk-ant-[A-Za-z0-9_-]{8,}|sk-or-[A-Za-z0-9_-]{8,}|AIza[0-9A-Za-z_-]{20,}|gsk_[A-Za-z0-9]{12,}|xai-[A-Za-z0-9]{12,})/g;
+const KEYLIKE = /\b(?:sk-[A-Za-z0-9_-]{8,}|sk-ant-[A-Za-z0-9_-]{8,}|sk-or-[A-Za-z0-9_-]{8,}|AIza[0-9A-Za-z_-]{20,}|gsk_[A-Za-z0-9]{12,}|xai-[A-Za-z0-9]{12,}|ci_live_[A-Za-z0-9_-]{8,})/g;
 
 /** Removes the key, and anything shaped like one, from text bound for a log or a response. */
 export function scrub(text: string, key?: string): string {
@@ -258,6 +264,7 @@ export function canSeeImages(provider: ProviderId, model: string): boolean {
     case 'xai': return /grok-4|vision/.test(m);
     case 'mistral': return /pixtral|mistral-(small|medium)|magistral/.test(m);
     case 'qwen': return /vl|omni|qvq/.test(m);
+    case 'cheaperinference': return /gemini|claude|gpt-4\.1|gpt-5|grok-4|kimi-k2\.5|qwen.*vl/.test(m);
     default: return false;
   }
 }
