@@ -4,8 +4,8 @@ import { matchExact, type SanctionEntry } from '@/lib/sanctions';
 
 // WHOIS + Domain Intelligence via RDAP (free, standardized).
 // Cross-checks any registrant / org names returned by RDAP against the
-// OFAC SDN list so a sanctioned registrant surfaces alongside the WHOIS
-// metadata (still keyless — the SDN snapshot is sourced from the open
+// US sanctions lists so a sanctioned registrant surfaces alongside the WHOIS
+// metadata (still keyless — the snapshot is sourced from the open
 // OpenSanctions mirror).
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -91,7 +91,7 @@ export async function GET(req: Request) {
       results.security_score = { score, max: 7, grade: score >= 5 ? 'A' : score >= 3 ? 'B' : score >= 1 ? 'C' : 'F' };
     } catch (e) { console.warn('[OSIRIS] Suppressed error:', e instanceof Error ? e.message : e); }
 
-    // OFAC SDN cross-check on RDAP entity names/orgs.
+    // US sanctions cross-check on RDAP entity names/orgs.
     try {
       const candidates = new Set<string>();
       for (const ent of results.rdap?.entities ?? []) {
@@ -104,7 +104,7 @@ export async function GET(req: Request) {
         if (entries.length) hits.push({ matched_value: value, entries });
       }
       results.sanctions_match = hits.length
-        ? { source: 'OFAC SDN', hits }
+        ? { source: 'US sanctions (OpenSanctions us_sanctions + us_fcc_covered_list)', hits }
         : null;
     } catch (e) { console.warn('[OSIRIS] Sanctions cross-check failed:', e instanceof Error ? e.message : e); }
 

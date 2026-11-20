@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { isRateLimited, getClientIp } from '@/lib/ssrf-guard';
 import { search, type Schema } from '@/lib/sanctions';
 
-// Standalone OFAC SDN search (free, no key) backed by the OpenSanctions
+// Standalone US sanctions search (free, no key) backed by the OpenSanctions
 // `us_ofac_sdn` mirror. Substring + alias-aware match, schema-filterable.
 
 const ALLOWED_SCHEMAS: Schema[] = [
@@ -53,7 +53,7 @@ export async function GET(req: Request) {
       schema: schema ?? null,
       total: matches.length,
       matches,
-      source: 'OpenSanctions / US OFAC SDN',
+      source: 'US sanctions (OpenSanctions us_sanctions + us_fcc_covered_list)',
       timestamp: new Date().toISOString(),
     });
   } catch (e) {

@@ -24,7 +24,14 @@ const PORT = process.env.INTEL_PORT || 4000;
 // §1 — CONFIGURATION
 // ════════════════════════════════════════════════════
 
-const SDN_CSV_URL = 'https://data.opensanctions.org/datasets/latest/us_ofac_sdn/targets.simple.csv';
+// The SDN alone is not the US list: us_sanctions adds the trade.gov CSL (BIS Entity List, Military End User and
+// Unverified lists), the OFAC non-SDN lists, DoD 1260H and the UFLPA Entity List. The FCC Covered List is outside
+// us_sanctions, and 7 of its 13 entities (China Mobile International USA, China Telecom (Americas), Kaspersky Lab,
+// Inc. among them) are on no other list there.
+const SANCTIONS_CSV_URLS = [
+  'https://data.opensanctions.org/datasets/latest/us_sanctions/targets.simple.csv',
+  'https://data.opensanctions.org/datasets/latest/us_fcc_covered_list/targets.simple.csv',
+];
 const WIKIDATA_ENDPOINT = 'https://query.wikidata.org/sparql';
 const WIKIDATA_UA = 'OSIRIS-Intel/1.0 (https://osirisai.live; ontology engine)';
 const SDN_REFRESH_MS = 24 * 60 * 60 * 1000; // 24h
@@ -68,52 +75,66 @@ function parseCsv(text) {
 }
 
 /**
- * Builds a sanctions index from the OpenSanctions "simple" CSV, or throws when
- * the file is not one: a CDN error page, a truncated download or a changed
- * schema must not replace a working index with an empty one.
+ * Builds a sanctions index from OpenSanctions "simple" CSVs (one text or an
+ * array of them), or throws when a file is not one: a CDN error page, a
+ * truncated download or a changed schema must not replace a working index
+ * with an empty one. An entity in several files (same id) is kept once and
+ * carries every dataset.
  */
-function buildSanctionsIndex(text, previousCount = 0) {
-  const rows = parseCsv(text);
-  if (rows.length < 2) throw new Error('CSV empty');
-
-  const headers = rows[0];
-  const idx = (col) => headers.indexOf(col);
-  const i = {
-    id: idx('id'), schema: idx('schema'), name: idx('name'),
-    aliases: idx('aliases'), countries: idx('countries'),
-    programs: idx('program_ids'), sanctions: idx('sanctions'),
-    first_seen: idx('first_seen'), last_seen: idx('last_seen'),
-  };
-  if (i.id < 0 || i.name < 0) throw new Error('CSV has no id/name columns');
-
+function buildSanctionsIndex(texts, previousCount = 0) {
   const entries = [];
   const byNorm = new Map();
+  const byId = new Map();
 
-  for (let r = 1; r < rows.length; r++) {
-    const row = rows[r];
-    if (!row[i.name]) continue;
-    const entry = {
-      id: row[i.id] || '',
-      schema: row[i.schema] || 'LegalEntity',
-      name: row[i.name],
-      aliases: (row[i.aliases] || '').split(';').map(s => s.trim()).filter(Boolean),
-      countries: (row[i.countries] || '').split(';').map(s => s.trim()).filter(Boolean),
-      programs: (row[i.programs] || '').split(';').map(s => s.trim()).filter(Boolean),
-      sanctions: row[i.sanctions] || '',
-      first_seen: i.first_seen >= 0 ? row[i.first_seen] : undefined,
+  for (const text of Array.isArray(texts) ? texts : [texts]) {
+    const rows = parseCsv(text);
+    if (rows.length < 2) throw new Error('CSV empty');
+
+    const headers = rows[0];
+    const idx = (col) => headers.indexOf(col);
+    const i = {
+      id: idx('id'), schema: idx('schema'), name: idx('name'),
+      aliases: idx('aliases'), countries: idx('countries'),
+      programs: idx('program_ids'), sanctions: idx('sanctions'),
+      datasets: idx('dataset'),
+      first_seen: idx('first_seen'), last_seen: idx('last_seen'),
     };
-    entries.push(entry);
+    if (i.id < 0 || i.name < 0) throw new Error('CSV has no id/name columns');
 
-    const keys = new Set([entry.name, ...entry.aliases].map(normName));
-    for (const key of keys) {
-      if (!key) continue;
-      if (!byNorm.has(key)) byNorm.set(key, []);
-      byNorm.get(key).push(entry);
+    for (let r = 1; r < rows.length; r++) {
+      const row = rows[r];
+      if (!row[i.name]) continue;
+      const datasets = i.datasets >= 0 ? (row[i.datasets] || '').split(';').map(s => s.trim()).filter(Boolean) : [];
+      const known = row[i.id] ? byId.get(row[i.id]) : undefined;
+      if (known) {
+        for (const d of datasets) if (!known.datasets.includes(d)) known.datasets.push(d);
+        continue;
+      }
+      const entry = {
+        id: row[i.id] || '',
+        schema: row[i.schema] || 'LegalEntity',
+        name: row[i.name],
+        aliases: (row[i.aliases] || '').split(';').map(s => s.trim()).filter(Boolean),
+        countries: (row[i.countries] || '').split(';').map(s => s.trim()).filter(Boolean),
+        programs: (row[i.programs] || '').split(';').map(s => s.trim()).filter(Boolean),
+        sanctions: row[i.sanctions] || '',
+        datasets,
+        first_seen: i.first_seen >= 0 ? row[i.first_seen] : undefined,
+      };
+      entries.push(entry);
+      if (entry.id) byId.set(entry.id, entry);
+
+      const keys = new Set([entry.name, ...entry.aliases].map(normName));
+      for (const key of keys) {
+        if (!key) continue;
+        if (!byNorm.has(key)) byNorm.set(key, []);
+        byNorm.get(key).push(entry);
+      }
     }
   }
 
   if (entries.length === 0) throw new Error('CSV has no named entries');
-  // The SDN list grows and shrinks by a few entries; losing half of it at
+  // The lists grow and shrink by a few entries; losing half of them at
   // once is a broken file, not delistings.
   if (entries.length < previousCount / 2) {
     throw new Error(`CSV has ${entries.length} entries against ${previousCount} held`);
@@ -122,15 +143,19 @@ function buildSanctionsIndex(text, previousCount = 0) {
 }
 
 async function loadSanctions() {
-  console.log('[INTEL] Loading OpenSanctions OFAC SDN...');
+  console.log('[INTEL] Loading OpenSanctions us_sanctions + us_fcc_covered_list...');
   sanctionsRefresh = { attemptedAt: Date.now(), error: null };
   try {
-    const res = await fetch(SDN_CSV_URL, {
-      signal: AbortSignal.timeout(30000),
-      headers: { Accept: 'text/csv' },
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    sanctionsIndex = buildSanctionsIndex(await res.text(), sanctionsIndex.entries.length);
+    const texts = [];
+    for (const url of SANCTIONS_CSV_URLS) {
+      const res = await fetch(url, {
+        signal: AbortSignal.timeout(30000),
+        headers: { Accept: 'text/csv' },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+      texts.push(await res.text());
+    }
+    sanctionsIndex = buildSanctionsIndex(texts, sanctionsIndex.entries.length);
     console.log(`[INTEL] Sanctions index loaded: ${sanctionsIndex.entries.length} entities, ${sanctionsIndex.byNorm.size} name keys`);
   } catch (e) {
     sanctionsRefresh.error = e.message;
