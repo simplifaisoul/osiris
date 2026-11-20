@@ -3,7 +3,7 @@ import { isRateLimited, getClientIp } from '@/lib/ssrf-guard';
 import { matchExact, type SanctionEntry } from '@/lib/sanctions';
 
 // IP Geolocation + Reputation — combines multiple free sources.
-// Cross-checks the ASN owner / ISP / org strings against the OFAC SDN
+// Cross-checks the ASN owner / ISP / org strings against the US sanctions lists
 // list so an IP routed via a sanctioned operator surfaces a hit.
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -61,7 +61,7 @@ export async function GET(req: Request) {
       risk_level: results.geo?.is_proxy ? 'HIGH' : results.geo?.is_hosting ? 'MEDIUM' : 'LOW',
     };
 
-    // OFAC SDN cross-check on ASN / ISP / org strings.
+    // US sanctions cross-check on ASN / ISP / org strings.
     try {
       const candidates = new Set<string>();
       if (results.geo?.org) candidates.add(results.geo.org);
@@ -73,7 +73,7 @@ export async function GET(req: Request) {
         if (entries.length) hits.push({ matched_value: value, entries });
       }
       results.sanctions_match = hits.length
-        ? { source: 'OFAC SDN', hits }
+        ? { source: 'US sanctions (OpenSanctions us_sanctions + us_fcc_covered_list)', hits }
         : null;
     } catch (e) { console.warn('[OSIRIS] Sanctions cross-check failed:', e instanceof Error ? e.message : e); }
 

@@ -1,8 +1,11 @@
 /**
- * OFAC SDN sanctioned-entity lookup.
+ * US sanctioned-entity lookup.
  *
- * Source: [OpenSanctions](https://www.opensanctions.org/) `us_ofac_sdn`
- * dataset, distributed as a simple CSV under CC-BY 4.0. OpenSanctions
+ * Source: [OpenSanctions](https://www.opensanctions.org/) `us_sanctions`
+ * collection (OFAC SDN and non-SDN, the trade.gov Consolidated Screening
+ * List with the BIS Entity List, Military End User and Unverified lists,
+ * DoD 1260H, UFLPA) plus the `us_fcc_covered_list` dataset, which is not
+ * in `us_sanctions`, distributed as simple CSVs. OpenSanctions
  * normalises the upstream Treasury data into a flat schema with stable
  * field names and an entity-type discriminator (`Person`, `Organization`,
  * `Vessel`, `Aircraft`, …), which is far easier to consume than the raw
@@ -16,8 +19,10 @@
  * serving the previous snapshot rather than leaving the route blind.
  */
 
-const SDN_CSV_URL =
-  'https://data.opensanctions.org/datasets/latest/us_ofac_sdn/targets.simple.csv';
+export const SANCTIONS_CSV_URLS = [
+  'https://data.opensanctions.org/datasets/latest/us_sanctions/targets.simple.csv',
+  'https://data.opensanctions.org/datasets/latest/us_fcc_covered_list/targets.simple.csv',
+];
 
 const TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -39,6 +44,8 @@ export interface SanctionEntry {
   countries: string[];
   programs: string[];
   sanctions: string;
+  /** OpenSanctions datasets the entity is on, e.g. "US FCC Covered List". */
+  datasets: string[];
   first_seen?: string;
   last_seen?: string;
 }
@@ -113,66 +120,91 @@ function parseCsv(text: string): string[][] {
   return rows;
 }
 
+const splitSemi = (v: string | undefined) => (v || '').split(';').map((s) => s.trim()).filter(Boolean);
+
+/**
+ * Index OpenSanctions simple CSVs. An entity in several files (same id) is
+ * kept once and carries every dataset.
+ */
+export function buildIndex(texts: string[]): Omit<LoadedList, 'fetchedAt'> {
+  const entries: SanctionEntry[] = [];
+  const byNormName = new Map<string, SanctionEntry[]>();
+  const byId = new Map<string, SanctionEntry>();
+
+  for (const text of texts) {
+    const rows = parseCsv(text);
+    if (rows.length < 2) throw new Error('OpenSanctions CSV empty');
+
+    const headers = rows[0];
+    const idx = (col: string) => headers.indexOf(col);
+    const i = {
+      id: idx('id'),
+      schema: idx('schema'),
+      name: idx('name'),
+      aliases: idx('aliases'),
+      countries: idx('countries'),
+      programs: idx('program_ids'),
+      sanctions: idx('sanctions'),
+      datasets: idx('dataset'),
+      first_seen: idx('first_seen'),
+      last_seen: idx('last_seen'),
+    };
+
+    for (let r = 1; r < rows.length; r++) {
+      const row = rows[r];
+      if (!row[i.name]) continue;
+      const datasets = i.datasets >= 0 ? splitSemi(row[i.datasets]) : [];
+      const known = row[i.id] ? byId.get(row[i.id]) : undefined;
+      if (known) {
+        for (const d of datasets) if (!known.datasets.includes(d)) known.datasets.push(d);
+        continue;
+      }
+      const entry: SanctionEntry = {
+        id: row[i.id] || '',
+        schema: row[i.schema] || 'LegalEntity',
+        name: row[i.name],
+        aliases: splitSemi(row[i.aliases]),
+        countries: splitSemi(row[i.countries]),
+        programs: splitSemi(row[i.programs]),
+        sanctions: row[i.sanctions] || '',
+        datasets,
+        first_seen: i.first_seen >= 0 ? row[i.first_seen] : undefined,
+        last_seen: i.last_seen >= 0 ? row[i.last_seen] : undefined,
+      };
+      entries.push(entry);
+      if (entry.id) byId.set(entry.id, entry);
+
+      // Index every name + alias under its normalised form so an exact
+      // (post-normalisation) match is O(1).
+      const keys = new Set<string>([entry.name, ...entry.aliases].map(normName));
+      for (const key of keys) {
+        if (!key) continue;
+        const list = byNormName.get(key);
+        if (list) list.push(entry);
+        else byNormName.set(key, [entry]);
+      }
+    }
+  }
+  return { entries, byNormName };
+}
+
 async function loadList(): Promise<LoadedList> {
   if (cache && Date.now() - cache.fetchedAt < TTL_MS) return cache;
   if (inflight) return inflight;
 
   inflight = (async () => {
     try {
-      const res = await fetch(SDN_CSV_URL, {
-        signal: AbortSignal.timeout(30_000),
-        headers: { Accept: 'text/csv' },
-      });
-      if (!res.ok) throw new Error(`OpenSanctions HTTP ${res.status}`);
-      const text = await res.text();
-      const rows = parseCsv(text);
-      if (rows.length < 2) throw new Error('OpenSanctions CSV empty');
-
-      const headers = rows[0];
-      const idx = (col: string) => headers.indexOf(col);
-      const i = {
-        id: idx('id'),
-        schema: idx('schema'),
-        name: idx('name'),
-        aliases: idx('aliases'),
-        countries: idx('countries'),
-        programs: idx('program_ids'),
-        sanctions: idx('sanctions'),
-        first_seen: idx('first_seen'),
-        last_seen: idx('last_seen'),
-      };
-
-      const entries: SanctionEntry[] = [];
-      const byNormName = new Map<string, SanctionEntry[]>();
-
-      for (let r = 1; r < rows.length; r++) {
-        const row = rows[r];
-        if (!row[i.name]) continue;
-        const entry: SanctionEntry = {
-          id: row[i.id] || '',
-          schema: row[i.schema] || 'LegalEntity',
-          name: row[i.name],
-          aliases: (row[i.aliases] || '').split(';').map((s) => s.trim()).filter(Boolean),
-          countries: (row[i.countries] || '').split(';').map((s) => s.trim()).filter(Boolean),
-          programs: (row[i.programs] || '').split(';').map((s) => s.trim()).filter(Boolean),
-          sanctions: row[i.sanctions] || '',
-          first_seen: i.first_seen >= 0 ? row[i.first_seen] : undefined,
-          last_seen: i.last_seen >= 0 ? row[i.last_seen] : undefined,
-        };
-        entries.push(entry);
-
-        // Index every name + alias under its normalised form so an exact
-        // (post-normalisation) match is O(1).
-        const keys = new Set<string>([entry.name, ...entry.aliases].map(normName));
-        for (const key of keys) {
-          if (!key) continue;
-          const list = byNormName.get(key);
-          if (list) list.push(entry);
-          else byNormName.set(key, [entry]);
-        }
+      const texts: string[] = [];
+      for (const url of SANCTIONS_CSV_URLS) {
+        const res = await fetch(url, {
+          signal: AbortSignal.timeout(30_000),
+          headers: { Accept: 'text/csv' },
+        });
+        if (!res.ok) throw new Error(`OpenSanctions HTTP ${res.status} for ${url}`);
+        texts.push(await res.text());
       }
 
-      const loaded = { fetchedAt: Date.now(), entries, byNormName };
+      const loaded = { fetchedAt: Date.now(), ...buildIndex(texts) };
       cache = loaded;
       return loaded;
     } catch (e) {

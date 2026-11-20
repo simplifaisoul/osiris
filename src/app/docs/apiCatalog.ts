@@ -501,7 +501,7 @@ export const API_GROUPS: ApiGroup[] = [
       {
         path: '/api/osint/sanctions',
         method: 'GET',
-        summary: 'Searches the OpenSanctions mirror of the US OFAC SDN list.',
+        summary: 'Searches the OpenSanctions US sanctions lists (OFAC, CSL, 1260H, UFLPA) and the FCC Covered List.',
         params: [
           { name: 'query', required: true, desc: 'Name of a person, organisation, or vessel.' },
           { name: 'schema', desc: 'Entity type filter.', example: 'Person | Organization | Vessel' },

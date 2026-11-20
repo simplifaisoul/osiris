@@ -111,3 +111,36 @@ describe('resolver cache', () => {
     expect(up.nodes.map((n: { id: string }) => n.id)).toContain('country:Norway');
   });
 });
+
+// Excerpts of OpenSanctions targets.simple.csv (2026-11-20): us_sanctions carries Hikvision for 1260H, the CSL and
+// the non-SDN lists; China Mobile International USA is only on us_fcc_covered_list.
+const OS_HEADER = 'id,schema,name,aliases,countries,program_ids,dataset';
+const usSanctionsCsv = [OS_HEADER,
+  'NK-HYQpJVFfjnrATqKwpZpit7,Company,"Hangzhou Hikvision Digital Technology Co., Ltd.",Hikvision,cn,US-BIS-EL;US-DOD-1260H,' +
+    'US DoD Chinese military companies;US Trade Consolidated Screening List (CSL)',
+  'NK-2HEWK3M5JNGwq9guVB46DJ,Company,Huyanghe Huafu Hongsheng Cotton Industry Co. Ltd.,,cn,US-UFLPA,US UFLPA Entity List',
+].join('\n');
+const fccCoveredCsv = [OS_HEADER,
+  'NK-HYQpJVFfjnrATqKwpZpit7,Company,Hangzhou Hikvision Digital Technology Company,,,US-FCC,US FCC Covered List',
+  'NK-ccz32tYQsygbihggXDWSfd,Company,China Mobile International USA Inc,,,US-FCC,US FCC Covered List',
+].join('\n');
+
+describe('buildSanctionsIndex across files', () => {
+  it('keeps an entity on several lists once, with every dataset', () => {
+    const index = intel.buildSanctionsIndex([usSanctionsCsv, fccCoveredCsv]);
+    expect(index.entries).toHaveLength(3);
+    const hik = index.byNorm.get('hikvision');
+    expect(hik).toHaveLength(1);
+    expect(hik[0].datasets).toEqual([
+      'US DoD Chinese military companies', 'US Trade Consolidated Screening List (CSL)', 'US FCC Covered List',
+    ]);
+  });
+
+  it('loads the FCC Covered List next to us_sanctions', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) =>
+      new Response(url.includes('us_fcc_covered_list') ? fccCoveredCsv : usSanctionsCsv)));
+    await intel.loadSanctions();
+    expect(intel.sanctionsSearch('China Mobile International USA Inc')[0].datasets).toEqual(['US FCC Covered List']);
+    expect(intel.sanctionsSearch('Huyanghe Huafu Hongsheng Cotton Industry Co. Ltd.')).toHaveLength(1);
+  });
+});
