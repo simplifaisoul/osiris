@@ -70,6 +70,12 @@ import { fetchMissouriCameras } from './missouri';
 import { fetchAustinCameras } from './austin';
 import { fetchCalgaryCameras } from './calgary';
 import { fetchEstoniaCameras } from './estonia';
+import { fetchWsdotCameras } from './wsdot';
+import { fetchAlabamaCameras } from './alabama';
+import { fetchSouthDakotaCameras, fetchMontanaCameras } from './iteris-atis';
+import { fetchMadridCameras } from './madrid';
+import { fetchLuxembourgCameras } from './luxembourg';
+import { fetchLexingtonCameras } from './lexington';
 import {
   fetchLatamLiveCameras,
   fetchAfricaLiveCameras,
@@ -110,18 +116,16 @@ async function fetchTfLCameras(): Promise<any[]> {
   } catch (e) { return []; }
 }
 
-// ── US-WEST: WSDOT Washington State (~500) ──
+// ── US-WEST: WSDOT Washington State (~1,700) ──
+/* The file WSDOT's own travel map reads; see ./wsdot. The one this used to
+   read, data.wsdot.wa.gov/log/public/cameras.json, now answers 404. */
 async function fetchWSDOTCameras(): Promise<any[]> {
   try {
-    const res = await stealthFetch('https://data.wsdot.wa.gov/log/public/cameras.json', { signal: AbortSignal.timeout(12000) });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return (data || []).map((cam: any) => ({
-      id: `wsdot-${cam.CameraID}`, lat: cam.CameraLocation?.Latitude, lng: cam.CameraLocation?.Longitude,
-      name: cam.Title || 'WSDOT Camera', city: 'Washington', country: 'US',
-      feed_url: cam.ImageURL || '', source: 'WSDOT',
-    })).filter((c: any) => c.lat && c.lng && c.feed_url);
-  } catch (e) { return []; }
+    return await fetchWsdotCameras();
+  } catch (e) {
+    console.warn('[OSIRIS] WSDOT cameras failed — absent from this refresh:', e instanceof Error ? e.message : e);
+    return [];
+  }
 }
 
 /**
@@ -413,6 +417,10 @@ const RAW_REGION_FETCHERS: Record<string, RegionFetcher> = {
   'us-west': async () => { const [w, c] = await Promise.all([fetchWSDOTCameras(), fetchCaltransCameras()]); return [...w, ...c]; },
   'us-east': fetchUSEastCameras,
   'us-central': fetchUSCentralCameras,
+  'alabama': fetchAlabamaCameras,
+  'south-dakota': fetchSouthDakotaCameras,
+  'montana': fetchMontanaCameras,
+  'lexington': fetchLexingtonCameras,
   'canada': fetchCanadaCameras,
   /* Manitoba, New Brunswick, Nova Scotia, Newfoundland and Labrador, Yukon,
      Saskatchewan and Prince Edward Island. */
@@ -483,6 +491,9 @@ const RAW_REGION_FETCHERS: Record<string, RegionFetcher> = {
   'missouri': fetchMissouriCameras,
   'austin': fetchAustinCameras,
   'basque': fetchBasqueCameras,
+  /* The city's own traffic cameras; the DGT feed behind 'spain' covers the national roads. */
+  'madrid': fetchMadridCameras,
+  'luxembourg': fetchLuxembourgCameras,
   'eastasia': fetchEastAsiaCameras,
   'seasia': fetchSeAsiaCameras,
   'westasia': fetchWestAsiaCameras,
@@ -528,8 +539,9 @@ const PAGED_REGION_BUDGET_MS = 30_000;
    past 12s while every region loads at once on a cold start. Japan's river
    cameras are 51 lists, about 13 MB together. Austin, like Queensland, reads
    the date on each of its ~820 pictures. Missouri waits up to 8s on each
-   streaming server that does not answer. */
-const SLOW_REGIONS = new Set(['florida', 'georgia', 'queensland', 'japan-rivers', 'austin', 'missouri']);
+   streaming server that does not answer. Madrid reads the date on each of its
+   ~360 pictures. */
+const SLOW_REGIONS = new Set(['florida', 'georgia', 'queensland', 'japan-rivers', 'austin', 'missouri', 'madrid']);
 
 /**
  * Regions are fetched a few at a time, not all forty-eight at once.
@@ -833,6 +845,10 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   if (lat > 40.9 && lat < 42.1 && lng > -73.8 && lng < -71.7) regions.push('connecticut');
   if (lat > 35.9 && lat < 40.7 && lng > -95.8 && lng < -89.0) regions.push('missouri');
   if (lat > 29.9 && lat < 30.8 && lng > -98.2 && lng < -97.3) regions.push('austin');
+  if (lat > 30.1 && lat < 35.1 && lng > -88.6 && lng < -84.8) regions.push('alabama');
+  if (lat > 42.4 && lat < 46.0 && lng > -104.1 && lng < -96.4) regions.push('south-dakota');
+  if (lat > 44.3 && lat < 49.1 && lng > -116.1 && lng < -104.0) regions.push('montana');
+  if (lat > 37.85 && lat < 38.25 && lng > -84.7 && lng < -84.25) regions.push('lexington');
   // Europe
   const inBulgaria = lat > 41 && lat < 44.5 && lng > 22 && lng < 29.5;
   const inGreece = lat > 34.5 && lat < 41.8 && lng > 19 && lng < 30;
@@ -871,6 +887,8 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   if (inSpain) regions.push('spain');
   // Basque Country (Open Data Euskadi) — explicit, since the DGT feed behind 'spain' does not cover it
   if (lat > 42.4 && lat < 43.6 && lng > -3.6 && lng < -1.6) regions.push('basque');
+  // Madrid's own city cameras, which the DGT feed does not carry either
+  if (lat > 40.25 && lat < 40.65 && lng > -3.95 && lng < -3.5) regions.push('madrid');
   if (inPoland) regions.push('poland');
   if (inFinland) regions.push('finland');
   /* Not folded into inWesternEurope: Sweden's box overlaps Norway, and
@@ -879,6 +897,8 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   if (inIceland) regions.push('iceland');
   if (inLithuania) regions.push('lithuania');
   if (inEstonia) regions.push('estonia');
+  // Luxembourg (CITA) — inside the broad 'europe' box, which carries none of its cameras
+  if (lat > 49.4 && lat < 50.2 && lng > 5.7 && lng < 6.6) regions.push('luxembourg');
 
   // Middle East
   const inMiddleEast = lat > 29 && lat < 34.5 && lng > 34 && lng < 36.5;

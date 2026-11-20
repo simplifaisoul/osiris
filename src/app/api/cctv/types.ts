@@ -38,6 +38,26 @@ export function proxiedImageUrl(url: string): string {
     : url;
 }
 
+/* Windows-1252's bytes 0x80–0x9F, which are not Latin-1's; 0 marks the five it leaves undefined. */
+const CP1252_HIGH = [
+  0x20ac, 0, 0x201a, 0x0192, 0x201e, 0x2026, 0x2020, 0x2021, 0x02c6, 0x2030, 0x0160, 0x2039, 0x0152, 0, 0x017d, 0,
+  0, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014, 0x02dc, 0x2122, 0x0161, 0x203a, 0x0153, 0, 0x017e, 0x0178,
+];
+
+/**
+ * Decode a Windows-1252 file. Node's TextDecoder takes the label but decodes
+ * Latin-1, so a dash (0x96) came out as an invisible control character.
+ */
+export function decodeWindows1252(bytes: ArrayBuffer | Uint8Array): string {
+  const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  let out = '';
+  for (let i = 0; i < view.length; i += 8192) {
+    const chunk = Array.from(view.subarray(i, i + 8192), b => (b >= 0x80 && b <= 0x9f && CP1252_HIGH[b - 0x80]) || b);
+    out += String.fromCharCode(...chunk);
+  }
+  return out;
+}
+
 export function normalizeFeedUrl(url: string): string {
   if (url.startsWith('pics/')) {
     return `http://free-webcambg.com/${url.split('?')[0]}`;
