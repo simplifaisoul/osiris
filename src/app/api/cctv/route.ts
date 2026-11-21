@@ -76,6 +76,13 @@ import { fetchSouthDakotaCameras, fetchMontanaCameras } from './iteris-atis';
 import { fetchMadridCameras } from './madrid';
 import { fetchLuxembourgCameras } from './luxembourg';
 import { fetchLexingtonCameras } from './lexington';
+import { fetchMississippiCameras } from './mississippi';
+import { fetchWestVirginiaCameras } from './west-virginia';
+import { fetchYorkRegionCameras } from './york-region';
+import { fetchWisconsinCameras } from './wisconsin';
+import { fetchOhioCameras } from './ohio';
+import { fetchNewMexicoCameras } from './new-mexico';
+import { fetchArlingtonCameras } from './arlington';
 import {
   fetchLatamLiveCameras,
   fetchAfricaLiveCameras,
@@ -421,7 +428,14 @@ const RAW_REGION_FETCHERS: Record<string, RegionFetcher> = {
   'south-dakota': fetchSouthDakotaCameras,
   'montana': fetchMontanaCameras,
   'lexington': fetchLexingtonCameras,
+  'mississippi': fetchMississippiCameras,
+  'west-virginia': fetchWestVirginiaCameras,
+  'wisconsin': fetchWisconsinCameras,
+  'ohio': fetchOhioCameras,
+  'new-mexico': fetchNewMexicoCameras,
+  'arlington': fetchArlingtonCameras,
   'canada': fetchCanadaCameras,
+  'york-region': fetchYorkRegionCameras,
   /* Manitoba, New Brunswick, Nova Scotia, Newfoundland and Labrador, Yukon,
      Saskatchewan and Prince Edward Island. */
   'canada-511': fetchCanada511Cameras,
@@ -849,6 +863,13 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   if (lat > 42.4 && lat < 46.0 && lng > -104.1 && lng < -96.4) regions.push('south-dakota');
   if (lat > 44.3 && lat < 49.1 && lng > -116.1 && lng < -104.0) regions.push('montana');
   if (lat > 37.85 && lat < 38.25 && lng > -84.7 && lng < -84.25) regions.push('lexington');
+  if (lat > 30.0 && lat < 35.1 && lng > -91.7 && lng < -88.0) regions.push('mississippi');
+  if (lat > 37.1 && lat < 40.7 && lng > -82.7 && lng < -77.6) regions.push('west-virginia');
+  if (lat > 43.7 && lat < 44.45 && lng > -79.9 && lng < -79.05) regions.push('york-region');
+  if (lat > 42.4 && lat < 47.4 && lng > -93.0 && lng < -86.2) regions.push('wisconsin');
+  if (lat > 38.2 && lat < 42.4 && lng > -85.0 && lng < -80.3) regions.push('ohio');
+  if (lat > 31.3 && lat < 37.05 && lng > -109.1 && lng < -103.0) regions.push('new-mexico');
+  if (lat > 38.8 && lat < 38.95 && lng > -77.2 && lng < -77.0) regions.push('arlington');
   // Europe
   const inBulgaria = lat > 41 && lat < 44.5 && lng > 22 && lng < 29.5;
   const inGreece = lat > 34.5 && lat < 41.8 && lng > 19 && lng < 30;

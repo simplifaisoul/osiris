@@ -21,6 +21,15 @@ export default function CameraViewer({ camera, onClose, onLocate, besideOi = fal
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  /* A camera that failed leaves the error panel up and its <video> unmounted.
+     Clear that in the same render another camera is chosen, so the next live
+     camera's <video> is mounted by the time its stream is attached; otherwise
+     the effect below finds no video and the new camera stays blank. */
+  const [shownCamera, setShownCamera] = useState(camera);
+  if (camera !== shownCamera) {
+    setShownCamera(camera);
+    setError(false);
+  }
   const [fullscreen, setFullscreen] = useState(false);
   const [currentTime, setCurrentTime] = useState<string>('');
 
