@@ -21,9 +21,11 @@ export interface CctvCamera {
  * infobanjirjps.selangor.gov.my — Selangor's flood cameras — serves over
  * plain http, which an https page blocks as mixed content, so the picture is
  * there in development and gone in production. The proxy re-serves it over
- * https. A host added here must also be in the proxy's own allowlist.
+ * https. ss.nmroads.com — New Mexico DOT's snapshots — is the same: it does
+ * not answer on https at all. A host added here must also be in the proxy's
+ * own allowlist.
  */
-const PROXY_IMAGE_HOSTS = ['infobanjirjps.selangor.gov.my'];
+const PROXY_IMAGE_HOSTS = ['infobanjirjps.selangor.gov.my', 'ss.nmroads.com'];
 
 /** The URL a browser can actually load this still from. */
 export function proxiedImageUrl(url: string): string {
@@ -36,6 +38,24 @@ export function proxiedImageUrl(url: string): string {
   return PROXY_IMAGE_HOSTS.some(h => host === h || host.endsWith('.' + h))
     ? `/api/cctv/proxy?url=${encodeURIComponent(url)}`
     : url;
+}
+
+/**
+ * The cameras that no other layer already shows within `meters` of them.
+ *
+ * Some agencies republish a neighbour's cameras as their own: VDOT carries
+ * about forty of Arlington County's, and 511 Ontario fifteen of York Region's,
+ * the same picture byte for byte. Two pins on one spot for one camera is
+ * clutter, so the layer that adds them second leaves those out.
+ */
+export function withoutCamerasNear(cameras: CctvCamera[], shown: CctvCamera[], meters: number): CctvCamera[] {
+  if (!shown.length) return cameras;
+  const near = (a: CctvCamera, b: CctvCamera) => {
+    const dy = (a.lat - b.lat) * 111_320;
+    const dx = (a.lng - b.lng) * 111_320 * Math.cos((a.lat * Math.PI) / 180);
+    return dx * dx + dy * dy < meters * meters;
+  };
+  return cameras.filter(c => !shown.some(s => near(c, s)));
 }
 
 /* Windows-1252's bytes 0x80–0x9F, which are not Latin-1's; 0 marks the five it leaves undefined. */

@@ -24,8 +24,9 @@ const ALLOWED_HOSTS = [
   'thb.gov.tw',
   'etraffic.dgt.es',
   'eismoinfo.lt',
-  // Serves over plain http, which an https page blocks as mixed content.
+  // Serve over plain http, which an https page blocks as mixed content.
   'infobanjirjps.selangor.gov.my',
+  'ss.nmroads.com',
 ];
 
 // Taiwan Highway Bureau cameras are DigiEver encoders, and they emit a
