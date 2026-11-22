@@ -62,7 +62,7 @@ import { fetchQueenslandCameras } from './queensland';
 import { fetchCanada511Cameras } from './canada511';
 import { fetchAlaskaCameras } from './alaska';
 import { fetchMinnesotaCameras, fetchColoradoCameras, fetchNewYorkCameras } from './cars511x';
-import { fetchNebraskaCameras, fetchKansasCameras } from './cars-graphql';
+import { fetchNebraskaCameras, fetchKansasCameras, fetchIrelandCameras } from './cars-graphql';
 import { fetchNewEnglandCameras } from './newengland';
 import { fetchPennsylvaniaCameras } from './pennsylvania';
 import { fetchConnecticutCameras } from './connecticut';
@@ -83,6 +83,8 @@ import { fetchWisconsinCameras } from './wisconsin';
 import { fetchOhioCameras } from './ohio';
 import { fetchNewMexicoCameras } from './new-mexico';
 import { fetchArlingtonCameras } from './arlington';
+import { fetchScotlandCameras } from './scotland';
+import { fetchSouthAfricaCameras } from './south-africa';
 import {
   fetchLatamLiveCameras,
   fetchAfricaLiveCameras,
@@ -434,6 +436,9 @@ const RAW_REGION_FETCHERS: Record<string, RegionFetcher> = {
   'ohio': fetchOhioCameras,
   'new-mexico': fetchNewMexicoCameras,
   'arlington': fetchArlingtonCameras,
+  'ireland': fetchIrelandCameras,
+  'scotland': fetchScotlandCameras,
+  'south-africa': fetchSouthAfricaCameras,
   'canada': fetchCanadaCameras,
   'york-region': fetchYorkRegionCameras,
   /* Manitoba, New Brunswick, Nova Scotia, Newfoundland and Labrador, Yukon,
@@ -920,6 +925,9 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   if (inEstonia) regions.push('estonia');
   // Luxembourg (CITA) — inside the broad 'europe' box, which carries none of its cameras
   if (lat > 49.4 && lat < 50.2 && lng > 5.7 && lng < 6.6) regions.push('luxembourg');
+  // Ireland (TII) and Scotland (Traffic Scotland)
+  if (lat > 51.3 && lat < 55.5 && lng > -10.7 && lng < -5.9) regions.push('ireland');
+  if (lat > 54.6 && lat < 60.9 && lng > -8.7 && lng < -0.7) regions.push('scotland');
 
   // Middle East
   const inMiddleEast = lat > 29 && lat < 34.5 && lng > 34 && lng < 36.5;
@@ -952,6 +960,8 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   if (lat > -29.3 && lat < -9 && lng > 137.9 && lng < 154) regions.push('queensland');
   // New Zealand (NZTA)
   if (lat > -47.5 && lat < -34 && lng > 166 && lng < 179) regions.push('newzealand');
+  // South Africa (SANRAL)
+  if (lat > -35 && lat < -22 && lng > 16.3 && lng < 33) regions.push('south-africa');
 
   // Live webcams for regions with no traffic-authority feed of their own
   // Latin America + Caribbean (incl. Bermuda at 32.3N)

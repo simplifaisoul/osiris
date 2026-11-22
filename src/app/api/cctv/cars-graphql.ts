@@ -2,9 +2,9 @@ import { cachedSource } from '@/lib/sourceCache';
 import type { CctvCamera } from './types';
 
 /**
- * OSIRIS — Nebraska and Kansas cameras, from the CARS 511 GraphQL API that
- * Iowa's and Indiana's sites also run on (see ./iowa). No key; one query per
- * state returns every camera at once.
+ * OSIRIS — Nebraska, Kansas and Ireland cameras, from the CARS 511 GraphQL API
+ * that Iowa's and Indiana's sites also run on (see ./iowa). No key; one query
+ * per state returns every camera at once.
  *
  *   Nebraska  new.511.nebraska.gov, ~340 NDOT cameras. HD stills (1280×720
  *             and 1920×1080) from dot511.nebraska.gov and the CARS image host.
@@ -12,6 +12,9 @@ import type { CctvCamera } from './types';
  *             around Kansas City (320×240), which straddle the state line.
  *             KanDrive's live streams carry a five-minute token, so Kansas
  *             shows the stills only.
+ *   Ireland   traffic.tii.ie, Transport Infrastructure Ireland's traffic
+ *             site, ~250 cameras on the motorways and national roads. Stills
+ *             from irecam.carsprogram.org, 640×480 or 1920×1080.
  */
 
 const UA = 'OSIRIS/5.0 (+https://osirisai.live)';
@@ -39,6 +42,10 @@ export interface CarsGraphqlState {
   bounds: { minLat: number; maxLat: number; minLng: number; maxLng: number };
   /** Image hosts run by another agency, captioned as theirs. */
   partners?: Record<string, { source: string; city: string }>;
+  /** Caption under each camera's name; defaults to `state`. */
+  city?: string;
+  /** Defaults to `US`. */
+  country?: string;
 }
 
 export const NEBRASKA: CarsGraphqlState = {
@@ -56,6 +63,16 @@ export const KANSAS: CarsGraphqlState = {
   state: 'Kansas',
   bounds: { minLat: 36.9, maxLat: 40.1, minLng: -102.1, maxLng: -94.5 },
   partners: { 'www.kcscout.net': { source: 'KC Scout', city: 'Kansas City' } },
+};
+
+export const IRELAND: CarsGraphqlState = {
+  base: 'https://traffic.tii.ie',
+  idPrefix: 'tii',
+  source: 'TII',
+  state: 'Ireland',
+  city: 'National roads',
+  country: 'Ireland',
+  bounds: { minLat: 51.3, maxLat: 55.5, minLng: -10.7, maxLng: -5.9 },
 };
 
 export interface CarsGraphqlFeature {
@@ -90,8 +107,8 @@ export function mapCarsGraphqlFeature(f: CarsGraphqlFeature, cfg: CarsGraphqlSta
     lat,
     lng,
     name: f.title?.replace(/\s+/g, ' ').trim() || `${cfg.source} camera ${id}`,
-    city: partner?.city ?? cfg.state,
-    country: 'US',
+    city: partner?.city ?? cfg.city ?? cfg.state,
+    country: cfg.country ?? 'US',
     feed_url: still,
     source: partner?.source ?? cfg.source,
   };
@@ -103,7 +120,7 @@ export async function loadCarsGraphqlCameras(cfg: CarsGraphqlState): Promise<Cct
   const res = await fetch(`${cfg.base}/api/graphql`, {
     method: 'POST',
     signal: AbortSignal.timeout(20000),
-    headers: { 'User-Agent': UA, 'Content-Type': 'application/json', Accept: 'application/json', Referer: `${cfg.base}/` },
+    headers: { 'User-Agent': UA, 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({
       query: QUERY,
       // `zoom` 16 makes the server return cameras rather than clusters.
@@ -134,3 +151,4 @@ export async function loadCarsGraphqlCameras(cfg: CarsGraphqlState): Promise<Cct
 
 export const fetchNebraskaCameras = cachedSource('nebraska', () => loadCarsGraphqlCameras(NEBRASKA));
 export const fetchKansasCameras = cachedSource('kansas', () => loadCarsGraphqlCameras(KANSAS));
+export const fetchIrelandCameras = cachedSource('ireland', () => loadCarsGraphqlCameras(IRELAND));
