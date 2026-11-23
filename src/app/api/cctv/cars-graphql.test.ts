@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { clearSourceCache } from '@/lib/sourceCache';
-import { fetchKansasCameras, KANSAS, loadCarsGraphqlCameras, mapCarsGraphqlFeature, NEBRASKA, type CarsGraphqlFeature } from './cars-graphql';
+import { fetchIrelandCameras, fetchKansasCameras, KANSAS, loadCarsGraphqlCameras, mapCarsGraphqlFeature, NEBRASKA, type CarsGraphqlFeature } from './cars-graphql';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -62,5 +62,23 @@ describe('CARS GraphQL cameras (Nebraska, Kansas)', () => {
     // The loader throws, so the region's cache keeps its last good list.
     vi.stubGlobal('fetch', vi.fn(async () => new Response('down', { status: 502 })));
     await expect(loadCarsGraphqlCameras(KANSAS)).rejects.toThrow('KDOT cameras HTTP 502');
+  });
+
+  it("reads TII's cameras as Ireland's, asking as itself", async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => Response.json({
+      data: { mapFeaturesQuery: { mapFeatures: [
+        feature(91, 'https://irecam.carsprogram.org/Vaisala/1681_cam1.jpeg?1795307760000', -6.64806, 53.92972, 'Reaghstown'),
+        feature(92, 'https://irecam.carsprogram.org/Vaisala/1683_cam1.jpeg', -0.1, 51.5, 'London'),
+      ] } },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await fetchIrelandCameras()).toEqual([{
+      id: 'tii-91', lat: 53.92972, lng: -6.64806, name: 'Reaghstown', city: 'National roads', country: 'Ireland',
+      feed_url: 'https://irecam.carsprogram.org/Vaisala/1681_cam1.jpeg', source: 'TII',
+    }]);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://traffic.tii.ie/api/graphql');
+    expect(new Headers(init?.headers).has('Referer')).toBe(false);
   });
 });
