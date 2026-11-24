@@ -519,6 +519,17 @@ const RAW_REGION_FETCHERS: Record<string, RegionFetcher> = {
   'latam-live': fetchLatamLiveCameras,
   'africa-live': fetchAfricaLiveCameras,
   'europe-live': fetchEuropeLiveCameras,
+  // User-submitted public YouTube livestream in Barcelona.
+  'barcelona-user': async () => [{
+    id: 'barcelona-milhouse-ptz',
+    lat: 41.4280,
+    lng: 2.1610,
+    name: 'Milhouse PTZ',
+    city: 'Barcelona',
+    country: 'Spain',
+    external_url: 'https://www.youtube.com/@milhouse23/live',
+    source: 'YouTube Live',
+  }],
   /* Webcams their operators broadcast publicly. Registered here
      only — fetchEuropeCameras must not call these too, or every one of them
      lands on the map twice (GET concatenates regions without deduping on id). */
