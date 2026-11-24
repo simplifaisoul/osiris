@@ -11,7 +11,7 @@ import {
   CATEGORIES, HISTORY_KEY, type SearchType, type Category, type HistoryEntry,
 } from '@/lib/fingerprint';
 import {
-  searchSource, locationSignals, placesToGeocode, placeKey, handleVariants, handlesInUse, pivotLinks, sourceLabel,
+  searchSource, locationSignals, placesToGeocode, placeKey, handleVariants, handlesInUse, pivotLinks, sourceLabel, isThin, richness,
   NAME_SOURCES, CITY_LEVEL_KINDS, type NameProfile, type NameSource, type LocationSignal, type PlacePoint,
 } from '@/lib/name-search';
 import { searchPlaces } from '@/lib/geosearch';
@@ -915,9 +915,13 @@ export default function FingerprintSearch({ fp, isFullScreen }: { fp: Fingerprin
     const exact = fp.profiles.filter(p => p.match === 'exact').length;
     const handles = [...new Set([...handlesInUse(fp.profiles, q), ...handleVariants(q)])].slice(0, 12);
     const placed = new Set(fp.places.flatMap(s => s.profiles));
-    // Exact names first, then the sources that say most about a person; within one, the source's own order.
-    const ordered = [...fp.profiles].sort((a, b) =>
-      (a.match === b.match ? 0 : a.match === 'exact' ? -1 : 1) || PROFILE_ORDER.indexOf(a.source) - PROFILE_ORDER.indexOf(b.source));
+    // Profiles that say something get a card: exact names first, then the ones that say most, then by source.
+    // Accounts that carry the name and nothing else are listed in a line each below them.
+    const ordered = fp.profiles.filter(p => !isThin(p)).sort((a, b) =>
+      (a.match === b.match ? 0 : a.match === 'exact' ? -1 : 1)
+      || richness(b) - richness(a)
+      || PROFILE_ORDER.indexOf(a.source) - PROFILE_ORDER.indexOf(b.source));
+    const thin = fp.profiles.filter(isThin).sort((a, b) => PROFILE_ORDER.indexOf(a.source) - PROFILE_ORDER.indexOf(b.source));
 
     const exportProfiles = (format: 'csv' | 'json') => {
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
@@ -1071,7 +1075,35 @@ export default function FingerprintSearch({ fp, isFullScreen }: { fp: Fingerprin
           </div>
         ) : (
           <div className="py-6 text-center text-[10px] font-mono text-[var(--text-muted)]">
-            {running ? 'Profiles appear here as each source answers.' : 'No public profile carries this name.'}
+            {running ? 'Profiles appear here as each source answers.'
+              : thin.length ? 'No profile with this name says more than the name itself.'
+              : 'No public profile carries this name.'}
+          </div>
+        )}
+
+        {/* Accounts with the name and nothing more */}
+        {thin.length > 0 && (
+          <div className="rounded-lg border border-[var(--border-primary)] overflow-hidden">
+            <div className="px-3 py-1.5 border-b border-[var(--border-primary)] bg-[var(--bg-primary)]/40 text-[9px] font-mono tracking-widest text-[var(--text-muted)]">
+              {thin.length} MORE {thin.length === 1 ? 'ACCOUNT' : 'ACCOUNTS'} WITH THIS NAME AND NOTHING ELSE PUBLIC
+            </div>
+            {thin.map(p => (
+              <a
+                key={`${p.source}:${p.id}`}
+                href={p.url}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+                className="flex items-center justify-between gap-2 px-3 py-1.5 border-b last:border-b-0 border-[var(--border-primary)]/50 text-[10px] font-mono hover:bg-[var(--hover-accent)]"
+              >
+                <span className="flex items-center gap-2 min-w-0">
+                  <span className="w-24 flex-shrink-0 whitespace-nowrap" style={{ color: SOURCE_COLOR[p.source] }}>{sourceLabel(p.source)}</span>
+                  <span className="text-[var(--text-primary)] truncate">{p.name}{p.handle ? <span className="text-[var(--text-muted)]"> · @{p.handle}</span> : null}</span>
+                </span>
+                <span className="flex items-center gap-1.5 flex-shrink-0 text-[9px] text-[var(--text-muted)]">
+                  {p.facts[0]}<ExternalLink className="w-2.5 h-2.5" />
+                </span>
+              </a>
+            ))}
           </div>
         )}
 

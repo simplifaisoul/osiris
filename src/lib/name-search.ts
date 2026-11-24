@@ -134,6 +134,14 @@ export function handleVariants(q: string): string[] {
   return [...new Set(out)].filter(isValidUsername).slice(0, 8);
 }
 
+/** How much a profile says beyond the name; the cards are ranked by it. */
+export function richness(p: NameProfile): number {
+  return (p.location ? 3 : 0) + (p.org ? 2 : 0) + (p.bio ? 1 : 0) + Math.min(p.links.length, 3);
+}
+
+/** A profile that says nothing but the name: listed in a line, not given a card. */
+export const isThin = (p: NameProfile) => richness(p) === 0;
+
 /**
  * Handles the profiles found already use, as the username search takes them
  * (no server part), when they are built from the name: someone else's
@@ -448,6 +456,26 @@ const current = (claims: WdClaim[]) => claims
 
 const isHuman = (e: WdEntity) => itemIds(e.claims?.P31 ?? []).includes('Q5');
 
+/** Before this year of birth, a record is history, not someone to find. */
+const BORN_AFTER = 1900;
+
+/**
+ * Someone who could be alive: no date of death on record, and not born
+ * before BORN_AFTER. A search for a person is for the living; Wikidata's
+ * namesakes from genealogy records (1666–1733) would only bury them.
+ */
+function isLiving(e: WdEntity): boolean {
+  if ((e.claims?.P570 ?? []).some(c => c.rank !== 'deprecated')) return false;
+  const born = statements(e, 'P569')[0]?.mainsnak.datavalue?.value as { time?: string } | undefined;
+  const year = born?.time ? parseInt(born.time.replace(/^\+/, ''), 10) : NaN;
+  if (Number.isFinite(year) && year < BORN_AFTER) return false;
+  // Some records carry the dates only in their description: "9 Nov 1666 - 23 Oct 1733", "(1850–1920)".
+  // Only real years count, never the runs of digits in an identifier such as an ORCID.
+  const description = e.descriptions?.en?.value ?? '';
+  if (/(?<![\d-])(?:1\d{3}|20\d{2})\s*[-–—]\s*(?:\d{1,2}\s+\p{L}+\.?\s+)?(?:1\d{3}|20\d{2})(?![\d-])/u.test(description)) return false;
+  return !/(?<![\d-])1[0-8]\d{2}(?![\d-])/.test(description);
+}
+
 /** "user@server.tld" (a fediverse address) as its profile URL. */
 export function fediverseUrl(address: string): string | undefined {
   const m = address.trim().match(/^@?([\w.-]+)@([a-z0-9-]+(?:\.[a-z0-9-]+)+)$/i);
@@ -475,7 +503,7 @@ export function wikidataPeople(entities: Record<string, WdEntity>, hits: WdSearc
   const residences = new Set<string>();
   for (const hit of hits) {
     const e = entities[hit.id];
-    if (!e || e.missing !== undefined || !isHuman(e)) continue;
+    if (!e || e.missing !== undefined || !isHuman(e) || !isLiving(e)) continue;
     const match = matchOf(q, wdLabel(e)) ?? matchOf(q, hit.match?.text);
     if (!match) continue;
     people.push({ entity: e, match });
@@ -629,7 +657,8 @@ export async function searchSource(source: NameSource, q: string, signal: AbortS
           refs.length ? getJson<{ entities?: Record<string, WdEntity> }>(wikidataEntitiesUrl(refs, 'labels'), sig, fetchImpl, WIKIMEDIA_HEADERS) : { entities: {} },
           residences.length ? getJson<{ entities?: Record<string, WdEntity> }>(wikidataEntitiesUrl(residences, 'labels|claims'), sig, fetchImpl, WIKIMEDIA_HEADERS) : { entities: {} },
         ]);
-        return people.map(p => fromWikidata(p.entity, p.match, labels.entities ?? {}, places.entities ?? {}));
+        // A register entry with nothing on it but the name is not an account to list.
+        return people.map(p => fromWikidata(p.entity, p.match, labels.entities ?? {}, places.entities ?? {})).filter(p => !isThin(p));
       }
       case 'openalex': {
         const { authors, institutions } = openAlexAuthors(await getJson(openAlexAuthorsUrl(q), sig, fetchImpl), q);

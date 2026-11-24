@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   validateName, normalizeName, matchOf, handleVariants, handlesInUse, pivotLinks, htmlToText, safeHttpUrl, placeText,
   fromGithubUser, fromStackOverflow, fromMastodon, fromBluesky, wikidataPeople, fromWikidata, fediverseUrl,
-  openAlexAuthors, fromOpenAlex, searchSource, locationSignals, placesToGeocode, placeKey, githubSearchUrl,
+  openAlexAuthors, fromOpenAlex, searchSource, locationSignals, placesToGeocode, placeKey, githubSearchUrl, isThin, richness,
   type NameProfile, type WdEntity, type PlacePoint,
 } from './name-search';
 
@@ -156,8 +156,18 @@ describe('each source', () => {
       },
     };
     const notAPerson: WdEntity = { id: 'Q2', labels: { en: { value: 'Ada Quill' } }, claims: { P31: [claim(item('Q571').value)] } };
-    const { people, refs, residences } = wikidataPeople({ Q1: person, Q2: notAPerson }, [{ id: 'Q1' }, { id: 'Q2' }], Q);
-    expect(people.map(p => p.entity.id)).toEqual(['Q1']);
+    // Namesakes from history: one with a date of death, one born in 1666.
+    const died: WdEntity = { id: 'Q3', labels: { en: { value: 'Ada Quill' } }, claims: { P31: [claim(item('Q5').value)], P570: [claim({ time: '+1823-00-00T00:00:00Z' })] } };
+    const old: WdEntity = { id: 'Q4', labels: { en: { value: 'Ada Quill' } }, claims: { P31: [claim(item('Q5').value)], P569: [claim({ time: '+1666-11-09T00:00:00Z' })] } };
+    // And two whose dates are only in the description.
+    const described: WdEntity = { id: 'Q5', labels: { en: { value: 'Ada Quill' } }, descriptions: { en: { value: '9 Nov 1666 - 23 Oct 1733' } }, claims: { P31: [claim(item('Q5').value)] } };
+    const span: WdEntity = { id: 'Q6', labels: { en: { value: 'Ada Quill' } }, descriptions: { en: { value: 'American painter (1920–2001)' } }, claims: { P31: [claim(item('Q5').value)] } };
+    // A living researcher whose description is an ORCID: its digits are not dates.
+    const orcid: WdEntity = { id: 'Q7', labels: { en: { value: 'Ada Quill' } }, descriptions: { en: { value: 'researcher ORCID ID = 0000-0002-2808-0642' } }, claims: { P31: [claim(item('Q5').value)] } };
+    const { people, refs, residences } = wikidataPeople(
+      { Q1: person, Q2: notAPerson, Q3: died, Q4: old, Q5: described, Q6: span, Q7: orcid },
+      ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6', 'Q7'].map(id => ({ id })), Q);
+    expect(people.map(p => p.entity.id)).toEqual(['Q1', 'Q7']);
     expect(refs).toEqual(expect.arrayContaining(['Q10', 'Q20', 'Q21']));
     // The ended home and the deprecated one are not "now".
     expect(residences).toEqual(['Q31']);
@@ -279,6 +289,14 @@ describe('location estimate', () => {
       profile({ source: 'bluesky', handle: 'ada.example' }),
       profile({ source: 'stackoverflow' }),
     ], Q)).toEqual(['aquill', 'adaquill']);
+  });
+
+  it('gives a card to profiles that say something, ranked by how much', () => {
+    const bare = profile({ facts: ['1 reputation'] });
+    const placed = profile({ location: 'Lyon', org: 'Quillworks', bio: 'Compilers', links: [{ label: 'X', url: 'https://x.com/a' }] });
+    expect(isThin(bare)).toBe(true);
+    expect(isThin(placed)).toBe(false);
+    expect(richness(placed)).toBeGreaterThan(richness(profile({ bio: 'Compilers' })));
   });
 
   it('does not place a profile that wrote "Location" where its town goes', () => {
