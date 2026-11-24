@@ -83,6 +83,7 @@ import { fetchWisconsinCameras } from './wisconsin';
 import { fetchOhioCameras } from './ohio';
 import { fetchNewMexicoCameras } from './new-mexico';
 import { fetchArlingtonCameras } from './arlington';
+import { fetchNewJerseyCameras } from './new-jersey';
 import { fetchScotlandCameras } from './scotland';
 import { fetchSouthAfricaCameras } from './south-africa';
 import {
@@ -501,6 +502,8 @@ const RAW_REGION_FETCHERS: Record<string, RegionFetcher> = {
   'minnesota': fetchMinnesotaCameras,
   'colorado': fetchColoradoCameras,
   'new-york': fetchNewYorkCameras,
+  /* The NJ Turnpike Authority's Turnpike and Garden State Parkway cameras. */
+  'new-jersey': fetchNewJerseyCameras,
   'nebraska': fetchNebraskaCameras,
   'kansas': fetchKansasCameras,
   /* Vermont, New Hampshire and Maine. */
@@ -860,6 +863,7 @@ function getRegionsForBounds(lat: number, lng: number, radius: number): string[]
   if (lat > 36.9 && lat < 40.1 && lng > -102.1 && lng < -94.5) regions.push('kansas');
   if (lat > 42.6 && lat < 47.5 && lng > -73.5 && lng < -66.8) regions.push('new-england');
   if (lat > 40.4 && lat < 45.1 && lng > -79.8 && lng < -71.8) regions.push('new-york');
+  if (lat > 38.85 && lat < 41.4 && lng > -75.6 && lng < -73.85) regions.push('new-jersey');
   if (lat > 39.7 && lat < 42.3 && lng > -80.6 && lng < -74.6) regions.push('pennsylvania');
   if (lat > 40.9 && lat < 42.1 && lng > -73.8 && lng < -71.7) regions.push('connecticut');
   if (lat > 35.9 && lat < 40.7 && lng > -95.8 && lng < -89.0) regions.push('missouri');
