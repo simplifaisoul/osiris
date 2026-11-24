@@ -19,6 +19,9 @@ export interface RiskFactor {
   tags: string[];
   /** Names as USGS spells them in an earthquake `place` string. */
   names: string[];
+  /** Longer names of somewhere else that contain one of `names`, such as
+   *  "south sudan" for Sudan. They are taken out of the place first. */
+  excludes?: string[];
 }
 
 /** Editorial baseline. `base` is a 0–100 ordering, not a calibrated probability. */
@@ -30,7 +33,7 @@ export const RISK_FACTORS: Record<string, RiskFactor> = {
   SY: { base: 82, tags: ['post_conflict', 'infrastructure_damage'], names: ['syria'] },
   YE: { base: 88, tags: ['active_conflict', 'humanitarian_crisis'], names: ['yemen'] },
   MM: { base: 76, tags: ['civil_unrest', 'military_junta'], names: ['myanmar', 'burma'] },
-  SD: { base: 84, tags: ['active_conflict', 'humanitarian_crisis'], names: ['sudan'] },
+  SD: { base: 84, tags: ['active_conflict', 'humanitarian_crisis'], names: ['sudan'], excludes: ['south sudan'] },
   AF: { base: 80, tags: ['post_conflict', 'governance_collapse'], names: ['afghanistan'] },
   KP: { base: 70, tags: ['nuclear_risk', 'isolation'], names: ['north korea'] },
   IR: { base: 68, tags: ['sanctions', 'nuclear_program', 'regional_proxy'], names: ['iran'] },
@@ -56,6 +59,10 @@ export const BASELINE_REVIEWED = '2026-09-15';
  * every Papuan earthquake raised Ukraine's score, and "Solomon Islands",
  * "Sonora" and "south of the Fiji Islands" all raised Somalia's. Matching is
  * now on country names at word boundaries.
+ *
+ * Word boundaries are not enough where one country's name sits inside
+ * another's: "50 km E of Juba, South Sudan" holds the whole word "Sudan". A
+ * factor lists those longer names under `excludes`.
  */
 export function quakeMagnitudeByCountry(
   features: Array<{ properties?: { place?: string; mag?: number } }>,
@@ -73,7 +80,13 @@ export function quakeMagnitudeByCountry(
     const place = ` ${rawPlace.toLowerCase().replace(/[^a-z]+/g, ' ').trim()} `;
 
     for (const [code, factor] of Object.entries(RISK_FACTORS)) {
-      if (factor.names.some(name => place.includes(` ${name} `))) {
+      /* Only the longer name is removed, so ' sudan south sudan border
+         region ' still has a ' sudan ' of its own left to match. */
+      const remaining = (factor.excludes || []).reduce(
+        (text, other) => text.replaceAll(` ${other} `, ' '),
+        place,
+      );
+      if (factor.names.some(name => remaining.includes(` ${name} `))) {
         totals[code] = (totals[code] || 0) + mag;
       }
     }
