@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { propagateTLE, orbitalPeriodMinutes, orbitPath, splitAtAntimeridian, wrapLongitude } from './orbit';
+import { propagateTLE, orbitalPeriodMinutes, orbitPath, satelliteState, splitAtAntimeridian, wrapLongitude } from './orbit';
 
 /**
  * A real ISS TLE. Epoch is fixed, so every assertion below is reproducible:
@@ -63,6 +63,57 @@ describe('propagateTLE', () => {
     expect(propagateTLE('', '')).toBeNull();
     expect(propagateTLE('not a tle', 'not a tle')).toBeNull();
     expect(propagateTLE(ISS_1, '2 25544  bad line')).toBeNull();
+  });
+});
+
+describe('satelliteState', () => {
+  /** A real geostationary TLE (Intelsat 30), for a satellite that stays put over the ground. */
+  const GEO_1 = '1 40271U 14062A   26323.13996269 -.00000131  00000+0  00000+0 0  9992';
+  const GEO_2 = '2 40271   0.0162   2.9647 0001344  69.9705 300.6193  1.00270162  8347';
+  const GEO_AT = new Date('2026-11-20T12:00:00Z');
+
+  it('gives the ISS its orbital speed and a track heading', () => {
+    const s = satelliteState(ISS_1, ISS_2, AT)!;
+    expect(s).not.toBeNull();
+    expect(s.speedKmS).toBeGreaterThan(7.5);
+    expect(s.speedKmS).toBeLessThan(7.8);
+    expect(s.headingDeg).not.toBeNull();
+    expect(s.headingDeg!).toBeGreaterThanOrEqual(0);
+    expect(s.headingDeg!).toBeLessThan(360);
+  });
+
+  it('is at the same place propagateTLE puts it', () => {
+    const s = satelliteState(ISS_1, ISS_2, AT)!;
+    const p = propagateTLE(ISS_1, ISS_2, AT)!;
+    expect(s.lat).toBeCloseTo(p.lat, 9);
+    expect(s.lng).toBeCloseTo(p.lng, 9);
+    expect(s.altKm).toBeCloseTo(p.altKm, 9);
+  });
+
+  it('heads the way the satellite actually moves', () => {
+    // A heading is only worth showing if following it leads to where the
+    // satellite is a moment later.
+    const s = satelliteState(ISS_1, ISS_2, AT)!;
+    const later = propagateTLE(ISS_1, ISS_2, new Date(AT.getTime() + 60_000))!;
+    const northward = later.lat - s.lat;
+    const eastward = wrapLongitude(later.lng - s.lng);
+    const rad = (s.headingDeg! * Math.PI) / 180;
+    // The heading's components point the same way as the minute's movement.
+    expect(Math.sign(Math.cos(rad))).toBe(Math.sign(northward));
+    expect(Math.sign(Math.sin(rad))).toBe(Math.sign(eastward));
+  });
+
+  it('gives a geostationary satellite its speed but no heading', () => {
+    const s = satelliteState(GEO_1, GEO_2, GEO_AT)!;
+    expect(s).not.toBeNull();
+    expect(s.altKm).toBeGreaterThan(35_000);
+    expect(s.speedKmS).toBeGreaterThan(3.0);
+    expect(s.speedKmS).toBeLessThan(3.15);
+    expect(s.headingDeg).toBeNull();
+  });
+
+  it('returns null for a TLE it cannot read', () => {
+    expect(satelliteState('', '')).toBeNull();
   });
 });
 

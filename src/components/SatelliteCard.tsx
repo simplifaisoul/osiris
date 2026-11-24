@@ -1,6 +1,10 @@
 'use client';
 
 import { ExternalLink, Orbit, Satellite, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import type { SatPosition, SatState } from '@/lib/orbit';
+import { orbitUrl, readEphemeris, readSegments, stateAt, type Ephemeris } from '@/lib/satellite-live';
+import SatelliteView from '@/components/SatelliteView';
 
 /**
  * OSIRIS — selected satellite readout
@@ -16,7 +20,11 @@ import { ExternalLink, Orbit, Satellite, X } from 'lucide-react';
  * already on the globe and already correct: the selection ring the shader draws
  * around the picked satellite, and the orbit track in the satellite's own
  * colour. The card carries the numbers, in a fixed place that does not move
- * while the satellite does — and the satellite does move, every poll.
+ * while the satellite does.
+ *
+ * Once the orbit reply lands, the card follows the satellite live: position,
+ * speed and heading every second, the marker moved with it, and a picture of
+ * the ground below.
  */
 
 export interface SatelliteDetail {
@@ -33,10 +41,12 @@ export interface SatelliteDetail {
   periodMinutes?: number | null;
   /** Whether the orbit track on the globe is on its way, drawn, or unavailable. */
   track: 'loading' | 'ready' | 'unavailable';
+  /** Where it will be over the next minutes, from the orbit reply; what the card follows live. */
+  live?: Ephemeris | null;
 }
 
-/** Earth's mean radius — only used to turn a period into a speed. */
-const EARTH_RADIUS_KM = 6371;
+/** How long one set of samples is used before asking for the next, ms. They run for twenty minutes. */
+const REFRESH_MS = 10 * 60_000;
 
 /**
  * The orbital shell, by the usual boundaries. GEO is a narrow band rather than
@@ -50,9 +60,57 @@ function regime(altKm: number): { label: string; note: string } {
   return { label: 'HEO', note: 'High / highly elliptical' };
 }
 
-/** Circular-orbit speed implied by the period; the point of it is scale, not precision. */
-function speedKmS(altKm: number, periodMinutes: number): number {
-  return (2 * Math.PI * (EARTH_RADIUS_KM + altKm)) / (periodMinutes * 60);
+const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+function compass(deg: number): string {
+  return COMPASS[Math.round(deg / 45) % 8];
+}
+
+/**
+ * Once a second, the satellite's state between the orbit route's samples.
+ * Before the samples run out the route is asked again, which also recentres
+ * the drawn track on the satellite.
+ */
+function useLiveSatellite(
+  noradId: string | undefined,
+  first: Ephemeris | null | undefined,
+  onLive?: (state: SatState) => void,
+  onTrack?: (segments: SatPosition[][]) => void,
+): SatState | null {
+  const [live, setLive] = useState<SatState | null>(null);
+  const callbacks = useRef({ onLive, onTrack });
+  useEffect(() => { callbacks.current = { onLive, onTrack }; });
+
+  useEffect(() => {
+    if (!noradId || !first) return;
+    let samples = first;
+    let nextAsk = samples.from + REFRESH_MS;
+    let gone = false;
+    const tick = () => {
+      const now = Date.now();
+      const state = stateAt(samples, now);
+      setLive(state);
+      if (state) callbacks.current.onLive?.(state);
+      if (now < nextAsk) return;
+      // A failed ask is tried again in a minute, not every second.
+      nextAsk = now + 60_000;
+      fetch(orbitUrl(noradId, now))
+        .then(r => (r.ok ? r.json() : null))
+        .then(d => {
+          const next = readEphemeris(d?.live);
+          if (gone || !next) return;
+          samples = next;
+          nextAsk = next.from + REFRESH_MS;
+          const track = readSegments(d?.segments);
+          if (track.length) callbacks.current.onTrack?.(track);
+        })
+        .catch(() => {});
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => { gone = true; clearInterval(timer); };
+  }, [noradId, first]);
+
+  return live;
 }
 
 function period(minutes: number): string {
@@ -67,7 +125,7 @@ function colorSafe(value: string | undefined): string {
   return /^#[0-9a-fA-F]{3,8}$/.test(String(value ?? '')) ? String(value) : 'var(--cyan-primary)';
 }
 
-function Field({ label, value, color }: { label: string; value: string; color?: string }) {
+function Field({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
   return (
     <div className="min-w-0">
       <div className="text-[8px] font-mono tracking-[0.15em] text-[var(--text-muted)]">{label}</div>
@@ -78,17 +136,29 @@ function Field({ label, value, color }: { label: string; value: string; color?: 
       >
         {value}
       </div>
+      {sub && <div className="truncate text-[9px] font-mono tabular-nums text-[var(--text-secondary)]">{sub}</div>}
     </div>
   );
 }
 
-export default function SatelliteCard({ sat, onClose }: { sat: SatelliteDetail; onClose: () => void }) {
+export default function SatelliteCard({ sat, onClose, onLive, onTrack }: {
+  sat: SatelliteDetail;
+  onClose: () => void;
+  /** Each second's live state, to move the marker with it. */
+  onLive?: (state: SatState) => void;
+  /** A recentred orbit track. */
+  onTrack?: (segments: SatPosition[][]) => void;
+}) {
   const accent = colorSafe(sat.color);
-  const shell = regime(sat.alt);
+  const live = useLiveSatellite(sat.noradId, sat.live, onLive, onTrack);
+  const lat = live?.lat ?? sat.lat;
+  const lng = live?.lng ?? sat.lng;
+  const alt = live?.altKm ?? sat.alt;
+  const shell = regime(alt);
 
   return (
     <div
-      className="pointer-events-auto absolute left-2 right-2 top-16 z-[350] overflow-hidden rounded-lg border bg-[var(--bg-panel)] shadow-[0_6px_20px_rgba(0,0,0,0.45)] backdrop-blur-2xl md:left-[72px] md:right-auto md:top-[88px] md:w-[248px]"
+      className="pointer-events-auto absolute left-2 right-2 top-16 z-[350] overflow-hidden rounded-lg border bg-[var(--bg-panel)] shadow-[0_6px_20px_rgba(0,0,0,0.45)] backdrop-blur-2xl md:left-[72px] md:right-auto md:top-[88px] md:w-[272px]"
       style={{ borderColor: `${accent}33` }}
       role="dialog"
       aria-label={`Satellite ${sat.name}`}
@@ -106,6 +176,12 @@ export default function SatelliteCard({ sat, onClose }: { sat: SatelliteDetail; 
             {sat.mission || 'Unknown mission'}
           </div>
         </div>
+        {live && (
+          <span className="mt-[1px] flex flex-shrink-0 items-center gap-1 text-[8px] font-mono tracking-[0.15em]" style={{ color: accent }}>
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ background: accent }} />
+            LIVE
+          </span>
+        )}
         <button
           onClick={onClose}
           className="-mr-1 -mt-1 flex-shrink-0 rounded-md p-1 text-[var(--text-muted)] transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-1 focus-visible:ring-white/50"
@@ -116,21 +192,31 @@ export default function SatelliteCard({ sat, onClose }: { sat: SatelliteDetail; 
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-x-2.5 gap-y-2 px-2.5 py-2.5">
-        <Field label="ALTITUDE" value={`${Math.round(sat.alt).toLocaleString()} km`} color="var(--cyan-primary)" />
-        <Field label="ORBIT" value={shell.label} color={accent} />
+      <SatelliteView lat={lat} lng={lng} altKm={alt} headingDeg={live?.headingDeg ?? null} accent={accent} />
+
+      <div className="grid grid-cols-2 gap-x-2.5 gap-y-2 border-t border-[var(--border-secondary)] px-2.5 py-2.5">
+        <Field label="ALTITUDE" value={`${Math.round(alt).toLocaleString()} km`} color="var(--cyan-primary)" />
+        <Field
+          label="SPEED"
+          value={live ? `${live.speedKmS.toFixed(2)} km/s` : '—'}
+          sub={live ? `${Math.round(live.speedKmS * 3600).toLocaleString()} km/h` : undefined}
+          color="var(--cyan-primary)"
+        />
+        <Field
+          label="HEADING"
+          value={live ? (live.headingDeg === null ? 'Holds station' : `${Math.round(live.headingDeg)}° ${compass(live.headingDeg)}`) : '—'}
+        />
         <Field
           label="PERIOD"
           value={sat.periodMinutes ? period(sat.periodMinutes) : '—'}
         />
-        <Field
-          label="SPEED"
-          value={sat.periodMinutes ? `${speedKmS(sat.alt, sat.periodMinutes).toFixed(2)} km/s` : '—'}
-        />
-        <Field label="LATITUDE" value={`${sat.lat.toFixed(3)}°`} />
-        <Field label="LONGITUDE" value={`${sat.lng.toFixed(3)}°`} />
+        <Field label="LATITUDE" value={`${lat.toFixed(3)}°`} />
+        <Field label="LONGITUDE" value={`${lng.toFixed(3)}°`} />
+        <Field label="ORBIT" value={shell.label} color={accent} />
         <Field label="NORAD ID" value={sat.noradId || '—'} />
-        <Field label="CLASS" value={shell.note} />
+        <div className="col-span-2">
+          <Field label="CLASS" value={shell.note} />
+        </div>
       </div>
 
       {/* What the globe is showing, so a missing track reads as a known state

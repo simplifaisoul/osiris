@@ -17,6 +17,8 @@ import { STYLE_EVENT } from '@/lib/style-tokens';
 import { arrivalBeacons } from '@/lib/malware-intel';
 import { ALERT_KINDS, timeAgo, type AlertKind } from '@/lib/alert-digest';
 import SatelliteCard, { type SatelliteDetail } from '@/components/SatelliteCard';
+import type { SatPosition, SatState } from '@/lib/orbit';
+import { orbitUrl, readEphemeris } from '@/lib/satellite-live';
 import CctvPreviews, { type PreviewCamera } from '@/components/CctvPreviews';
 import MapControls from '@/components/MapControls';
 import WindBar from '@/components/WindBar';
@@ -56,6 +58,17 @@ const CLICKABLE_LAYERS: ReadonlySet<string> = new Set(['conflict-icons','cctv-do
   'sdk-sea','sdk-air','sdk-intel','malware-dots','cyber-heads','gdelt-events-dots',
   'cf-outage-dots','cf-attack-dots','flight-dots','military-dots','jet-dots','private-dots','alert-pin-dots',
   'transit-coverage-dots']);
+
+/*
+ * Where a satellite click takes the camera. From world view it comes in to
+ * about a continent, so the track is seen crossing the region; it never goes
+ * so close that a geostationary marker (drawn 2,500 km up) ends up behind the
+ * camera.
+ */
+const SAT_FLIGHT_MIN_ZOOM = 3;
+const SAT_FLIGHT_MAX_ZOOM = 4.5;
+/** A first live fix later than this leaves the camera alone: the operator may have moved on. */
+const SAT_FLIGHT_REDIRECT_MS = 3000;
 
 interface OsirisMapProps {
   data: any;
@@ -258,10 +271,27 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
    *  re-polled and re-filtered; the id does not, so it is what identifies the
    *  selection across a refresh and what discards a late orbit reply. */
   const satSelectedIdRef = useRef<string | null>(null);
-  /** When the catalogue positions were propagated for, so an orbit can be drawn
-   *  around the marker rather than around the moment it was clicked. */
-  const satEpochRef = useRef<number | null>(null);
+  /** The flight to a clicked satellite: when it started and the zoom it is
+   *  heading for, so the first live fix can finish it on the satellite. */
+  const satFlightRef = useRef<{ at: number; zoom: number } | null>(null);
   const [selectedSat, setSelectedSat] = useState<SatelliteDetail | null>(null);
+
+  /** Each second's live fix: the marker goes where the satellite is now, not
+   *  where the catalogue last put it. The first fix also finishes the flight
+   *  there, since the catalogue position can be minutes old. */
+  const onSatLive = useCallback((s: SatState) => {
+    const idx = satPickedRef.current;
+    if (idx !== null) satLayerRef.current?.movePoint(idx, s);
+    const flight = satFlightRef.current;
+    satFlightRef.current = null;
+    const map = mapRef.current;
+    if (flight && map && performance.now() - flight.at < SAT_FLIGHT_REDIRECT_MS) {
+      map.easeTo({ center: [s.lng, s.lat], zoom: flight.zoom, duration: 900 });
+    }
+  }, []);
+  const onSatTrack = useCallback((segments: SatPosition[][]) => {
+    satLayerRef.current?.setOrbit(segments);
+  }, []);
 
   /** Drops the selection: the ring, the orbit track and the readout together.
    *  Leaving any one of them behind is what made a closed popup look like a
@@ -1191,6 +1221,13 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       layer.setSelected(idx);
       setSelectedSat({ ...p, periodMinutes: null, track: p.noradId ? 'loading' : 'unavailable' });
 
+      // Take the operator to it at once: centred under the satellite, close
+      // enough to see the region it is crossing and its track through it. The
+      // first live fix redirects this flight to where it is right now.
+      const zoom = Math.min(Math.max(map.getZoom(), SAT_FLIGHT_MIN_ZOOM), SAT_FLIGHT_MAX_ZOOM);
+      satFlightRef.current = { at: performance.now(), zoom };
+      map.easeTo({ center: [p.lng, p.lat], zoom, duration: 1200 });
+
       // Draw the selected satellite's orbit. Fetched per click rather than
       // bundled with the catalogue: that payload is already megabytes, and an
       // operator looks at one orbit at a time.
@@ -1199,10 +1236,10 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         // A slower reply for a satellite the operator has already moved on
         // from must not draw over the one they are looking at now.
         const stale = () => satSelectedIdRef.current !== wanted;
-        const mark = (track: SatelliteDetail['track'], periodMinutes: number | null = null) =>
-          setSelectedSat(prev => (prev && prev.noradId === wanted ? { ...prev, track, periodMinutes } : prev));
-        const at = satEpochRef.current;
-        fetch(`/api/satellites/orbit?id=${encodeURIComponent(wanted)}${at ? `&t=${at}` : ''}`)
+        const mark = (track: SatelliteDetail['track'], periodMinutes: number | null = null, live: SatelliteDetail['live'] = null) =>
+          setSelectedSat(prev => (prev && prev.noradId === wanted ? { ...prev, track, periodMinutes, live } : prev));
+        // Centred on the current minute, where the live marker is about to be.
+        fetch(orbitUrl(wanted))
           .then(r => (r.ok ? r.json() : null))
           .then(d => {
             if (stale()) return;
@@ -1211,7 +1248,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
               d.segments.map((seg: number[][]) => seg.map(([lng, lat, altKm]) => ({ lng, lat, altKm }))),
               parseColor(satColorFor(p.category, p.color, paletteRef.current)),
             );
-            mark('ready', typeof d.periodMinutes === 'number' ? d.periodMinutes : null);
+            mark('ready', typeof d.periodMinutes === 'number' ? d.periodMinutes : null, readEphemeris(d.live));
           })
           // No track is fine; the satellite still shows — but the readout says so
           // rather than sitting on 'plotting' forever.
@@ -2002,8 +2039,6 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     if (!mapReady) return;
     const sats = data.satellites || [];
     const al = activeLayers as any;
-    const at = Date.parse(data.satellites_at ?? '');
-    satEpochRef.current = Number.isFinite(at) ? at : null;
     
     // If 'All Satellites' is on, show everything
     if (al.satellites) {
@@ -2035,7 +2070,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     satRowsRef.current = filtered;
     satLayerRef.current?.setPoints(toSatPoints(filtered));
     resyncSatSelection(filtered);
-  }, [mapReady, data.satellites, activeLayers.satellites, (activeLayers as any).sat_comms, (activeLayers as any).sat_military, (activeLayers as any).sat_navigation, (activeLayers as any).sat_earth, (activeLayers as any).sat_science, data.satellites_at, setGeo, toSatPoints, resyncSatSelection, clearSat]);
+  }, [mapReady, data.satellites, activeLayers.satellites, (activeLayers as any).sat_comms, (activeLayers as any).sat_military, (activeLayers as any).sat_navigation, (activeLayers as any).sat_earth, (activeLayers as any).sat_science, setGeo, toSatPoints, resyncSatSelection, clearSat]);
 
   useEffect(() => {
     if (!mapReady) return;
@@ -3502,7 +3537,17 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
           })}
         />
       )}
-      {selectedSat && <SatelliteCard sat={selectedSat} onClose={clearSat} />}
+      {/* Keyed by satellite, so a new selection starts with no live figures
+          from the last one. */}
+      {selectedSat && (
+        <SatelliteCard
+          key={selectedSat.noradId ?? selectedSat.name}
+          sat={selectedSat}
+          onClose={clearSat}
+          onLive={onSatLive}
+          onTrack={onSatTrack}
+        />
+      )}
       {mapReady && <MapControls mapRef={mapRef} onInteract={onFollowInterrupt} />}
       {mapReady && (activeLayers.wind || activeLayers.rain) && (
         <div className={DOCK}>

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { orbitPath, orbitalPeriodMinutes, splitAtAntimeridian } from '@/lib/orbit';
+import { orbitPath, orbitalPeriodMinutes, satelliteState, splitAtAntimeridian } from '@/lib/orbit';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,22 +52,44 @@ function catalogue(): Map<string, Tle> {
 /**
  * The moment the track is drawn around.
  *
- * It defaults to now, but now is usually the wrong answer. The marker on the
- * map was propagated when /api/satellites was fetched, and that happens once,
- * when the layer is switched on — it is never re-polled. Twenty minutes later
- * the marker is where the satellite was twenty minutes ago, and a track
- * propagated from now starts nine thousand kilometres away from it. The maths
- * was right in both places and the two answers still did not meet.
- *
- * So the caller passes the epoch its marker came from. Anything absurd is
- * ignored rather than trusted: a far-future `t` would propagate a TLE well
- * outside the window it is accurate in, and quietly draw a wrong orbit.
+ * It defaults to now. The page moves the selected satellite to where it is
+ * now, so it asks for a track around the current minute; rounding to the
+ * minute lets visitors share one cached answer. Anything absurd is ignored
+ * rather than trusted: a far-future `t` would propagate a TLE well outside the
+ * window it is accurate in, and quietly draw a wrong orbit.
  */
 function anchorTime(raw: string | null): Date {
   const ms = Number(raw);
   if (!Number.isFinite(ms) || ms <= 0) return new Date();
   const drift = Math.abs(ms - Date.now());
   return drift > 7 * 24 * 3600_000 ? new Date() : new Date(ms);
+}
+
+/** Seconds between live samples, and how far ahead they run. */
+const LIVE_STEP_S = 10;
+const LIVE_SPAN_S = 20 * 60;
+
+/**
+ * Where the satellite will be every ten seconds for the next twenty minutes,
+ * with its speed and heading: [lng, lat, altKm, speedKmS, headingDeg | null].
+ * The page glides between these once a second and asks again after ten
+ * minutes, so following a satellite costs one request per ten minutes and no
+ * orbit maths in the browser.
+ */
+function liveSamples(tle: Tle, anchor: Date) {
+  const points: (number | null)[][] = [];
+  for (let s = 0; s <= LIVE_SPAN_S; s += LIVE_STEP_S) {
+    const state = satelliteState(tle.line1, tle.line2, new Date(anchor.getTime() + s * 1000));
+    if (!state) break;
+    points.push([
+      Math.round(state.lng * 10000) / 10000,
+      Math.round(state.lat * 10000) / 10000,
+      Math.round(state.altKm * 10) / 10,
+      Math.round(state.speedKmS * 1000) / 1000,
+      state.headingDeg === null ? null : Math.round(state.headingDeg * 10) / 10,
+    ]);
+  }
+  return { from: anchor.getTime(), stepS: LIVE_STEP_S, points };
 }
 
 export async function GET(req: Request) {
@@ -102,6 +124,7 @@ export async function GET(req: Request) {
     periodMinutes,
     /** Epoch the track is centred on, so a caller can tell it was honoured. */
     anchoredAt: anchor.toISOString(),
+    live: liveSamples(tle, anchor),
     // Split at the antimeridian so each run draws as one continuous line
     // instead of one segment sweeping back across the whole world.
     segments: splitAtAntimeridian(path).map(run =>
