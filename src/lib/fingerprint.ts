@@ -8,8 +8,9 @@
  */
 
 import { isValidUsername } from '@/lib/sherlock';
+import { validateName } from '@/lib/name-search';
 
-export type SearchType = 'username' | 'email' | 'phone';
+export type SearchType = 'username' | 'name' | 'email' | 'phone';
 
 /* ── query validation ────────────────────────────────────────── */
 
@@ -23,6 +24,7 @@ export function validateQuery(type: SearchType, raw: string): string | null {
   if (type === 'username') {
     return isValidUsername(q) ? null : 'Usernames may use letters, digits and . _ - @ (max 64).';
   }
+  if (type === 'name') return validateName(q);
   if (type === 'email') {
     return EMAIL.test(q) ? null : 'That does not look like an email address.';
   }
@@ -143,7 +145,7 @@ export function toCsv(header: string[], rows: unknown[][]): string {
 export interface HistoryEntry {
   query: string;
   type: SearchType;
-  /** Hits for a username, sources with findings for email / phone. */
+  /** Hits for a username, profiles for a name, sources with findings for email / phone. */
   count: number;
   status: 'done' | 'stopped' | 'fail';
   at: number;
@@ -163,7 +165,7 @@ export function parseHistory(raw: string | null): HistoryEntry[] {
     const v = JSON.parse(raw);
     if (!Array.isArray(v)) return [];
     return v
-      .filter(e => e && typeof e.query === 'string' && ['username', 'email', 'phone'].includes(e.type) && typeof e.at === 'number')
+      .filter(e => e && typeof e.query === 'string' && ['username', 'name', 'email', 'phone'].includes(e.type) && typeof e.at === 'number')
       .slice(0, HISTORY_CAP);
   } catch {
     return [];

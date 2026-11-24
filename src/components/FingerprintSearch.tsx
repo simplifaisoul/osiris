@@ -4,18 +4,25 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   AtSign, Mail, Phone, Search, Square, ArrowRight, LayoutGrid, Table2, Download, ExternalLink,
   Fingerprint, ShieldAlert, CheckCircle, AlertTriangle, XCircle, Server, Loader2, History,
+  UserSearch, MapPin, Building2,
 } from 'lucide-react';
 import {
   validateQuery, platformCategory, splitNdjson, toCsv, pushHistory, parseHistory, relativeTime,
   CATEGORIES, HISTORY_KEY, type SearchType, type Category, type HistoryEntry,
 } from '@/lib/fingerprint';
+import {
+  searchSource, locationSignals, placesToGeocode, placeKey, handleVariants, handlesInUse, pivotLinks, sourceLabel,
+  NAME_SOURCES, CITY_LEVEL_KINDS, type NameProfile, type NameSource, type LocationSignal, type PlacePoint,
+} from '@/lib/name-search';
+import { searchPlaces } from '@/lib/geosearch';
 
 /**
- * RECON → FINGERPRINT. One box, three lookups (username / email / phone),
- * results streamed in as each source answers, then filtered, viewed as cards
- * or a table, and exported. Every source is public: the username sweep reads
- * public profile URLs, email and phone reuse the breach, DNS and numbering-plan
- * lookups the toolkit already runs.
+ * RECON → FINGERPRINT. One box, four lookups (username / name / email /
+ * phone), results streamed in as each source answers, then filtered, viewed as
+ * cards or a table, and exported. Every source is public: the username sweep
+ * reads public profile URLs, the name search asks public profile and register
+ * APIs from the browser (lib/name-search), and email and phone reuse the
+ * breach, DNS and numbering-plan lookups the toolkit already runs.
  */
 
 const ACCENT = '#3B82F6';
@@ -48,6 +55,7 @@ const CATEGORY_COLOR: Record<Category, string> = {
 
 const MODES: { id: SearchType; label: string; icon: typeof AtSign; placeholder: string; covers: string }[] = [
   { id: 'username', label: 'Username', icon: AtSign, placeholder: 'Enter a username…', covers: 'Every public site in the Sherlock database, checked in parallel' },
+  { id: 'name', label: 'Name', icon: UserSearch, placeholder: 'Enter a full name…', covers: 'Profiles that carry the name, and public records of notable people and researchers' },
   { id: 'email', label: 'Email', icon: Mail, placeholder: 'Enter an email address…', covers: 'Known breach corpora and the address’s mail domain' },
   { id: 'phone', label: 'Phone', icon: Phone, placeholder: 'Enter a phone number (+1 …)', covers: 'Numbering plan: validity, region, format and line type' },
 ];
@@ -66,7 +74,25 @@ interface SourceData {
   region?: string;
   region_code?: string;
   line_type?: string;
+  /** Profiles a name-search source returned. */
+  count?: number;
 }
+
+/** What the map is handed for a place a name search found. */
+export interface NamePlacePin {
+  lat: number;
+  lng: number;
+  type: 'name';
+  city: string;
+  via: string;
+}
+
+const SOURCE_COLOR: Record<NameSource, string> = {
+  github: '#87CEEB', stackoverflow: '#FF9500', mastodon: '#B388FF', bluesky: '#3B82F6', wikidata: '#00E676', openalex: '#FFD700',
+};
+
+/** Which profiles lead: a register entry and a full developer profile say more than a handle. */
+const PROFILE_ORDER: NameSource[] = ['wikidata', 'github', 'openalex', 'mastodon', 'bluesky', 'stackoverflow'];
 
 interface Source {
   id: string;
@@ -118,8 +144,13 @@ const bareUrl = (u: string) => u.replace(/^https?:\/\/(www\.)?/, '').replace(/\/
  * a portal, so the view remounts on every toggle and would otherwise drop a
  * sweep that is still streaming.
  */
-export function useFingerprintSearch() {
+export function useFingerprintSearch(onLocate?: (label: string, pin: NamePlacePin) => void) {
   const [mode, setMode] = useState<SearchType>('username');
+  const [profiles, setProfiles] = useState<NameProfile[]>([]);
+  const [places, setPlaces] = useState<LocationSignal[]>([]);
+  const [locating, setLocating] = useState(false);
+  const onLocateRef = useRef(onLocate);
+  onLocateRef.current = onLocate;
   const [query, setQuery] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState('');
@@ -194,6 +225,9 @@ export function useFingerprintSearch() {
     setSearched({ type, query: q });
     setRows({});
     setSources([]);
+    setProfiles([]);
+    setPlaces([]);
+    setLocating(false);
     setCategories([]);
     setProgress({ checked: 0, total: 0, ruledOut: 0 });
     setStartedAt(t0);
@@ -288,6 +322,55 @@ export function useFingerprintSearch() {
       return;
     }
 
+    /* ── name: every profile and register source at once, from the browser ── */
+    if (type === 'name') {
+      setSources(NAME_SOURCES.map(s => ({ id: s.id, label: s.label, via: s.via, state: 'pending' as const })));
+      const found: NameProfile[] = [];
+      const outcomes = await Promise.allSettled(NAME_SOURCES.map(s =>
+        searchSource(s.id, q, ctrl.signal).then(
+          list => {
+            if (ctrl.signal.aborted) return;
+            found.push(...list);
+            setProfiles([...found]);
+            settle(s.id, { state: 'done', data: { count: list.length } });
+          },
+          e => {
+            if (!ctrl.signal.aborted) settle(s.id, { state: 'error', error: message(e) });
+            throw e;
+          },
+        )));
+      if (ctrl.signal.aborted) return finish('stopped', found.length);
+      if (outcomes.every(o => o.status === 'rejected')) {
+        setError('Every source failed to answer.');
+        return finish('fail', 0);
+      }
+
+      // Place the towns the profiles name, through the map's own place search,
+      // and only to town level: a street someone wrote is not placed.
+      setLocating(true);
+      const geocoded = new Map<string, PlacePoint | null>();
+      await Promise.all(placesToGeocode(found).map(async text => {
+        try {
+          const hit = (await searchPlaces(text, null, ctrl.signal)).find(r => CITY_LEVEL_KINDS.has(r.kind));
+          geocoded.set(placeKey(text), hit ? { lat: hit.lat, lng: hit.lng, place: text } : null);
+        } catch {
+          geocoded.set(placeKey(text), null);
+        }
+      }));
+      setLocating(false);
+      if (ctrl.signal.aborted) return finish('stopped', found.length);
+      const signals = locationSignals(found, geocoded);
+      setPlaces(signals);
+      // The map flies to each pin as it lands, so the most agreed place goes last.
+      const pin = onLocateRef.current;
+      if (pin) {
+        for (const s of signals.slice(0, 5).reverse()) {
+          pin(`${q} · ${s.place.split(',')[0]}`, { lat: s.lat, lng: s.lng, type: 'name', city: s.place, via: s.sources.map(sourceLabel).join(', ') });
+        }
+      }
+      return finish('done', found.length);
+    }
+
     /* ── email: breach corpus + mail domain, in parallel ── */
     if (type === 'email') {
       const domain = q.split('@').pop() || '';
@@ -333,6 +416,11 @@ export function useFingerprintSearch() {
     elapsedMs: startedAt ? (phase === 'running' ? now : finishedAt) - startedAt : 0,
     sources, view, setView, categories, setCategories, showUnsure, setShowUnsure,
     showBlocked, setShowBlocked, history, clearHistory, run, stop,
+    profiles, places, locating,
+    /** Puts a found place on the map again (and flies there). */
+    showPlace: (s: LocationSignal) => onLocateRef.current?.(`${searched?.query ?? ''} · ${s.place.split(',')[0]}`, {
+      lat: s.lat, lng: s.lng, type: 'name', city: s.place, via: s.sources.map(sourceLabel).join(', '),
+    }),
   };
 }
 
@@ -797,25 +885,239 @@ export default function FingerprintSearch({ fp, isFullScreen }: { fp: Fingerprin
     );
   })();
 
-  /* ── email / phone results ── */
-  const sourceResults = shownType !== 'username' && (
-    <>
-      <div className="rounded-lg border border-[var(--border-primary)] overflow-hidden">
-        {fp.sources.map(s => (
-          <div key={s.id} className="flex items-center justify-between gap-2 px-3 py-2 border-b last:border-b-0 border-[var(--border-primary)]/60 text-[10px] font-mono">
-            <span className="flex items-center gap-2 min-w-0">
-              {s.state === 'pending' ? <Loader2 className="w-3 h-3 animate-spin" style={{ color: ACCENT }} />
-                : s.state === 'done' ? <CheckCircle className="w-3 h-3 text-[#00E676]" />
-                : <XCircle className="w-3 h-3 text-[#FF3D3D]" />}
-              <span className="text-[var(--text-primary)] font-bold">{s.label}</span>
-              <span className="text-[var(--text-muted)] truncate">{s.via}</span>
+  /* ── per-source progress, shared by name, email and phone ── */
+  const sourceStatus = (
+    <div className="rounded-lg border border-[var(--border-primary)] overflow-hidden">
+      {fp.sources.map(s => (
+        <div key={s.id} className="flex items-center justify-between gap-2 px-3 py-2 border-b last:border-b-0 border-[var(--border-primary)]/60 text-[10px] font-mono">
+          <span className="flex items-center gap-2 min-w-0">
+            {s.state === 'pending' ? <Loader2 className="w-3 h-3 animate-spin" style={{ color: ACCENT }} />
+              : s.state === 'done' ? <CheckCircle className="w-3 h-3 text-[#00E676]" />
+              : <XCircle className="w-3 h-3 text-[#FF3D3D]" />}
+            <span className="text-[var(--text-primary)] font-bold">{s.label}</span>
+            <span className="text-[var(--text-muted)] truncate" title={s.state === 'error' ? s.error : undefined}>
+              {s.state === 'error' && s.error ? s.error : s.via}
             </span>
-            <span className="flex-shrink-0" style={{ color: s.state === 'done' ? '#00E676' : s.state === 'error' ? '#FF3D3D' : ACCENT }}>
-              {s.state === 'pending' ? 'CHECKING' : s.state === 'done' ? 'DONE' : 'FAILED'}
-            </span>
+          </span>
+          <span className="flex-shrink-0" style={{ color: s.state === 'done' ? '#00E676' : s.state === 'error' ? '#FF3D3D' : ACCENT }}>
+            {s.state === 'pending' ? 'CHECKING'
+              : s.state === 'error' ? 'FAILED'
+              : s.data?.count !== undefined ? `${s.data.count} FOUND` : 'DONE'}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+
+  /* ── name results ── */
+  const nameResults = shownType === 'name' && fp.searched && (() => {
+    const q = fp.searched.query;
+    const exact = fp.profiles.filter(p => p.match === 'exact').length;
+    const handles = [...new Set([...handlesInUse(fp.profiles, q), ...handleVariants(q)])].slice(0, 12);
+    const placed = new Set(fp.places.flatMap(s => s.profiles));
+    // Exact names first, then the sources that say most about a person; within one, the source's own order.
+    const ordered = [...fp.profiles].sort((a, b) =>
+      (a.match === b.match ? 0 : a.match === 'exact' ? -1 : 1) || PROFILE_ORDER.indexOf(a.source) - PROFILE_ORDER.indexOf(b.source));
+
+    const exportProfiles = (format: 'csv' | 'json') => {
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+      const base = `fingerprint-name-${q.replace(/[^A-Za-z0-9._-]/g, '_')}-${stamp}`;
+      if (format === 'json') {
+        download(`${base}.json`, JSON.stringify({ query: q, type: 'name', exported_at: new Date().toISOString(), places: fp.places, profiles: fp.profiles }, null, 2), 'application/json');
+      } else {
+        download(`${base}.csv`, toCsv(
+          ['source', 'name', 'match', 'handle', 'url', 'organisation', 'location', 'location_basis', 'links'],
+          fp.profiles.map(p => [sourceLabel(p.source), p.name, p.match, p.handle ?? '', p.url, p.org ?? '', p.location ?? '', p.basis ?? '', p.links.map(l => l.url).join(' ')]),
+        ), 'text/csv');
+      }
+    };
+
+    const chip = (label: string, href: string, color = 'var(--text-secondary)') => (
+      <a
+        key={`${label}-${href}`}
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer nofollow"
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono border border-[var(--border-primary)] hover:text-white hover:border-[#3B82F6]/50 transition-colors"
+        style={{ color }}
+      >
+        {label}<ExternalLink className="w-2 h-2" />
+      </a>
+    );
+
+    return (
+      <>
+        {sourceStatus}
+
+        {/* Summary + export */}
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <span className="text-[11px] font-mono font-bold text-[var(--text-primary)]">
+            {fp.profiles.length} <span className="text-[var(--text-muted)] font-normal">{fp.profiles.length === 1 ? 'profile' : 'profiles'}</span>
+            {exact > 0 && <span className="text-[var(--text-muted)] font-normal"> · {exact} exact name</span>}
+            {fp.places.length > 0 && <span className="text-[var(--text-muted)] font-normal"> · {fp.places.length} {fp.places.length === 1 ? 'place' : 'places'}</span>}
+          </span>
+          <div className="flex items-center gap-1">
+            {(['csv', 'json'] as const).map(f => (
+              <button
+                key={f}
+                onClick={() => exportProfiles(f)}
+                disabled={fp.profiles.length === 0}
+                title={`Export ${f.toUpperCase()}`}
+                className="flex items-center gap-1 px-1.5 py-1 rounded-md border border-[var(--border-primary)] text-[9px] font-mono text-[var(--text-muted)] hover:text-white disabled:opacity-30"
+              >
+                <Download className="w-3 h-3" />{f.toUpperCase()}
+              </button>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+
+        {/* Where the profiles put them */}
+        <div className="p-3 rounded-lg border bg-[var(--bg-primary)]/40" style={{ borderColor: `${ACCENT}40` }}>
+          <div className="flex items-center justify-between mb-2">
+            <span className="flex items-center gap-1.5 text-[10px] font-mono font-bold tracking-widest" style={{ color: ACCENT }}>
+              <MapPin className="w-3 h-3" /> LOCATION ESTIMATE
+            </span>
+            {(fp.locating || running) && <Loader2 className="w-3 h-3 animate-spin" style={{ color: ACCENT }} />}
+          </div>
+          {fp.places.length === 0 ? (
+            <div className="text-[10px] font-mono text-[var(--text-muted)]">
+              {running || fp.locating ? 'Placing the towns the profiles name…' : 'None of these profiles says where they are.'}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {fp.places.map((s, i) => (
+                <button
+                  key={`${s.place}-${i}`}
+                  onClick={() => fp.showPlace(s)}
+                  title="Show on the map"
+                  className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-left hover:bg-[var(--hover-accent)] transition-colors"
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <MapPin className="w-3 h-3 flex-shrink-0" style={{ color: i === 0 ? '#D32F2F' : 'var(--text-muted)' }} />
+                    <span className="text-[11px] font-mono font-bold text-[var(--text-primary)] truncate">{s.place}</span>
+                    {i === 0 && fp.places.length > 1 && s.profiles.length > fp.places[1].profiles.length && (
+                      <span className="text-[8px] font-mono tracking-widest px-1 py-0.5 rounded" style={{ color: '#D32F2F', background: '#D32F2F1a', border: '1px solid #D32F2F40' }}>MOST LISTED</span>
+                    )}
+                  </span>
+                  <span className="flex items-center gap-1 flex-shrink-0">
+                    {s.sources.map(src => (
+                      <span key={src} className="text-[8px] font-mono px-1 py-0.5 rounded" style={{ color: SOURCE_COLOR[src], background: `${SOURCE_COLOR[src]}14`, border: `1px solid ${SOURCE_COLOR[src]}33` }}>
+                        {sourceLabel(src)}
+                      </span>
+                    ))}
+                    <span className="text-[9px] font-mono text-[var(--text-muted)] w-14 text-right">{s.profiles.length} {s.profiles.length === 1 ? 'profile' : 'profiles'}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="text-[9px] font-mono text-[var(--text-muted)] leading-relaxed mt-2">
+            The town a profile names itself, a researcher’s institution, or a residence on public record, placed at
+            city level and pinned on the map. Different people can share a name, so treat each place as a lead.
+          </div>
+        </div>
+
+        {/* Profiles */}
+        {ordered.length > 0 ? (
+          <div className={`grid gap-2 ${isFullScreen ? 'grid-cols-2 xl:grid-cols-3' : 'grid-cols-1'}`}>
+            {ordered.map(p => {
+              const color = SOURCE_COLOR[p.source];
+              return (
+                <div key={`${p.source}:${p.id}`} className="flex flex-col gap-1.5 p-2.5 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)]/40 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span
+                      className="flex items-center justify-center rounded-md font-mono font-bold flex-shrink-0"
+                      style={{ width: 28, height: 28, fontSize: 12, color, background: `${color}1f`, border: `1px solid ${color}40` }}
+                    >
+                      {sourceLabel(p.source).charAt(0)}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <a href={p.url} target="_blank" rel="noopener noreferrer nofollow" className="block text-[11px] font-mono font-bold text-[var(--text-primary)] truncate hover:underline">
+                        {p.name}
+                      </a>
+                      <div className="text-[9px] font-mono text-[var(--text-muted)] truncate">
+                        <span style={{ color }}>{sourceLabel(p.source).toUpperCase()}</span>{p.handle ? ` · @${p.handle}` : ''}
+                      </div>
+                    </div>
+                    <span
+                      className="px-1.5 py-0.5 rounded text-[8px] font-mono font-bold tracking-wider whitespace-nowrap"
+                      title={p.match === 'exact' ? 'The profile carries exactly this name' : 'The profile holds every word of this name'}
+                      style={p.match === 'exact'
+                        ? { color: '#00E676', background: '#00E6761a', border: '1px solid #00E67640' }
+                        : { color: 'var(--text-muted)', border: '1px solid var(--border-primary)' }}
+                    >
+                      {p.match === 'exact' ? 'EXACT NAME' : 'SIMILAR'}
+                    </span>
+                  </div>
+                  {(p.org || p.location) && (
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] font-mono text-[var(--text-secondary)] min-w-0">
+                      {p.org && <span className="flex items-center gap-1 min-w-0"><Building2 className="w-3 h-3 flex-shrink-0 text-[var(--text-muted)]" /><span className="truncate">{p.org}</span></span>}
+                      {p.location && (
+                        <span className="flex items-center gap-1 min-w-0" title={p.basis === 'institution' ? 'Where their institution is' : p.basis === 'residence' ? 'Residence on Wikidata' : 'As the profile states it'}>
+                          <MapPin className="w-3 h-3 flex-shrink-0" style={{ color: placed.has(`${p.source}:${p.id}`) ? '#D32F2F' : 'var(--text-muted)' }} />
+                          <span className="truncate">{p.location}</span>
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {p.bio && <div className="text-[10px] font-mono text-[var(--text-muted)] leading-snug line-clamp-2">{p.bio}</div>}
+                  {p.facts.length > 0 && <div className="text-[9px] font-mono text-[var(--text-muted)]">{p.facts.join(' · ')}</div>}
+                  {p.links.length > 0 && (
+                    <div className="flex flex-wrap gap-1">{p.links.slice(0, 8).map(l => chip(l.label, l.url))}</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="py-6 text-center text-[10px] font-mono text-[var(--text-muted)]">
+            {running ? 'Profiles appear here as each source answers.' : 'No public profile carries this name.'}
+          </div>
+        )}
+
+        {/* Usernames to sweep */}
+        {handles.length > 0 && !running && (
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[9px] font-mono tracking-widest text-[var(--text-muted)]">CHECK THESE USERNAMES ON EVERY SITE</span>
+            <div className="flex flex-wrap gap-1">
+              {handles.map(h => (
+                <button
+                  key={h}
+                  onClick={() => fp.run('username', h)}
+                  title={`Sweep @${h} across the Sherlock site list`}
+                  className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono border transition-colors hover:text-white"
+                  style={{ color: ACCENT, borderColor: `${ACCENT}40`, background: `${ACCENT}0d` }}
+                >
+                  <AtSign className="w-2.5 h-2.5" />{h}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* The networks that allow no automated search */}
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[9px] font-mono tracking-widest text-[var(--text-muted)]">SEARCH THE NAME YOURSELF</span>
+          <div className="flex flex-wrap gap-1">{pivotLinks(q).map(l => chip(l.label, l.url))}</div>
+          <span className="text-[9px] font-mono text-[var(--text-muted)] leading-relaxed">
+            LinkedIn, Facebook, Instagram, X and TikTok allow no automated search. These open the search in your own
+            browser, signed in as you.
+          </span>
+        </div>
+
+        <div className="text-[9px] font-mono text-[var(--text-muted)] leading-relaxed">
+          Asked from your browser: GitHub, Stack Overflow, Mastodon (mastodon.social), Bluesky, Wikidata (CC0) and
+          OpenAlex (CC0). Only what each profile or record publishes is shown, never an address or phone number, and
+          people who opted out of being found are left out.
+        </div>
+      </>
+    );
+  })();
+
+  /* ── email / phone results ── */
+  const sourceResults = (shownType === 'email' || shownType === 'phone') && (
+    <>
+      {sourceStatus}
 
       <div className={`grid gap-2 ${isFullScreen ? 'grid-cols-2' : 'grid-cols-1'}`}>
         {fp.sources.filter(s => s.state !== 'pending').map(s => (
@@ -916,6 +1218,7 @@ export default function FingerprintSearch({ fp, isFullScreen }: { fp: Fingerprin
         </div>
       )}
       {usernameResults}
+      {nameResults}
       {sourceResults}
       {historyLog}
     </div>

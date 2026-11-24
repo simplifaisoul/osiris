@@ -11,6 +11,12 @@ describe('validateQuery', () => {
     expect(validateQuery('username', '   ')).not.toBeNull();
   });
 
+  it('takes a full name, and nothing that is not one', () => {
+    expect(validateQuery('name', 'José García-López')).toBeNull();
+    expect(validateQuery('name', 'jane@doe.com')).not.toBeNull();
+    expect(validateQuery('name', 'x')).not.toBeNull();
+  });
+
   it('checks email shape', () => {
     expect(validateQuery('email', 'jdoe@mail.com')).toBeNull();
     expect(validateQuery('email', 'jdoe@mail')).not.toBeNull();
@@ -81,6 +87,8 @@ describe('history', () => {
     expect(parseHistory('not json')).toEqual([]);
     expect(parseHistory('{"a":1}')).toEqual([]);
     expect(parseHistory(JSON.stringify([entry(1), { query: 'x', type: 'ssn', at: 1 }]))).toEqual([entry(1)]);
+    const named = { query: 'Ada Quill', type: 'name', count: 4, status: 'done', at: 2 };
+    expect(parseHistory(JSON.stringify([named]))).toEqual([named]);
   });
 });
 

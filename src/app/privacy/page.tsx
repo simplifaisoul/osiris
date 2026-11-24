@@ -191,6 +191,7 @@ export default function PrivacyPage() {
                 { name: 'ip-api.com, Tor Project, AlienVault OTX', what: 'an IP address or indicator, for location and threat checks' },
                 { name: 'CIRCL and MITRE', what: 'a CVE number, for vulnerability details' },
                 { name: 'GitHub, and a dozen public profile sites', what: 'a username, to see where it is in use' },
+                { name: 'GitHub, Stack Overflow, Mastodon (mastodon.social), Bluesky, Wikidata and OpenAlex', what: 'a name you search in FINGERPRINT, asked from your browser, to find the public profiles and records that carry it' },
                 { name: 'maclookup.app', what: 'a hardware (MAC) address, for its maker' },
                 { name: 'mempool.space, Blockscout, the public Solana network, CoinGecko', what: 'a wallet address, and prices to value it' },
               ]} />
