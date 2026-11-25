@@ -390,8 +390,8 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     if (!containerRef.current || mapRef.current) return;
     
     /* CARTO's Dark Matter over the OpenStreetMap world map, from our own tile
-       server through /api/basemap (OpenFreeMap's Dark Matter where no tile
-       server is set up). CARTO, the previous source, refuses osirisai.live. */
+       server through /api/basemap. CARTO, the previous source, refuses
+       osirisai.live; its cached tiles stand in when our server can't deliver. */
     const origin = window.location.origin;
     const styleUrl = `${origin}/api/basemap/style`;
 
