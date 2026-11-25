@@ -30,6 +30,7 @@ import { attachTerrain, type TerrainStatus } from '@/lib/map-terrain';
 import { applyMapProjection } from '@/lib/map-projection';
 import { attachTransit, type TransitStatus } from '@/lib/transit-layer';
 import { installReliefProtocol } from '@/lib/lidar/relief-tiles';
+import { BASEMAP_PROTOCOL, basemapRequestUrl, basemapTileLoader } from '@/lib/basemap/tile-backup';
 import { syncLidarLayers } from '@/lib/lidar/map-layers';
 import type { LidarMapOverlay } from '@/lib/lidar/store';
 
@@ -391,10 +392,12 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     /* CARTO's Dark Matter over the OpenStreetMap world map, from our own tile
        server through /api/basemap (OpenFreeMap's Dark Matter where no tile
        server is set up). CARTO, the previous source, refuses osirisai.live. */
-    const styleUrl = `${window.location.origin}/api/basemap/style`;
+    const origin = window.location.origin;
+    const styleUrl = `${origin}/api/basemap/style`;
 
     const container = containerRef.current;
     maplibregl.setWorkerUrl(`/vendor/maplibre/${maplibregl.getVersion()}/maplibre-gl-worker.mjs`);
+    maplibregl.addProtocol(BASEMAP_PROTOCOL, basemapTileLoader());
     /* Open on the whole globe, turned to the viewer's side of it. The UTC
        offset is a free, instant stand-in for longitude (15° an hour), so the
        fly-in to their city after the splash is a dive, not a spin round the
@@ -415,6 +418,8 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         customAttribution: 'Places: <a href="https://www.wikipedia.org/" target="_blank" rel="noopener noreferrer">Wikipedia</a>, <a href="https://www.wikidata.org/" target="_blank" rel="noopener noreferrer">Wikidata</a>, <a href="https://www.geonames.org/" target="_blank" rel="noopener noreferrer">GeoNames</a> (CC BY 4.0)',
       } as const,
       maxPitch: 85,
+      // Basemap tiles load from our tile server, or from CARTO's cached copy when it can't deliver.
+      transformRequest: (url: string) => ({ url: basemapRequestUrl(url, origin) }),
     };
 
     // MapLibre asks for a high-performance WebGL2 context and throws outright if it
