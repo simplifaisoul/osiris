@@ -34,6 +34,13 @@ export function wrapLongitude(deg: number): number {
  * satellite that has re-entered still has a TLE in the catalog for a while.
  */
 export function propagateTLE(line1: string, line2: string, when: Date = new Date()): SatPosition | null {
+  const satrec = parseTLE(line1, line2);
+  return satrec ? propagateSatrec(satrec, when)?.position ?? null : null;
+}
+
+type Satrec = ReturnType<typeof twoline2satrec>;
+
+function parseTLE(line1: string, line2: string): Satrec | null {
   let satrec;
   try {
     satrec = twoline2satrec(line1, line2);
@@ -42,7 +49,11 @@ export function propagateTLE(line1: string, line2: string, when: Date = new Date
   }
   // satrec.error is SGP4's own status; non-zero means it declined to model this.
   if (!satrec || (satrec as { error?: number }).error) return null;
+  return satrec;
+}
 
+/** Position, plus orbital speed: the length of SGP4's inertial velocity, km/s. */
+function propagateSatrec(satrec: Satrec, when: Date): { position: SatPosition; speedKmS: number } | null {
   let eci;
   try {
     eci = propagate(satrec, when);
@@ -50,6 +61,7 @@ export function propagateTLE(line1: string, line2: string, when: Date = new Date
     return null;
   }
   const position = eci?.position;
+  const velocity = eci?.velocity;
   if (!position || typeof position === 'boolean') return null;
 
   const geodetic = eciToGeodetic(position, gstime(when));
@@ -60,7 +72,52 @@ export function propagateTLE(line1: string, line2: string, when: Date = new Date
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(altKm)) return null;
   // Below this it has re-entered; above it is not an Earth orbit we draw.
   if (altKm < 80 || altKm > 60000) return null;
-  return { lat, lng, altKm };
+  const speedKmS = velocity && typeof velocity !== 'boolean'
+    ? Math.hypot(velocity.x, velocity.y, velocity.z)
+    : NaN;
+  return { position: { lat, lng, altKm }, speedKmS };
+}
+
+/** A satellite right now: where it is and how it is moving. */
+export interface SatState extends SatPosition {
+  /** Orbital speed, km/s (the ISS runs at about 7.66). */
+  speedKmS: number;
+  /**
+   * Compass bearing of the ground track, degrees from north. Null when the
+   * point below barely moves: a geostationary satellite has no track to follow.
+   */
+  headingDeg: number | null;
+}
+
+/** Below this ground speed, km/s, the track has no meaningful direction. */
+const STILL_GROUND_KMS = 0.1;
+/** How far ahead the track's direction is read, seconds. */
+const HEADING_LOOKAHEAD_S = 10;
+const EARTH_RADIUS_KM = 6371.0088;
+
+/** Live state for one TLE at a moment: position, speed and track heading. */
+export function satelliteState(line1: string, line2: string, when: Date = new Date()): SatState | null {
+  const satrec = parseTLE(line1, line2);
+  if (!satrec) return null;
+  const now = propagateSatrec(satrec, when);
+  if (!now || !Number.isFinite(now.speedKmS)) return null;
+  const ahead = propagateSatrec(satrec, new Date(when.getTime() + HEADING_LOOKAHEAD_S * 1000));
+
+  let headingDeg: number | null = null;
+  if (ahead) {
+    const a = now.position, b = ahead.position;
+    const toRad = Math.PI / 180;
+    const φ1 = a.lat * toRad, φ2 = b.lat * toRad, Δλ = (b.lng - a.lng) * toRad;
+    // Haversine distance over the ground, then the initial great-circle bearing.
+    const h = Math.sin((φ2 - φ1) / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+    const groundKm = 2 * EARTH_RADIUS_KM * Math.asin(Math.min(1, Math.sqrt(h)));
+    if (groundKm / HEADING_LOOKAHEAD_S >= STILL_GROUND_KMS) {
+      const y = Math.sin(Δλ) * Math.cos(φ2);
+      const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+      headingDeg = ((Math.atan2(y, x) / toRad) + 360) % 360;
+    }
+  }
+  return { ...now.position, speedKmS: now.speedKmS, headingDeg };
 }
 
 /** Orbital period in minutes, from the TLE's mean motion (revolutions/day). */

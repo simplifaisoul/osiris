@@ -1118,17 +1118,13 @@ export default function Dashboard() {
     // Satellites (any satellite sub-layer triggers fetch)
     const anySatLayer = activeLayers.satellites || activeLayers.sat_comms || activeLayers.sat_military || activeLayers.sat_navigation || activeLayers.sat_earth || activeLayers.sat_science;
     if (anySatLayer && !layerFetchedRef.current.has('satellites')) {
-      // Keep the moment the positions were propagated for. The catalogue is
-      // fetched once and never re-polled, so by the time an orbit is requested
-      // these markers can be a long way out of date — the orbit route needs the
-      // marker's epoch to draw a track that still passes through it.
       /* Up to three attempts, each with a time limit, like the camera
          catalogue. One answer that stalled or arrived cut off used to leave the
          layer empty until a reload. If none lands, release the mark so turning
          the layer on again tries afresh. */
       layerFetchedRef.current.add('satellites');
       const loadSatellites = (attempt: number) => {
-        fetchEndpoint('/api/satellites', d => ({ ...d, satellites_at: d.timestamp }), { signal: AbortSignal.timeout(60_000) })
+        fetchEndpoint('/api/satellites', undefined, { signal: AbortSignal.timeout(60_000) })
           .then(ok => {
             if (ok) return;
             if (attempt < 3) setTimeout(() => loadSatellites(attempt + 1), attempt * 15_000);

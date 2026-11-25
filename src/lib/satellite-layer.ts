@@ -230,6 +230,16 @@ function compile(gl: WebGL2RenderingContext, type: number, src: string): WebGLSh
   return sh;
 }
 
+const VERTEX_STRIDE = 7; // x, y, z, r, g, b, size
+
+/** Writes one satellite's x, y and display elevation at offset `o`. */
+function packPosition(out: Float32Array, o: number, p: { lng: number; lat: number; altKm: number }, exaggeration: number): void {
+  const m = MercatorCoordinate.fromLngLat({ lng: p.lng, lat: p.lat }, 0);
+  out[o] = m.x;
+  out[o + 1] = m.y;
+  out[o + 2] = displayElevation(p.altKm, exaggeration);
+}
+
 /**
  * Builds the interleaved vertex buffer for a set of satellites.
  *
@@ -237,15 +247,11 @@ function compile(gl: WebGL2RenderingContext, type: number, src: string): WebGLSh
  * off-by-one silently puts every satellite at the wrong altitude.
  */
 export function packVertices(points: SatPoint[], exaggeration = 1): Float32Array<ArrayBuffer> {
-  const STRIDE = 7; // x, y, z, r, g, b, size
-  const out = new Float32Array(points.length * STRIDE);
+  const out = new Float32Array(points.length * VERTEX_STRIDE);
   for (let i = 0; i < points.length; i++) {
     const p = points[i];
-    const m = MercatorCoordinate.fromLngLat({ lng: p.lng, lat: p.lat }, 0);
-    const o = i * STRIDE;
-    out[o] = m.x;
-    out[o + 1] = m.y;
-    out[o + 2] = displayElevation(p.altKm, exaggeration);
+    const o = i * VERTEX_STRIDE;
+    packPosition(out, o, p, exaggeration);
     out[o + 3] = ((p.color >> 16) & 0xff) / 255;
     out[o + 4] = ((p.color >> 8) & 0xff) / 255;
     out[o + 5] = (p.color & 0xff) / 255;
@@ -293,6 +299,8 @@ export function createSatelliteLayer(id: string): CustomLayerInterface & {
   setOrbit(segments: { lng: number; lat: number; altKm: number }[][] | null, color?: number): void;
   /** Highlights one index from the last setPoints(); null clears it. */
   setSelected(index: number | null): void;
+  /** Moves one satellite from the last setPoints() to where it is now. */
+  movePoint(index: number, at: { lng: number; lat: number; altKm: number }): void;
 } {
   let gl: WebGL2RenderingContext | null = null;
   let map: MlMap | null = null;
@@ -320,6 +328,8 @@ export function createSatelliteLayer(id: string): CustomLayerInterface & {
   let exaggeration = 1;
   let points: SatPoint[] = [];
   let dirty = false;
+  /** A satellite moved by movePoint(), uploaded alone rather than repacking the catalogue. */
+  let moved: number | null = null;
 
   const link = (prelude: string, define: string, vert: string, frag: string): WebGLProgram => {
     const vs = compile(gl!, gl!.VERTEX_SHADER, `#version 300 es\n${prelude}\n${define}\n${vert}`);
@@ -473,6 +483,13 @@ export function createSatelliteLayer(id: string): CustomLayerInterface & {
       map?.triggerRepaint();
     },
 
+    movePoint(index, at) {
+      if (index < 0 || index >= points.length) return;
+      points[index] = { ...points[index], lng: at.lng, lat: at.lat, altKm: at.altKm };
+      moved = index;
+      map?.triggerRepaint();
+    },
+
     setOrbit(segments, color) {
       orbitSegments = segments;
       if (color !== undefined) orbitColor = color;
@@ -567,6 +584,16 @@ export function createSatelliteLayer(id: string): CustomLayerInterface & {
         gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
         gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW);
         dirty = false;
+        moved = null;
+      }
+      if (moved !== null) {
+        if (moved < count) {
+          const o = moved * VERTEX_STRIDE;
+          packPosition(vertices, o, points[moved], exaggeration);
+          gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+          gl.bufferSubData(gl.ARRAY_BUFFER, o * 4, vertices, o, 3);
+        }
+        moved = null;
       }
       if (count === 0) return;
 
