@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { orbitUrl, readEphemeris, readSegments, stateAt, type Ephemeris } from './satellite-live';
+import { orbitUrl, readEphemeris, stateAt, type Ephemeris } from './satellite-live';
 
 const T0 = Date.parse('2026-11-24T12:00:00Z');
 const eph = (points: Ephemeris['points']): Ephemeris => ({ from: T0, stepS: 10, points });
@@ -22,17 +22,6 @@ describe('readEphemeris', () => {
     expect(readEphemeris({ from: T0, stepS: 10, points: [[0, 0, 420, 7.66, 51]] })).toBeNull();
     expect(readEphemeris({ from: T0, stepS: 0, points: [[0, 0, 1, 1, 1], [0, 0, 1, 1, 1]] })).toBeNull();
     expect(readEphemeris({ from: T0, stepS: 10, points: [[0, 0, 1, 1, 1], [0, 'x', 1, 1, 1]] })).toBeNull();
-  });
-});
-
-describe('readSegments', () => {
-  it('turns triples into the points the layer draws', () => {
-    expect(readSegments([[[1, 2, 400], [3, 4, 410]]])).toEqual([[{ lng: 1, lat: 2, altKm: 400 }, { lng: 3, lat: 4, altKm: 410 }]]);
-  });
-
-  it('drops what cannot be drawn', () => {
-    expect(readSegments(undefined)).toEqual([]);
-    expect(readSegments([[[1, 2, 400]]])).toEqual([]);
   });
 });
 

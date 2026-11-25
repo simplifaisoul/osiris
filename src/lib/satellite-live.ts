@@ -1,4 +1,4 @@
-import type { SatPosition, SatState } from './orbit';
+import type { SatState } from './orbit';
 
 /**
  * OSIRIS — following the selected satellite in the page
@@ -43,17 +43,6 @@ export function readEphemeris(raw: unknown): Ephemeris | null {
     Array.isArray(p) && isNum(p[0]) && isNum(p[1]) && isNum(p[2]) && isNum(p[3]) && (p[4] === null || isNum(p[4])));
   // Two samples at least: one alone has nothing to glide toward.
   return points.length === e.points.length && points.length >= 2 ? { from: e.from, stepS: e.stepS, points } : null;
-}
-
-/** The route's track segments, [lng, lat, altKm] triples, as the layer draws them. */
-export function readSegments(raw: unknown): SatPosition[][] {
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .filter(Array.isArray)
-    .map(seg => (seg as unknown[])
-      .filter((p): p is number[] => Array.isArray(p) && isNum(p[0]) && isNum(p[1]) && isNum(p[2]))
-      .map(([lng, lat, altKm]) => ({ lng, lat, altKm })))
-    .filter(seg => seg.length > 1);
 }
 
 const wrap = (deg: number) => ((((deg + 180) % 360) + 360) % 360) - 180;

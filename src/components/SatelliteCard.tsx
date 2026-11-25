@@ -1,9 +1,9 @@
 'use client';
 
-import { Box, ExternalLink, Orbit, Satellite, X } from 'lucide-react';
+import { Box, ExternalLink, Satellite, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import type { SatPosition, SatState } from '@/lib/orbit';
-import { orbitUrl, readEphemeris, readSegments, stateAt, type Ephemeris } from '@/lib/satellite-live';
+import type { SatState } from '@/lib/orbit';
+import { orbitUrl, readEphemeris, stateAt, type Ephemeris } from '@/lib/satellite-live';
 import SatelliteView from '@/components/SatelliteView';
 import SatelliteModel from '@/components/SatelliteModel';
 
@@ -19,9 +19,8 @@ import SatelliteModel from '@/components/SatelliteModel';
  *
  * So the readout stops pretending to be attached. What ties it to the object is
  * already on the globe and already correct: the selection ring the shader draws
- * around the picked satellite, and the orbit track in the satellite's own
- * colour. The card carries the numbers, in a fixed place that does not move
- * while the satellite does.
+ * around the picked satellite. The card carries the numbers, in a fixed place
+ * that does not move while the satellite does.
  *
  * Once the orbit reply lands, the card follows the satellite live: position,
  * speed and heading every second, the marker moved with it, and a picture of
@@ -40,8 +39,6 @@ export interface SatelliteDetail {
   noradId?: string;
   /** From the orbit reply; null until it lands or if the TLE gave no period. */
   periodMinutes?: number | null;
-  /** Whether the orbit track on the globe is on its way, drawn, or unavailable. */
-  track: 'loading' | 'ready' | 'unavailable';
   /** Where it will be over the next minutes, from the orbit reply; what the card follows live. */
   live?: Ephemeris | null;
 }
@@ -68,18 +65,16 @@ function compass(deg: number): string {
 
 /**
  * Once a second, the satellite's state between the orbit route's samples.
- * Before the samples run out the route is asked again, which also recentres
- * the drawn track on the satellite.
+ * Before the samples run out the route is asked again.
  */
 function useLiveSatellite(
   noradId: string | undefined,
   first: Ephemeris | null | undefined,
   onLive?: (state: SatState) => void,
-  onTrack?: (segments: SatPosition[][]) => void,
 ): SatState | null {
   const [live, setLive] = useState<SatState | null>(null);
-  const callbacks = useRef({ onLive, onTrack });
-  useEffect(() => { callbacks.current = { onLive, onTrack }; });
+  const callbacks = useRef({ onLive });
+  useEffect(() => { callbacks.current = { onLive }; });
 
   useEffect(() => {
     if (!noradId || !first) return;
@@ -101,8 +96,6 @@ function useLiveSatellite(
           if (gone || !next) return;
           samples = next;
           nextAsk = next.from + REFRESH_MS;
-          const track = readSegments(d?.segments);
-          if (track.length) callbacks.current.onTrack?.(track);
         })
         .catch(() => {});
     };
@@ -142,16 +135,14 @@ function Field({ label, value, sub, color }: { label: string; value: string; sub
   );
 }
 
-export default function SatelliteCard({ sat, onClose, onLive, onTrack }: {
+export default function SatelliteCard({ sat, onClose, onLive }: {
   sat: SatelliteDetail;
   onClose: () => void;
   /** Each second's live state, to move the marker with it. */
   onLive?: (state: SatState) => void;
-  /** A recentred orbit track. */
-  onTrack?: (segments: SatPosition[][]) => void;
 }) {
   const accent = colorSafe(sat.color);
-  const live = useLiveSatellite(sat.noradId, sat.live, onLive, onTrack);
+  const live = useLiveSatellite(sat.noradId, sat.live, onLive);
   const lat = live?.lat ?? sat.lat;
   const lng = live?.lng ?? sat.lng;
   const alt = live?.altKm ?? sat.alt;
@@ -247,15 +238,6 @@ export default function SatelliteCard({ sat, onClose, onLive, onTrack }: {
         <div className="col-span-2">
           <Field label="CLASS" value={shell.note} />
         </div>
-      </div>
-
-      {/* What the globe is showing, so a missing track reads as a known state
-          rather than as the selection having silently failed. */}
-      <div className="flex items-center gap-1.5 border-t border-[var(--border-secondary)] px-2.5 py-1.5 text-[8px] font-mono tracking-[0.12em] text-[var(--text-muted)]">
-        <Orbit className="h-2.5 w-2.5" />
-        {sat.track === 'loading' && <span>PLOTTING ORBIT…</span>}
-        {sat.track === 'ready' && <span style={{ color: accent }}>ORBIT TRACK ON GLOBE</span>}
-        {sat.track === 'unavailable' && <span>NO TRACK — TLE UNAVAILABLE</span>}
       </div>
 
       {sat.noradId && (

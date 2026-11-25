@@ -17,7 +17,7 @@ import { STYLE_EVENT } from '@/lib/style-tokens';
 import { arrivalBeacons } from '@/lib/malware-intel';
 import { ALERT_KINDS, timeAgo, type AlertKind } from '@/lib/alert-digest';
 import SatelliteCard, { type SatelliteDetail } from '@/components/SatelliteCard';
-import type { SatPosition, SatState } from '@/lib/orbit';
+import type { SatState } from '@/lib/orbit';
 import { orbitUrl, readEphemeris } from '@/lib/satellite-live';
 import CctvPreviews, { type PreviewCamera } from '@/components/CctvPreviews';
 import MapControls from '@/components/MapControls';
@@ -289,19 +289,15 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       map.easeTo({ center: [s.lng, s.lat], zoom: flight.zoom, duration: 900 });
     }
   }, []);
-  const onSatTrack = useCallback((segments: SatPosition[][]) => {
-    satLayerRef.current?.setOrbit(segments);
-  }, []);
 
-  /** Drops the selection: the ring, the orbit track and the readout together.
-   *  Leaving any one of them behind is what made a closed popup look like a
-   *  still-selected satellite. */
+  /** Drops the selection: the ring and the readout together. Leaving one of
+   *  them behind is what made a closed popup look like a still-selected
+   *  satellite. */
   const clearSat = useCallback(() => {
     if (satPickedRef.current === null && satSelectedIdRef.current === null) return;
     satPickedRef.current = null;
     satSelectedIdRef.current = null;
     satLayerRef.current?.setSelected(null);
-    satLayerRef.current?.setOrbit(null);
     setSelectedSat(null);
   }, []);
   const drawingCoordsRef = useRef<number[][]>([]);
@@ -1215,44 +1211,33 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       // other layer's popup is still welcome to the screen, but not on top of
       // this selection.
       popupRef.current?.remove();
-      layer.setOrbit(null);
       satPickedRef.current = idx;
       satSelectedIdRef.current = p.noradId ?? null;
       layer.setSelected(idx);
-      setSelectedSat({ ...p, periodMinutes: null, track: p.noradId ? 'loading' : 'unavailable' });
+      setSelectedSat({ ...p, periodMinutes: null });
 
       // Take the operator to it at once: centred under the satellite, close
-      // enough to see the region it is crossing and its track through it. The
-      // first live fix redirects this flight to where it is right now.
+      // enough to see the region it is crossing. The first live fix redirects
+      // this flight to where it is right now.
       const zoom = Math.min(Math.max(map.getZoom(), SAT_FLIGHT_MIN_ZOOM), SAT_FLIGHT_MAX_ZOOM);
       satFlightRef.current = { at: performance.now(), zoom };
       map.easeTo({ center: [p.lng, p.lat], zoom, duration: 1200 });
 
-      // Draw the selected satellite's orbit. Fetched per click rather than
-      // bundled with the catalogue: that payload is already megabytes, and an
-      // operator looks at one orbit at a time.
+      // Its period and where it will be over the next minutes, for the live
+      // readout. Fetched per click rather than bundled with the catalogue:
+      // that payload is already megabytes.
       if (p.noradId) {
         const wanted = p.noradId;
         // A slower reply for a satellite the operator has already moved on
-        // from must not draw over the one they are looking at now.
-        const stale = () => satSelectedIdRef.current !== wanted;
-        const mark = (track: SatelliteDetail['track'], periodMinutes: number | null = null, live: SatelliteDetail['live'] = null) =>
-          setSelectedSat(prev => (prev && prev.noradId === wanted ? { ...prev, track, periodMinutes, live } : prev));
-        // Centred on the current minute, where the live marker is about to be.
+        // from must not land on the one they are looking at now.
         fetch(orbitUrl(wanted))
           .then(r => (r.ok ? r.json() : null))
           .then(d => {
-            if (stale()) return;
-            if (!d?.segments?.length) { mark('unavailable'); return; }
-            layer.setOrbit(
-              d.segments.map((seg: number[][]) => seg.map(([lng, lat, altKm]) => ({ lng, lat, altKm }))),
-              parseColor(satColorFor(p.category, p.color, paletteRef.current)),
-            );
-            mark('ready', typeof d.periodMinutes === 'number' ? d.periodMinutes : null, readEphemeris(d.live));
+            if (!d || satSelectedIdRef.current !== wanted) return;
+            const periodMinutes = typeof d.periodMinutes === 'number' ? d.periodMinutes : null;
+            setSelectedSat(prev => (prev && prev.noradId === wanted ? { ...prev, periodMinutes, live: readEphemeris(d.live) } : prev));
           })
-          // No track is fine; the satellite still shows — but the readout says so
-          // rather than sitting on 'plotting' forever.
-          .catch(() => { if (!stale()) mark('unavailable'); });
+          .catch(() => {});
       }
     });
 
@@ -3545,7 +3530,6 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
           sat={selectedSat}
           onClose={clearSat}
           onLive={onSatLive}
-          onTrack={onSatTrack}
         />
       )}
       {mapReady && <MapControls mapRef={mapRef} onInteract={onFollowInterrupt} />}
