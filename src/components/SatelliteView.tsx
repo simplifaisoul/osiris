@@ -2,7 +2,7 @@
 
 import * as maplibregl from 'maplibre-gl';
 import { Minus, Navigation2, Plus } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ESRI_IMAGERY_CREDIT,
   ESRI_IMAGERY_TILES,
@@ -25,13 +25,15 @@ import {
  * The imagery is Esri's archive mosaic, not a frame from this satellite, and
  * the picture says so.
  */
-export default function SatelliteView({ lat, lng, altKm, headingDeg, accent }: {
+export default function SatelliteView({ lat, lng, altKm, headingDeg, accent, corner }: {
   lat: number;
   lng: number;
   altKm: number;
   /** Direction of travel; null keeps north up (a geostationary satellite). */
   headingDeg: number | null;
   accent: string;
+  /** The picture toggle, drawn in the bottom-left corner. */
+  corner?: ReactNode;
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -137,6 +139,8 @@ export default function SatelliteView({ lat, lng, altKm, headingDeg, accent }: {
             <Plus className="h-2.5 w-2.5" />
           </button>
         </div>
+
+        {corner && <div className="absolute bottom-1.5 left-1.5">{corner}</div>}
       </div>
       <div className="px-2.5 py-1 text-[7px] leading-snug text-[var(--text-muted)]">{ESRI_IMAGERY_CREDIT}</div>
     </div>

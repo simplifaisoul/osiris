@@ -1,10 +1,11 @@
 'use client';
 
-import { ExternalLink, Orbit, Satellite, X } from 'lucide-react';
+import { Box, ExternalLink, Orbit, Satellite, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { SatPosition, SatState } from '@/lib/orbit';
 import { orbitUrl, readEphemeris, readSegments, stateAt, type Ephemeris } from '@/lib/satellite-live';
 import SatelliteView from '@/components/SatelliteView';
+import SatelliteModel from '@/components/SatelliteModel';
 
 /**
  * OSIRIS — selected satellite readout
@@ -24,7 +25,7 @@ import SatelliteView from '@/components/SatelliteView';
  *
  * Once the orbit reply lands, the card follows the satellite live: position,
  * speed and heading every second, the marker moved with it, and a picture of
- * the ground below.
+ * the ground below, or a 3D model of the satellite at the press of a toggle.
  */
 
 export interface SatelliteDetail {
@@ -155,6 +156,24 @@ export default function SatelliteCard({ sat, onClose, onLive, onTrack }: {
   const lng = live?.lng ?? sat.lng;
   const alt = live?.altKm ?? sat.alt;
   const shell = regime(alt);
+  // The picture: the ground below the satellite, or the satellite itself.
+  const [picture, setPicture] = useState<'view' | 'model'>('view');
+  const pictureToggle = (
+    <div className="flex overflow-hidden rounded bg-black/60 text-[8px] font-mono tracking-[0.14em]" role="group" aria-label="Picture">
+      {([['view', 'VIEW'], ['model', '3D MODEL']] as const).map(([key, text]) => (
+        <button
+          key={key}
+          onClick={() => setPicture(key)}
+          aria-pressed={picture === key}
+          className={`flex items-center gap-1 px-1.5 py-1 transition-colors ${picture === key ? 'bg-white/15' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
+          style={picture === key ? { color: accent } : undefined}
+        >
+          {key === 'model' && <Box className="h-2.5 w-2.5" />}
+          {text}
+        </button>
+      ))}
+    </div>
+  );
 
   return (
     <div
@@ -192,7 +211,18 @@ export default function SatelliteCard({ sat, onClose, onLive, onTrack }: {
         </button>
       </div>
 
-      <SatelliteView lat={lat} lng={lng} altKm={alt} headingDeg={live?.headingDeg ?? null} accent={accent} />
+      {picture === 'view' ? (
+        <SatelliteView lat={lat} lng={lng} altKm={alt} headingDeg={live?.headingDeg ?? null} accent={accent} corner={pictureToggle} />
+      ) : (
+        <SatelliteModel
+          name={sat.name}
+          mission={sat.mission}
+          category={sat.category}
+          altKm={alt}
+          noradId={sat.noradId}
+          corner={pictureToggle}
+        />
+      )}
 
       <div className="grid grid-cols-2 gap-x-2.5 gap-y-2 border-t border-[var(--border-secondary)] px-2.5 py-2.5">
         <Field label="ALTITUDE" value={`${Math.round(alt).toLocaleString()} km`} color="var(--cyan-primary)" />
