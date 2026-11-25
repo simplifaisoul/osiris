@@ -104,12 +104,47 @@ describe('GET /api/basemap with a tile server', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it('asks for a font stack with its fonts merged in order', async () => {
-    const fetchMock = vi.fn(async () => new Response('glyphs'));
-    vi.stubGlobal('fetch', fetchMock);
-    const res = await get(`fonts/${encodeURIComponent('Montserrat Medium,Open Sans Regular')}/256-511`);
-    expect(res.status).toBe(200);
-    expect(String((fetchMock.mock.calls[0] as unknown[])[0])).toBe(`${SERVER}/font/Montserrat%20Medium%2COpen%20Sans%20Regular/256-511`);
+  describe('font stacks', () => {
+    // Minimal glyph files: stack (1) → name (1), range (2), glyphs (3) → id (1), advance (7).
+    const varint = (n: number): number[] => (n > 0x7f ? [(n & 0x7f) | 0x80, ...varint(n >>> 7)] : [n]);
+    const field = (num: number, bytes: number[]) => [...varint(num * 8 + 2), ...varint(bytes.length), ...bytes];
+    const glyphFile = (glyphs: [number, number][]) => new Uint8Array(field(1, [
+      ...field(1, [...new TextEncoder().encode('font')]), ...field(2, [...new TextEncoder().encode('0-255')]),
+      ...glyphs.flatMap(([id, adv]) => field(3, [8, ...varint(id), 56, adv])),
+    ]));
+    const STACK = encodeURIComponent('Montserrat Medium,Open Sans Regular,Missing Font');
+    const fontUrl = (font: string) => `${SERVER}/font/${encodeURIComponent(font)}/0-255`;
+
+    it('asks for each font on its own and takes each character from the first font that has it', async () => {
+      const files: Record<string, Response> = {
+        [fontUrl('Montserrat Medium')]: new Response(glyphFile([[65, 17]])),
+        [fontUrl('Open Sans Regular')]: new Response(glyphFile([[65, 15], [233, 14]])),
+        [fontUrl('Missing Font')]: new Response(null, { status: 404 }),
+      };
+      const fetchMock = vi.fn(async (url: string) => files[url]);
+      vi.stubGlobal('fetch', fetchMock);
+      const res = await get(`fonts/${STACK}/0-255`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get('cache-control')).toBe('public, max-age=2592000');
+      expect(fetchMock.mock.calls.map(c => String(c[0]))).toEqual(Object.keys(files));
+      const { readGlyphs } = await import('@/lib/basemap/glyphs');
+      const glyphs = readGlyphs(new Uint8Array(await res.arrayBuffer()));
+      expect([...glyphs.keys()]).toEqual([65, 233]);
+      expect(glyphs.get(65)!.at(-1)).toBe(17);
+    });
+
+    it('answers 502, uncached, rather than a stack with a font missing because the tile server failed', async () => {
+      vi.stubGlobal('fetch', vi.fn(async (url: string) =>
+        url.includes('Open%20Sans') ? new Response(null, { status: 500 }) : new Response(glyphFile([[65, 17]]))));
+      const res = await get(`fonts/${STACK}/0-255`);
+      expect(res.status).toBe(502);
+      expect(res.headers.get('cache-control')).toBe('no-store');
+    });
+
+    it('answers 404 when the tile server has none of the fonts', async () => {
+      vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 404 })));
+      expect((await get(`fonts/${STACK}/0-255`)).status).toBe(404);
+    });
   });
 
   it('asks for the retina icon sheet', async () => {
