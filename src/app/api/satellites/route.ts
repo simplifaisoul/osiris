@@ -128,13 +128,21 @@ function saveToDisk(sats: any[]) {
   } catch { /* non-critical */ }
 }
 
-/** Load TLE data from disk (valid for 4 hours) */
+/**
+ * Load TLE data from disk, up to a week old.
+ *
+ * An old catalogue is not served as fresh: it keeps its own time, so the first
+ * request still refreshes from CelesTrak. It is what that refresh backfills
+ * from. CelesTrak refuses most groups to an address that downloaded them
+ * recently, so a refresh after a restart often returns only a few thousand
+ * satellites; discarding a catalogue older than four hours here used to let
+ * that partial answer replace the full one, on disk too.
+ */
 function loadFromDisk(): { sats: any[]; time: number } | null {
   try {
     if (!existsSync(CACHE_FILE)) return null;
     const data = JSON.parse(readFileSync(CACHE_FILE, 'utf-8'));
-    // Accept disk cache up to 4 hours old
-    if (data.sats?.length > 0 && Date.now() - data.time < 14400000) {
+    if (data.sats?.length > 0 && Date.now() - data.time < 7 * 24 * 3600_000) {
       return data;
     }
   } catch { /* corrupted cache */ }
