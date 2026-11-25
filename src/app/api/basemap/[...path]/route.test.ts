@@ -31,6 +31,8 @@ describe('GET /api/basemap with a tile server', () => {
   beforeEach(() => {
     vi.stubEnv('BASEMAP_URL', `${SERVER}/`);
     vi.stubEnv('BASEMAP_TILESET', 'protomaps-20261125');
+    // The tile server's TileJSON for the tileset: a world map to zoom 10.
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ tilejson: '3.0.0', minzoom: 0, maxzoom: 10 })));
   });
 
   it('serves the style with this site’s address and the tileset in every URL', async () => {
@@ -38,9 +40,22 @@ describe('GET /api/basemap with a tile server', () => {
     expect(res.status).toBe(200);
     const style = await res.json();
     expect(style.sources.protomaps.tiles).toEqual(['https://www.osirisai.live/api/basemap/tiles/protomaps-20261125/{z}/{x}/{y}']);
+    expect(String((vi.mocked(fetch).mock.calls[0] as unknown[])[0])).toBe(`${SERVER}/protomaps-20261125`);
     expect(style.sprite).toBe('https://www.osirisai.live/api/basemap/sprite');
     expect(style.glyphs).toBe('https://www.osirisai.live/api/basemap/fonts/{fontstack}/{range}');
     expect(JSON.stringify(style)).not.toMatch(/@origin@|@tileset@|cartocdn/);
+  });
+
+  it('sizes the style to the zooms the tileset holds, so the map enlarges its deepest tiles', async () => {
+    const style = await (await get('style')).json();
+    expect(style.sources.protomaps.maxzoom).toBe(10);
+  });
+
+  it('keeps the style’s own zoom range when the tile server can’t say', async () => {
+    vi.stubEnv('BASEMAP_TILESET', 'protomaps-unanswered');
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('connect ECONNREFUSED'); }));
+    const style = await (await get('style')).json();
+    expect(style.sources.protomaps.maxzoom).toBe(14);
   });
 
   it('uses http only on localhost', async () => {

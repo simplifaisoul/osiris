@@ -35,12 +35,32 @@ function publicOrigin(req: Request): string {
   return `https://${HOST.test(host) ? host : 'osirisai.live'}`;
 }
 
+const MAX_ZOOM = style.sources.protomaps.maxzoom;
+const zooms = new Map<string, { maxzoom: number; at: number }>();
+
+/** The deepest zoom the tileset holds, from the tile server's TileJSON. Past it the map enlarges the deepest tiles instead of asking for ones that don't exist. */
+async function tilesetMaxzoom(server: string, tileset: string): Promise<number> {
+  const key = `${server}/${tileset}`;
+  const known = zooms.get(key);
+  if (known && Date.now() - known.at < 60_000) return known.maxzoom;
+  try {
+    const res = await fetch(`${server}/${tileset}`, { cache: 'no-store', signal: AbortSignal.timeout(3_000) });
+    const z = res.ok ? Number((await res.json())?.maxzoom) : NaN;
+    if (Number.isInteger(z) && z >= 0 && z <= MAX_ZOOM) {
+      zooms.set(key, { maxzoom: z, at: Date.now() });
+      return z;
+    }
+  } catch { /* the style's own zoom range, below */ }
+  return MAX_ZOOM;
+}
+
 const styles = new Map<string, string>();
-function styleFor(origin: string, tileset: string): string {
-  const key = `${origin} ${tileset}`;
+function styleFor(origin: string, tileset: string, maxzoom: number): string {
+  const key = `${origin} ${tileset} ${maxzoom}`;
   let text = styles.get(key);
   if (!text) {
-    text = JSON.stringify(style).replaceAll('@origin@', origin).replaceAll('@tileset@', tileset);
+    const sized = { ...style, sources: { protomaps: { ...style.sources.protomaps, maxzoom } } };
+    text = JSON.stringify(sized).replaceAll('@origin@', origin).replaceAll('@tileset@', tileset);
     if (styles.size > 16) styles.clear();
     styles.set(key, text);
   }
@@ -77,7 +97,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ path: st
     if (!configured) {
       return NextResponse.redirect(FALLBACK_STYLE, { status: 307, headers: { 'Cache-Control': 'public, max-age=300' } });
     }
-    return new NextResponse(styleFor(publicOrigin(req), tileset), {
+    return new NextResponse(styleFor(publicOrigin(req), tileset, await tilesetMaxzoom(server, tileset)), {
       headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300, s-maxage=3600' },
     });
   }
@@ -87,7 +107,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ path: st
   if (kind === 'tiles' && rest.length === 4) {
     const [set, ...zxy] = rest;
     const [z, x, y] = zxy.map(n => (/^\d{1,8}$/.test(n) ? Number(n) : -1));
-    if (!TILESET.test(set) || z < 0 || z > 14 || x < 0 || y < 0 || x >= 2 ** z || y >= 2 ** z) return notFound();
+    if (!TILESET.test(set) || z < 0 || z > MAX_ZOOM || x < 0 || y < 0 || x >= 2 ** z || y >= 2 ** z) return notFound();
     return relay(`${server}/${set}/${z}/${x}/${y}`, 'application/x-protobuf', YEAR);
   }
   if (kind === 'fonts' && rest.length === 2) {
