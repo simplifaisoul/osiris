@@ -141,6 +141,25 @@ describe('CCTV partial responses', () => {
     expect(bad.status).toBe(400);
   });
 
+  /* Next.js compresses route responses itself and drops a route's own
+     Content-Encoding, so a pre-gzipped catalogue reached browsers gzipped
+     twice and no cameras loaded. */
+  it('serves the whole catalogue as plain JSON, even to a client that accepts gzip', async () => {
+    vi.mocked(stealthFetch).mockResolvedValue(Response.json([]));
+    const warm = await (await GET(new Request('http://localhost/api/cctv?region=us-east'))).json();
+    expect(warm.total).toBeGreaterThan(0);
+
+    vi.mocked(stealthFetch).mockReturnValue(new Promise(() => {}));
+    const pending = GET(new Request('http://localhost/api/cctv?region=all', { headers: { 'accept-encoding': 'gzip, deflate, br' } }));
+    await flushIO();
+    await vi.advanceTimersByTimeAsync(12_000);
+    const response = await pending;
+
+    expect(response.headers.get('Content-Encoding')).toBeNull();
+    expect(response.headers.get('ETag')).toBeTruthy(); // the prebuilt payload answered
+    expect((await response.json()).total).toBeGreaterThanOrEqual(warm.total);
+  });
+
   it('allows a bounded retry for an empty/failed provider response', async () => {
     vi.mocked(stealthFetch).mockResolvedValue(new Response('', { status: 503 }));
     const response = await GET(new Request('http://localhost/api/cctv?region=uk'));

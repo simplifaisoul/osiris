@@ -670,7 +670,7 @@ function currentRegions(): RegionCameras {
   return regions;
 }
 
-/** Serialise and compress the whole-world response once, not per request. */
+/** Serialise the whole-world response once, not per request. */
 function rebuildPayload(): Payload | undefined {
   const regions = currentRegions();
   const held = Object.keys(regions);
@@ -1007,8 +1007,12 @@ function rebuildInBackground() {
 }
 
 /**
- * The bytes are already serialised and gzipped, so a request costs a buffer
- * write. An unchanged catalogue answers a returning visitor with a 304.
+ * The bytes are already serialised, so a request costs a buffer write. An
+ * unchanged catalogue answers a returning visitor with a 304.
+ *
+ * Always plain JSON: Next.js compresses route responses itself (16.4.6) and
+ * drops a route's own Content-Encoding (16.4.5), so a pre-gzipped body reached
+ * browsers gzipped twice and the camera list failed to parse.
  */
 function servePayload(request: Request, ready: Payload) {
   const headers: Record<string, string> = {
@@ -1018,11 +1022,6 @@ function servePayload(request: Request, ready: Payload) {
     'ETag': ready.etag,
   };
   if (request.headers.get('if-none-match') === ready.etag) return new Response(null, { status: 304, headers });
-
-  if ((request.headers.get('accept-encoding') || '').includes('gzip')) {
-    headers['Content-Encoding'] = 'gzip';
-    return new Response(new Uint8Array(ready.gzip), { headers });
-  }
   return new Response(new Uint8Array(ready.json), { headers });
 }
 

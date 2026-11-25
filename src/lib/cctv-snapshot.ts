@@ -1,4 +1,3 @@
-import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -16,9 +15,8 @@ import { dirname, join } from 'node:path';
  * written to disk, restored at boot, and refreshed in the background. Requests
  * never touch an upstream; they read something already built.
  *
- * The payload is serialised and gzipped once per rebuild, not per request. At
- * ~7.8MB of JSON that is the difference between a response costing real CPU and
- * one costing a buffer write.
+ * The payload is serialised once per rebuild, not per request. Compression is
+ * left to Next.js, which drops a route's own Content-Encoding since 16.4.5.
  */
 
 export type Camera = Record<string, unknown>;
@@ -74,7 +72,6 @@ export async function writeSnapshot(regions: RegionCameras): Promise<void> {
 
 export interface Payload {
   json: Buffer;
-  gzip: Buffer;
   etag: string;
   total: number;
   complete: boolean;
@@ -83,12 +80,11 @@ export interface Payload {
 
 let payload: Payload | undefined;
 
-/** Serialise and compress once, then hand the same buffers to every caller. */
+/** Serialise once, then hand the same buffer to every caller. */
 export function buildPayload(body: unknown, total: number, complete: boolean): Payload {
   const json = Buffer.from(JSON.stringify(body));
   payload = {
     json,
-    gzip: gzipSync(json, { level: 6 }),
     etag: `W/"${createHash('sha1').update(json).digest('base64url')}"`,
     total,
     complete,
