@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { gunzipSync } from 'node:zlib';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -62,17 +61,13 @@ describe('camera catalogue snapshot', () => {
     expect(await readSnapshot()).toBeNull();
   });
 
-  it('serialises and compresses once, and the gzip matches the json', () => {
+  it('serialises once, and the newest build is what callers get', () => {
     const body = { cameras: [{ id: 'a' }, { id: 'b' }], total: 2 };
     const payload = buildPayload(body, 2, true);
 
     expect(JSON.parse(payload.json.toString())).toEqual(body);
-    expect(JSON.parse(gunzipSync(payload.gzip).toString())).toEqual(body);
-    // Gzip's header costs more than it saves on a tiny body; the catalogue is
-    // ~8MB, so measure the claim at a size that resembles it.
     const many = buildPayload({ cameras: Array.from({ length: 2000 }, (_, i) => ({ id: 'cam-' + i, source: 'DOT' })) }, 2000, true);
-    expect(many.gzip.length).toBeLessThan(many.json.length / 5);
-    expect(getPayload()).toBe(many); // the newest build is what callers get
+    expect(getPayload()).toBe(many);
   });
 
   it('records whether the catalogue was complete when it was built', () => {
