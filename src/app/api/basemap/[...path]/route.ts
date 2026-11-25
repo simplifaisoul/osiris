@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import style from '@/lib/basemap/dark-matter.json';
+import { mergeGlyphs } from '@/lib/basemap/glyphs';
 
 /**
  * OSIRIS — the basemap: CARTO's Dark Matter style over the Protomaps
@@ -26,6 +27,7 @@ const HOST = /^[a-z0-9.-]+(?::\d{1,5})?$/i;
 const TILESET = /^[a-z0-9][a-z0-9_-]{0,63}$/i;
 const FONTSTACK = /^[A-Za-z0-9 ,-]{1,1500}$/;
 const SPRITE = /^sprite(@2x)?\.(json|png)$/;
+const MAX_FONTS = 32;
 
 /** This site's address as visitors see it. Only Host is read: Cloudflare sets it, and a forwarded header could be forged into the cached style. */
 function publicOrigin(req: Request): string {
@@ -86,6 +88,38 @@ async function relay(url: string, contentType: string, cache: string): Promise<R
 
 const notFound = () => new NextResponse(null, { status: 404, headers: { 'Cache-Control': SHORT } });
 
+/**
+ * A font stack's glyphs: each font asked for on its own and merged here, each
+ * character from the first font that has it. The tile server's own merging
+ * ignores the stack's order, which drew Montserrat labels in Noto Sans.
+ */
+async function fontStack(server: string, stack: string, range: string): Promise<Response> {
+  const fonts = stack.split(',').map(f => f.trim()).filter(Boolean).slice(0, MAX_FONTS);
+  let failed = false;
+  const files: (Uint8Array | null)[] = await Promise.all(fonts.map(async font => {
+    try {
+      const res = await fetch(`${server}/font/${encodeURIComponent(font)}/${range}`, { cache: 'no-store', signal: AbortSignal.timeout(10_000) });
+      if (res.status === 404) return null; // a font the tile server doesn't have: the next one stands in
+      if (!res.ok) { failed = true; return null; }
+      return new Uint8Array(await res.arrayBuffer());
+    } catch {
+      failed = true;
+      return null;
+    }
+  }));
+  // Half a stack would be cached for a month, so any failure answers uncached instead.
+  if (failed) return new NextResponse(null, { status: 502, headers: { 'Cache-Control': 'no-store' } });
+  const found = files.filter((f): f is Uint8Array => f !== null);
+  if (!found.length) return notFound();
+  let merged: Uint8Array;
+  try {
+    merged = mergeGlyphs(found, fonts.join(','), range);
+  } catch {
+    return new NextResponse(null, { status: 502, headers: { 'Cache-Control': 'no-store' } });
+  }
+  return new NextResponse(merged.buffer as ArrayBuffer, { headers: { 'Content-Type': 'application/x-protobuf', 'Cache-Control': MONTH } });
+}
+
 export async function GET(req: Request, { params }: { params: Promise<{ path: string[] }> }) {
   const path = (await params).path.map(part => { try { return decodeURIComponent(part); } catch { return ''; } });
   const server = process.env.BASEMAP_URL?.trim().replace(/\/+$/, '');
@@ -115,7 +149,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ path: st
     const [stack, range] = rest;
     const m = /^(\d{1,5})-(\d{1,5})$/.exec(range);
     if (!FONTSTACK.test(stack) || !m || Number(m[1]) % 256 !== 0 || Number(m[2]) !== Number(m[1]) + 255 || Number(m[2]) > 65535) return notFound();
-    return relay(`${server}/font/${encodeURIComponent(stack)}/${range}`, 'application/x-protobuf', MONTH);
+    return fontStack(server, stack, range);
   }
   if (kind && SPRITE.test(kind) && rest.length === 0) {
     const [, retina, ext] = SPRITE.exec(kind)!;
