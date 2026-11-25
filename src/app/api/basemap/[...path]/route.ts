@@ -13,12 +13,11 @@ import style from '@/lib/basemap/dark-matter.json';
  *
  * BASEMAP_URL is the tile server and BASEMAP_TILESET the world map on it.
  * Tile addresses carry the tileset, so a new world map gets new addresses and
- * every tile can be cached for a year. Without BASEMAP_URL the style is
- * OpenFreeMap's Dark Matter, which browsers load from OpenFreeMap.
+ * every tile can be cached for a year. Both are required: without them every
+ * request here answers 503, and the map has no basemap.
  */
 export const dynamic = 'force-dynamic';
 
-const FALLBACK_STYLE = 'https://tiles.openfreemap.org/styles/dark';
 const YEAR = 'public, max-age=31536000, immutable';
 const MONTH = 'public, max-age=2592000';
 const SHORT = 'public, max-age=60';
@@ -93,15 +92,17 @@ export async function GET(req: Request, { params }: { params: Promise<{ path: st
   const tileset = process.env.BASEMAP_TILESET?.trim() ?? '';
   const configured = !!server && /^https?:\/\//.test(server) && TILESET.test(tileset);
 
+  if (!configured) {
+    return NextResponse.json(
+      { error: 'No tile server is set up: set BASEMAP_URL and BASEMAP_TILESET (see .env.example).' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } },
+    );
+  }
   if (path.length === 1 && path[0] === 'style') {
-    if (!configured) {
-      return NextResponse.redirect(FALLBACK_STYLE, { status: 307, headers: { 'Cache-Control': 'public, max-age=300' } });
-    }
     return new NextResponse(styleFor(publicOrigin(req), tileset, await tilesetMaxzoom(server, tileset)), {
       headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300, s-maxage=3600' },
     });
   }
-  if (!configured) return notFound();
 
   const [kind, ...rest] = path;
   if (kind === 'tiles' && rest.length === 4) {

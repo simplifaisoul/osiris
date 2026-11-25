@@ -14,15 +14,17 @@ afterEach(() => {
 });
 
 describe('GET /api/basemap without a tile server', () => {
-  it('sends the map to OpenFreeMap’s Dark Matter', async () => {
+  it('serves no style and sends nobody to another map source', async () => {
     const res = await get('style');
-    expect(res.status).toBe(307);
-    expect(res.headers.get('location')).toBe('https://tiles.openfreemap.org/styles/dark');
+    expect(res.status).toBe(503);
+    expect(res.headers.get('location')).toBeNull();
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect((await res.json()).error).toMatch(/BASEMAP_URL/);
   });
 
   it('serves no tiles', async () => {
     vi.stubGlobal('fetch', vi.fn());
-    expect((await get('tiles/protomaps-1/3/4/2')).status).toBe(404);
+    expect((await get('tiles/protomaps-1/3/4/2')).status).toBe(503);
     expect(fetch).not.toHaveBeenCalled();
   });
 });
