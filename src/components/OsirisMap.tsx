@@ -388,10 +388,10 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     
-    /* The Dark Matter basemap from OpenFreeMap: free, keyless, and loaded by
-       the browser straight from OpenFreeMap. CARTO, the previous source,
-       refuses osirisai.live both through our tile proxy and in the browser. */
-    const styleUrl = 'https://tiles.openfreemap.org/styles/dark';
+    /* CARTO's Dark Matter over the OpenStreetMap world map, from our own tile
+       server through /api/basemap (OpenFreeMap's Dark Matter where no tile
+       server is set up). CARTO, the previous source, refuses osirisai.live. */
+    const styleUrl = `${window.location.origin}/api/basemap/style`;
 
     const container = containerRef.current;
     maplibregl.setWorkerUrl(`/vendor/maplibre/${maplibregl.getVersion()}/maplibre-gl-worker.mjs`);
@@ -404,13 +404,13 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       container,
       style: styleUrl,
       center: [facingLng, 20] as [number, number], zoom: 1.8, minZoom: 1.5, maxZoom: 18,
-      /* The basemap is OpenFreeMap's, drawn from OpenStreetMap, and the places on it
+      /* The basemap is drawn from OpenStreetMap, and the places on it
          are searched and named through OpenStreetMap too. Both have to be
          credited on the map itself (issue #16). It is collapsed by default so
          it costs a corner icon, not the view. */
       attributionControl: {
         compact: true,
-        // The style credits OpenFreeMap and OSM for the map; this credits where search
+        // The style credits the map's makers and OSM; this credits where search
         // results and place names come from: Wikipedia, Wikidata, and GeoNames' list (CC BY 4.0).
         customAttribution: 'Places: <a href="https://www.wikipedia.org/" target="_blank" rel="noopener noreferrer">Wikipedia</a>, <a href="https://www.wikidata.org/" target="_blank" rel="noopener noreferrer">Wikidata</a>, <a href="https://www.geonames.org/" target="_blank" rel="noopener noreferrer">GeoNames</a> (CC BY 4.0)',
       } as const,

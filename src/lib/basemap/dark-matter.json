@@ -1,0 +1,11811 @@
+{
+ "version": 8,
+ "name": "OSIRIS Dark Matter",
+ "metadata": {
+  "osiris:about": "CARTO Dark Matter (Protomaps schema), hosted as a copy as CARTO allows (github.com/CartoDB/basemap-styles). Tiles: Protomaps OpenStreetMap build. Fonts: Montserrat, Open Sans, Noto (SIL OFL / Apache 2.0)."
+ },
+ "sources": {
+  "protomaps": {
+   "type": "vector",
+   "tiles": [
+    "@origin@/api/basemap/tiles/@tileset@/{z}/{x}/{y}"
+   ],
+   "minzoom": 0,
+   "maxzoom": 14,
+   "attribution": "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors &copy; <a href=\"https://carto.com/about-carto/\">CARTO</a> &copy; <a href=\"https://protomaps.com\">Protomaps</a>"
+  }
+ },
+ "sprite": "@origin@/api/basemap/sprite",
+ "glyphs": "@origin@/api/basemap/fonts/{fontstack}/{range}",
+ "layers": [
+  {
+   "id": "background",
+   "type": "background",
+   "layout": {
+    "visibility": "visible"
+   },
+   "paint": {
+    "background-color": "#0e0e0e",
+    "background-opacity": 1
+   }
+  },
+  {
+   "id": "landcover",
+   "type": "fill",
+   "source": "protomaps",
+   "source-layer": "landuse",
+   "paint": {
+    "fill-color": {
+     "stops": [
+      [
+       8,
+       "#0e0e0e"
+      ],
+      [
+       9,
+       "#0e0e0e"
+      ],
+      [
+       11,
+       "#0e0e0e"
+      ],
+      [
+       13,
+       "#0e0e0e"
+      ],
+      [
+       15,
+       "#0e0e0e"
+      ]
+     ]
+    },
+    "fill-opacity": 1
+   },
+   "metadata": {
+    "carto:group": "land"
+   },
+   "filter": [
+    "in",
+    [
+     "get",
+     "kind"
+    ],
+    [
+     "literal",
+     [
+      "wood",
+      "forest",
+      "grass",
+      "park",
+      "meadow",
+      "scrub",
+      "garden",
+      "recreation_ground",
+      "village_green",
+      "allotments",
+      "golf_course",
+      "grassland",
+      "heath"
+     ]
+    ]
+   ],
+   "minzoom": 7
+  },
+  {
+   "id": "park_national_park",
+   "type": "fill",
+   "source": "protomaps",
+   "source-layer": "landuse",
+   "minzoom": 9,
+   "layout": {
+    "visibility": "visible"
+   },
+   "paint": {
+    "fill-color": {
+     "stops": [
+      [
+       8,
+       "#0e0e0e"
+      ],
+      [
+       9,
+       "#0e0e0e"
+      ],
+      [
+       11,
+       "#0e0e0e"
+      ],
+      [
+       13,
+       "#0e0e0e"
+      ],
+      [
+       15,
+       "#0e0e0e"
+      ]
+     ]
+    },
+    "fill-opacity": 1,
+    "fill-translate-anchor": "map"
+   },
+   "metadata": {
+    "carto:group": "land"
+   },
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind"
+    ],
+    "national_park"
+   ]
+  },
+  {
+   "id": "park_nature_reserve",
+   "type": "fill",
+   "source": "protomaps",
+   "source-layer": "landuse",
+   "minzoom": 0,
+   "layout": {
+    "visibility": "visible"
+   },
+   "paint": {
+    "fill-color": {
+     "stops": [
+      [
+       8,
+       "#0e0e0e"
+      ],
+      [
+       9,
+       "#0e0e0e"
+      ],
+      [
+       11,
+       "#0e0e0e"
+      ],
+      [
+       13,
+       "#0e0e0e"
+      ],
+      [
+       15,
+       "#0e0e0e"
+      ]
+     ]
+    },
+    "fill-antialias": true,
+    "fill-opacity": {
+     "stops": [
+      [
+       6,
+       0.7
+      ],
+      [
+       9,
+       0.9
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "land"
+   },
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind"
+    ],
+    "nature_reserve"
+   ]
+  },
+  {
+   "id": "landuse_residential",
+   "type": "fill",
+   "source": "protomaps",
+   "source-layer": "landuse",
+   "minzoom": 6,
+   "paint": {
+    "fill-color": {
+     "stops": [
+      [
+       5,
+       "rgba(0, 0, 0, 0.5)"
+      ],
+      [
+       8,
+       "rgba(0, 0, 0, 0.45)"
+      ],
+      [
+       9,
+       "rgba(0, 0, 0, 0.4)"
+      ],
+      [
+       11,
+       "rgba(0, 0, 0, 0.35)"
+      ],
+      [
+       13,
+       "rgba(0, 0, 0, 0.3)"
+      ],
+      [
+       15,
+       "rgba(0, 0, 0, 0.25)"
+      ],
+      [
+       16,
+       "rgba(0, 0, 0, 0.15)"
+      ]
+     ]
+    },
+    "fill-opacity": {
+     "stops": [
+      [
+       6,
+       0.6
+      ],
+      [
+       9,
+       1
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "land"
+   },
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind"
+    ],
+    "residential"
+   ]
+  },
+  {
+   "id": "landuse",
+   "type": "fill",
+   "source": "protomaps",
+   "source-layer": "landuse",
+   "paint": {
+    "fill-color": {
+     "stops": [
+      [
+       8,
+       "#0e0e0e"
+      ],
+      [
+       9,
+       "#0e0e0e"
+      ],
+      [
+       11,
+       "#0e0e0e"
+      ],
+      [
+       13,
+       "#0e0e0e"
+      ],
+      [
+       15,
+       "#0e0e0e"
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "land"
+   },
+   "filter": [
+    "in",
+    [
+     "get",
+     "kind"
+    ],
+    [
+     "literal",
+     [
+      "cemetery",
+      "stadium"
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "waterway",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "water",
+   "paint": {
+    "line-color": "rgba(63, 90, 109, 1)",
+    "line-width": {
+     "stops": [
+      [
+       8,
+       0.5
+      ],
+      [
+       9,
+       1
+      ],
+      [
+       15,
+       2
+      ],
+      [
+       16,
+       3
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "water"
+   },
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "geometry-type"
+     ],
+     "LineString"
+    ],
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "river"
+     ],
+     [
+      "all",
+      [
+       "in",
+       [
+        "get",
+        "kind"
+       ],
+       [
+        "literal",
+        [
+         "stream",
+         "canal",
+         "drain",
+         "ditch"
+        ]
+       ]
+      ],
+      [
+       ">=",
+       [
+        "zoom"
+       ],
+       13
+      ]
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "boundary_county",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "boundaries",
+   "minzoom": 9,
+   "maxzoom": 24,
+   "paint": {
+    "line-color": {
+     "stops": [
+      [
+       4,
+       "#222"
+      ],
+      [
+       5,
+       "#222"
+      ],
+      [
+       6,
+       "#2C353C"
+      ]
+     ]
+    },
+    "line-width": {
+     "stops": [
+      [
+       4,
+       0.5
+      ],
+      [
+       7,
+       1
+      ]
+     ]
+    },
+    "line-dasharray": {
+     "stops": [
+      [
+       6,
+       [
+        1,
+        0
+       ]
+      ],
+      [
+       7,
+       [
+        2,
+        2
+       ]
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "boundaries"
+   },
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind_detail"
+    ],
+    6
+   ]
+  },
+  {
+   "id": "boundary_state",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "boundaries",
+   "minzoom": 4,
+   "paint": {
+    "line-color": {
+     "stops": [
+      [
+       4,
+       "rgba(103, 103, 114, 1)"
+      ],
+      [
+       5,
+       "rgba(103, 103, 114, 1)"
+      ],
+      [
+       6,
+       "rgba(103, 103, 114, 1)"
+      ]
+     ]
+    },
+    "line-width": {
+     "stops": [
+      [
+       4,
+       0.5
+      ],
+      [
+       7,
+       1
+      ],
+      [
+       8,
+       1
+      ],
+      [
+       9,
+       1.2
+      ]
+     ]
+    },
+    "line-dasharray": {
+     "stops": [
+      [
+       6,
+       [
+        1,
+        2,
+        3
+       ]
+      ],
+      [
+       7,
+       [
+        1,
+        2,
+        3
+       ]
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "boundaries"
+   },
+   "filter": [
+    "any",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      4
+     ],
+     [
+      ">=",
+      [
+       "zoom"
+      ],
+      6
+     ]
+    ],
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "macroregion"
+     ],
+     [
+      "<",
+      [
+       "zoom"
+      ],
+      6
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "water",
+   "type": "fill",
+   "source": "protomaps",
+   "source-layer": "water",
+   "minzoom": 0,
+   "maxzoom": 24,
+   "layout": {
+    "visibility": "visible"
+   },
+   "paint": {
+    "fill-color": "#2C353C",
+    "fill-antialias": true,
+    "fill-translate-anchor": "map",
+    "fill-opacity": 1
+   },
+   "metadata": {
+    "carto:group": "water"
+   },
+   "filter": [
+    "==",
+    [
+     "geometry-type"
+    ],
+    "Polygon"
+   ]
+  },
+  {
+   "id": "water_shadow",
+   "type": "fill",
+   "source": "protomaps",
+   "source-layer": "water",
+   "minzoom": 0,
+   "layout": {
+    "visibility": "visible"
+   },
+   "paint": {
+    "fill-color": "transparent",
+    "fill-antialias": true,
+    "fill-translate-anchor": "map",
+    "fill-opacity": 1,
+    "fill-translate": {
+     "stops": [
+      [
+       0,
+       [
+        0,
+        2
+       ]
+      ],
+      [
+       6,
+       [
+        0,
+        1
+       ]
+      ],
+      [
+       14,
+       [
+        0,
+        1
+       ]
+      ],
+      [
+       17,
+       [
+        0,
+        2
+       ]
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "water"
+   },
+   "filter": [
+    "==",
+    [
+     "geometry-type"
+    ],
+    "Polygon"
+   ]
+  },
+  {
+   "id": "aeroway-runway",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 12,
+   "layout": {
+    "line-cap": "square"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       11,
+       1
+      ],
+      [
+       13,
+       4
+      ],
+      [
+       14,
+       6
+      ],
+      [
+       15,
+       8
+      ],
+      [
+       16,
+       10
+      ]
+     ]
+    },
+    "line-color": "#111"
+   },
+   "metadata": {
+    "carto:group": "land"
+   },
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "kind"
+     ],
+     "aeroway"
+    ],
+    [
+     "==",
+     [
+      "get",
+      "kind_detail"
+     ],
+     "runway"
+    ]
+   ]
+  },
+  {
+   "id": "aeroway-taxiway",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 13,
+   "paint": {
+    "line-color": "#111",
+    "line-width": {
+     "stops": [
+      [
+       13,
+       0.5
+      ],
+      [
+       14,
+       1
+      ],
+      [
+       15,
+       2
+      ],
+      [
+       16,
+       4
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "land"
+   },
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "kind"
+     ],
+     "aeroway"
+    ],
+    [
+     "==",
+     [
+      "get",
+      "kind_detail"
+     ],
+     "taxiway"
+    ]
+   ]
+  },
+  {
+   "id": "tunnel_service_case",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 15,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       15,
+       1
+      ],
+      [
+       16,
+       3
+      ],
+      [
+       17,
+       6
+      ],
+      [
+       18,
+       8
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "#1a1a1a"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "kind_detail"
+     ],
+     "service"
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ]
+   ]
+  },
+  {
+   "id": "tunnel_minor_case",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 13,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "miter"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       11,
+       0.5
+      ],
+      [
+       12,
+       0.5
+      ],
+      [
+       14,
+       2
+      ],
+      [
+       15,
+       4
+      ],
+      [
+       16,
+       6
+      ],
+      [
+       17,
+       10
+      ],
+      [
+       18,
+       14
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "#1a1a1a"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!",
+      [
+       "in",
+       [
+        "get",
+        "kind"
+       ],
+       [
+        "literal",
+        [
+         "path",
+         "highway",
+         "major_road"
+        ]
+       ]
+      ]
+     ],
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "residential",
+        "unclassified",
+        "living_street",
+        "road",
+        "alley",
+        "driveway",
+        "parking_aisle"
+       ]
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ]
+   ]
+  },
+  {
+   "id": "tunnel_sec_case",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 11,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       11,
+       0.5
+      ],
+      [
+       12,
+       1
+      ],
+      [
+       13,
+       2
+      ],
+      [
+       14,
+       5
+      ],
+      [
+       15,
+       6
+      ],
+      [
+       16,
+       8
+      ],
+      [
+       17,
+       12
+      ],
+      [
+       18,
+       16
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "#1a1a1a"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "secondary",
+        "tertiary",
+        "secondary_link",
+        "tertiary_link"
+       ]
+      ]
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       ">=",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       9
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ]
+   ]
+  },
+  {
+   "id": "tunnel_pri_case",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 8,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       6,
+       0.5
+      ],
+      [
+       7,
+       0.8
+      ],
+      [
+       8,
+       1
+      ],
+      [
+       11,
+       3
+      ],
+      [
+       13,
+       4
+      ],
+      [
+       14,
+       6
+      ],
+      [
+       15,
+       8
+      ],
+      [
+       16,
+       10
+      ],
+      [
+       17,
+       14
+      ],
+      [
+       18,
+       18
+      ]
+     ]
+    },
+    "line-opacity": {
+     "stops": [
+      [
+       5,
+       0.5
+      ],
+      [
+       7,
+       1
+      ]
+     ]
+    },
+    "line-color": "#1a1a1a"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "primary"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       "==",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       8
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ]
+   ]
+  },
+  {
+   "id": "tunnel_trunk_case",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 5,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round",
+    "visibility": "visible"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       6,
+       0.5
+      ],
+      [
+       7,
+       0.8
+      ],
+      [
+       8,
+       1
+      ],
+      [
+       11,
+       3
+      ],
+      [
+       13,
+       4
+      ],
+      [
+       14,
+       6
+      ],
+      [
+       15,
+       8
+      ],
+      [
+       16,
+       10
+      ],
+      [
+       17,
+       14
+      ],
+      [
+       18,
+       18
+      ]
+     ]
+    },
+    "line-opacity": {
+     "stops": [
+      [
+       5,
+       0.5
+      ],
+      [
+       7,
+       1
+      ]
+     ]
+    },
+    "line-color": "#232323"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "trunk"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       "<=",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       7
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ]
+   ]
+  },
+  {
+   "id": "tunnel_mot_case",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 5,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       6,
+       0.5
+      ],
+      [
+       7,
+       0.8
+      ],
+      [
+       8,
+       1
+      ],
+      [
+       11,
+       3
+      ],
+      [
+       12,
+       4
+      ],
+      [
+       13,
+       5
+      ],
+      [
+       14,
+       7
+      ],
+      [
+       15,
+       9
+      ],
+      [
+       16,
+       11
+      ],
+      [
+       17,
+       13
+      ],
+      [
+       18,
+       22
+      ]
+     ]
+    },
+    "line-opacity": {
+     "stops": [
+      [
+       6,
+       0.5
+      ],
+      [
+       7,
+       1
+      ]
+     ]
+    },
+    "line-color": "#232323"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "motorway"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "highway"
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ]
+   ]
+  },
+  {
+   "id": "tunnel_path",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 15,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       15,
+       0.5
+      ],
+      [
+       16,
+       1
+      ],
+      [
+       18,
+       3
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "#262626",
+    "line-dasharray": {
+     "stops": [
+      [
+       15,
+       [
+        2,
+        2
+       ]
+      ],
+      [
+       18,
+       [
+        3,
+        3
+       ]
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "path"
+     ],
+     [
+      "!",
+      [
+       "in",
+       [
+        "get",
+        "kind_detail"
+       ],
+       [
+        "literal",
+        [
+         "pier",
+         "track"
+        ]
+       ]
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ]
+   ]
+  },
+  {
+   "id": "tunnel_service_fill",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 15,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       15,
+       2
+      ],
+      [
+       16,
+       2
+      ],
+      [
+       17,
+       4
+      ],
+      [
+       18,
+       6
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "#161616"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "kind_detail"
+     ],
+     "service"
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ]
+   ]
+  },
+  {
+   "id": "tunnel_minor_fill",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 15,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       15,
+       3
+      ],
+      [
+       16,
+       4
+      ],
+      [
+       17,
+       8
+      ],
+      [
+       18,
+       12
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "rgba(22, 22, 22, 1)"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!",
+      [
+       "in",
+       [
+        "get",
+        "kind"
+       ],
+       [
+        "literal",
+        [
+         "path",
+         "highway",
+         "major_road"
+        ]
+       ]
+      ]
+     ],
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "residential",
+        "unclassified",
+        "living_street",
+        "road",
+        "alley",
+        "driveway",
+        "parking_aisle"
+       ]
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ]
+   ]
+  },
+  {
+   "id": "tunnel_sec_fill",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 13,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       11,
+       2
+      ],
+      [
+       13,
+       2
+      ],
+      [
+       14,
+       3
+      ],
+      [
+       15,
+       4
+      ],
+      [
+       16,
+       6
+      ],
+      [
+       17,
+       10
+      ],
+      [
+       18,
+       14
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "#161616"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "secondary",
+        "tertiary",
+        "secondary_link",
+        "tertiary_link"
+       ]
+      ]
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       ">=",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       9
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ]
+   ]
+  },
+  {
+   "id": "tunnel_pri_fill",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 11,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       11,
+       1
+      ],
+      [
+       13,
+       2
+      ],
+      [
+       14,
+       4
+      ],
+      [
+       15,
+       6
+      ],
+      [
+       16,
+       8
+      ],
+      [
+       17,
+       12
+      ],
+      [
+       18,
+       16
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "rgba(65, 71, 88, 1)"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "primary"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       "==",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       8
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ]
+   ]
+  },
+  {
+   "id": "tunnel_trunk_fill",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 11,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round",
+    "visibility": "visible"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       11,
+       1
+      ],
+      [
+       13,
+       2
+      ],
+      [
+       14,
+       4
+      ],
+      [
+       15,
+       6
+      ],
+      [
+       16,
+       8
+      ],
+      [
+       17,
+       12
+      ],
+      [
+       18,
+       16
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "#161616"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "trunk"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       "<=",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       7
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ]
+   ]
+  },
+  {
+   "id": "tunnel_mot_fill",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 10,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       10,
+       1
+      ],
+      [
+       12,
+       2
+      ],
+      [
+       13,
+       3
+      ],
+      [
+       14,
+       5
+      ],
+      [
+       15,
+       7
+      ],
+      [
+       16,
+       9
+      ],
+      [
+       17,
+       11
+      ],
+      [
+       18,
+       20
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "rgba(65, 71, 88, 1)"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "motorway"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "highway"
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ]
+   ]
+  },
+  {
+   "id": "tunnel_rail",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 13,
+   "layout": {
+    "visibility": "visible",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-color": "#1a1a1a",
+    "line-width": {
+     "base": 1.3,
+     "stops": [
+      [
+       13,
+       0.5
+      ],
+      [
+       14,
+       1
+      ],
+      [
+       15,
+       1
+      ],
+      [
+       16,
+       3
+      ],
+      [
+       21,
+       7
+      ]
+     ]
+    },
+    "line-opacity": 0.5
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "rail"
+     ],
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "rail",
+        "narrow_gauge",
+        "preserved",
+        "funicular"
+       ]
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ],
+    [
+     "any",
+     [
+      "!",
+      [
+       "has",
+       "service"
+      ]
+     ],
+     [
+      ">=",
+      [
+       "zoom"
+      ],
+      14
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "tunnel_rail_dash",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 15,
+   "layout": {
+    "visibility": "visible",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-color": "#111",
+    "line-width": {
+     "base": 1.3,
+     "stops": [
+      [
+       15,
+       0.5
+      ],
+      [
+       16,
+       1
+      ],
+      [
+       20,
+       5
+      ]
+     ]
+    },
+    "line-dasharray": {
+     "stops": [
+      [
+       15,
+       [
+        5,
+        5
+       ]
+      ],
+      [
+       16,
+       [
+        6,
+        6
+       ]
+      ]
+     ]
+    },
+    "line-opacity": 0.5
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "rail"
+     ],
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "rail",
+        "narrow_gauge",
+        "preserved",
+        "funicular"
+       ]
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ],
+    [
+     "any",
+     [
+      "!",
+      [
+       "has",
+       "service"
+      ]
+     ],
+     [
+      ">=",
+      [
+       "zoom"
+      ],
+      14
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "road_service_case",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 15,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       15,
+       1
+      ],
+      [
+       16,
+       3
+      ],
+      [
+       17,
+       6
+      ],
+      [
+       18,
+       8
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "#1c1c1c"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "kind_detail"
+     ],
+     "service"
+    ],
+    [
+     "all",
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_bridge"
+       ],
+       true
+      ]
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_tunnel"
+       ],
+       true
+      ]
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "road_minor_case",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 13,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       11,
+       0.5
+      ],
+      [
+       12,
+       0.5
+      ],
+      [
+       14,
+       2
+      ],
+      [
+       15,
+       3
+      ],
+      [
+       16,
+       4.3
+      ],
+      [
+       17,
+       10
+      ],
+      [
+       18,
+       14
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": {
+     "stops": [
+      [
+       13,
+       "rgba(65, 71, 88, 1)"
+      ],
+      [
+       15.7,
+       "rgba(65, 71, 88, 1)"
+      ],
+      [
+       16,
+       "rgba(65, 71, 88, 1)"
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!",
+      [
+       "in",
+       [
+        "get",
+        "kind"
+       ],
+       [
+        "literal",
+        [
+         "path",
+         "highway",
+         "major_road"
+        ]
+       ]
+      ]
+     ],
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "residential",
+        "unclassified",
+        "living_street",
+        "road",
+        "alley",
+        "driveway",
+        "parking_aisle"
+       ]
+      ]
+     ]
+    ],
+    [
+     "all",
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_bridge"
+       ],
+       true
+      ]
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_tunnel"
+       ],
+       true
+      ]
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "road_pri_case_ramp",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 12,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       12,
+       2
+      ],
+      [
+       13,
+       3
+      ],
+      [
+       14,
+       4
+      ],
+      [
+       15,
+       5
+      ],
+      [
+       16,
+       8
+      ],
+      [
+       17,
+       10
+      ]
+     ]
+    },
+    "line-opacity": {
+     "stops": [
+      [
+       5,
+       0.5
+      ],
+      [
+       7,
+       1
+      ]
+     ]
+    },
+    "line-color": "#232323"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind_detail"
+    ],
+    "primary_link"
+   ]
+  },
+  {
+   "id": "road_trunk_case_ramp",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 12,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       12,
+       2
+      ],
+      [
+       13,
+       3
+      ],
+      [
+       14,
+       4
+      ],
+      [
+       15,
+       5
+      ],
+      [
+       16,
+       8
+      ],
+      [
+       17,
+       10
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": {
+     "stops": [
+      [
+       12,
+       "#1a1a1a"
+      ],
+      [
+       14,
+       "#232323"
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind_detail"
+    ],
+    "trunk_link"
+   ]
+  },
+  {
+   "id": "road_mot_case_ramp",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 12,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       12,
+       2
+      ],
+      [
+       13,
+       3
+      ],
+      [
+       14,
+       4
+      ],
+      [
+       15,
+       5
+      ],
+      [
+       16,
+       8
+      ],
+      [
+       17,
+       10
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": {
+     "stops": [
+      [
+       12,
+       "#1a1a1a"
+      ],
+      [
+       14,
+       "#232323"
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind_detail"
+    ],
+    "motorway_link"
+   ]
+  },
+  {
+   "id": "road_sec_case_noramp",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 11,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       11,
+       0.9
+      ],
+      [
+       12,
+       1.5
+      ],
+      [
+       13,
+       3
+      ],
+      [
+       14,
+       5
+      ],
+      [
+       15,
+       6
+      ],
+      [
+       16,
+       8
+      ],
+      [
+       17,
+       12
+      ],
+      [
+       18,
+       16
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": {
+     "stops": [
+      [
+       11,
+       "rgba(65, 71, 88, 1)"
+      ],
+      [
+       12.99,
+       "rgba(65, 71, 88, 1)"
+      ],
+      [
+       13,
+       "rgba(65, 71, 88, 1)"
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "secondary",
+        "tertiary",
+        "secondary_link",
+        "tertiary_link"
+       ]
+      ]
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       ">=",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       9
+      ]
+     ]
+    ],
+    [
+     "all",
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_bridge"
+       ],
+       true
+      ]
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_tunnel"
+       ],
+       true
+      ]
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "road_pri_case_noramp",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 7,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       6,
+       0.5
+      ],
+      [
+       7,
+       0.8
+      ],
+      [
+       8,
+       1
+      ],
+      [
+       11,
+       3
+      ],
+      [
+       13,
+       4
+      ],
+      [
+       14,
+       6
+      ],
+      [
+       15,
+       8
+      ],
+      [
+       16,
+       10
+      ],
+      [
+       17,
+       14
+      ],
+      [
+       18,
+       18
+      ]
+     ]
+    },
+    "line-opacity": {
+     "stops": [
+      [
+       5,
+       0.5
+      ],
+      [
+       7,
+       1
+      ]
+     ]
+    },
+    "line-color": {
+     "stops": [
+      [
+       7,
+       "#1a1a1a"
+      ],
+      [
+       12,
+       "#232323"
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "primary"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       "==",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       8
+      ]
+     ]
+    ],
+    [
+     "all",
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_bridge"
+       ],
+       true
+      ]
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_tunnel"
+       ],
+       true
+      ]
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "road_trunk_case_noramp",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 5,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       6,
+       0.5
+      ],
+      [
+       7,
+       0.8
+      ],
+      [
+       8,
+       1
+      ],
+      [
+       11,
+       3
+      ],
+      [
+       13,
+       4
+      ],
+      [
+       14,
+       6
+      ],
+      [
+       15,
+       8
+      ],
+      [
+       16,
+       10
+      ],
+      [
+       17,
+       14
+      ],
+      [
+       18,
+       18
+      ]
+     ]
+    },
+    "line-opacity": {
+     "stops": [
+      [
+       5,
+       0.5
+      ],
+      [
+       7,
+       1
+      ]
+     ]
+    },
+    "line-color": {
+     "stops": [
+      [
+       5,
+       "#1a1a1a"
+      ],
+      [
+       12,
+       "#232323"
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "trunk"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       "<=",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       7
+      ]
+     ]
+    ],
+    [
+     "all",
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_bridge"
+       ],
+       true
+      ]
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_tunnel"
+       ],
+       true
+      ]
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "road_mot_case_noramp",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 5,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       6,
+       0.5
+      ],
+      [
+       7,
+       0.7
+      ],
+      [
+       8,
+       0.8
+      ],
+      [
+       11,
+       3
+      ],
+      [
+       12,
+       4
+      ],
+      [
+       13,
+       5
+      ],
+      [
+       14,
+       7
+      ],
+      [
+       15,
+       9
+      ],
+      [
+       16,
+       11
+      ],
+      [
+       17,
+       13
+      ],
+      [
+       18,
+       22
+      ]
+     ]
+    },
+    "line-opacity": {
+     "stops": [
+      [
+       6,
+       0.5
+      ],
+      [
+       7,
+       1
+      ]
+     ]
+    },
+    "line-color": {
+     "stops": [
+      [
+       5,
+       "#1a1a1a"
+      ],
+      [
+       12,
+       "#232323"
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "motorway"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "highway"
+      ]
+     ]
+    ],
+    [
+     "all",
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_bridge"
+       ],
+       true
+      ]
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_tunnel"
+       ],
+       true
+      ]
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "road_path",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 15,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       15,
+       0.5
+      ],
+      [
+       16,
+       1
+      ],
+      [
+       18,
+       3
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "#262626",
+    "line-dasharray": {
+     "stops": [
+      [
+       15,
+       [
+        2,
+        2
+       ]
+      ],
+      [
+       18,
+       [
+        3,
+        3
+       ]
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "path"
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "kind_detail"
+       ],
+       "pier"
+      ]
+     ]
+    ],
+    [
+     "all",
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_bridge"
+       ],
+       true
+      ]
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_tunnel"
+       ],
+       true
+      ]
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "road_path_areas",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "landuse",
+   "minzoom": 15,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       15,
+       0.5
+      ],
+      [
+       16,
+       1
+      ],
+      [
+       18,
+       3
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "#262626",
+    "line-dasharray": {
+     "stops": [
+      [
+       15,
+       [
+        2,
+        2
+       ]
+      ],
+      [
+       18,
+       [
+        3,
+        3
+       ]
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "geometry-type"
+     ],
+     "Polygon"
+    ],
+    [
+     "==",
+     [
+      "get",
+      "kind"
+     ],
+     "pedestrian"
+    ]
+   ]
+  },
+  {
+   "id": "road_service_fill",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 15,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       15,
+       2
+      ],
+      [
+       16,
+       2
+      ],
+      [
+       17,
+       4
+      ],
+      [
+       18,
+       6
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "#0b0b0b"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "kind_detail"
+     ],
+     "service"
+    ],
+    [
+     "all",
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_bridge"
+       ],
+       true
+      ]
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_tunnel"
+       ],
+       true
+      ]
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "road_minor_fill",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 15,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       15,
+       3
+      ],
+      [
+       16,
+       4
+      ],
+      [
+       17,
+       8
+      ],
+      [
+       18,
+       12
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "rgba(65, 71, 88, 1)"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!",
+      [
+       "in",
+       [
+        "get",
+        "kind"
+       ],
+       [
+        "literal",
+        [
+         "path",
+         "highway",
+         "major_road"
+        ]
+       ]
+      ]
+     ],
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "residential",
+        "unclassified",
+        "living_street",
+        "road",
+        "alley",
+        "driveway",
+        "parking_aisle"
+       ]
+      ]
+     ]
+    ],
+    [
+     "all",
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_bridge"
+       ],
+       true
+      ]
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_tunnel"
+       ],
+       true
+      ]
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "road_pri_fill_ramp",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 12,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       12,
+       1
+      ],
+      [
+       13,
+       1.5
+      ],
+      [
+       14,
+       2
+      ],
+      [
+       15,
+       3
+      ],
+      [
+       16,
+       6
+      ],
+      [
+       17,
+       8
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "#0b0b0b"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind_detail"
+    ],
+    "primary_link"
+   ]
+  },
+  {
+   "id": "road_trunk_fill_ramp",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 12,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "square",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       12,
+       1
+      ],
+      [
+       13,
+       1.5
+      ],
+      [
+       14,
+       2
+      ],
+      [
+       15,
+       3
+      ],
+      [
+       16,
+       6
+      ],
+      [
+       17,
+       8
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "#0b0b0b"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind_detail"
+    ],
+    "trunk_link"
+   ]
+  },
+  {
+   "id": "road_mot_fill_ramp",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 12,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       12,
+       1
+      ],
+      [
+       13,
+       1.5
+      ],
+      [
+       14,
+       2
+      ],
+      [
+       15,
+       3
+      ],
+      [
+       16,
+       6
+      ],
+      [
+       17,
+       8
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "rgba(65, 71, 88, 1)"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind_detail"
+    ],
+    "motorway_link"
+   ]
+  },
+  {
+   "id": "road_sec_fill_noramp",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 13,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       11,
+       2
+      ],
+      [
+       13,
+       2
+      ],
+      [
+       14,
+       3
+      ],
+      [
+       15,
+       4
+      ],
+      [
+       16,
+       6
+      ],
+      [
+       17,
+       10
+      ],
+      [
+       18,
+       14
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "rgba(65, 71, 88, 1)"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "secondary",
+        "tertiary",
+        "secondary_link",
+        "tertiary_link"
+       ]
+      ]
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       ">=",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       9
+      ]
+     ]
+    ],
+    [
+     "all",
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_bridge"
+       ],
+       true
+      ]
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_tunnel"
+       ],
+       true
+      ]
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "road_pri_fill_noramp",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 10,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       10,
+       0.3
+      ],
+      [
+       13,
+       2
+      ],
+      [
+       14,
+       4
+      ],
+      [
+       15,
+       6
+      ],
+      [
+       16,
+       8
+      ],
+      [
+       17,
+       12
+      ],
+      [
+       18,
+       16
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "rgba(83, 86, 102, 1)"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "primary"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       "==",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       8
+      ]
+     ]
+    ],
+    [
+     "all",
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_bridge"
+       ],
+       true
+      ]
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_tunnel"
+       ],
+       true
+      ]
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "road_trunk_fill_noramp",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 10,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       11,
+       1
+      ],
+      [
+       13,
+       2
+      ],
+      [
+       14,
+       4
+      ],
+      [
+       15,
+       6
+      ],
+      [
+       16,
+       8
+      ],
+      [
+       17,
+       12
+      ],
+      [
+       18,
+       16
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "rgba(65, 71, 88, 1)"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "trunk"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       "<=",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       7
+      ]
+     ]
+    ],
+    [
+     "all",
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_bridge"
+       ],
+       true
+      ]
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_tunnel"
+       ],
+       true
+      ]
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "road_mot_fill_noramp",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 10,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       10,
+       1
+      ],
+      [
+       12,
+       2
+      ],
+      [
+       13,
+       3
+      ],
+      [
+       14,
+       5
+      ],
+      [
+       15,
+       7
+      ],
+      [
+       16,
+       9
+      ],
+      [
+       17,
+       11
+      ],
+      [
+       18,
+       20
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "rgba(73, 73, 73, 1)"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "motorway"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "highway"
+      ]
+     ]
+    ],
+    [
+     "all",
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_bridge"
+       ],
+       true
+      ]
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_tunnel"
+       ],
+       true
+      ]
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "rail",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 13,
+   "layout": {
+    "visibility": "visible",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-color": "#1a1a1a",
+    "line-width": {
+     "base": 1.3,
+     "stops": [
+      [
+       13,
+       0.5
+      ],
+      [
+       14,
+       1
+      ],
+      [
+       15,
+       1
+      ],
+      [
+       16,
+       3
+      ],
+      [
+       21,
+       7
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "rail"
+     ],
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "rail",
+        "narrow_gauge",
+        "preserved",
+        "funicular"
+       ]
+      ]
+     ]
+    ],
+    [
+     "!",
+     [
+      "==",
+      [
+       "get",
+       "is_tunnel"
+      ],
+      true
+     ]
+    ],
+    [
+     "any",
+     [
+      "!",
+      [
+       "has",
+       "service"
+      ]
+     ],
+     [
+      ">=",
+      [
+       "zoom"
+      ],
+      14
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "rail_dash",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 15,
+   "layout": {
+    "visibility": "visible",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-color": "#111",
+    "line-width": {
+     "base": 1.3,
+     "stops": [
+      [
+       15,
+       0.5
+      ],
+      [
+       16,
+       1
+      ],
+      [
+       20,
+       5
+      ]
+     ]
+    },
+    "line-dasharray": {
+     "stops": [
+      [
+       15,
+       [
+        5,
+        5
+       ]
+      ],
+      [
+       16,
+       [
+        6,
+        6
+       ]
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "rail"
+     ],
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "rail",
+        "narrow_gauge",
+        "preserved",
+        "funicular"
+       ]
+      ]
+     ]
+    ],
+    [
+     "!",
+     [
+      "==",
+      [
+       "get",
+       "is_tunnel"
+      ],
+      true
+     ]
+    ],
+    [
+     "any",
+     [
+      "!",
+      [
+       "has",
+       "service"
+      ]
+     ],
+     [
+      ">=",
+      [
+       "zoom"
+      ],
+      14
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "bridge_service_case",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 15,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       15,
+       1
+      ],
+      [
+       16,
+       3
+      ],
+      [
+       17,
+       6
+      ],
+      [
+       18,
+       8
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "#1c1c1c"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "kind_detail"
+     ],
+     "service"
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_bridge"
+     ],
+     true
+    ]
+   ]
+  },
+  {
+   "id": "bridge_minor_case",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 13,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "miter"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       11,
+       0.5
+      ],
+      [
+       12,
+       0.5
+      ],
+      [
+       14,
+       2
+      ],
+      [
+       15,
+       3
+      ],
+      [
+       16,
+       4.3
+      ],
+      [
+       17,
+       10
+      ],
+      [
+       18,
+       14
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": {
+     "stops": [
+      [
+       13,
+       "#161616"
+      ],
+      [
+       15.7,
+       "#161616"
+      ],
+      [
+       16,
+       "#1c1c1c"
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!",
+      [
+       "in",
+       [
+        "get",
+        "kind"
+       ],
+       [
+        "literal",
+        [
+         "path",
+         "highway",
+         "major_road"
+        ]
+       ]
+      ]
+     ],
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "residential",
+        "unclassified",
+        "living_street",
+        "road",
+        "alley",
+        "driveway",
+        "parking_aisle"
+       ]
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_bridge"
+     ],
+     true
+    ]
+   ]
+  },
+  {
+   "id": "bridge_sec_case",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 11,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "miter"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       11,
+       0.5
+      ],
+      [
+       12,
+       1.5
+      ],
+      [
+       13,
+       3
+      ],
+      [
+       14,
+       5
+      ],
+      [
+       15,
+       6
+      ],
+      [
+       16,
+       8
+      ],
+      [
+       17,
+       12
+      ],
+      [
+       18,
+       16
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": {
+     "stops": [
+      [
+       11,
+       "#1a1a1a"
+      ],
+      [
+       12.99,
+       "#1a1a1a"
+      ],
+      [
+       13,
+       "#232323"
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "secondary",
+        "tertiary",
+        "secondary_link",
+        "tertiary_link"
+       ]
+      ]
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       ">=",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       9
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_bridge"
+     ],
+     true
+    ]
+   ]
+  },
+  {
+   "id": "bridge_pri_case",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 8,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       6,
+       0.5
+      ],
+      [
+       7,
+       0.8
+      ],
+      [
+       8,
+       1
+      ],
+      [
+       11,
+       3
+      ],
+      [
+       13,
+       4
+      ],
+      [
+       14,
+       6
+      ],
+      [
+       15,
+       8
+      ],
+      [
+       16,
+       10
+      ],
+      [
+       17,
+       14
+      ],
+      [
+       18,
+       18
+      ]
+     ]
+    },
+    "line-opacity": {
+     "stops": [
+      [
+       5,
+       0.5
+      ],
+      [
+       7,
+       1
+      ]
+     ]
+    },
+    "line-color": {
+     "stops": [
+      [
+       8,
+       "#1a1a1a"
+      ],
+      [
+       12,
+       "#232323"
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "primary"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       "==",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       8
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_bridge"
+     ],
+     true
+    ]
+   ]
+  },
+  {
+   "id": "bridge_trunk_case",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 5,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round",
+    "visibility": "visible"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       6,
+       0.5
+      ],
+      [
+       7,
+       0.8
+      ],
+      [
+       8,
+       1
+      ],
+      [
+       11,
+       3
+      ],
+      [
+       13,
+       4
+      ],
+      [
+       14,
+       6
+      ],
+      [
+       15,
+       8
+      ],
+      [
+       16,
+       10
+      ],
+      [
+       17,
+       14
+      ],
+      [
+       18,
+       18
+      ]
+     ]
+    },
+    "line-opacity": {
+     "stops": [
+      [
+       5,
+       0.5
+      ],
+      [
+       7,
+       1
+      ]
+     ]
+    },
+    "line-color": {
+     "stops": [
+      [
+       5,
+       "#1a1a1a"
+      ],
+      [
+       12,
+       "#232323"
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "trunk"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       "<=",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       7
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_bridge"
+     ],
+     true
+    ]
+   ]
+  },
+  {
+   "id": "bridge_mot_case",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 5,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       6,
+       0.5
+      ],
+      [
+       7,
+       0.8
+      ],
+      [
+       8,
+       1
+      ],
+      [
+       11,
+       3
+      ],
+      [
+       12,
+       4
+      ],
+      [
+       13,
+       5
+      ],
+      [
+       14,
+       7
+      ],
+      [
+       15,
+       9
+      ],
+      [
+       16,
+       11
+      ],
+      [
+       17,
+       13
+      ],
+      [
+       18,
+       22
+      ]
+     ]
+    },
+    "line-opacity": {
+     "stops": [
+      [
+       6,
+       0.5
+      ],
+      [
+       7,
+       1
+      ]
+     ]
+    },
+    "line-color": {
+     "stops": [
+      [
+       5,
+       "#1a1a1a"
+      ],
+      [
+       10,
+       "#232323"
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "motorway"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "highway"
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_bridge"
+     ],
+     true
+    ]
+   ]
+  },
+  {
+   "id": "bridge_path",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 15,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       15,
+       0.5
+      ],
+      [
+       16,
+       1
+      ],
+      [
+       18,
+       3
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "#262626",
+    "line-dasharray": {
+     "stops": [
+      [
+       15,
+       [
+        2,
+        2
+       ]
+      ],
+      [
+       18,
+       [
+        3,
+        3
+       ]
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "path"
+     ],
+     [
+      "!",
+      [
+       "in",
+       [
+        "get",
+        "kind_detail"
+       ],
+       [
+        "literal",
+        [
+         "pier",
+         "track"
+        ]
+       ]
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_bridge"
+     ],
+     true
+    ]
+   ]
+  },
+  {
+   "id": "bridge_service_fill",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 15,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       15,
+       2
+      ],
+      [
+       16,
+       2
+      ],
+      [
+       17,
+       4
+      ],
+      [
+       18,
+       6
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "#0b0b0b"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "kind_detail"
+     ],
+     "service"
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_bridge"
+     ],
+     true
+    ]
+   ]
+  },
+  {
+   "id": "bridge_minor_fill",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 15,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       15,
+       3
+      ],
+      [
+       16,
+       4
+      ],
+      [
+       17,
+       8
+      ],
+      [
+       18,
+       12
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "#0b0b0b"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!",
+      [
+       "in",
+       [
+        "get",
+        "kind"
+       ],
+       [
+        "literal",
+        [
+         "path",
+         "highway",
+         "major_road"
+        ]
+       ]
+      ]
+     ],
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "residential",
+        "unclassified",
+        "living_street",
+        "road",
+        "alley",
+        "driveway",
+        "parking_aisle"
+       ]
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_bridge"
+     ],
+     true
+    ]
+   ]
+  },
+  {
+   "id": "bridge_sec_fill",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 13,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       11,
+       2
+      ],
+      [
+       13,
+       2
+      ],
+      [
+       14,
+       3
+      ],
+      [
+       15,
+       4
+      ],
+      [
+       16,
+       6
+      ],
+      [
+       17,
+       10
+      ],
+      [
+       18,
+       14
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "#0b0b0b"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "secondary",
+        "tertiary",
+        "secondary_link",
+        "tertiary_link"
+       ]
+      ]
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       ">=",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       9
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_bridge"
+     ],
+     true
+    ]
+   ]
+  },
+  {
+   "id": "bridge_pri_fill",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 11,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       11,
+       1
+      ],
+      [
+       13,
+       2
+      ],
+      [
+       14,
+       4
+      ],
+      [
+       15,
+       6
+      ],
+      [
+       16,
+       8
+      ],
+      [
+       17,
+       12
+      ],
+      [
+       18,
+       16
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "#0b0b0b"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "primary"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       "==",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       8
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_bridge"
+     ],
+     true
+    ]
+   ]
+  },
+  {
+   "id": "bridge_trunk_fill",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 11,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round",
+    "visibility": "visible"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       11,
+       1
+      ],
+      [
+       13,
+       2
+      ],
+      [
+       14,
+       4
+      ],
+      [
+       15,
+       6
+      ],
+      [
+       16,
+       8
+      ],
+      [
+       17,
+       12
+      ],
+      [
+       18,
+       16
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "rgba(65, 71, 88, 1)"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "trunk"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       "<=",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       7
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_bridge"
+     ],
+     true
+    ]
+   ]
+  },
+  {
+   "id": "bridge_mot_fill",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 10,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-width": {
+     "stops": [
+      [
+       10,
+       1
+      ],
+      [
+       12,
+       2
+      ],
+      [
+       13,
+       3
+      ],
+      [
+       14,
+       5
+      ],
+      [
+       15,
+       7
+      ],
+      [
+       16,
+       9
+      ],
+      [
+       17,
+       11
+      ],
+      [
+       18,
+       20
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-color": "rgba(65, 71, 88, 1)"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "motorway"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "highway"
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_bridge"
+     ],
+     true
+    ]
+   ]
+  },
+  {
+   "id": "building",
+   "type": "fill",
+   "source": "protomaps",
+   "source-layer": "buildings",
+   "layout": {
+    "visibility": "visible"
+   },
+   "paint": {
+    "fill-color": {
+     "base": 1,
+     "stops": [
+      [
+       15.5,
+       "transparent"
+      ],
+      [
+       16,
+       "transparent"
+      ]
+     ]
+    },
+    "fill-antialias": true
+   },
+   "metadata": {
+    "carto:group": "buildings"
+   },
+   "filter": [
+    ">=",
+    [
+     "coalesce",
+     [
+      "get",
+      "layer"
+     ],
+     0
+    ],
+    0
+   ],
+   "minzoom": 13
+  },
+  {
+   "id": "building-top",
+   "type": "fill",
+   "source": "protomaps",
+   "source-layer": "buildings",
+   "layout": {
+    "visibility": "visible"
+   },
+   "paint": {
+    "fill-translate": {
+     "base": 1,
+     "stops": [
+      [
+       14,
+       [
+        0,
+        0
+       ]
+      ],
+      [
+       16,
+       [
+        -2,
+        -2
+       ]
+      ]
+     ]
+    },
+    "fill-outline-color": "#0e0e0e",
+    "fill-color": "rgba(57, 57, 57, 1)",
+    "fill-opacity": {
+     "base": 1,
+     "stops": [
+      [
+       13,
+       0
+      ],
+      [
+       16,
+       1
+      ]
+     ]
+    }
+   },
+   "metadata": {
+    "carto:group": "buildings"
+   },
+   "filter": [
+    ">=",
+    [
+     "coalesce",
+     [
+      "get",
+      "layer"
+     ],
+     0
+    ],
+    0
+   ],
+   "minzoom": 13
+  },
+  {
+   "id": "boundary_country_outline",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "boundaries",
+   "minzoom": 6,
+   "maxzoom": 24,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-color": "#2C353C",
+    "line-opacity": 0.5,
+    "line-width": 8,
+    "line-offset": 0
+   },
+   "metadata": {
+    "carto:group": "boundaries"
+   },
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind_detail"
+    ],
+    2
+   ]
+  },
+  {
+   "id": "boundary_country_inner",
+   "type": "line",
+   "source": "protomaps",
+   "source-layer": "boundaries",
+   "minzoom": 0,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "paint": {
+    "line-color": {
+     "stops": [
+      [
+       4,
+       "rgba(92, 94, 94, 1)"
+      ],
+      [
+       5,
+       "rgba(96, 96, 96, 1)"
+      ],
+      [
+       6,
+       "rgba(102, 102, 102, 1)"
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       3,
+       1
+      ],
+      [
+       6,
+       1.5
+      ]
+     ]
+    },
+    "line-offset": 0
+   },
+   "metadata": {
+    "carto:group": "boundaries"
+   },
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind_detail"
+    ],
+    2
+   ]
+  },
+  {
+   "id": "waterway_label",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "water",
+   "layout": {
+    "text-field": [
+     "coalesce",
+     [
+      "get",
+      "name:en"
+     ],
+     [
+      "case",
+      [
+       "has",
+       "name3"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ],
+       " ",
+       [
+        "get",
+        "name3"
+       ]
+      ],
+      [
+       "has",
+       "name2"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ]
+      ],
+      [
+       "get",
+       "name"
+      ]
+     ]
+    ],
+    "text-font": [
+     "Montserrat Italic",
+     "Open Sans Italic",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "symbol-placement": "line",
+    "symbol-spacing": 300,
+    "symbol-avoid-edges": false,
+    "text-size": {
+     "stops": [
+      [
+       9,
+       8
+      ],
+      [
+       10,
+       9
+      ]
+     ]
+    },
+    "text-padding": 2,
+    "text-pitch-alignment": "auto",
+    "text-rotation-alignment": "auto",
+    "text-offset": {
+     "stops": [
+      [
+       6,
+       [
+        0,
+        -0.2
+       ]
+      ],
+      [
+       11,
+       [
+        0,
+        -0.4
+       ]
+      ],
+      [
+       12,
+       [
+        0,
+        -0.6
+       ]
+      ]
+     ]
+    },
+    "text-letter-spacing": 0,
+    "text-keep-upright": true
+   },
+   "paint": {
+    "text-color": "rgba(164, 164, 164, 1)",
+    "text-halo-color": "#181818",
+    "text-halo-width": 1
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "geometry-type"
+     ],
+     "LineString"
+    ],
+    [
+     "has",
+     "name"
+    ],
+    [
+     "==",
+     [
+      "get",
+      "kind"
+     ],
+     "river"
+    ]
+   ]
+  },
+  {
+   "id": "watername_ocean",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "water",
+   "minzoom": 0,
+   "maxzoom": 5,
+   "layout": {
+    "text-field": [
+     "case",
+     [
+      "has",
+      "name3"
+     ],
+     [
+      "concat",
+      [
+       "get",
+       "name"
+      ],
+      " ",
+      [
+       "get",
+       "name2"
+      ],
+      " ",
+      [
+       "get",
+       "name3"
+      ]
+     ],
+     [
+      "has",
+      "name2"
+     ],
+     [
+      "concat",
+      [
+       "get",
+       "name"
+      ],
+      " ",
+      [
+       "get",
+       "name2"
+      ]
+     ],
+     [
+      "get",
+      "name"
+     ]
+    ],
+    "symbol-placement": "point",
+    "text-size": {
+     "stops": [
+      [
+       0,
+       13
+      ],
+      [
+       2,
+       14
+      ],
+      [
+       4,
+       18
+      ]
+     ]
+    },
+    "text-font": [
+     "Montserrat SemiBold Italic",
+     "Open Sans Italic",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "text-line-height": 1.2,
+    "text-padding": 2,
+    "text-allow-overlap": false,
+    "text-ignore-placement": false,
+    "text-pitch-alignment": "auto",
+    "text-rotation-alignment": "auto",
+    "text-max-width": 6,
+    "text-letter-spacing": 0.1
+   },
+   "paint": {
+    "text-color": "rgba(109, 123, 129, 1)",
+    "text-halo-color": "rgba(0,0,0,0.7)",
+    "text-halo-width": 1,
+    "text-halo-blur": 0
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "geometry-type"
+     ],
+     "Point"
+    ],
+    [
+     "has",
+     "name"
+    ],
+    [
+     "==",
+     [
+      "get",
+      "kind"
+     ],
+     "ocean"
+    ]
+   ]
+  },
+  {
+   "id": "watername_sea",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "water",
+   "minzoom": 5,
+   "layout": {
+    "text-field": [
+     "case",
+     [
+      "has",
+      "name3"
+     ],
+     [
+      "concat",
+      [
+       "get",
+       "name"
+      ],
+      " ",
+      [
+       "get",
+       "name2"
+      ],
+      " ",
+      [
+       "get",
+       "name3"
+      ]
+     ],
+     [
+      "has",
+      "name2"
+     ],
+     [
+      "concat",
+      [
+       "get",
+       "name"
+      ],
+      " ",
+      [
+       "get",
+       "name2"
+      ]
+     ],
+     [
+      "get",
+      "name"
+     ]
+    ],
+    "symbol-placement": "point",
+    "text-size": 12,
+    "text-font": [
+     "Montserrat SemiBold Italic",
+     "Open Sans Italic",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "text-line-height": 1.2,
+    "text-padding": 2,
+    "text-allow-overlap": false,
+    "text-ignore-placement": false,
+    "text-pitch-alignment": "auto",
+    "text-rotation-alignment": "auto",
+    "text-max-width": 6,
+    "text-letter-spacing": 0.1
+   },
+   "paint": {
+    "text-color": "#3c3c3c",
+    "text-halo-color": "rgba(0,0,0,0.7)",
+    "text-halo-width": 1,
+    "text-halo-blur": 0
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "geometry-type"
+     ],
+     "Point"
+    ],
+    [
+     "has",
+     "name"
+    ],
+    [
+     "==",
+     [
+      "get",
+      "kind"
+     ],
+     "sea"
+    ]
+   ]
+  },
+  {
+   "id": "watername_lake",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "water",
+   "minzoom": 4,
+   "layout": {
+    "text-field": [
+     "step",
+     [
+      "zoom"
+     ],
+     [
+      "coalesce",
+      [
+       "get",
+       "name:en"
+      ],
+      [
+       "case",
+       [
+        "has",
+        "name3"
+       ],
+       [
+        "concat",
+        [
+         "get",
+         "name"
+        ],
+        " ",
+        [
+         "get",
+         "name2"
+        ],
+        " ",
+        [
+         "get",
+         "name3"
+        ]
+       ],
+       [
+        "has",
+        "name2"
+       ],
+       [
+        "concat",
+        [
+         "get",
+         "name"
+        ],
+        " ",
+        [
+         "get",
+         "name2"
+        ]
+       ],
+       [
+        "get",
+        "name"
+       ]
+      ]
+     ],
+     13,
+     [
+      "case",
+      [
+       "has",
+       "name3"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ],
+       " ",
+       [
+        "get",
+        "name3"
+       ]
+      ],
+      [
+       "has",
+       "name2"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ]
+      ],
+      [
+       "get",
+       "name"
+      ]
+     ]
+    ],
+    "symbol-placement": "point",
+    "text-size": {
+     "stops": [
+      [
+       13,
+       9
+      ],
+      [
+       14,
+       10
+      ],
+      [
+       15,
+       11
+      ],
+      [
+       16,
+       12
+      ],
+      [
+       17,
+       13
+      ]
+     ]
+    },
+    "text-font": [
+     "Montserrat Italic",
+     "Open Sans Italic",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "text-line-height": 1.2,
+    "text-padding": 2,
+    "text-allow-overlap": false,
+    "text-ignore-placement": false,
+    "text-pitch-alignment": "auto",
+    "text-rotation-alignment": "auto"
+   },
+   "paint": {
+    "text-color": "rgba(155, 155, 155, 1)",
+    "text-halo-color": "#181818",
+    "text-halo-width": 1,
+    "text-halo-blur": 1
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "geometry-type"
+     ],
+     "Point"
+    ],
+    [
+     "has",
+     "name"
+    ],
+    [
+     "in",
+     [
+      "get",
+      "kind"
+     ],
+     [
+      "literal",
+      [
+       "lake",
+       "water",
+       "fountain",
+       "basin",
+       "reservoir"
+      ]
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "watername_lake_pois",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "pois",
+   "minzoom": 4,
+   "layout": {
+    "text-field": [
+     "step",
+     [
+      "zoom"
+     ],
+     [
+      "coalesce",
+      [
+       "get",
+       "name:en"
+      ],
+      [
+       "case",
+       [
+        "has",
+        "name3"
+       ],
+       [
+        "concat",
+        [
+         "get",
+         "name"
+        ],
+        " ",
+        [
+         "get",
+         "name2"
+        ],
+        " ",
+        [
+         "get",
+         "name3"
+        ]
+       ],
+       [
+        "has",
+        "name2"
+       ],
+       [
+        "concat",
+        [
+         "get",
+         "name"
+        ],
+        " ",
+        [
+         "get",
+         "name2"
+        ]
+       ],
+       [
+        "get",
+        "name"
+       ]
+      ]
+     ],
+     13,
+     [
+      "case",
+      [
+       "has",
+       "name3"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ],
+       " ",
+       [
+        "get",
+        "name3"
+       ]
+      ],
+      [
+       "has",
+       "name2"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ]
+      ],
+      [
+       "get",
+       "name"
+      ]
+     ]
+    ],
+    "symbol-placement": "point",
+    "text-size": {
+     "stops": [
+      [
+       13,
+       9
+      ],
+      [
+       14,
+       10
+      ],
+      [
+       15,
+       11
+      ],
+      [
+       16,
+       12
+      ],
+      [
+       17,
+       13
+      ]
+     ]
+    },
+    "text-font": [
+     "Montserrat Italic",
+     "Open Sans Italic",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "text-line-height": 1.2,
+    "text-padding": 2,
+    "text-allow-overlap": false,
+    "text-ignore-placement": false,
+    "text-pitch-alignment": "auto",
+    "text-rotation-alignment": "auto"
+   },
+   "paint": {
+    "text-color": "rgba(155, 155, 155, 1)",
+    "text-halo-color": "#181818",
+    "text-halo-width": 1,
+    "text-halo-blur": 1
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "all",
+    [
+     "has",
+     "name"
+    ],
+    [
+     "==",
+     [
+      "get",
+      "kind"
+     ],
+     "water"
+    ],
+    [
+     ">=",
+     [
+      "zoom"
+     ],
+     15
+    ]
+   ]
+  },
+  {
+   "id": "watername_lake_line",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "water",
+   "layout": {
+    "text-field": [
+     "step",
+     [
+      "zoom"
+     ],
+     [
+      "coalesce",
+      [
+       "get",
+       "name:en"
+      ],
+      [
+       "case",
+       [
+        "has",
+        "name3"
+       ],
+       [
+        "concat",
+        [
+         "get",
+         "name"
+        ],
+        " ",
+        [
+         "get",
+         "name2"
+        ],
+        " ",
+        [
+         "get",
+         "name3"
+        ]
+       ],
+       [
+        "has",
+        "name2"
+       ],
+       [
+        "concat",
+        [
+         "get",
+         "name"
+        ],
+        " ",
+        [
+         "get",
+         "name2"
+        ]
+       ],
+       [
+        "get",
+        "name"
+       ]
+      ]
+     ],
+     13,
+     [
+      "case",
+      [
+       "has",
+       "name3"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ],
+       " ",
+       [
+        "get",
+        "name3"
+       ]
+      ],
+      [
+       "has",
+       "name2"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ]
+      ],
+      [
+       "get",
+       "name"
+      ]
+     ]
+    ],
+    "symbol-placement": "line",
+    "text-size": {
+     "stops": [
+      [
+       13,
+       9
+      ],
+      [
+       14,
+       10
+      ],
+      [
+       15,
+       11
+      ],
+      [
+       16,
+       12
+      ],
+      [
+       17,
+       13
+      ]
+     ]
+    },
+    "text-font": [
+     "Montserrat Italic",
+     "Open Sans Italic",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "symbol-spacing": 350,
+    "text-pitch-alignment": "auto",
+    "text-rotation-alignment": "auto",
+    "text-line-height": 1.2
+   },
+   "paint": {
+    "text-color": "#444",
+    "text-halo-color": "#181818",
+    "text-halo-width": 1,
+    "text-halo-blur": 1
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind"
+    ],
+    "__none__"
+   ]
+  },
+  {
+   "id": "place_hamlet",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "places",
+   "minzoom": 12,
+   "maxzoom": 16,
+   "layout": {
+    "text-field": [
+     "step",
+     [
+      "zoom"
+     ],
+     [
+      "coalesce",
+      [
+       "get",
+       "name:en"
+      ],
+      [
+       "case",
+       [
+        "has",
+        "name3"
+       ],
+       [
+        "concat",
+        [
+         "get",
+         "name"
+        ],
+        " ",
+        [
+         "get",
+         "name2"
+        ],
+        " ",
+        [
+         "get",
+         "name3"
+        ]
+       ],
+       [
+        "has",
+        "name2"
+       ],
+       [
+        "concat",
+        [
+         "get",
+         "name"
+        ],
+        " ",
+        [
+         "get",
+         "name2"
+        ]
+       ],
+       [
+        "get",
+        "name"
+       ]
+      ]
+     ],
+     14,
+     [
+      "case",
+      [
+       "has",
+       "name3"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ],
+       " ",
+       [
+        "get",
+        "name3"
+       ]
+      ],
+      [
+       "has",
+       "name2"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ]
+      ],
+      [
+       "get",
+       "name"
+      ]
+     ]
+    ],
+    "text-font": [
+     "Montserrat Medium",
+     "Open Sans Regular",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "text-size": {
+     "stops": [
+      [
+       13,
+       8
+      ],
+      [
+       14,
+       10
+      ],
+      [
+       16,
+       11
+      ]
+     ]
+    },
+    "icon-image": "",
+    "icon-offset": [
+     16,
+     0
+    ],
+    "text-anchor": "center",
+    "icon-size": 1,
+    "text-max-width": 10,
+    "text-keep-upright": true,
+    "text-offset": [
+     0.2,
+     0.2
+    ],
+    "text-transform": {
+     "stops": [
+      [
+       12,
+       "none"
+      ],
+      [
+       14,
+       "uppercase"
+      ]
+     ]
+    },
+    "symbol-sort-key": [
+     "-",
+     [
+      "*",
+      [
+       "coalesce",
+       [
+        "get",
+        "min_zoom"
+       ],
+       20
+      ],
+      100
+     ],
+     [
+      "coalesce",
+      [
+       "get",
+       "population_rank"
+      ],
+      0
+     ]
+    ]
+   },
+   "paint": {
+    "text-color": "rgba(182, 180, 180, 1)",
+    "icon-color": "#666",
+    "icon-translate-anchor": "map",
+    "text-halo-color": "rgba(53, 52, 52, 1)",
+    "text-halo-width": 1
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "any",
+    [
+     "all",
+     [
+      "all",
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "neighbourhood"
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind_detail"
+       ],
+       "neighbourhood"
+      ]
+     ],
+     [
+      ">=",
+      [
+       "zoom"
+      ],
+      14
+     ]
+    ],
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "locality"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "hamlet"
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "place_suburbs",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "places",
+   "minzoom": 12,
+   "maxzoom": 16,
+   "layout": {
+    "text-field": [
+     "step",
+     [
+      "zoom"
+     ],
+     [
+      "coalesce",
+      [
+       "get",
+       "name:en"
+      ],
+      [
+       "case",
+       [
+        "has",
+        "name3"
+       ],
+       [
+        "concat",
+        [
+         "get",
+         "name"
+        ],
+        " ",
+        [
+         "get",
+         "name2"
+        ],
+        " ",
+        [
+         "get",
+         "name3"
+        ]
+       ],
+       [
+        "has",
+        "name2"
+       ],
+       [
+        "concat",
+        [
+         "get",
+         "name"
+        ],
+        " ",
+        [
+         "get",
+         "name2"
+        ]
+       ],
+       [
+        "get",
+        "name"
+       ]
+      ]
+     ],
+     13,
+     [
+      "case",
+      [
+       "has",
+       "name3"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ],
+       " ",
+       [
+        "get",
+        "name3"
+       ]
+      ],
+      [
+       "has",
+       "name2"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ]
+      ],
+      [
+       "get",
+       "name"
+      ]
+     ]
+    ],
+    "text-font": [
+     "Montserrat Medium",
+     "Open Sans Regular",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "text-size": {
+     "stops": [
+      [
+       12,
+       9
+      ],
+      [
+       13,
+       10
+      ],
+      [
+       14,
+       11
+      ],
+      [
+       15,
+       12
+      ],
+      [
+       16,
+       13
+      ]
+     ]
+    },
+    "icon-image": "",
+    "icon-offset": [
+     16,
+     0
+    ],
+    "text-anchor": "center",
+    "icon-size": 1,
+    "text-max-width": 10,
+    "text-keep-upright": true,
+    "text-offset": [
+     0.2,
+     0.2
+    ],
+    "text-transform": {
+     "stops": [
+      [
+       8,
+       "none"
+      ],
+      [
+       12,
+       "uppercase"
+      ]
+     ]
+    },
+    "symbol-sort-key": [
+     "-",
+     [
+      "*",
+      [
+       "coalesce",
+       [
+        "get",
+        "min_zoom"
+       ],
+       20
+      ],
+      100
+     ],
+     [
+      "coalesce",
+      [
+       "get",
+       "population_rank"
+      ],
+      0
+     ]
+    ]
+   },
+   "paint": {
+    "text-color": "#666",
+    "icon-color": "#666",
+    "icon-translate-anchor": "map",
+    "text-halo-color": "#222",
+    "text-halo-width": 1
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "kind"
+     ],
+     "neighbourhood"
+    ],
+    [
+     "==",
+     [
+      "get",
+      "kind_detail"
+     ],
+     "suburb"
+    ]
+   ]
+  },
+  {
+   "id": "place_villages",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "places",
+   "minzoom": 10,
+   "maxzoom": 16,
+   "layout": {
+    "text-field": [
+     "step",
+     [
+      "zoom"
+     ],
+     [
+      "coalesce",
+      [
+       "get",
+       "name:en"
+      ],
+      [
+       "case",
+       [
+        "has",
+        "name3"
+       ],
+       [
+        "concat",
+        [
+         "get",
+         "name"
+        ],
+        " ",
+        [
+         "get",
+         "name2"
+        ],
+        " ",
+        [
+         "get",
+         "name3"
+        ]
+       ],
+       [
+        "has",
+        "name2"
+       ],
+       [
+        "concat",
+        [
+         "get",
+         "name"
+        ],
+        " ",
+        [
+         "get",
+         "name2"
+        ]
+       ],
+       [
+        "get",
+        "name"
+       ]
+      ]
+     ],
+     13,
+     [
+      "case",
+      [
+       "has",
+       "name3"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ],
+       " ",
+       [
+        "get",
+        "name3"
+       ]
+      ],
+      [
+       "has",
+       "name2"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ]
+      ],
+      [
+       "get",
+       "name"
+      ]
+     ]
+    ],
+    "text-font": [
+     "Montserrat SemiBold",
+     "Open Sans Bold",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "text-size": {
+     "stops": [
+      [
+       10,
+       9
+      ],
+      [
+       12,
+       10
+      ],
+      [
+       13,
+       11
+      ],
+      [
+       14,
+       12
+      ],
+      [
+       16,
+       13
+      ]
+     ]
+    },
+    "icon-image": "",
+    "icon-offset": [
+     16,
+     0
+    ],
+    "text-anchor": "center",
+    "icon-size": 1,
+    "text-max-width": 10,
+    "text-keep-upright": true,
+    "text-offset": [
+     0.2,
+     0.2
+    ],
+    "text-transform": "none",
+    "symbol-sort-key": [
+     "-",
+     [
+      "*",
+      [
+       "coalesce",
+       [
+        "get",
+        "min_zoom"
+       ],
+       20
+      ],
+      100
+     ],
+     [
+      "coalesce",
+      [
+       "get",
+       "population_rank"
+      ],
+      0
+     ]
+    ]
+   },
+   "paint": {
+    "text-color": "rgba(154, 153, 153, 1)",
+    "icon-color": "#666",
+    "icon-translate-anchor": "map",
+    "text-halo-color": "#222",
+    "text-halo-width": 1
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "kind"
+     ],
+     "locality"
+    ],
+    [
+     "==",
+     [
+      "get",
+      "kind_detail"
+     ],
+     "village"
+    ]
+   ]
+  },
+  {
+   "id": "place_town",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "places",
+   "minzoom": 8,
+   "maxzoom": 14,
+   "layout": {
+    "text-field": [
+     "step",
+     [
+      "zoom"
+     ],
+     [
+      "coalesce",
+      [
+       "get",
+       "name:en"
+      ],
+      [
+       "case",
+       [
+        "has",
+        "name3"
+       ],
+       [
+        "concat",
+        [
+         "get",
+         "name"
+        ],
+        " ",
+        [
+         "get",
+         "name2"
+        ],
+        " ",
+        [
+         "get",
+         "name3"
+        ]
+       ],
+       [
+        "has",
+        "name2"
+       ],
+       [
+        "concat",
+        [
+         "get",
+         "name"
+        ],
+        " ",
+        [
+         "get",
+         "name2"
+        ]
+       ],
+       [
+        "get",
+        "name"
+       ]
+      ]
+     ],
+     13,
+     [
+      "case",
+      [
+       "has",
+       "name3"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ],
+       " ",
+       [
+        "get",
+        "name3"
+       ]
+      ],
+      [
+       "has",
+       "name2"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ]
+      ],
+      [
+       "get",
+       "name"
+      ]
+     ]
+    ],
+    "text-font": [
+     "Montserrat SemiBold",
+     "Open Sans Bold",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "text-size": {
+     "stops": [
+      [
+       8,
+       10
+      ],
+      [
+       9,
+       10
+      ],
+      [
+       10,
+       11
+      ],
+      [
+       13,
+       14
+      ],
+      [
+       14,
+       15
+      ]
+     ]
+    },
+    "icon-image": "",
+    "icon-offset": [
+     16,
+     0
+    ],
+    "text-anchor": "center",
+    "icon-size": 1,
+    "text-max-width": 10,
+    "text-keep-upright": true,
+    "text-offset": [
+     0.2,
+     0.2
+    ],
+    "text-transform": "none",
+    "symbol-sort-key": [
+     "-",
+     [
+      "*",
+      [
+       "coalesce",
+       [
+        "get",
+        "min_zoom"
+       ],
+       20
+      ],
+      100
+     ],
+     [
+      "coalesce",
+      [
+       "get",
+       "population_rank"
+      ],
+      0
+     ]
+    ]
+   },
+   "paint": {
+    "text-color": "rgba(204, 208, 228, 1)",
+    "icon-color": "#666",
+    "icon-translate-anchor": "map",
+    "text-halo-color": "#222",
+    "text-halo-width": 1
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "kind"
+     ],
+     "locality"
+    ],
+    [
+     "==",
+     [
+      "get",
+      "kind_detail"
+     ],
+     "town"
+    ]
+   ]
+  },
+  {
+   "id": "place_country_2",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "places",
+   "minzoom": 3,
+   "maxzoom": 10,
+   "layout": {
+    "text-field": [
+     "coalesce",
+     [
+      "get",
+      "name:en"
+     ],
+     [
+      "case",
+      [
+       "has",
+       "name3"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ],
+       " ",
+       [
+        "get",
+        "name3"
+       ]
+      ],
+      [
+       "has",
+       "name2"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ]
+      ],
+      [
+       "get",
+       "name"
+      ]
+     ]
+    ],
+    "text-font": [
+     "Montserrat SemiBold",
+     "Open Sans Bold",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "text-size": {
+     "stops": [
+      [
+       3,
+       10
+      ],
+      [
+       5,
+       11
+      ],
+      [
+       6,
+       12
+      ],
+      [
+       7,
+       13
+      ],
+      [
+       8,
+       14
+      ]
+     ]
+    },
+    "text-transform": "uppercase",
+    "symbol-sort-key": [
+     "-",
+     [
+      "*",
+      [
+       "coalesce",
+       [
+        "get",
+        "min_zoom"
+       ],
+       20
+      ],
+      100
+     ],
+     [
+      "coalesce",
+      [
+       "get",
+       "population_rank"
+      ],
+      0
+     ]
+    ]
+   },
+   "paint": {
+    "text-color": {
+     "stops": [
+      [
+       3,
+       "rgba(157, 157, 157, 1)"
+      ],
+      [
+       5,
+       "rgba(114, 114, 114, 1)"
+      ],
+      [
+       6,
+       "rgba(112, 112, 112, 1)"
+      ]
+     ]
+    },
+    "text-halo-color": "#111",
+    "text-halo-width": 1
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "kind"
+     ],
+     "country"
+    ],
+    [
+     ">=",
+     [
+      "coalesce",
+      [
+       "get",
+       "min_zoom"
+      ],
+      0
+     ],
+     4
+    ]
+   ]
+  },
+  {
+   "id": "place_country_1",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "places",
+   "minzoom": 2,
+   "maxzoom": 7,
+   "layout": {
+    "text-field": [
+     "coalesce",
+     [
+      "get",
+      "name:en"
+     ],
+     [
+      "case",
+      [
+       "has",
+       "name3"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ],
+       " ",
+       [
+        "get",
+        "name3"
+       ]
+      ],
+      [
+       "has",
+       "name2"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ]
+      ],
+      [
+       "get",
+       "name"
+      ]
+     ]
+    ],
+    "text-font": [
+     "Montserrat SemiBold",
+     "Open Sans Bold",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "text-size": {
+     "stops": [
+      [
+       3,
+       11
+      ],
+      [
+       4,
+       12
+      ],
+      [
+       5,
+       13
+      ],
+      [
+       6,
+       14
+      ]
+     ]
+    },
+    "text-transform": "uppercase",
+    "text-max-width": {
+     "stops": [
+      [
+       2,
+       6
+      ],
+      [
+       3,
+       6
+      ],
+      [
+       4,
+       9
+      ],
+      [
+       5,
+       12
+      ]
+     ]
+    },
+    "symbol-sort-key": [
+     "-",
+     [
+      "*",
+      [
+       "coalesce",
+       [
+        "get",
+        "min_zoom"
+       ],
+       20
+      ],
+      100
+     ],
+     [
+      "coalesce",
+      [
+       "get",
+       "population_rank"
+      ],
+      0
+     ]
+    ]
+   },
+   "paint": {
+    "text-color": {
+     "stops": [
+      [
+       3,
+       "rgba(158, 182, 189, 1)"
+      ],
+      [
+       5,
+       "rgba(118, 126, 137, 1)"
+      ],
+      [
+       6,
+       "rgba(120, 141, 147, 1)"
+      ]
+     ]
+    },
+    "text-halo-color": "#111",
+    "text-halo-width": 1
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "kind"
+     ],
+     "country"
+    ],
+    [
+     "<=",
+     [
+      "coalesce",
+      [
+       "get",
+       "min_zoom"
+      ],
+      0
+     ],
+     3
+    ]
+   ]
+  },
+  {
+   "id": "place_state",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "places",
+   "minzoom": 5,
+   "maxzoom": 10,
+   "layout": {
+    "text-field": [
+     "coalesce",
+     [
+      "get",
+      "name:en"
+     ],
+     [
+      "case",
+      [
+       "has",
+       "name3"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ],
+       " ",
+       [
+        "get",
+        "name3"
+       ]
+      ],
+      [
+       "has",
+       "name2"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ]
+      ],
+      [
+       "get",
+       "name"
+      ]
+     ]
+    ],
+    "text-font": [
+     "Montserrat SemiBold",
+     "Open Sans Bold",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "text-size": {
+     "stops": [
+      [
+       5,
+       12
+      ],
+      [
+       7,
+       14
+      ]
+     ]
+    },
+    "text-transform": "uppercase",
+    "text-max-width": 9,
+    "symbol-sort-key": [
+     "-",
+     [
+      "*",
+      [
+       "coalesce",
+       [
+        "get",
+        "min_zoom"
+       ],
+       20
+      ],
+      100
+     ],
+     [
+      "coalesce",
+      [
+       "get",
+       "population_rank"
+      ],
+      0
+     ]
+    ]
+   },
+   "paint": {
+    "text-color": "rgba(203, 230, 230, 1)",
+    "text-halo-color": "#111",
+    "text-halo-width": 0
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind"
+    ],
+    "region"
+   ]
+  },
+  {
+   "id": "place_continent",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "places",
+   "minzoom": 0,
+   "maxzoom": 2,
+   "layout": {
+    "text-field": [
+     "coalesce",
+     [
+      "get",
+      "name:en"
+     ],
+     [
+      "case",
+      [
+       "has",
+       "name3"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ],
+       " ",
+       [
+        "get",
+        "name3"
+       ]
+      ],
+      [
+       "has",
+       "name2"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ]
+      ],
+      [
+       "get",
+       "name"
+      ]
+     ]
+    ],
+    "text-font": [
+     "Montserrat SemiBold",
+     "Open Sans Bold",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "text-transform": "uppercase",
+    "text-size": 14,
+    "text-letter-spacing": 0.1,
+    "text-max-width": 9,
+    "text-justify": "center",
+    "text-keep-upright": false,
+    "symbol-sort-key": [
+     "-",
+     [
+      "*",
+      [
+       "coalesce",
+       [
+        "get",
+        "min_zoom"
+       ],
+       20
+      ],
+      100
+     ],
+     [
+      "coalesce",
+      [
+       "get",
+       "population_rank"
+      ],
+      0
+     ]
+    ]
+   },
+   "paint": {
+    "text-color": "rgba(135, 164, 179, 1)",
+    "text-halo-color": "#111",
+    "text-halo-width": 1
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind"
+    ],
+    "continent"
+   ]
+  },
+  {
+   "id": "place_city_r6",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "places",
+   "minzoom": 8,
+   "maxzoom": 15,
+   "layout": {
+    "text-field": [
+     "step",
+     [
+      "zoom"
+     ],
+     [
+      "coalesce",
+      [
+       "get",
+       "name:en"
+      ],
+      [
+       "case",
+       [
+        "has",
+        "name3"
+       ],
+       [
+        "concat",
+        [
+         "get",
+         "name"
+        ],
+        " ",
+        [
+         "get",
+         "name2"
+        ],
+        " ",
+        [
+         "get",
+         "name3"
+        ]
+       ],
+       [
+        "has",
+        "name2"
+       ],
+       [
+        "concat",
+        [
+         "get",
+         "name"
+        ],
+        " ",
+        [
+         "get",
+         "name2"
+        ]
+       ],
+       [
+        "get",
+        "name"
+       ]
+      ]
+     ],
+     13,
+     [
+      "case",
+      [
+       "has",
+       "name3"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ],
+       " ",
+       [
+        "get",
+        "name3"
+       ]
+      ],
+      [
+       "has",
+       "name2"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ]
+      ],
+      [
+       "get",
+       "name"
+      ]
+     ]
+    ],
+    "text-font": [
+     "Montserrat SemiBold",
+     "Open Sans Bold",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "text-size": {
+     "stops": [
+      [
+       8,
+       12
+      ],
+      [
+       9,
+       13
+      ],
+      [
+       10,
+       14
+      ],
+      [
+       13,
+       17
+      ],
+      [
+       14,
+       20
+      ]
+     ]
+    },
+    "icon-image": "",
+    "icon-offset": [
+     16,
+     0
+    ],
+    "text-anchor": "center",
+    "icon-size": 1,
+    "text-max-width": 10,
+    "text-keep-upright": true,
+    "text-offset": [
+     0.2,
+     0.2
+    ],
+    "text-transform": "uppercase",
+    "symbol-sort-key": [
+     "-",
+     [
+      "*",
+      [
+       "coalesce",
+       [
+        "get",
+        "min_zoom"
+       ],
+       20
+      ],
+      100
+     ],
+     [
+      "coalesce",
+      [
+       "get",
+       "population_rank"
+      ],
+      0
+     ]
+    ]
+   },
+   "paint": {
+    "text-color": "rgba(168, 176, 180, 1)",
+    "icon-color": "#666",
+    "icon-translate-anchor": "map",
+    "text-halo-color": "#222",
+    "text-halo-width": 1
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "locality"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "city"
+     ]
+    ],
+    [
+     ">=",
+     [
+      "coalesce",
+      [
+       "get",
+       "min_zoom"
+      ],
+      0
+     ],
+     7
+    ]
+   ]
+  },
+  {
+   "id": "place_city_r5",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "places",
+   "minzoom": 8,
+   "maxzoom": 15,
+   "layout": {
+    "text-field": [
+     "step",
+     [
+      "zoom"
+     ],
+     [
+      "coalesce",
+      [
+       "get",
+       "name:en"
+      ],
+      [
+       "case",
+       [
+        "has",
+        "name3"
+       ],
+       [
+        "concat",
+        [
+         "get",
+         "name"
+        ],
+        " ",
+        [
+         "get",
+         "name2"
+        ],
+        " ",
+        [
+         "get",
+         "name3"
+        ]
+       ],
+       [
+        "has",
+        "name2"
+       ],
+       [
+        "concat",
+        [
+         "get",
+         "name"
+        ],
+        " ",
+        [
+         "get",
+         "name2"
+        ]
+       ],
+       [
+        "get",
+        "name"
+       ]
+      ]
+     ],
+     13,
+     [
+      "case",
+      [
+       "has",
+       "name3"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ],
+       " ",
+       [
+        "get",
+        "name3"
+       ]
+      ],
+      [
+       "has",
+       "name2"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ]
+      ],
+      [
+       "get",
+       "name"
+      ]
+     ]
+    ],
+    "text-font": [
+     "Montserrat SemiBold",
+     "Open Sans Bold",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "text-size": {
+     "stops": [
+      [
+       8,
+       14
+      ],
+      [
+       10,
+       16
+      ],
+      [
+       13,
+       19
+      ],
+      [
+       14,
+       22
+      ]
+     ]
+    },
+    "icon-image": "",
+    "icon-offset": [
+     16,
+     0
+    ],
+    "text-anchor": "center",
+    "icon-size": 1,
+    "text-max-width": 10,
+    "text-keep-upright": true,
+    "text-offset": [
+     0.2,
+     0.2
+    ],
+    "text-transform": "uppercase",
+    "symbol-sort-key": [
+     "-",
+     [
+      "*",
+      [
+       "coalesce",
+       [
+        "get",
+        "min_zoom"
+       ],
+       20
+      ],
+      100
+     ],
+     [
+      "coalesce",
+      [
+       "get",
+       "population_rank"
+      ],
+      0
+     ]
+    ]
+   },
+   "paint": {
+    "text-color": "rgba(211, 228, 236, 1)",
+    "icon-color": "#666",
+    "icon-translate-anchor": "map",
+    "text-halo-color": "#222",
+    "text-halo-width": 1
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "locality"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "city"
+     ]
+    ],
+    [
+     "<=",
+     [
+      "coalesce",
+      [
+       "get",
+       "min_zoom"
+      ],
+      0
+     ],
+     6
+    ]
+   ]
+  },
+  {
+   "id": "place_city_dot_r7",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "places",
+   "minzoom": 6,
+   "maxzoom": 7,
+   "layout": {
+    "text-field": [
+     "coalesce",
+     [
+      "get",
+      "name:en"
+     ],
+     [
+      "case",
+      [
+       "has",
+       "name3"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ],
+       " ",
+       [
+        "get",
+        "name3"
+       ]
+      ],
+      [
+       "has",
+       "name2"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ]
+      ],
+      [
+       "get",
+       "name"
+      ]
+     ]
+    ],
+    "text-font": [
+     "Montserrat SemiBold",
+     "Open Sans Bold",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "text-size": 12,
+    "icon-image": "circle-11",
+    "icon-offset": [
+     16,
+     5
+    ],
+    "text-anchor": "right",
+    "icon-size": 0.4,
+    "text-max-width": 8,
+    "text-keep-upright": true,
+    "text-offset": [
+     0.2,
+     0.2
+    ],
+    "symbol-sort-key": [
+     "-",
+     [
+      "*",
+      [
+       "coalesce",
+       [
+        "get",
+        "min_zoom"
+       ],
+       20
+      ],
+      100
+     ],
+     [
+      "coalesce",
+      [
+       "get",
+       "population_rank"
+      ],
+      0
+     ]
+    ]
+   },
+   "paint": {
+    "text-color": "rgba(174, 191, 207, 1)",
+    "icon-color": "rgba(94, 105, 106, 1)",
+    "icon-translate-anchor": "map",
+    "text-halo-color": "#222",
+    "text-halo-width": 1
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "locality"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "city"
+     ]
+    ],
+    [
+     "<=",
+     [
+      "coalesce",
+      [
+       "get",
+       "min_zoom"
+      ],
+      0
+     ],
+     7
+    ]
+   ]
+  },
+  {
+   "id": "place_city_dot_r4",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "places",
+   "minzoom": 5,
+   "maxzoom": 7,
+   "layout": {
+    "text-field": [
+     "coalesce",
+     [
+      "get",
+      "name:en"
+     ],
+     [
+      "case",
+      [
+       "has",
+       "name3"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ],
+       " ",
+       [
+        "get",
+        "name3"
+       ]
+      ],
+      [
+       "has",
+       "name2"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ]
+      ],
+      [
+       "get",
+       "name"
+      ]
+     ]
+    ],
+    "text-font": [
+     "Montserrat SemiBold",
+     "Open Sans Bold",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "text-size": 12,
+    "icon-image": "circle-11",
+    "icon-offset": [
+     16,
+     5
+    ],
+    "text-anchor": "right",
+    "icon-size": 0.4,
+    "text-max-width": 8,
+    "text-keep-upright": true,
+    "text-offset": [
+     0.2,
+     0.2
+    ],
+    "symbol-sort-key": [
+     "-",
+     [
+      "*",
+      [
+       "coalesce",
+       [
+        "get",
+        "min_zoom"
+       ],
+       20
+      ],
+      100
+     ],
+     [
+      "coalesce",
+      [
+       "get",
+       "population_rank"
+      ],
+      0
+     ]
+    ]
+   },
+   "paint": {
+    "text-color": "rgba(233, 239, 246, 1)",
+    "icon-color": "#666",
+    "icon-translate-anchor": "map",
+    "text-halo-color": "#222",
+    "text-halo-width": 1
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "locality"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "city"
+     ]
+    ],
+    [
+     "<=",
+     [
+      "coalesce",
+      [
+       "get",
+       "min_zoom"
+      ],
+      0
+     ],
+     5
+    ]
+   ]
+  },
+  {
+   "id": "place_city_dot_r2",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "places",
+   "minzoom": 4,
+   "maxzoom": 7,
+   "layout": {
+    "text-field": [
+     "coalesce",
+     [
+      "get",
+      "name:en"
+     ],
+     [
+      "case",
+      [
+       "has",
+       "name3"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ],
+       " ",
+       [
+        "get",
+        "name3"
+       ]
+      ],
+      [
+       "has",
+       "name2"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ]
+      ],
+      [
+       "get",
+       "name"
+      ]
+     ]
+    ],
+    "text-font": [
+     "Montserrat SemiBold",
+     "Open Sans Bold",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "text-size": 12,
+    "icon-image": "circle-11",
+    "icon-offset": [
+     16,
+     5
+    ],
+    "text-anchor": "right",
+    "icon-size": 0.4,
+    "text-max-width": 8,
+    "text-keep-upright": true,
+    "text-offset": [
+     0.2,
+     0.2
+    ],
+    "symbol-sort-key": [
+     "-",
+     [
+      "*",
+      [
+       "coalesce",
+       [
+        "get",
+        "min_zoom"
+       ],
+       20
+      ],
+      100
+     ],
+     [
+      "coalesce",
+      [
+       "get",
+       "population_rank"
+      ],
+      0
+     ]
+    ]
+   },
+   "paint": {
+    "text-color": "rgba(175, 194, 217, 1)",
+    "icon-color": "rgba(131, 164, 189, 1)",
+    "icon-translate-anchor": "map",
+    "text-halo-color": "#222",
+    "text-halo-width": 1
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "locality"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "city"
+     ]
+    ],
+    [
+     "<=",
+     [
+      "coalesce",
+      [
+       "get",
+       "min_zoom"
+      ],
+      0
+     ],
+     3
+    ]
+   ]
+  },
+  {
+   "id": "place_city_dot_z7",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "places",
+   "minzoom": 7,
+   "maxzoom": 8,
+   "layout": {
+    "text-field": [
+     "coalesce",
+     [
+      "get",
+      "name:en"
+     ],
+     [
+      "case",
+      [
+       "has",
+       "name3"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ],
+       " ",
+       [
+        "get",
+        "name3"
+       ]
+      ],
+      [
+       "has",
+       "name2"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ]
+      ],
+      [
+       "get",
+       "name"
+      ]
+     ]
+    ],
+    "text-font": [
+     "Montserrat SemiBold",
+     "Open Sans Bold",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "text-size": 12,
+    "icon-image": "circle-11",
+    "icon-offset": [
+     16,
+     5
+    ],
+    "text-anchor": "right",
+    "icon-size": 0.4,
+    "text-max-width": 8,
+    "text-keep-upright": true,
+    "text-offset": [
+     0.2,
+     0.2
+    ],
+    "symbol-sort-key": [
+     "-",
+     [
+      "*",
+      [
+       "coalesce",
+       [
+        "get",
+        "min_zoom"
+       ],
+       20
+      ],
+      100
+     ],
+     [
+      "coalesce",
+      [
+       "get",
+       "population_rank"
+      ],
+      0
+     ]
+    ]
+   },
+   "paint": {
+    "text-color": "rgba(160, 179, 191, 1)",
+    "icon-color": "rgba(113, 128, 147, 1)",
+    "icon-translate-anchor": "map",
+    "text-halo-color": "#222",
+    "text-halo-width": 1
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "kind"
+     ],
+     "locality"
+    ],
+    [
+     "!",
+     [
+      "in",
+      [
+       "get",
+       "capital"
+      ],
+      [
+       "literal",
+       [
+        "yes",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6"
+       ]
+      ]
+     ]
+    ],
+    [
+     "any",
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "get",
+        "min_zoom"
+       ],
+       0
+      ],
+      7
+     ],
+     [
+      ">=",
+      [
+       "coalesce",
+       [
+        "get",
+        "population_rank"
+       ],
+       0
+      ],
+      9
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "place_capital_dot_z7",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "places",
+   "minzoom": 7,
+   "maxzoom": 8,
+   "layout": {
+    "text-field": [
+     "coalesce",
+     [
+      "get",
+      "name:en"
+     ],
+     [
+      "case",
+      [
+       "has",
+       "name3"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ],
+       " ",
+       [
+        "get",
+        "name3"
+       ]
+      ],
+      [
+       "has",
+       "name2"
+      ],
+      [
+       "concat",
+       [
+        "get",
+        "name"
+       ],
+       " ",
+       [
+        "get",
+        "name2"
+       ]
+      ],
+      [
+       "get",
+       "name"
+      ]
+     ]
+    ],
+    "text-font": [
+     "Montserrat SemiBold",
+     "Open Sans Bold",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "text-size": 12,
+    "icon-image": "circle-11",
+    "icon-offset": [
+     16,
+     5
+    ],
+    "text-anchor": "right",
+    "icon-size": 0.4,
+    "text-max-width": 8,
+    "text-keep-upright": true,
+    "text-offset": [
+     0.2,
+     0.2
+    ],
+    "text-transform": "uppercase",
+    "symbol-sort-key": [
+     "-",
+     [
+      "*",
+      [
+       "coalesce",
+       [
+        "get",
+        "min_zoom"
+       ],
+       20
+      ],
+      100
+     ],
+     [
+      "coalesce",
+      [
+       "get",
+       "population_rank"
+      ],
+      0
+     ]
+    ]
+   },
+   "paint": {
+    "text-color": "rgba(177, 201, 214, 1)",
+    "icon-color": "#666",
+    "icon-translate-anchor": "map",
+    "text-halo-color": "#222",
+    "text-halo-width": 1
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "kind"
+     ],
+     "locality"
+    ],
+    [
+     "in",
+     [
+      "get",
+      "capital"
+     ],
+     [
+      "literal",
+      [
+       "yes",
+       "2",
+       "3",
+       "4",
+       "5",
+       "6"
+      ]
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "poi_stadium",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "pois",
+   "minzoom": 15,
+   "layout": {
+    "text-field": [
+     "case",
+     [
+      "has",
+      "name3"
+     ],
+     [
+      "concat",
+      [
+       "get",
+       "name"
+      ],
+      " ",
+      [
+       "get",
+       "name2"
+      ],
+      " ",
+      [
+       "get",
+       "name3"
+      ]
+     ],
+     [
+      "has",
+      "name2"
+     ],
+     [
+      "concat",
+      [
+       "get",
+       "name"
+      ],
+      " ",
+      [
+       "get",
+       "name2"
+      ]
+     ],
+     [
+      "get",
+      "name"
+     ]
+    ],
+    "text-font": [
+     "Montserrat SemiBold",
+     "Open Sans Bold",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "text-size": {
+     "stops": [
+      [
+       15,
+       8
+      ],
+      [
+       17,
+       9
+      ],
+      [
+       18,
+       10
+      ]
+     ]
+    },
+    "text-transform": "uppercase"
+   },
+   "paint": {
+    "text-color": "#515151",
+    "text-halo-color": "#151515",
+    "text-halo-width": 1
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "all",
+    [
+     "in",
+     [
+      "get",
+      "kind"
+     ],
+     [
+      "literal",
+      [
+       "stadium",
+       "cemetery",
+       "attraction"
+      ]
+     ]
+    ],
+    [
+     "<=",
+     [
+      "coalesce",
+      [
+       "get",
+       "min_zoom"
+      ],
+      0
+     ],
+     13
+    ]
+   ]
+  },
+  {
+   "id": "poi_park",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "pois",
+   "minzoom": 15,
+   "layout": {
+    "text-field": [
+     "case",
+     [
+      "has",
+      "name3"
+     ],
+     [
+      "concat",
+      [
+       "get",
+       "name"
+      ],
+      " ",
+      [
+       "get",
+       "name2"
+      ],
+      " ",
+      [
+       "get",
+       "name3"
+      ]
+     ],
+     [
+      "has",
+      "name2"
+     ],
+     [
+      "concat",
+      [
+       "get",
+       "name"
+      ],
+      " ",
+      [
+       "get",
+       "name2"
+      ]
+     ],
+     [
+      "get",
+      "name"
+     ]
+    ],
+    "text-font": [
+     "Montserrat SemiBold",
+     "Open Sans Bold",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "text-size": {
+     "stops": [
+      [
+       15,
+       8
+      ],
+      [
+       17,
+       9
+      ],
+      [
+       18,
+       10
+      ]
+     ]
+    },
+    "text-transform": "uppercase"
+   },
+   "paint": {
+    "text-color": "#515151",
+    "text-halo-color": "#151515",
+    "text-halo-width": 1
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind"
+    ],
+    "park"
+   ]
+  },
+  {
+   "id": "roadname_minor",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 16,
+   "layout": {
+    "symbol-placement": "line",
+    "text-font": [
+     "Montserrat Medium",
+     "Open Sans Regular",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "text-size": 9,
+    "text-field": [
+     "case",
+     [
+      "has",
+      "name3"
+     ],
+     [
+      "concat",
+      [
+       "get",
+       "name"
+      ],
+      " ",
+      [
+       "get",
+       "name2"
+      ],
+      " ",
+      [
+       "get",
+       "name3"
+      ]
+     ],
+     [
+      "has",
+      "name2"
+     ],
+     [
+      "concat",
+      [
+       "get",
+       "name"
+      ],
+      " ",
+      [
+       "get",
+       "name2"
+      ]
+     ],
+     [
+      "get",
+      "name"
+     ]
+    ],
+    "symbol-avoid-edges": false,
+    "symbol-spacing": 200,
+    "text-pitch-alignment": "auto",
+    "text-rotation-alignment": "auto",
+    "text-justify": "center"
+   },
+   "paint": {
+    "text-color": "rgba(181, 180, 180, 1)",
+    "text-halo-color": "#111",
+    "text-halo-width": 1
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "all",
+    [
+     "has",
+     "name"
+    ],
+    [
+     "any",
+     [
+      "all",
+      [
+       "!",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "path",
+          "highway",
+          "major_road"
+         ]
+        ]
+       ]
+      ],
+      [
+       "in",
+       [
+        "get",
+        "kind_detail"
+       ],
+       [
+        "literal",
+        [
+         "residential",
+         "unclassified",
+         "living_street",
+         "road",
+         "alley",
+         "driveway",
+         "parking_aisle"
+        ]
+       ]
+      ]
+     ],
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "service"
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "roadname_sec",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 15,
+   "layout": {
+    "symbol-placement": "line",
+    "text-font": [
+     "Montserrat Medium",
+     "Open Sans Regular",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "text-size": {
+     "stops": [
+      [
+       15,
+       9
+      ],
+      [
+       16,
+       11
+      ],
+      [
+       18,
+       12
+      ]
+     ]
+    },
+    "text-field": [
+     "case",
+     [
+      "has",
+      "name3"
+     ],
+     [
+      "concat",
+      [
+       "get",
+       "name"
+      ],
+      " ",
+      [
+       "get",
+       "name2"
+      ],
+      " ",
+      [
+       "get",
+       "name3"
+      ]
+     ],
+     [
+      "has",
+      "name2"
+     ],
+     [
+      "concat",
+      [
+       "get",
+       "name"
+      ],
+      " ",
+      [
+       "get",
+       "name2"
+      ]
+     ],
+     [
+      "get",
+      "name"
+     ]
+    ],
+    "symbol-avoid-edges": false,
+    "symbol-spacing": 200,
+    "text-pitch-alignment": "auto",
+    "text-rotation-alignment": "auto",
+    "text-justify": "center"
+   },
+   "paint": {
+    "text-color": "rgba(146, 146, 146, 1)",
+    "text-halo-color": "rgba(34, 34, 34, 1)",
+    "text-halo-width": 1
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "all",
+    [
+     "has",
+     "name"
+    ],
+    [
+     "any",
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "secondary",
+        "tertiary",
+        "secondary_link",
+        "tertiary_link"
+       ]
+      ]
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       ">=",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       9
+      ]
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "roadname_pri",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 14,
+   "layout": {
+    "symbol-placement": "line",
+    "text-font": [
+     "Montserrat Medium",
+     "Open Sans Regular",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "text-size": {
+     "stops": [
+      [
+       14,
+       10
+      ],
+      [
+       15,
+       10
+      ],
+      [
+       16,
+       11
+      ],
+      [
+       18,
+       12
+      ]
+     ]
+    },
+    "text-field": [
+     "case",
+     [
+      "has",
+      "name3"
+     ],
+     [
+      "concat",
+      [
+       "get",
+       "name"
+      ],
+      " ",
+      [
+       "get",
+       "name2"
+      ],
+      " ",
+      [
+       "get",
+       "name3"
+      ]
+     ],
+     [
+      "has",
+      "name2"
+     ],
+     [
+      "concat",
+      [
+       "get",
+       "name"
+      ],
+      " ",
+      [
+       "get",
+       "name2"
+      ]
+     ],
+     [
+      "get",
+      "name"
+     ]
+    ],
+    "symbol-avoid-edges": false,
+    "symbol-spacing": {
+     "stops": [
+      [
+       6,
+       200
+      ],
+      [
+       16,
+       250
+      ]
+     ]
+    },
+    "text-pitch-alignment": "auto",
+    "text-rotation-alignment": "auto",
+    "text-justify": "center",
+    "text-letter-spacing": {
+     "stops": [
+      [
+       14,
+       0
+      ],
+      [
+       16,
+       0.2
+      ]
+     ]
+    }
+   },
+   "paint": {
+    "text-color": "rgba(189, 189, 189, 1)",
+    "text-halo-color": "#111",
+    "text-halo-width": 1
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "all",
+    [
+     "has",
+     "name"
+    ],
+    [
+     "in",
+     [
+      "get",
+      "kind_detail"
+     ],
+     [
+      "literal",
+      [
+       "primary",
+       "primary_link"
+      ]
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "roadname_major",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "minzoom": 13,
+   "layout": {
+    "symbol-placement": "line",
+    "text-font": [
+     "Montserrat Medium",
+     "Open Sans Regular",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ],
+    "text-size": {
+     "stops": [
+      [
+       14,
+       10
+      ],
+      [
+       15,
+       10
+      ],
+      [
+       16,
+       11
+      ],
+      [
+       18,
+       12
+      ]
+     ]
+    },
+    "text-field": [
+     "case",
+     [
+      "has",
+      "name3"
+     ],
+     [
+      "concat",
+      [
+       "get",
+       "name"
+      ],
+      " ",
+      [
+       "get",
+       "name2"
+      ],
+      " ",
+      [
+       "get",
+       "name3"
+      ]
+     ],
+     [
+      "has",
+      "name2"
+     ],
+     [
+      "concat",
+      [
+       "get",
+       "name"
+      ],
+      " ",
+      [
+       "get",
+       "name2"
+      ]
+     ],
+     [
+      "get",
+      "name"
+     ]
+    ],
+    "symbol-avoid-edges": false,
+    "symbol-spacing": {
+     "stops": [
+      [
+       6,
+       200
+      ],
+      [
+       16,
+       250
+      ]
+     ]
+    },
+    "text-pitch-alignment": "auto",
+    "text-rotation-alignment": "auto",
+    "text-justify": "center",
+    "text-letter-spacing": {
+     "stops": [
+      [
+       13,
+       0
+      ],
+      [
+       16,
+       0.2
+      ]
+     ]
+    }
+   },
+   "paint": {
+    "text-color": "#383838",
+    "text-halo-color": "#111",
+    "text-halo-width": 1
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "all",
+    [
+     "has",
+     "name"
+    ],
+    [
+     "in",
+     [
+      "get",
+      "kind_detail"
+     ],
+     [
+      "literal",
+      [
+       "motorway",
+       "trunk",
+       "motorway_link",
+       "trunk_link"
+      ]
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "housenumber",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "buildings",
+   "minzoom": 17,
+   "maxzoom": 24,
+   "layout": {
+    "text-field": [
+     "get",
+     "addr_housenumber"
+    ],
+    "text-size": {
+     "stops": [
+      [
+       17,
+       9
+      ],
+      [
+       18,
+       11
+      ]
+     ]
+    },
+    "text-font": [
+     "Montserrat Medium",
+     "Open Sans Regular",
+     "Noto Sans Regular",
+     "Noto Naskh Arabic Regular",
+     "Noto Sans Hebrew Regular",
+     "Noto Sans Devanagari Regular",
+     "Noto Sans Bengali Regular",
+     "Noto Sans Gurmukhi Regular",
+     "Noto Sans Gujarati Regular",
+     "Noto Sans Oriya Regular",
+     "Noto Sans Tamil Regular",
+     "Noto Sans Kannada Regular",
+     "Noto Sans Sinhala Regular",
+     "Noto Sans Thai Regular",
+     "Noto Sans Lao Regular",
+     "Noto Sans Khmer Regular",
+     "Noto Sans Myanmar Regular",
+     "Noto Sans Tibetan Regular",
+     "Noto Sans Georgian Regular",
+     "Noto Sans Armenian Regular",
+     "Noto Sans Ethiopic Regular",
+     "Noto Sans Thaana Regular",
+     "Noto Sans Mongolian Regular",
+     "Noto Sans Tifinagh Regular"
+    ]
+   },
+   "paint": {
+    "text-halo-color": "transparent",
+    "text-color": "transparent",
+    "text-halo-width": 0.75
+   },
+   "metadata": {
+    "carto:group": "labels"
+   },
+   "filter": [
+    "has",
+    "addr_housenumber"
+   ]
+  }
+ ]
+}
