@@ -169,7 +169,7 @@ export default function PrivacyPage() {
               </>}
               services={[
                 { name: 'ipapi.co, then freeipapi.com, then ip-api.com', what: 'your connection’s IP address, asked from our server, to place the map' },
-                { name: 'CARTO (basemaps.cartocdn.com)', what: 'the map tiles for the part of the world in view' },
+                { name: 'OpenFreeMap (tiles.openfreemap.org)', what: 'the map tiles for the part of the world in view' },
                 { name: 'Esri (server.arcgisonline.com)', what: 'satellite imagery, only when you switch to the satellite view' },
                 { name: 'Wikipedia and Wikidata (en.wikipedia.org, www.wikidata.org)', what: 'what you type in the place search, asked from your browser, only when our own place search server cannot answer. The place under your cursor or that you right-click is named from a list built into OSIRIS, and nothing is sent for it' },
                 { name: 'osirisai.live', what: 'on a copy of OSIRIS that runs no place search server of its own, what you type in the place search, sent from that copy’s server to our place search server' },

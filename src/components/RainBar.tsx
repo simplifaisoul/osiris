@@ -140,7 +140,7 @@ type Radar = { host: string; frames: Frame[] };
 /** Under the clouds, which hang above the rain; else under the place names. */
 function beneath(map: MlMap): string | undefined {
   const satellite = map.getLayer('satellite-layer') && map.getLayoutProperty('satellite-layer', 'visibility') !== 'none';
-  const firstLabel = map.getStyle().layers.find(layer => layer.type === 'symbol')?.id;
+  const firstLabel = map.getStyle().layers.find(layer => layer.type === 'symbol' && /^places?$/.test(layer['source-layer'] ?? ''))?.id;
   const before = map.getLayer(CLOUDS_LAYER) ? CLOUDS_LAYER : satellite || !firstLabel ? 'day-night-fill' : firstLabel;
   return map.getLayer(before) ? before : undefined;
 }

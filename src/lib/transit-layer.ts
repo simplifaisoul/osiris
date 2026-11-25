@@ -149,7 +149,7 @@ export function attachTransit(map: MlMap, opts: TransitLayerOptions): () => void
     'circle-stroke-color': TRANSIT_COLOR, 'circle-stroke-width': 1.2, 'circle-stroke-opacity': 0.85,
   } });
   map.addLayer({ id: 'transit-coverage-label', type: 'symbol', source: SRC_COVERAGE, minzoom: 3.5, maxzoom: TRANSIT_VEHICLE_ZOOM, layout: {
-    'text-field': ['get', 'name'], 'text-size': 9, 'text-font': ['Open Sans Regular'],
+    'text-field': ['get', 'name'], 'text-size': 9, 'text-font': ['Noto Sans Regular'],
     'text-offset': [0, 1.3], 'text-allow-overlap': false,
   }, paint: { 'text-color': TRANSIT_COLOR, 'text-halo-color': '#000', 'text-halo-width': 1, 'text-opacity': 0.85 } });
   map.addLayer({ id: 'transit-trail', type: 'line', source: SRC_TRAIL, minzoom: TRANSIT_VEHICLE_ZOOM,
@@ -157,7 +157,7 @@ export function attachTransit(map: MlMap, opts: TransitLayerOptions): () => void
     paint: { 'line-color': modeColor, 'line-width': ['interpolate', ['linear'], ['zoom'], 8, 2, 15, 4], 'line-opacity': 0.75 } });
   map.addLayer(vehicleLayer);
   map.addLayer({ id: 'transit-label', type: 'symbol', source: SRC_LABELS, minzoom: LABEL_ZOOM, layout: {
-    'text-field': ['get', 'label'], 'text-size': 9, 'text-font': ['Open Sans Bold'],
+    'text-field': ['get', 'label'], 'text-size': 9, 'text-font': ['Noto Sans Bold'],
     'text-offset': [0, 1.35], 'text-allow-overlap': false,
   }, paint: { 'text-color': modeColor, 'text-halo-color': '#000', 'text-halo-width': 1.2 } });
 

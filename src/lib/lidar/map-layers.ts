@@ -12,7 +12,7 @@ const RELIEF = 'lidar-relief';
 const IMG = 'lidar-field-img';
 const FIELD = 'lidar-field';
 const PROFILE = 'lidar-profile';
-const FONT = ['JetBrains Mono Bold', 'Open Sans Bold'];
+const FONT = ['Noto Sans Bold'];
 const GOLD = '#FFD54A';
 
 const FIELD_LAYERS = [

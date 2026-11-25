@@ -81,14 +81,14 @@ export function attachHighlights(map: MlMap): Highlighter {
     if (!map.getLayer('oi-hl-label')) {
       map.addLayer({
         id: 'oi-hl-label', type: 'symbol', source: POINTS,
-        layout: { 'text-field': ['get', 'label'], 'text-font': ['Open Sans Bold'], 'text-size': 11, 'text-offset': [0, 1.2], 'text-anchor': 'top', 'text-optional': true, 'text-max-width': 14 },
+        layout: { 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 11, 'text-offset': [0, 1.2], 'text-anchor': 'top', 'text-optional': true, 'text-max-width': 14 },
         paint: { 'text-color': '#F5F0E0', 'text-halo-color': 'rgba(4,4,10,0.9)', 'text-halo-width': 1.6 },
       });
     }
     if (!map.getLayer('oi-hl-area-label')) {
       map.addLayer({
         id: 'oi-hl-area-label', type: 'symbol', source: AREA, filter: ['==', ['get', 'kind'], 'centre'],
-        layout: { 'text-field': ['get', 'label'], 'text-font': ['Open Sans Bold'], 'text-size': 10, 'text-letter-spacing': 0.2, 'text-transform': 'uppercase', 'text-offset': [0, -1.4] },
+        layout: { 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 10, 'text-letter-spacing': 0.2, 'text-transform': 'uppercase', 'text-offset': [0, -1.4] },
         paint: { 'text-color': accent, 'text-halo-color': 'rgba(4,4,10,0.9)', 'text-halo-width': 1.4 },
       });
     }

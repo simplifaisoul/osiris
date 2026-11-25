@@ -763,7 +763,7 @@ export function attachOi(map: MlMap, options: OiGlobeOptions = {}): OiGlobe {
         id, type: 'symbol', source: NODES, filter, minzoom,
         layout: {
           'text-field': ['get', 'label'],
-          'text-font': ['Open Sans Bold'],
+          'text-font': ['Noto Sans Bold'],
           'text-size': size,
           'text-offset': [0, 1.1],
           'text-anchor': 'top',
@@ -786,7 +786,7 @@ export function attachOi(map: MlMap, options: OiGlobeOptions = {}): OiGlobe {
         id: 'oi-label-forecast', type: 'symbol', source: NODES, filter: ['==', ['get', 'kind'], 'focus'],
         layout: {
           'text-field': ['get', 'label'],
-          'text-font': ['Open Sans Bold'],
+          'text-font': ['Noto Sans Bold'],
           'text-size': 14,
           'text-letter-spacing': 0.06,
           'text-allow-overlap': true,
