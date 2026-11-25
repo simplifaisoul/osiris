@@ -164,12 +164,11 @@ export default function PrivacyPage() {
               summary={<>
                 So the map can open over your part of the world, our server asks an IP location service roughly where your
                 connection is. It is a city-level guess, it is not stored, and if it cannot tell, the map opens on a
-                well-covered city instead. The map itself (its tiles, the satellite view when you switch to it, and the
-                typefaces) loads from the services that draw it, as with any website that shows a map.
+                well-covered city instead. The map’s tiles come from OSIRIS’s own map server; the satellite view when you
+                switch to it, and the typefaces, load from the services that draw them, as with any website that shows a map.
               </>}
               services={[
                 { name: 'ipapi.co, then freeipapi.com, then ip-api.com', what: 'your connection’s IP address, asked from our server, to place the map' },
-                { name: 'CARTO (basemaps.cartocdn.com)', what: 'the map tiles for the part of the world in view' },
                 { name: 'Esri (server.arcgisonline.com)', what: 'satellite imagery, only when you switch to the satellite view' },
                 { name: 'Wikipedia and Wikidata (en.wikipedia.org, www.wikidata.org)', what: 'what you type in the place search, asked from your browser, only when our own place search server cannot answer. The place under your cursor or that you right-click is named from a list built into OSIRIS, and nothing is sent for it' },
                 { name: 'osirisai.live', what: 'on a copy of OSIRIS that runs no place search server of its own, what you type in the place search, sent from that copy’s server to our place search server' },

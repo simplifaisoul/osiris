@@ -30,7 +30,7 @@ import { attachTerrain, type TerrainStatus } from '@/lib/map-terrain';
 import { applyMapProjection } from '@/lib/map-projection';
 import { attachTransit, type TransitStatus } from '@/lib/transit-layer';
 import { installReliefProtocol } from '@/lib/lidar/relief-tiles';
-import { CARTO_PROTOCOL, cartoLoader, cartoRequestUrl } from '@/lib/carto-fallback';
+import { BASEMAP_PROTOCOL, basemapRequestUrl, basemapTileLoader } from '@/lib/basemap/tile-backup';
 import { syncLidarLayers } from '@/lib/lidar/map-layers';
 import type { LidarMapOverlay } from '@/lib/lidar/store';
 
@@ -389,12 +389,15 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     
-    // Select basemap style
-    const styleUrl = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+    /* CARTO's Dark Matter over the OpenStreetMap world map, from our own tile
+       server through /api/basemap (OpenFreeMap's Dark Matter where no tile
+       server is set up). CARTO, the previous source, refuses osirisai.live. */
+    const origin = window.location.origin;
+    const styleUrl = `${origin}/api/basemap/style`;
 
     const container = containerRef.current;
     maplibregl.setWorkerUrl(`/vendor/maplibre/${maplibregl.getVersion()}/maplibre-gl-worker.mjs`);
-    maplibregl.addProtocol(CARTO_PROTOCOL, cartoLoader());
+    maplibregl.addProtocol(BASEMAP_PROTOCOL, basemapTileLoader());
     /* Open on the whole globe, turned to the viewer's side of it. The UTC
        offset is a free, instant stand-in for longitude (15° an hour), so the
        fly-in to their city after the splash is a dive, not a spin round the
@@ -404,19 +407,19 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       container,
       style: styleUrl,
       center: [facingLng, 20] as [number, number], zoom: 1.8, minZoom: 1.5, maxZoom: 18,
-      /* The basemap is CARTO's, drawn from OpenStreetMap, and the places on it
+      /* The basemap is drawn from OpenStreetMap, and the places on it
          are searched and named through OpenStreetMap too. Both have to be
          credited on the map itself (issue #16). It is collapsed by default so
          it costs a corner icon, not the view. */
       attributionControl: {
         compact: true,
-        // The style credits CARTO and OSM for the map; this credits where search
+        // The style credits the map's makers and OSM; this credits where search
         // results and place names come from: Wikipedia, Wikidata, and GeoNames' list (CC BY 4.0).
         customAttribution: 'Places: <a href="https://www.wikipedia.org/" target="_blank" rel="noopener noreferrer">Wikipedia</a>, <a href="https://www.wikidata.org/" target="_blank" rel="noopener noreferrer">Wikidata</a>, <a href="https://www.geonames.org/" target="_blank" rel="noopener noreferrer">GeoNames</a> (CC BY 4.0)',
       } as const,
       maxPitch: 85,
-      // CARTO's files load through our tile proxy, or straight from CARTO if the proxy can't deliver them.
-      transformRequest: (url: string) => ({ url: cartoRequestUrl(url) }),
+      // Basemap tiles load from our tile server, or from CARTO's cached copy when it can't deliver.
+      transformRequest: (url: string) => ({ url: basemapRequestUrl(url, origin) }),
     };
 
     // MapLibre asks for a high-performance WebGL2 context and throws outright if it
@@ -518,7 +521,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'icon-allow-overlap': true,
         'text-field': ['get','label'],
         'text-size': ['interpolate',['linear'],['zoom'], 1,7, 4,9, 8,11],
-        'text-font': ['Open Sans Bold'],
+        'text-font': ['Noto Sans Bold'],
         'text-offset': [0, 1.4],
         'text-allow-overlap': false,
       }, paint: {
@@ -537,7 +540,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'circle-opacity': 0.55, 'circle-blur': 0.3, 'circle-stroke-width': 1, 'circle-stroke-color': '#F9A825', 'circle-stroke-opacity': 0.25,
       }});
       map.addLayer({ id: 'eq-label', type: 'symbol', source: 'earthquakes', filter: ['>=',['get','magnitude'],4.5], layout: {
-        'text-field': ['concat','M',['to-string',['get','magnitude']]], 'text-size': 9, 'text-font': ['Open Sans Regular'], 'text-offset': [0,1.5],
+        'text-field': ['concat','M',['to-string',['get','magnitude']]], 'text-size': 9, 'text-font': ['Noto Sans Regular'], 'text-offset': [0,1.5],
       }, paint: { 'text-color': '#F9A825', 'text-halo-color': '#000', 'text-halo-width': 1 }});
 
       // Fires — burnt sienna
@@ -559,7 +562,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       }});
       // CCTV — labels at zoom 10+
       map.addLayer({ id: 'cctv-label', type: 'symbol', source: 'cctv', minzoom: 10, layout: {
-        'text-field': ['get','name'], 'text-size': 9, 'text-font': ['Open Sans Regular'],
+        'text-field': ['get','name'], 'text-size': 9, 'text-font': ['Noto Sans Regular'],
         'text-offset': [0, 1.8], 'text-max-width': 12, 'text-allow-overlap': false,
       }, paint: { 'text-color': cameraColor, 'text-halo-color': '#000000', 'text-halo-width': 1.5, 'text-opacity': 0.8 }});
 
@@ -600,7 +603,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'circle-stroke-opacity': ['interpolate',['linear'],['get','age'], 0,0.9, 1,0],
       }});
       map.addLayer({ id: 'malware-label', type: 'symbol', source: 'malware-nodes', minzoom: 5, layout: {
-        'text-field': ['get','malware'], 'text-size': 8, 'text-font': ['JetBrains Mono Bold', 'Open Sans Bold'],
+        'text-field': ['get','malware'], 'text-size': 8, 'text-font': ['Noto Sans Bold'],
         'text-offset': [0, 1.5], 'text-max-width': 10, 'text-allow-overlap': false,
       }, paint: { 'text-color': '#D32F2F', 'text-halo-color': '#111', 'text-halo-width': 1.5, 'text-opacity': 0.85 }});
 
@@ -620,7 +623,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'circle-stroke-width': 1.5, 'circle-stroke-color': '#333', 'circle-stroke-opacity': 0.9,
       }});
       map.addLayer({ id: 'cyber-labels', type: 'symbol', source: 'cyber-heads', minzoom: 3, layout: {
-        'text-field': ['get','malware'], 'text-size': 9, 'text-font': ['JetBrains Mono Bold', 'Open Sans Bold'],
+        'text-field': ['get','malware'], 'text-size': 9, 'text-font': ['Noto Sans Bold'],
         'text-offset': [0, 1.5], 'text-max-width': 10, 'text-allow-overlap': false,
       }, paint: { 'text-color': ['match', ['get','status'], 'online', '#FF6D00', 'reported', '#FFAB40', '#8A8880'], 'text-halo-color': '#000', 'text-halo-width': 1.5, 'text-opacity': 0.85 }});
 
@@ -657,7 +660,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'circle-stroke-width': 1.5, 'circle-stroke-color': '#000000', 'circle-stroke-opacity': 0.7,
       }});
       map.addLayer({ id: 'cf-outage-label', type: 'symbol', source: 'cf-outages', minzoom: 3, layout: {
-        'text-field': ['get','country_name'], 'text-size': 9, 'text-font': ['JetBrains Mono Bold', 'Open Sans Bold'],
+        'text-field': ['get','country_name'], 'text-size': 9, 'text-font': ['Noto Sans Bold'],
         'text-offset': [0, 1.4], 'text-max-width': 12, 'text-allow-overlap': false,
       }, paint: { 'text-color': '#FFB300', 'text-halo-color': '#000', 'text-halo-width': 1.5, 'text-opacity': 0.85 }});
 
@@ -669,7 +672,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       }});
       map.addLayer({ id: 'cf-attack-label', type: 'symbol', source: 'cf-attacks', minzoom: 2, layout: {
         'text-field': ['concat',['get','country'],' ',['to-string',['get','share']],'%'],
-        'text-size': 9, 'text-font': ['JetBrains Mono Bold', 'Open Sans Bold'],
+        'text-size': 9, 'text-font': ['Noto Sans Bold'],
         'text-offset': [0, 1.6], 'text-allow-overlap': false,
       }, paint: { 'text-color': '#FF6B6B', 'text-halo-color': '#000', 'text-halo-width': 1.5, 'text-opacity': 0.9 }});
 
@@ -685,7 +688,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'circle-stroke-width': 1.5, 'circle-stroke-color': '#7E57C2', 'circle-stroke-opacity': 0.35,
       }});
       map.addLayer({ id: 'weather-label', type: 'symbol', source: 'weather', layout: {
-        'text-field': ['get','title'], 'text-size': 9, 'text-font': ['Open Sans Regular'],
+        'text-field': ['get','title'], 'text-size': 9, 'text-font': ['Noto Sans Regular'],
         'text-offset': [0, 2], 'text-max-width': 14, 'text-allow-overlap': false,
       }, paint: { 'text-color': '#7E57C2', 'text-halo-color': '#000', 'text-halo-width': 1, 'text-opacity': 0.8 }});
 
@@ -708,7 +711,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'circle-stroke-width': 1.5, 'circle-stroke-color': ['case', ['in', 'SEISMIC RISK', ['get', 'status']], '#E65100', '#26A69A'], 'circle-stroke-opacity': 0.35,
       }});
       map.addLayer({ id: 'infra-label', type: 'symbol', source: 'infrastructure', minzoom: 5, layout: {
-        'text-field': ['get','name'], 'text-size': 9, 'text-font': ['Open Sans Regular'],
+        'text-field': ['get','name'], 'text-size': 9, 'text-font': ['Noto Sans Regular'],
         'text-offset': [0, 2], 'text-max-width': 14, 'text-allow-overlap': false,
       }, paint: { 'text-color': ['case', ['in', 'SEISMIC RISK', ['get', 'status']], '#E65100', '#26A69A'], 'text-halo-color': '#000', 'text-halo-width': 1, 'text-opacity': 0.7 }});
 
@@ -745,7 +748,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'circle-stroke-width': 1.5, 'circle-stroke-color': ['match', ['get','type'], 'naval','#D32F2F', 'energy','#E65100', '#26C6DA'], 'circle-stroke-opacity': 0.35,
       }});
       map.addLayer({ id: 'maritime-label', type: 'symbol', source: 'maritime', minzoom: 4, layout: {
-        'text-field': ['get','name'], 'text-size': 9, 'text-font': ['Open Sans Regular'],
+        'text-field': ['get','name'], 'text-size': 9, 'text-font': ['Noto Sans Regular'],
         'text-offset': [0, 1.8], 'text-max-width': 12, 'text-allow-overlap': false,
       }, paint: { 'text-color': '#26C6DA', 'text-halo-color': '#000', 'text-halo-width': 1, 'text-opacity': 0.7 }});
 
@@ -761,7 +764,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'circle-stroke-width': 1.5, 'circle-stroke-color': '#E65100', 'circle-stroke-opacity': 0.4,
       }});
       map.addLayer({ id: 'choke-label', type: 'symbol', source: 'maritime-choke', minzoom: 3, layout: {
-        'text-field': ['get','name'], 'text-size': 10, 'text-font': ['Open Sans Bold'],
+        'text-field': ['get','name'], 'text-size': 10, 'text-font': ['Noto Sans Bold'],
         'text-offset': [0, 2], 'text-max-width': 14, 'text-allow-overlap': false,
       }, paint: { 'text-color': '#E65100', 'text-halo-color': '#000', 'text-halo-width': 1, 'text-opacity': 0.9 }});
 
@@ -776,7 +779,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'circle-stroke-width': 1.5, 'circle-stroke-color': '#EC407A', 'circle-stroke-opacity': 0.4,
       }});
       map.addLayer({ id: 'news-label', type: 'symbol', source: 'live-news', minzoom: 4, layout: {
-        'text-field': ['get','name'], 'text-size': 9, 'text-font': ['Open Sans Regular'],
+        'text-field': ['get','name'], 'text-size': 9, 'text-font': ['Noto Sans Regular'],
         'text-offset': [0, 1.8], 'text-max-width': 12, 'text-allow-overlap': false,
       }, paint: { 'text-color': '#EC407A', 'text-halo-color': '#000', 'text-halo-width': 1, 'text-opacity': 0.8 }});
 
@@ -808,7 +811,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'text-field': ['case', ['>', ['get','stack'], 1],
           ['concat', ['get','place_name'], ' ·', ['to-string', ['get','stack']]],
           ['get','place_name']],
-        'text-size': 10, 'text-font': ['Open Sans Bold'],
+        'text-size': 10, 'text-font': ['Noto Sans Bold'],
         'text-offset': [0, 1.2], 'text-anchor': 'top', 'text-max-width': 12, 'text-allow-overlap': false,
       }, paint: { 'text-color': alertColor, 'text-halo-color': '#000', 'text-halo-width': 1.2, 'text-opacity': 0.9 }});
 
@@ -832,7 +835,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       }});
       map.addLayer({ id: 'sweep-device-labels', type: 'symbol', source: 'ip-sweep-devices', minzoom: 13, layout: {
         'text-field': ['concat', ['get', 'device_type'], '\n', ['get', 'ip']],
-        'text-size': 9, 'text-font': ['Open Sans Regular'],
+        'text-size': 9, 'text-font': ['Noto Sans Regular'],
         'text-offset': [0, 2.2], 'text-max-width': 12, 'text-allow-overlap': false,
       }, paint: {
         'text-color': ['get', 'color'], 'text-halo-color': '#000', 'text-halo-width': 1.5, 'text-opacity': 0.9,
@@ -849,7 +852,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'circle-stroke-width': 1.5, 'circle-stroke-color': '#ECEFF1', 'circle-stroke-opacity': 0.7,
       }});
       map.addLayer({ id: 'scan-targets-label', type: 'symbol', source: 'scan-targets', layout: {
-        'text-field': ['get', 'id'], 'text-size': 11, 'text-font': ['Open Sans Bold'],
+        'text-field': ['get', 'id'], 'text-size': 11, 'text-font': ['Noto Sans Bold'],
         'text-offset': [0, 2], 'text-max-width': 14, 'text-allow-overlap': false,
       }, paint: { 'text-color': '#D32F2F', 'text-halo-color': '#000', 'text-halo-width': 1.5, 'text-opacity': 0.9 }});
 
@@ -877,7 +880,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'circle-stroke-width': 1, 'circle-stroke-color': '#fff', 'circle-stroke-opacity': 0.5,
       }});
       map.addLayer({ id: 'balloon-label', type: 'symbol', source: 'balloons', minzoom: 4, layout: {
-        'text-field': ['get','callsign'], 'text-size': 9, 'text-font': ['Open Sans Regular'],
+        'text-field': ['get','callsign'], 'text-size': 9, 'text-font': ['Noto Sans Regular'],
         'text-offset': [0, 1.2], 'text-max-width': 12, 'text-allow-overlap': false,
       }, paint: { 'text-color': ['get', 'color'], 'text-halo-color': '#000', 'text-halo-width': 1 }});
 
@@ -894,7 +897,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'circle-stroke-width': 1.5, 'circle-stroke-color': ['match', ['get','status'], 'DANGER','#D32F2F', 'WARNING','#E65100', '#7E57C2'], 'circle-stroke-opacity': 0.35,
       }});
       map.addLayer({ id: 'rad-label', type: 'symbol', source: 'radiation', minzoom: 5, layout: {
-        'text-field': ['concat', ['to-string', ['get','reading']], ' nSv/h'], 'text-size': 9, 'text-font': ['Open Sans Bold'],
+        'text-field': ['concat', ['to-string', ['get','reading']], ' nSv/h'], 'text-size': 9, 'text-font': ['Noto Sans Bold'],
         'text-offset': [0, 1.5], 'text-allow-overlap': false,
       }, paint: { 'text-color': ['match', ['get','status'], 'DANGER','#D32F2F', 'WARNING','#E65100', '#7E57C2'], 'text-halo-color': '#000', 'text-halo-width': 1 }});
 
@@ -954,7 +957,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         'circle-opacity': 0.75,
       }});
       map.addLayer({ id: 'ship-label', type: 'symbol', source: 'maritime-ships', minzoom: 5, layout: {
-        'text-field': ['get','name'], 'text-size': 9, 'text-font': ['Open Sans Regular'],
+        'text-field': ['get','name'], 'text-size': 9, 'text-font': ['Noto Sans Regular'],
         'text-offset': [0, 1.2], 'text-allow-overlap': false,
       }, paint: { 'text-color': ['match', ['get','type'], 'military','#D32F2F', 'tanker','#E65100', 'cargo','#26C6DA', '#B0BEC5'], 'text-halo-color': '#000', 'text-halo-width': 1 }});
 
@@ -2647,10 +2650,10 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
 
     try {
       if (enabled) {
-        // CARTO's already-loaded vector tiles include the building footprints
-        // and heights. No second worldwide vector source is needed. CARTO
-        // renames its source and schema between releases (carto/building with
-        // render_height, then protomaps/buildings with height), so take both
+        // The basemap's already-loaded vector tiles include the building footprints
+        // and heights. No second worldwide vector source is needed. Basemaps
+        // name the source and schema differently (openmaptiles/building with
+        // render_height, protomaps/buildings with height), so take both
         // names from the style's own building layer.
         const basemapBuildings = map.getStyle().layers.find(
           (l): l is maplibregl.FillLayerSpecification =>
@@ -2766,7 +2769,8 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     if (!map.getSource(CLOUDS_CREDIT)) map.addSource(CLOUDS_CREDIT, { type: 'geojson', data: EMPTY_FC, attribution: CLOUDS_ATTRIBUTION });
     if (!map.getLayer(CLOUDS_CREDIT)) map.addLayer({ id: CLOUDS_CREDIT, type: 'circle', source: CLOUDS_CREDIT });
     const satellite = map.getLayer('satellite-layer') && map.getLayoutProperty('satellite-layer', 'visibility') !== 'none';
-    const firstLabel = map.getStyle().layers.find(layer => layer.type === 'symbol')?.id;
+    // Place names, not the first label: some basemaps draw water names below their roads and borders.
+    const firstLabel = map.getStyle().layers.find(layer => layer.type === 'symbol' && /^places?$/.test(layer['source-layer'] ?? ''))?.id;
     map.moveLayer(CLOUDS_LAYER, satellite || !firstLabel ? 'day-night-fill' : firstLabel);
     // A new frame lands every hour; move to it once it is up.
     const refresh = setInterval(() => clouds.setFrame(frameTime()), 5 * 60_000);
@@ -3195,7 +3199,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         layout: {
           'text-field': ['get', 'label'],
           'text-size': 11,
-          'text-font': ['Open Sans Bold'],
+          'text-font': ['Noto Sans Bold'],
           'text-offset': [0, 1.6],
           'text-allow-overlap': true,
         },
