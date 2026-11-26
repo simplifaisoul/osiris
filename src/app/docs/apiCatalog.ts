@@ -640,7 +640,7 @@ export const API_GROUPS: ApiGroup[] = [
         returns: ['provider', 'ok', 'listed', 'models', 'default'],
         headers: { 'X-OI-Key': '$YOUR_MODEL_KEY' },
         requiresAuth: true,
-        notes: 'Providers: `openai`, `anthropic`, `google`, `openrouter`, `groq`, `deepseek`, `xai`, `mistral`, `qwen`. 401 when the provider rejects the key, 402 when the account is out of credit. 20 checks per minute per address.',
+        notes: 'Providers: `openai`, `anthropic`, `google`, `openrouter`, `groq`, `deepseek`, `xai`, `mistral`, `qwen`, `cheaperinference`. 401 when the provider rejects the key, 402 when the account is out of credit. 20 checks per minute per address.',
         bodyExample: `{
   "provider": "openai"
 }`,
