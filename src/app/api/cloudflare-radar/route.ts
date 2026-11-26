@@ -177,7 +177,9 @@ export async function GET(req: Request) {
   // not blank the whole layer.
   const [outagesRes, attacksRes] = await Promise.allSettled([
     radarFetch('/annotations/outages?limit=50&format=json', signal),
-    radarFetch('/attacks/layer3/top/locations/origin?limit=25&format=json', signal),
+    // Radar now answers 400 ("You must send either range or start & end dates")
+    // without a window; the last day matches a live layer.
+    radarFetch('/attacks/layer3/top/locations/origin?limit=25&format=json&dateRange=1d', signal),
   ]);
 
   const outages = outagesRes.status === 'fulfilled' ? mapOutages(outagesRes.value) : [];
