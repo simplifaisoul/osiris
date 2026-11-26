@@ -423,7 +423,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
         <div className="flex items-center gap-2 mb-1.5">
           <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
           <span className="text-[11px] font-mono font-bold text-red-400 tracking-wider">
-            SANCTIONED — {match.source || 'OFAC SDN'}
+            SANCTIONED — {match.source || 'US sanctions'}
           </span>
         </div>
         {match.hits.slice(0, 5).map((h: any, i: number) => (
