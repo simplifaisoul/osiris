@@ -1,11 +1,12 @@
 'use client';
 
-import { Box, ExternalLink, Satellite, X } from 'lucide-react';
+import { ExternalLink, Satellite, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { SatState } from '@/lib/orbit';
 import { orbitUrl, readEphemeris, stateAt, type Ephemeris } from '@/lib/satellite-live';
-import SatelliteView from '@/components/SatelliteView';
+import ViewBelow from '@/components/ViewBelow';
 import SatelliteModel from '@/components/SatelliteModel';
+import { colorSafe, compass, Field, PictureToggle, type Picture } from '@/components/CardBits';
 
 /**
  * OSIRIS — selected satellite readout
@@ -56,11 +57,6 @@ function regime(altKm: number): { label: string; note: string } {
   if (altKm < 35000) return { label: 'MEO', note: 'Medium Earth orbit' };
   if (altKm <= 36500) return { label: 'GEO', note: 'Geostationary belt' };
   return { label: 'HEO', note: 'High / highly elliptical' };
-}
-
-const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-function compass(deg: number): string {
-  return COMPASS[Math.round(deg / 45) % 8];
 }
 
 /**
@@ -114,27 +110,6 @@ function period(minutes: number): string {
   return `${h}h ${String(m).padStart(2, '0')}m`;
 }
 
-/** Only a literal hex colour reaches an inline style. */
-function colorSafe(value: string | undefined): string {
-  return /^#[0-9a-fA-F]{3,8}$/.test(String(value ?? '')) ? String(value) : 'var(--cyan-primary)';
-}
-
-function Field({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
-  return (
-    <div className="min-w-0">
-      <div className="text-[8px] font-mono tracking-[0.15em] text-[var(--text-muted)]">{label}</div>
-      <div
-        className="truncate text-[11px] font-mono tabular-nums text-[var(--text-primary)]"
-        style={color ? { color } : undefined}
-        title={value}
-      >
-        {value}
-      </div>
-      {sub && <div className="truncate text-[9px] font-mono tabular-nums text-[var(--text-secondary)]">{sub}</div>}
-    </div>
-  );
-}
-
 export default function SatelliteCard({ sat, onClose, onLive }: {
   sat: SatelliteDetail;
   onClose: () => void;
@@ -148,23 +123,8 @@ export default function SatelliteCard({ sat, onClose, onLive }: {
   const alt = live?.altKm ?? sat.alt;
   const shell = regime(alt);
   // The picture: the ground below the satellite, or the satellite itself.
-  const [picture, setPicture] = useState<'view' | 'model'>('view');
-  const pictureToggle = (
-    <div className="flex overflow-hidden rounded bg-black/60 text-[8px] font-mono tracking-[0.14em]" role="group" aria-label="Picture">
-      {([['view', 'VIEW'], ['model', '3D MODEL']] as const).map(([key, text]) => (
-        <button
-          key={key}
-          onClick={() => setPicture(key)}
-          aria-pressed={picture === key}
-          className={`flex items-center gap-1 px-1.5 py-1 transition-colors ${picture === key ? 'bg-white/15' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
-          style={picture === key ? { color: accent } : undefined}
-        >
-          {key === 'model' && <Box className="h-2.5 w-2.5" />}
-          {text}
-        </button>
-      ))}
-    </div>
-  );
+  const [picture, setPicture] = useState<Picture>('view');
+  const pictureToggle = <PictureToggle picture={picture} onChange={setPicture} accent={accent} />;
 
   return (
     <div
@@ -203,7 +163,7 @@ export default function SatelliteCard({ sat, onClose, onLive }: {
       </div>
 
       {picture === 'view' ? (
-        <SatelliteView lat={lat} lng={lng} altKm={alt} headingDeg={live?.headingDeg ?? null} accent={accent} corner={pictureToggle} />
+        <ViewBelow lat={lat} lng={lng} altKm={alt} headingDeg={live?.headingDeg ?? null} accent={accent} corner={pictureToggle} />
       ) : (
         <SatelliteModel
           name={sat.name}
