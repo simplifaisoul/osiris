@@ -14,18 +14,19 @@ import {
 } from '@/lib/satellite-view';
 
 /**
- * OSIRIS — what the selected satellite is over
+ * OSIRIS — what the selected satellite or aircraft is over
  *
  * A small globe of Esri World Imagery looking straight down from the
- * satellite, the way an orbital camera would. It follows the satellite every
- * second with the direction of travel at the top, so the ground slides
- * underneath. The width of the picture is a lens: 60° in low orbit, the whole
- * Earth from geostationary height, narrowed by the zoom steps.
+ * satellite or aircraft, the way a camera underneath would. It follows it
+ * every second with the direction of travel at the top, so the ground slides
+ * underneath. The width of the picture is a lens: 60° from an aircraft or a
+ * low orbit (about 13 km of ground from cruising height, 490 km from the ISS),
+ * the whole Earth from geostationary height, narrowed by the zoom steps.
  *
- * The imagery is Esri's archive mosaic, not a frame from this satellite, and
- * the picture says so.
+ * The imagery is Esri's archive mosaic, not a live frame, and the picture
+ * says so.
  */
-export default function SatelliteView({ lat, lng, altKm, headingDeg, accent, corner }: {
+export default function ViewBelow({ lat, lng, altKm, headingDeg, accent, corner }: {
   lat: number;
   lng: number;
   altKm: number;
@@ -91,7 +92,7 @@ export default function SatelliteView({ lat, lng, altKm, headingDeg, accent, cor
     <div className="border-t border-[var(--border-secondary)]">
       <div
         className="relative h-[150px] w-full overflow-hidden bg-black md:h-[168px]"
-        title="Esri World Imagery under the satellite's live position. Archive imagery, not a live feed from the satellite."
+        title="Esri World Imagery under its live position. Archive imagery, not a live camera feed."
       >
         {/* Sized by height and width, not by inset: MapLibre makes its container
             position: relative, which would collapse an inset-only box to nothing. */}

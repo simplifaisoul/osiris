@@ -17,6 +17,7 @@ import { STYLE_EVENT } from '@/lib/style-tokens';
 import { arrivalBeacons } from '@/lib/malware-intel';
 import { ALERT_KINDS, timeAgo, type AlertKind } from '@/lib/alert-digest';
 import SatelliteCard, { type SatelliteDetail } from '@/components/SatelliteCard';
+import AircraftCard, { type AircraftMapState, type AircraftSelection } from '@/components/AircraftCard';
 import type { SatState } from '@/lib/orbit';
 import { orbitUrl, readEphemeris } from '@/lib/satellite-live';
 import CctvPreviews, { type PreviewCamera } from '@/components/CctvPreviews';
@@ -57,7 +58,37 @@ const CLICKABLE_LAYERS: ReadonlySet<string> = new Set(['conflict-icons','cctv-do
   'balloon-dots','rad-dots','ship-dots','sweep-device-dots','scan-targets-dots',
   'sdk-sea','sdk-air','sdk-intel','malware-dots','cyber-heads','gdelt-events-dots',
   'cf-outage-dots','cf-attack-dots','flight-dots','military-dots','jet-dots','private-dots','alert-pin-dots',
-  'transit-coverage-dots']);
+  'transit-coverage-dots','fl-commercial','fl-private','fl-jets','fl-military','sel-ac-icon']);
+
+/** The aircraft layers, their icons and the palette colour each is drawn in. */
+const FLIGHT_LAYERS: Record<string, [icon: string, colour: 'flightCivil' | 'flightPrivate' | 'flightGov' | 'flightMilitary']> = {
+  'fl-commercial': ['plane-cyan', 'flightCivil'],
+  'fl-private': ['plane-green', 'flightPrivate'],
+  'fl-jets': ['plane-pink', 'flightGov'],
+  'fl-military': ['plane-red', 'flightMilitary'],
+};
+
+/** Where a click on an aircraft takes the camera: close enough to see the ground it is crossing. */
+const AIRCRAFT_FLIGHT_MIN_ZOOM = 7;
+const AIRCRAFT_FLIGHT_MAX_ZOOM = 10;
+
+/**
+ * The selected aircraft's own layers: a ring and its live marker. Added the
+ * first time an aircraft is selected, on top of everything else.
+ */
+function ensureAircraftLayers(map: maplibregl.Map) {
+  if (!map.getSource('sel-ac-point')) map.addSource('sel-ac-point', { type: 'geojson', data: EMPTY_FC });
+  if (!map.getLayer('sel-ac-ring')) {
+    map.addLayer({ id: 'sel-ac-ring', type: 'circle', source: 'sel-ac-point',
+      paint: { 'circle-radius': 14, 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-width': 1.5, 'circle-stroke-color': '#00e5ff' } });
+  }
+  if (!map.getLayer('sel-ac-icon')) {
+    map.addLayer({ id: 'sel-ac-icon', type: 'symbol', source: 'sel-ac-point', layout: {
+      'icon-image': 'plane-cyan', 'icon-size': 1.25, 'icon-rotate': ['get', 'heading'],
+      'icon-rotation-alignment': 'map', 'icon-allow-overlap': true, 'icon-ignore-placement': true,
+    } });
+  }
+}
 
 /*
  * Where a satellite click takes the camera. From world view it comes in to
@@ -288,6 +319,44 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     if (flight && map && performance.now() - flight.at < SAT_FLIGHT_REDIRECT_MS) {
       map.easeTo({ center: [s.lng, s.lat], zoom: flight.zoom, duration: 900 });
     }
+  }, []);
+
+  const [selectedAircraft, setSelectedAircraft] = useState<AircraftSelection | null>(null);
+  /** The flight to a clicked aircraft, so its first live fix can finish it where the aircraft really is. */
+  const acFlightRef = useRef<{ at: number; zoom: number } | null>(null);
+  /** Selects an aircraft: its own live marker takes over from the feed's, which would sit where the feed last put it. */
+  const selectAircraft = useCallback((sel: AircraftSelection, icon: string, featureId: unknown) => {
+    const map = mapRef.current;
+    if (!map) return;
+    ensureAircraftLayers(map);
+    map.setLayoutProperty('sel-ac-icon', 'icon-image', icon);
+    map.setPaintProperty('sel-ac-ring', 'circle-stroke-color', sel.color);
+    for (const id of Object.keys(FLIGHT_LAYERS)) {
+      if (map.getLayer(id)) map.setFilter(id, ['!=', ['get', 'icao24'], featureId as string]);
+    }
+    setSelectedAircraft(sel);
+  }, []);
+  const clearAircraft = useCallback(() => {
+    setSelectedAircraft(null);
+    const map = mapRef.current;
+    if (!map) return;
+    for (const id of Object.keys(FLIGHT_LAYERS)) if (map.getLayer(id)) map.setFilter(id, null);
+    (map.getSource('sel-ac-point') as maplibregl.GeoJSONSource | undefined)?.setData(EMPTY_FC);
+  }, []);
+  /** Each second from the card: the aircraft where it is now. */
+  const onAircraftMap = useCallback((st: AircraftMapState) => {
+    const map = mapRef.current;
+    const point = map?.getSource('sel-ac-point') as maplibregl.GeoJSONSource | undefined;
+    if (!point) return;
+    // The feed's position can be minutes old: the first live fix finishes the flight on the aircraft.
+    const flight = acFlightRef.current;
+    if (flight && st.live) {
+      acFlightRef.current = null;
+      if (performance.now() - flight.at < SAT_FLIGHT_REDIRECT_MS + 1000) map!.easeTo({ center: [st.lng, st.lat], zoom: flight.zoom, duration: 900 });
+    }
+    point.setData({ type: 'FeatureCollection', features: [{
+      type: 'Feature', properties: { heading: st.trackDeg ?? 0 }, geometry: { type: 'Point', coordinates: [st.lng, st.lat] },
+    }] });
   }, []);
 
   /** Drops the selection: the ring and the readout together. Leaving one of
@@ -1027,121 +1096,37 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
 
     // ── XSS PROTECTION HELPERS ──
     const htmlEsc = (s: any): string => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-    const idSafe = (s: any): string => String(s ?? '').replace(/[^a-zA-Z0-9_\.\-]/g, '');
     // An http(s) link, escaped and ready for an href or src attribute: a quote
     // in a feed's URL would otherwise close the attribute and open a handler.
     const urlSafe = (s: any): string => { const u = String(s ?? ''); return /^https?:\/\//i.test(u) ? htmlEsc(u) : '#'; };
 
-    const formatTime = (iso: string | null) => {
-      if (!iso) return '—';
-      try {
-        const d = new Date(iso);
-        return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZoneName: 'short' });
-      } catch { return '—'; }
-    };
-
-    // ── Flights (with FlightAware + ADS-B Exchange links + ROUTE VISUALIZATION) ──
-    ['fl-commercial','fl-private','fl-jets','fl-military'].forEach(layer => {
+    // ── Flights: a click opens the aircraft card and takes the camera to it ──
+    Object.entries(FLIGHT_LAYERS).forEach(([layer, [icon, colour]]) => {
       map.on('click', layer, e => {
-        if (!e.features?.length) return;
-        const p = e.features[0].properties as any;
-        const coords = (e.features[0].geometry as any).coordinates;
-        const cs = (p.callsign||'').trim();
-
-        // Show initial popup immediately (without route data)
-        const routeLoadingId = `route-info-${Date.now()}`;
-        popup(coords, `<div style="${pStyle}border:1px solid rgba(255,255,255,0.08);">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-            <span style="color:#E8E6E0;font-size:15px;font-weight:700;letter-spacing:0.08em;">${htmlEsc(cs)}</span>
-            <span style="color:#5C5A54;font-size:10px;">${htmlEsc(p.icao24||'')}</span>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:11px;">
-            <div><span style="color:#5C5A54;font-size:9px;">MODEL</span><br/><span style="color:#B0BEC5;">${htmlEsc(p.model||'—')}</span></div>
-            <div><span style="color:#5C5A54;font-size:9px;">ALT</span><br/><span style="color:#B0BEC5;">${p.alt?Math.round(p.alt)+'m':'—'}</span></div>
-            <div><span style="color:#5C5A54;font-size:9px;">SPEED</span><br/><span style="color:#B0BEC5;">${p.speed_knots||'—'}kt</span></div>
-            <div><span style="color:#5C5A54;font-size:9px;">HDG</span><br/><span style="color:#B0BEC5;">${Math.round(p.heading||0)}°</span></div>
-            <div><span style="color:#5C5A54;font-size:9px;">REG</span><br/><span style="color:#B0BEC5;">${htmlEsc(p.registration||'—')}</span></div>
-            <div><span style="color:#5C5A54;font-size:9px;">POS</span><br/><span style="color:#B0BEC5;">${coords[1].toFixed(2)},${coords[0].toFixed(2)}</span></div>
-          </div>
-          <div id="ac-${idSafe(p.icao24||'')}" style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);">
-            <span style="color:#5C5A54;font-size:9px;letter-spacing:0.1em;">IDENTIFYING AIRFRAME…</span>
-          </div>
-          <button onclick="window.osirisWatchFlight && window.osirisWatchFlight({ icao24: '${idSafe(p.icao24||'')}', callsign: '${idSafe(cs)}' })" style="width:100%;margin-top:8px;padding:6px 12px;background:rgba(0,229,255,0.10);border:1px solid rgba(0,229,255,0.35);color:#7FE9FF;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:bold;letter-spacing:0.1em;border-radius:4px;cursor:pointer;">+ WATCH THIS AIRCRAFT</button>
-          <div id="${routeLoadingId}" style="margin-top:8px;padding:6px;border-top:1px solid rgba(255,255,255,0.06);text-align:center;">
-            <span style="color:#5C5A54;font-size:9px;letter-spacing:0.1em;">RESOLVING ROUTE…</span>
-          </div>
-          <div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap;">
-            <a href="https://www.flightaware.com/live/flight/${encodeURIComponent(cs)}" target="_blank" style="${linkStyle}color:#78909C;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);">FLIGHTAWARE</a>
-            <a href="https://globe.adsbexchange.com/?icao=${encodeURIComponent(p.icao24||'')}" target="_blank" style="${linkStyle}color:#78909C;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);">ADS-B</a>
-            <a href="https://www.radarbox.com/data/flights/${encodeURIComponent(cs)}" target="_blank" style="${linkStyle}color:#78909C;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);">RADARBOX</a>
-          </div>
-        </div>`);
-
-        // The transponder only reports a type code (often nothing at all), so
-        // resolve the real manufacturer/model and registration out of band.
-        if (p.icao24) {
-          fetch(`/api/aircraft?icao24=${encodeURIComponent(p.icao24)}`)
-            .then(r => (r.ok ? r.json() : null))
-            .then((d) => {
-              const el = document.getElementById(`ac-${p.icao24}`);
-              if (!el || !d || d.error) {
-                if (el) el.innerHTML = '<span style="color:#5C5A54;font-size:9px;">AIRFRAME NOT IN REGISTRY</span>';
-                return;
-              }
-              const bits = [d.registration, d.typeCode, d.operator].filter(Boolean)
-                .map((x: string) => htmlEsc(String(x))).join(' · ');
-              el.innerHTML =
-                `<div style="color:#E8E6E0;font-size:11px;line-height:1.35;">${htmlEsc(d.model || 'Unidentified type')}</div>` +
-                (bits ? `<div style="color:#78909C;font-size:9px;margin-top:2px;">${bits}</div>` : '');
-            })
-            .catch(() => {});
-        }
-
-        // Resolve origin/destination for the readout only. The line this used
-        // to draw was a straight hop between two airports, which is not the
-        // path flown — watched aircraft draw their real reported track instead.
-        const cleanCallsign = cs.replace(/\s+/g, '');
-        const routeParams = new URLSearchParams({
-          callsign: cleanCallsign,
-          icao24: p.icao24 || '',
-          lat: String(coords[1]),
-          lng: String(coords[0]),
-          speed: String(p.speed_knots || 0),
-        });
-        fetch(`/api/flight-route?${routeParams}`)
-          .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-          .then(routeData => {
-            const el = document.getElementById(routeLoadingId);
-            if (!el) return;
-            if (routeData.found && routeData.origin && routeData.destination) {
-              const depTime = formatTime(routeData.departureTime);
-              const arrTime = formatTime(routeData.arrivalTime);
-              const pct = Math.round((routeData.progress || 0) * 100);
-              const distKm = routeData.totalDistanceKm || 0;
-              el.innerHTML = `
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-                  <div><span style="color:#5C5A54;font-size:8px;">FROM</span><br/><span style="color:#E8E6E0;font-size:13px;font-weight:700;">${htmlEsc(routeData.origin.iata || routeData.origin.icao)}</span> <span style="color:#5C5A54;font-size:9px;">${htmlEsc(routeData.origin.city)}</span></div>
-                  <span style="color:#5C5A54;font-size:11px;">&rarr;</span>
-                  <div style="text-align:right;"><span style="color:#5C5A54;font-size:8px;">TO</span><br/><span style="color:#E8E6E0;font-size:13px;font-weight:700;">${htmlEsc(routeData.destination.iata || routeData.destination.icao)}</span> <span style="color:#5C5A54;font-size:9px;">${htmlEsc(routeData.destination.city)}</span></div>
-                </div>
-                <div style="height:2px;background:rgba(255,255,255,0.06);border-radius:1px;margin:6px 0;"><div style="width:${pct}%;height:100%;background:rgba(255,255,255,0.35);border-radius:1px;"></div></div>
-                <div style="display:flex;justify-content:space-between;font-size:10px;color:#78909C;">
-                  <span>DEP ${depTime}</span>
-                  <span>${pct}% &middot; ${distKm.toLocaleString()}km</span>
-                  <span>ARR ${arrTime}</span>
-                </div>
-              `;
-            } else {
-              el.innerHTML = `<span style="color:#5C5A54;font-size:9px;">NO SCHEDULED ROUTE</span>`;
-            }
-          })
-          .catch(() => {
-            const el = document.getElementById(routeLoadingId);
-            if (el) el.innerHTML = `<span style="color:#5C5A54;font-size:9px;">ROUTE UNAVAILABLE</span>`;
-          });
+        const f = e.features?.[0];
+        const p = f?.properties as any;
+        if (!f || !p?.icao24) return;
+        const coords = (f.geometry as any).coordinates as [number, number];
+        popupRef.current?.remove();
+        clearSat();
+        selectAircraft({
+          icao24: String(p.icao24).toLowerCase(),
+          callsign: String(p.callsign || '').trim(),
+          color: paletteRef.current[colour],
+          feed: { ...p, lat: coords[1], lng: coords[0] },
+          feedAt: null,
+        }, icon, p.icao24);
+        const zoom = Math.min(Math.max(map.getZoom(), AIRCRAFT_FLIGHT_MIN_ZOOM), AIRCRAFT_FLIGHT_MAX_ZOOM);
+        acFlightRef.current = { at: performance.now(), zoom };
+        map.easeTo({ center: coords, zoom, duration: 1200 });
       });
       map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
       map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
+    });
+    // A click anywhere that is not an aircraft lets the selected one go.
+    map.on('click', e => {
+      const layers = [...Object.keys(FLIGHT_LAYERS), 'sel-ac-icon'].filter(id => map.getLayer(id));
+      if (!map.queryRenderedFeatures(e.point, { layers }).length) clearAircraft();
     });
 
     // ── CCTV (opens CameraViewer panel) ──
@@ -1208,6 +1193,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       // empty click has to clear the ring and the track rather than leave them
       // lit over nothing.
       if (idx == null || !p) { clearSat(); return; }
+      clearAircraft();
 
       // The readout is a panel, not a MapLibre popup: a popup can only anchor
       // to a ground coordinate, and these markers are drawn at altitude. Any
@@ -1898,7 +1884,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       }
       return filtered.map((f: any) => ({
         type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: [f.lng, f.lat] },
-        properties: { callsign: f.callsign, heading: f.heading || 0, alt: f.alt, model: f.model, speed_knots: f.speed_knots, registration: f.registration, icao24: f.icao24 },
+        properties: { callsign: f.callsign, heading: f.heading || 0, alt: f.alt, model: f.model, speed_knots: f.speed_knots, registration: f.registration, icao24: f.icao24, squawk: f.squawk, grounded: f.grounded, aircraft_category: f.aircraft_category },
       }));
     };
     setGeo('flights', activeLayers.flights ? toFeatures(data.commercial_flights, 10) : []);
@@ -3488,6 +3474,13 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     return () => window.removeEventListener('keydown', onKey);
   }, [selectedSat, clearSat]);
 
+  useEffect(() => {
+    if (!selectedAircraft) return;
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') clearAircraft(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedAircraft, clearAircraft]);
+
   // Zooming past the ceiling takes the satellites off the map, so a readout
   // left over from before the zoom would be describing something no longer
   // there — and its ring and orbit are already gone.
@@ -3528,6 +3521,9 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       )}
       {/* Keyed by satellite, so a new selection starts with no live figures
           from the last one. */}
+      {selectedAircraft && (
+        <AircraftCard key={selectedAircraft.icao24} ac={selectedAircraft} onClose={clearAircraft} onMap={onAircraftMap} />
+      )}
       {selectedSat && (
         <SatelliteCard
           key={selectedSat.noradId ?? selectedSat.name}
