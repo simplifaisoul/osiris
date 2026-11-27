@@ -23,6 +23,23 @@ describe('quakeMagnitudeByCountry', () => {
     expect(quakeMagnitudeByCountry([quake('10km NE of Reno, Nevada', 4.6)]).VE).toBeUndefined();
   });
 
+  /* "South Sudan" ends in the whole word "sudan", so word boundaries alone
+     still scored Sudan. These are place strings USGS has published. */
+  it('does not credit Sudan for a South Sudan earthquake', () => {
+    expect(quakeMagnitudeByCountry([
+      quake('50 km E of Juba, South Sudan', 4.8),
+      quake('80 km NNW of Torit, South Sudan', 4.5),
+    ]).SD).toBeUndefined();
+  });
+
+  it('still credits Sudan where the place names Sudan itself', () => {
+    const totals = quakeMagnitudeByCountry([
+      quake('30 km N of Kassala, Sudan', 4.6),
+      quake('Sudan-South Sudan border region', 4.5),
+    ]);
+    expect(totals.SD).toBeCloseTo(9.1);
+  });
+
   it('still sums real matches for the right country', () => {
     const totals = quakeMagnitudeByCountry([
       quake('12 km NE of Kyiv, Ukraine', 4.5),
